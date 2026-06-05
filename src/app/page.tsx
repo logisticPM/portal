@@ -59,6 +59,9 @@ export default async function Home() {
             </div>
           ))}
         </div>
+        <a href="/register" className="inline-block mt-3 text-cedar hover:underline text-sm">
+          + register a new supplier
+        </a>
       </section>
 
       <section className="border-t border-white/10 pt-8">
