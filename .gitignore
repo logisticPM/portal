@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+.env.local
+*.log
+.DS_Store
+next-env.d.ts
+
+# third-party reference PDFs — kept locally, not committed (bloat + copyright)
+docs/specs/*.pdf
