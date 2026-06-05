@@ -44,7 +44,7 @@ export default async function RecordPage({
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <h1 className="font-serif text-2xl">{supplier?.name}</h1>
-        <TierBadge tier={supplier?.identityTier} />
+        <TierBadge party={supplier} />
         <a className="ml-auto text-ink3 underline text-sm" href={`/confirm?as=${supplierId}`}>
           confirm inbox →
         </a>

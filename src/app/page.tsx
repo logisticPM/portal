@@ -13,7 +13,13 @@ export default async function Home() {
         <h1 className="font-serif text-3xl mb-2">
           Pick a role <span className="text-ink3 text-base">(demo — no real auth)</span>
         </h1>
-        <p className="text-ink2">Three audiences, one confirmed dataset.</p>
+        <p className="text-ink2">
+          Three audiences, one confirmed dataset.{" "}
+          <span className="text-ink3">
+            Dev-only role switcher — companies and suppliers are separate party types; pick whose
+            view to see.
+          </span>
+        </p>
       </div>
 
       <section>
@@ -35,7 +41,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section>
+      <section className="border-t border-white/10 pt-8">
         <h2 className="text-cedar text-xs uppercase tracking-widest mb-3">
           Supplier — your pages (Jack)
         </h2>
@@ -43,7 +49,7 @@ export default async function Home() {
           {suppliers.map((s) => (
             <div key={s.id} className="flex items-center gap-4 bg-panel rounded px-4 py-3">
               <span className="flex-1">{s.name}</span>
-              <TierBadge tier={s.identityTier} />
+              <TierBadge party={s} />
               <a className="text-amber hover:underline" href={`/confirm?as=${s.id}`}>
                 confirm
               </a>
@@ -55,7 +61,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section>
+      <section className="border-t border-white/10 pt-8">
         <h2 className="text-amber text-xs uppercase tracking-widest mb-3">
           Indigenomics — your page (Jack)
         </h2>

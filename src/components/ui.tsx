@@ -1,4 +1,4 @@
-import type { IdentityTier, ConfirmationStatus } from "@/lib/repo/types";
+import type { IdentityTier, ConfirmationStatus, Party } from "@/lib/repo/types";
 
 export function money(n: number): string {
   return new Intl.NumberFormat("en-CA", {
@@ -19,8 +19,10 @@ const tierLabels: Record<IdentityTier, string> = {
   self_declared: "Self-declared",
 };
 
-export function TierBadge({ tier }: { tier?: IdentityTier }) {
-  if (!tier) return null;
+// Only suppliers carry a tier — pass the whole party and let the badge narrow by role.
+export function TierBadge({ party }: { party?: Party | null }) {
+  if (!party || party.role !== "supplier") return null;
+  const tier = party.identityTier;
   return (
     <span
       className={`text-[0.65rem] uppercase tracking-wider border rounded-full px-2 py-0.5 ${tierStyles[tier]}`}

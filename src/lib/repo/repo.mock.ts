@@ -1,6 +1,7 @@
 import type {
   PortalRepo,
   Party,
+  Supplier,
   ReportedLine,
   Confirmation,
   Pillar,
@@ -101,7 +102,8 @@ function confirmedAmount(line: ReportedLine): number {
 }
 
 function tierOf(supplierId: string): IdentityTier {
-  return parties.find((p) => p.id === supplierId)?.identityTier ?? "self_declared";
+  const p = parties.find((x) => x.id === supplierId);
+  return p && p.role === "supplier" ? p.identityTier : "self_declared";
 }
 
 // --- repo ------------------------------------------------------------------
@@ -115,7 +117,7 @@ export const mockRepo: PortalRepo = {
   },
 
   async registerSupplier(input) {
-    const party: Party = {
+    const party: Supplier = {
       id: `s-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
       role: "supplier",
       name: input.name,

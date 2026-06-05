@@ -11,14 +11,23 @@ export type IdentityTier = "nation" | "ccab" | "self_declared";
 
 export type PartyRole = "company" | "supplier";
 
-export interface Party {
+// Company and Supplier are SEPARATE kinds of party, distinguished by `role`.
+// A supplier is the Indigenous party — it always carries an identity tier and is OCAP-protected.
+// A company is the buyer being measured — it has no identity tier.
+interface BaseParty {
   id: string;
-  role: PartyRole;
   name: string;
-  identityTier?: IdentityTier; // suppliers only
   registered: boolean; // false = named by a company but not yet registered (future invite flow)
   createdAt: string; // ISO 8601
 }
+export interface Company extends BaseParty {
+  role: "company";
+}
+export interface Supplier extends BaseParty {
+  role: "supplier";
+  identityTier: IdentityTier; // required — how the supplier's Indigenous status is verified
+}
+export type Party = Company | Supplier;
 
 // The 4 Indigenomics RAP pillars (NOT Australia's Relationships/Respect/Opportunities/Governance).
 // These ARE the economic flow categories — a line's pillar tells you what kind of flow it is.
@@ -92,7 +101,7 @@ export interface PortalRepo {
   // --- parties / registry ---
   getParty(id: string): Promise<Party | null>;
   listParties(role?: PartyRole): Promise<Party[]>;
-  registerSupplier(input: { name: string; identityTier: IdentityTier }): Promise<Party>; // stretch
+  registerSupplier(input: { name: string; identityTier: IdentityTier }): Promise<Supplier>; // stretch
 
   // --- company side ---
   createReportedLine(input: {
