@@ -1,0 +1,17 @@
+# DynamoDB Local — offline data layer for development.
+# Start:  docker compose up -d
+# Stop:   docker compose down   (add -v to wipe the volume)
+# The app talks to this via DYNAMO_ENDPOINT=http://localhost:8000 (see .env.local.example).
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: portal-dynamodb-local
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/data"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb-data:/data
+    working_dir: /home/dynamodblocal
+
+volumes:
+  dynamodb-data:
