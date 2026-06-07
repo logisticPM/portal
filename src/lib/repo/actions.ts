@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import type { IdentityTier } from "./types";
+import type { IdentityTier, Pillar } from "./types";
 
 // Supplier responds to a claim naming them (confirm / dispute / correct).
 export async function respondToLine(formData: FormData) {
@@ -18,6 +18,28 @@ export async function respondToLine(formData: FormData) {
   revalidatePath("/confirm");
   revalidatePath("/record");
   revalidatePath("/analytics");
+}
+
+// Company reports one itemized procurement line naming a supplier.
+// Australia collects only an aggregate total; we itemize per named supplier so each
+// line is confirmable. New lines start 'pending' until the supplier acts.
+export async function createLineAction(formData: FormData) {
+  const companyId = String(formData.get("companyId") ?? "").trim();
+  const supplierId = String(formData.get("supplierId") ?? "").trim();
+  const amount = Number(formData.get("amount"));
+  const pillar = String(formData.get("pillar") || "procurement") as Pillar;
+  const period = String(formData.get("period") ?? "").trim();
+
+  // Light validation — silently no-op on bad input so the page just re-renders.
+  if (!companyId || !supplierId || !period) return;
+  if (!Number.isFinite(amount) || amount <= 0) return;
+
+  await repo.createReportedLine({ companyId, supplierId, amount, pillar, period });
+
+  revalidatePath("/report");
+  revalidatePath("/coverage");
+  revalidatePath("/analytics");
+  redirect(`/report?as=${companyId}`);
 }
 
 // OCAP: supplier withdraws their confirmations → lines revert to 'pending'.
