@@ -66,4 +66,17 @@ Next.js + TypeScript + Tailwind(fork 之前 gatekeeper 的设计)· **AWS Dynamo
 
 ---
 
-**下一步**:设计已锁定 → 出**到人、按周排期的实现计划**(walking skeleton → 6/24)。
+**下一步**:设计已锁定 → 出**到人、按周排期的实现计划**(walking skeleton → 6/24)。✅ 已落地为 `docs/sprint1/` + `docs/sprint2/`(轮值、卡、velocity)。
+
+---
+
+## 更新 [2026-06-10]
+
+三个**产品级**决定已提升回英文 spec(§2 Scope evolution / §6.1 / §10 / §13 / §14),设计细节见附件 `sprint2/02`、`sprint2/03`:
+
+1. **三门户 + 假登录分流**(公司 / 供应商 / Indigenomics)替代单一角色切换页 —— 仅信息架构,**真实认证仍 H2**。
+2. **问卷扩到 采购 + 股权**(可确认)+ 公司档案 + 只读"自报未验证"背景区;规则:**有具名原住民对手方才可确认**。
+3. **供应商自助注册:已建**(原为 stretch)。
+4. **归属**:数据组负责 **Indigenomics 门户 + AWS 部署**;Jack = 供应商门户;公司侧 = 报告表单 + 注册。
+
+> 关系:**产品文档定方向(source of truth)→ sprint 排执行**。产品决定先落产品文档,sprint board 只引用为卡。

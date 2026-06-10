@@ -52,6 +52,16 @@ The demo proves layers 1→2→3 work end-to-end.
 
 **Definition of done (June 24):** a reviewer can run `npm run dev` against DynamoDB Local with seed data, perform the one-sentence demo above in the browser, and watch the coverage number change after a confirmation.
 
+### Scope evolution [2026-06-10]
+
+Three product decisions promoted here from the Sprint 2 design docs (these **supersede the matching June-24 bullets above**; the design detail lives in the attachments):
+
+1. **Three persona portals + a demo "sign in as" landing** replace the single role-switcher page — *information architecture only; **real auth stays Horizon 2**.* → attachment [`sprint2/03_Portal_IA_and_Login_Routing.md`](../sprint2/03_Portal_IA_and_Login_Routing.md).
+2. **Questionnaire expands to `procurement` + `equity`** as confirmable pillars (equity = the high-value second / phantom-JV fraud target). Adds a company-profile section + a read-only **"self-reported · unverified"** context block (employment, culture, governance). → attachment [`sprint2/02_Questionnaire_Expansion_Design.md`](../sprint2/02_Questionnaire_Expansion_Design.md). See §6.1.
+3. **Supplier self-registration is built** (no longer a stretch — see §13).
+
+**Ownership (reassigned 2026-06-10, see §10):** the **Data group** owns the Indigenomics portal **and** the AWS deploy; **Jack** = supplier portal; the **company owner** = report form + company sign-up.
+
 ---
 
 ## 3. Architecture & the one principle
@@ -234,6 +244,8 @@ export interface IndexSummary {
 
 **Australia mechanics we reuse:** procurement amount buckets ($0–5k · 5k–100k · 100k–1m · 1m–5m · 5m–10m · >10m · >20m · >50m · >100m) for display ranges; certified-vs-self tiering; annual reporting cadence; and (future) the Action→Deliverable→Timeline→Responsibility commitment-table format from the McKinsey RAP.
 
+**Expansion [2026-06-10] → see attachment [`sprint2/02_Questionnaire_Expansion_Design.md`](../sprint2/02_Questionnaire_Expansion_Design.md):** the report flow adds **equity** as a second confirmable pillar — same `ReportedLine` shape with `pillar: "equity"`, **no `types.ts` change**. The governing rule is **confirmability = a named Indigenous counterparty can verify it**: `procurement` + `equity` are confirmable (a supplier / JV partner confirms them); employment, culture and governance (AU Q14–29, 38–41) are company-level **context** — shown read-only and **never as "verified."** That attachment buckets all 41 AU questions and explains the pillar mismatch (AU's economic data is procurement+employment only; equity/capital/innovation are Indigenomics' distinctive lens).
+
 ---
 
 ## 7. The seam — `PortalRepo` (the interface both groups build on)
@@ -361,6 +373,8 @@ Both sub-roles call the **same `PortalRepo` seam**, so you're decoupled from eac
 > Keep `analytics` **macro** — economy-level rollups, coverage %, pillar & identity-tier distributions — **not a ranked company league table** (grading companies is CCAB's lane). The **withdraw → number-drops** beat propagates to all three.
 >
 > **Split:** Nate owns the company side (2 screens); Jack owns the supplier side **and** the Indigenomics `analytics` view (3 screens). The cross-company aggregate itself (`getIndexSummary`) is **data-group work**; Jack renders it.
+>
+> **Reassignment [2026-06-10]:** the **Indigenomics `analytics` portal moved to the Data group** (who also own the AWS deploy) — it sits closest to the Index/data layer they already build. **Jack narrows to the supplier portal** (`confirm` / `record` / `register`). The company-side **report form + company sign-up** are the company owner's (Nate). The three-portal IA is in attachment [`sprint2/03`](../sprint2/03_Portal_IA_and_Login_Routing.md); the questionnaire expansion in [`sprint2/02`](../sprint2/02_Questionnaire_Expansion_Design.md).
 
 ### 10.2 Inside the Data Architecture group
 
@@ -400,8 +414,8 @@ Pure backend, so it splits by the natural backend seam — **writes/integrity vs
 
 ## 13. Out of scope (now) / future
 
-- **Supplier self-registration UI** — seeded for the demo; form is a stretch.
-- **Real authentication** (Cognito or otherwise) — role-switcher for the demo.
+- ~~**Supplier self-registration UI** — stretch~~ → **built [2026-06-10]** (`register/page.tsx`); registry still seeded too.
+- **Real authentication** (Cognito or otherwise) — the demo now uses a three-portal **mock-login landing** (IA only, `sprint2/03`); **Cognito stays Horizon 2**.
 - **Identity-verification integration** (nations / CCAB) — tiers are stubbed.
 - **Cold-start invite flow** (company names an unregistered supplier → invite) — model supports it (`registered` flag); not built.
 - **Financing / portable-ledger ties** (NACCA / IFI) — design rationale only; not built.
@@ -423,6 +437,10 @@ Pure backend, so it splits by the natural backend seam — **writes/integrity vs
 - **MVP flagship flow = procurement**; **equity** is the high-value second (JV / ownership fraud). No separate `flowType` — `pillar` is the flow category. [2026-06-05]
 - Canada adaptation later: Supply Nation → CCAB + nation verification; align to the emerging UBCIC–RRII 2026 RAP standard. [2026-06-05]
 - No AI co-pilot. [earlier]
+- **Three persona portals** (company / supplier / Indigenomics) + a **demo mock-login landing**; IA only — **real auth stays H2.** [2026-06-10]
+- **Questionnaire: `procurement` + `equity` confirmable**; company profile + a read-only "self-reported · unverified" context block; **confirmability = a named Indigenous counterparty can verify it.** [2026-06-10]
+- **Supplier self-registration: built** (was a stretch). [2026-06-10]
+- **Ownership reassignment:** Data group owns the **Indigenomics portal + AWS deploy**; Jack = supplier portal; company owner = report form + company sign-up. [2026-06-10]
 
 **Open (resolve in joint session #1):**
 - Final field list for the questionnaire (which pillars/metrics beyond procurement get demo coverage?).
