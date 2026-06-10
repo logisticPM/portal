@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "verify": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/verify.ts",
     "ddb:up": "docker compose up -d",
     "ddb:down": "docker compose down",
     "ddb:create": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/create-table.ts",
