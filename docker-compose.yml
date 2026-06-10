@@ -1,0 +1,23 @@
+# DynamoDB Local for offline dev (spec §4). Runs the SAME single-table schema as
+# the cloud table — only the client endpoint differs (see src/lib/dynamo/client.ts),
+# so nothing built against Local is thrown away when we move to real AWS DynamoDB.
+#
+#   npm run ddb:up      # start (http://localhost:8000)
+#   npm run ddb:create  # create the DataPortal table + GSIs
+#   npm run ddb:down    # stop
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: portal-dynamodb-local
+    ports:
+      - "8000:8000"
+    # -sharedDb: one shared DB file regardless of creds (matches our dummy local creds).
+    # -dbPath ./data + a named volume: the table & seed survive container restarts.
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "./data"]
+    working_dir: /home/dynamodblocal
+    user: root
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+
+volumes:
+  dynamodb-data:

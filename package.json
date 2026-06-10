@@ -7,14 +7,27 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ddb:up": "docker compose up -d",
+    "ddb:down": "docker compose down",
+    "ddb:create": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/create-table.ts",
+    "ddb:seed": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed.ts",
+    "ddb:create:cloud": "AWS_REGION=us-east-1 tsx scripts/create-table.ts",
+    "ddb:seed:cloud": "AWS_REGION=us-east-1 tsx scripts/seed.ts",
+    "survey:create": "DYNAMO_ENDPOINT=http://localhost:8000 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
+    "survey:seed": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed-survey.ts",
+    "survey:create:cloud": "AWS_REGION=us-east-1 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
+    "survey:seed:cloud": "AWS_REGION=us-east-1 tsx scripts/seed-survey.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.620.0",
+    "@aws-sdk/lib-dynamodb": "^3.620.0",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
+    "tsx": "^4.16.0",
     "typescript": "^5.4.0",
     "@types/node": "^20.12.0",
     "@types/react": "^18.3.0",
