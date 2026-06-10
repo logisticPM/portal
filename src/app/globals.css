@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -14,8 +14,21 @@ body {
 
 body {
   @apply bg-bg text-ink font-sans;
+  min-height: 100vh;
+  /* warm editorial atmosphere: soft amber glow at the top + faint paper grain */
+  background-image:
+    radial-gradient(1100px 480px at 50% -12%, rgba(160, 106, 18, 0.08), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, repeat;
+  background-attachment: fixed, fixed;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
   color: inherit;
+}
+
+/* tabular figures for money / percentages */
+.tnum {
+  font-variant-numeric: tabular-nums;
 }

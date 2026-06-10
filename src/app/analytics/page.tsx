@@ -26,15 +26,15 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
-        <div className="bg-panel rounded p-5">
+        <div className="bg-panel rounded border border-line shadow-card p-5">
           <div className="font-serif text-4xl text-amber">{idx.confirmedPct}%</div>
           <div className="text-ink3 text-sm">of reported $ confirmed</div>
         </div>
-        <div className="bg-panel rounded p-5">
+        <div className="bg-panel rounded border border-line shadow-card p-5">
           <div className="font-serif text-2xl">{money(idx.totalConfirmed)}</div>
           <div className="text-ink3 text-sm">confirmed · of {money(idx.totalReported)} reported</div>
         </div>
-        <div className="bg-panel rounded p-5">
+        <div className="bg-panel rounded border border-line shadow-card p-5">
           <div className="font-serif text-2xl">
             {idx.companyCount} · {idx.supplierCount}
           </div>
@@ -59,7 +59,7 @@ export default async function AnalyticsPage() {
                     {money(v.confirmed)} / {money(v.reported)} · {pct}%
                   </span>
                 </div>
-                <div className="h-2 bg-white/10 rounded overflow-hidden">
+                <div className="h-2 bg-ink/10 rounded overflow-hidden">
                   <div className="h-full bg-amber" style={{ width: `${pct}%` }} />
                 </div>
               </div>
@@ -74,7 +74,7 @@ export default async function AnalyticsPage() {
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
           {(["nation", "ccab", "self_declared"] as const).map((t) => (
-            <div key={t} className="bg-panel rounded p-4">
+            <div key={t} className="bg-panel rounded border border-line shadow-card p-4">
               <div className="font-serif text-xl">{money(idx.byTier[t].confirmed)}</div>
               <div className="text-ink3 text-sm">{tierLabels[t]}</div>
             </div>

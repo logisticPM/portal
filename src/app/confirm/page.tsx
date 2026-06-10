@@ -20,7 +20,7 @@ export default async function ConfirmPage({
           {suppliers.map((s) => (
             <a
               key={s.id}
-              className="bg-panel rounded px-4 py-3 hover:text-amber"
+              className="bg-panel rounded border border-line px-4 py-3 hover:text-amber"
               href={`/confirm?as=${s.id}`}
             >
               {s.name}
@@ -59,7 +59,7 @@ export default async function ConfirmPage({
       ) : (
         <div className="space-y-3">
           {rows.map(({ line, company }) => (
-            <div key={line.id} className="bg-panel rounded p-4">
+            <div key={line.id} className="bg-panel rounded border border-line shadow-card p-4">
               <div className="flex flex-wrap items-baseline gap-2 mb-3">
                 <span className="font-serif text-lg">{company}</span>
                 <span className="text-ink3">says they paid you</span>
@@ -93,7 +93,7 @@ export default async function ConfirmPage({
                     name="correctedAmount"
                     type="number"
                     placeholder="correct $"
-                    className="w-28 bg-bg border border-white/15 rounded px-2 py-1 text-sm"
+                    className="w-28 bg-bg border border-ink/15 rounded px-2 py-1 text-sm"
                   />
                   <button className="bg-amber/20 text-amber border border-amber/40 rounded px-3 py-1 hover:bg-amber/30">
                     Correct

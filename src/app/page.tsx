@@ -28,7 +28,7 @@ export default async function Home() {
         </h2>
         <div className="grid gap-2">
           {companies.map((c) => (
-            <div key={c.id} className="flex items-center gap-4 bg-panel rounded px-4 py-3">
+            <div key={c.id} className="flex items-center gap-4 bg-panel rounded border border-line px-4 py-3">
               <span className="flex-1">{c.name}</span>
               <a className="text-ink3 hover:text-ink underline" href={`/report?as=${c.id}`}>
                 report
@@ -41,13 +41,13 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="border-t border-white/10 pt-8">
+      <section className="border-t border-ink/10 pt-8">
         <h2 className="text-cedar text-xs uppercase tracking-widest mb-3">
           Supplier — your pages (Jack)
         </h2>
         <div className="grid gap-2">
           {suppliers.map((s) => (
-            <div key={s.id} className="flex items-center gap-4 bg-panel rounded px-4 py-3">
+            <div key={s.id} className="flex items-center gap-4 bg-panel rounded border border-line px-4 py-3">
               <span className="flex-1">{s.name}</span>
               <TierBadge party={s} />
               <a className="text-amber hover:underline" href={`/confirm?as=${s.id}`}>
@@ -64,12 +64,12 @@ export default async function Home() {
         </a>
       </section>
 
-      <section className="border-t border-white/10 pt-8">
+      <section className="border-t border-ink/10 pt-8">
         <h2 className="text-amber text-xs uppercase tracking-widest mb-3">
           Indigenomics — your page (Jack)
         </h2>
         <a
-          className="inline-block bg-panel rounded px-4 py-3 text-amber hover:underline"
+          className="inline-block bg-panel rounded border border-line px-4 py-3 text-amber hover:underline"
           href="/analytics"
         >
           → RAP analysis (the Index)

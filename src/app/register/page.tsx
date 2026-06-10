@@ -13,7 +13,7 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      <form action={registerSupplierAction} className="space-y-5 bg-panel rounded p-5">
+      <form action={registerSupplierAction} className="space-y-5 bg-panel rounded border border-line shadow-card p-5">
         <div>
           <label className="block text-ink3 text-xs uppercase tracking-widest mb-1">
             Business name
@@ -22,7 +22,7 @@ export default function RegisterPage() {
             name="name"
             required
             placeholder="e.g. Eagle River Construction"
-            className="w-full bg-bg border border-white/15 rounded px-3 py-2"
+            className="w-full bg-bg border border-ink/15 rounded px-3 py-2"
           />
         </div>
 
@@ -33,7 +33,7 @@ export default function RegisterPage() {
           <select
             name="identityTier"
             defaultValue="self_declared"
-            className="w-full bg-bg border border-white/15 rounded px-3 py-2"
+            className="w-full bg-bg border border-ink/15 rounded px-3 py-2"
           >
             <option value="nation">Nation-verified</option>
             <option value="ccab">CCAB-certified</option>

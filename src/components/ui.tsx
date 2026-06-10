@@ -9,9 +9,9 @@ export function money(n: number): string {
 }
 
 const tierStyles: Record<IdentityTier, string> = {
-  nation: "border-cedar/50 text-cedar",
-  ccab: "border-amber/50 text-amber",
-  self_declared: "border-rust/50 text-rust",
+  nation: "border-cedar/30 bg-cedar/10 text-cedar",
+  ccab: "border-amber/30 bg-amber/10 text-amber",
+  self_declared: "border-rust/30 bg-rust/10 text-rust",
 };
 const tierLabels: Record<IdentityTier, string> = {
   nation: "Nation-verified",

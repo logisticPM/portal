@@ -28,7 +28,7 @@ export default async function ReportPage({
           {companies.map((c) => (
             <a
               key={c.id}
-              className="bg-panel rounded px-4 py-3 hover:text-amber"
+              className="bg-panel rounded border border-line px-4 py-3 hover:text-amber"
               href={`/report?as=${c.id}`}
             >
               {c.name}
@@ -65,7 +65,7 @@ export default async function ReportPage({
       </p>
 
       {/* --- add a reported line --- */}
-      <form action={createLineAction} className="bg-panel rounded p-5 space-y-4">
+      <form action={createLineAction} className="bg-panel rounded border border-line shadow-card p-5 space-y-4">
         <input type="hidden" name="companyId" value={companyId} />
         {/* MVP flagship pillar is procurement (equity is the high-value second). */}
         <input type="hidden" name="pillar" value="procurement" />
@@ -77,7 +77,7 @@ export default async function ReportPage({
               name="supplierId"
               required
               defaultValue=""
-              className="w-full bg-bg border border-white/15 rounded px-2 py-2"
+              className="w-full bg-bg border border-ink/15 rounded px-2 py-2"
             >
               <option value="" disabled>
                 Select a supplier…
@@ -100,7 +100,7 @@ export default async function ReportPage({
               step="1"
               required
               placeholder="e.g. 250000"
-              className="w-full bg-bg border border-white/15 rounded px-2 py-2"
+              className="w-full bg-bg border border-ink/15 rounded px-2 py-2"
             />
           </label>
 
@@ -111,7 +111,7 @@ export default async function ReportPage({
               type="text"
               required
               defaultValue="2025"
-              className="w-full bg-bg border border-white/15 rounded px-2 py-2"
+              className="w-full bg-bg border border-ink/15 rounded px-2 py-2"
             />
           </label>
         </div>
@@ -135,7 +135,7 @@ export default async function ReportPage({
         {lines.length === 0 ? (
           <p className="text-ink3">No lines reported yet. Add one above.</p>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="divide-y divide-ink/10">
             {lines.map((line) => (
               <div key={line.id} className="flex items-center gap-3 py-2">
                 <span className="flex-1">{supplierName(line.supplierId)}</span>

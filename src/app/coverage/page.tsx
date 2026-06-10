@@ -20,7 +20,7 @@ export default async function CoveragePage({
           {companies.map((c) => (
             <a
               key={c.id}
-              className="bg-panel rounded px-4 py-3 hover:text-amber"
+              className="bg-panel rounded border border-line px-4 py-3 hover:text-amber"
               href={`/coverage?as=${c.id}`}
             >
               {c.name}
@@ -53,17 +53,17 @@ export default async function CoveragePage({
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
-        <div className="bg-panel rounded p-5">
+        <div className="bg-panel rounded border border-line shadow-card p-5">
           <div className="font-serif text-4xl text-amber">{coverage.confirmedPct}%</div>
           <div className="text-ink3 text-sm">of reported $ confirmed</div>
         </div>
-        <div className="bg-panel rounded p-5">
+        <div className="bg-panel rounded border border-line shadow-card p-5">
           <div className="font-serif text-2xl">{money(coverage.totalConfirmed)}</div>
           <div className="text-ink3 text-sm">
             confirmed · of {money(coverage.totalReported)} reported
           </div>
         </div>
-        <div className="bg-panel rounded p-5">
+        <div className="bg-panel rounded border border-line shadow-card p-5">
           <div className="font-serif text-2xl">{money(coverage.totalReported - coverage.totalConfirmed)}</div>
           <div className="text-ink3 text-sm">unconfirmed — pending, disputed, or withdrawn</div>
         </div>
@@ -84,7 +84,7 @@ export default async function CoveragePage({
                     {money(v.confirmed)} / {money(v.reported)} · {pct}%
                   </span>
                 </div>
-                <div className="h-2 bg-white/10 rounded overflow-hidden">
+                <div className="h-2 bg-ink/10 rounded overflow-hidden">
                   <div className="h-full bg-amber" style={{ width: `${pct}%` }} />
                 </div>
               </div>

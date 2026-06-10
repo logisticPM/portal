@@ -20,7 +20,7 @@ export default async function RecordPage({
           {suppliers.map((s) => (
             <a
               key={s.id}
-              className="bg-panel rounded px-4 py-3 hover:text-amber"
+              className="bg-panel rounded border border-line px-4 py-3 hover:text-amber"
               href={`/record?as=${s.id}`}
             >
               {s.name}
@@ -50,7 +50,7 @@ export default async function RecordPage({
         </a>
       </div>
 
-      <div className="bg-panel rounded p-5">
+      <div className="bg-panel rounded border border-line shadow-card p-5">
         <div className="text-ink3 text-xs uppercase tracking-widest">Your confirmed revenue</div>
         <div className="font-serif text-4xl text-amber my-1">{money(record.confirmedRevenue)}</div>
         <div className="text-ink3 text-sm">
@@ -63,7 +63,7 @@ export default async function RecordPage({
         <div className="text-ink3 text-xs uppercase tracking-widest mb-2">
           Every claim naming you
         </div>
-        <div className="divide-y divide-white/5">
+        <div className="divide-y divide-ink/10">
           {rows.map(({ line, company }) => (
             <div key={line.id} className="flex items-center gap-3 py-2">
               <span className="flex-1">{company}</span>
@@ -80,7 +80,7 @@ export default async function RecordPage({
       <div className="flex flex-wrap gap-3 pt-2">
         <a
           href={`/api/export?party=${supplierId}`}
-          className="border border-white/15 rounded px-4 py-2 text-ink2 hover:text-ink"
+          className="border border-ink/15 rounded px-4 py-2 text-ink2 hover:text-ink"
         >
           Export my records (JSON)
         </a>
