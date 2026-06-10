@@ -3,7 +3,24 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import type { IdentityTier } from "./types";
+import type { IdentityTier, Pillar } from "./types";
+
+// Company reports a new itemized line naming a supplier (starts 'pending').
+export async function createLineAction(formData: FormData) {
+  const companyId = String(formData.get("companyId"));
+  const supplierId = String(formData.get("supplierId"));
+  const amount = Number(formData.get("amount"));
+  const pillar = (String(formData.get("pillar")) || "procurement") as Pillar;
+  const period = String(formData.get("period") || "2025");
+  if (!companyId || !supplierId || !Number.isFinite(amount)) return;
+
+  await repo.createReportedLine({ companyId, supplierId, amount, pillar, period });
+
+  revalidatePath("/report");
+  revalidatePath("/coverage");
+  revalidatePath("/confirm");
+  revalidatePath("/analytics");
+}
 
 // Supplier responds to a claim naming them (confirm / dispute / correct).
 export async function respondToLine(formData: FormData) {
