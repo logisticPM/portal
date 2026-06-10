@@ -8,17 +8,17 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "verify": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/verify.ts",
+    "verify": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/verify.ts",
     "ddb:up": "docker compose up -d",
     "ddb:down": "docker compose down",
-    "ddb:create": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/create-table.ts",
-    "ddb:seed": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed.ts",
-    "ddb:create:cloud": "AWS_REGION=us-east-1 tsx scripts/create-table.ts",
-    "ddb:seed:cloud": "AWS_REGION=us-east-1 tsx scripts/seed.ts",
-    "survey:create": "DYNAMO_ENDPOINT=http://localhost:8000 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
-    "survey:seed": "DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed-survey.ts",
-    "survey:create:cloud": "AWS_REGION=us-east-1 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
-    "survey:seed:cloud": "AWS_REGION=us-east-1 tsx scripts/seed-survey.ts"
+    "ddb:create": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/create-table.ts",
+    "ddb:seed": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed.ts",
+    "ddb:create:cloud": "cross-env AWS_REGION=us-east-1 tsx scripts/create-table.ts",
+    "ddb:seed:cloud": "cross-env AWS_REGION=us-east-1 tsx scripts/seed.ts",
+    "survey:create": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
+    "survey:seed": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed-survey.ts",
+    "survey:create:cloud": "cross-env AWS_REGION=us-east-1 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
+    "survey:seed:cloud": "cross-env AWS_REGION=us-east-1 tsx scripts/seed-survey.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.620.0",
@@ -28,6 +28,7 @@
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "tsx": "^4.16.0",
     "typescript": "^5.4.0",
     "@types/node": "^20.12.0",
