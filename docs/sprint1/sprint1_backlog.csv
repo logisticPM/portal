@@ -1,0 +1,13 @@
+Title,Status,Assignee,Epic,Estimate (h),Definition of Done
+"Draft + circulate Sprint Goal, DoD, board",To Do,[you],,2,"Goal/DoD/board posted to repo; team acknowledged"
+"Write client questionnaire",To Do,[you],,2,"Questions cover positioning, data, advisors, scope; sent to client"
+"Schedule + run client check-in; capture answers",To Do,[you],,3,"Answers captured into backlog as new/updated items"
+"Data-feasibility memo: E1 sources ingestable",To Do,[m2],E1,6,"IPEA + procurement CSV + 1 legal PDF samples pulled; go/no-go table"
+"Data check: E3 housing+energy projection feasibility",To Do,[m2],E3,3,"Written finding on 2030->2046 extension; recommendation"
+"Consent-layer reusability audit",To Do,[m3],E1/E2,5,"Reusable-vs-throwaway inventory with file paths + effort estimate"
+"Stand up team repo + CI + dev environment + README",To Do,[m3],,4,"Teammate can clone and run from README; CI green"
+"Architecture spike for leading direction",To Do,[m3],E1,5,"Thin slice runs; findings + risks documented"
+"Clickable prototype/mockup - Reconciliation Hub",To Do,[m4],E1,6,"Clickable + <=2min screen recording linked in board"
+"Clickable prototype/mockup - consent-layer extension",To Do,[m4],E2,4,"Clickable + <=2min screen recording linked in board"
+"Fill direction scorecard; co-author Decision memo",To Do,[you]+all,,3,"Scorecard complete; one-paragraph recommendation"
+"Run retrospective; everyone logs one entry",To Do,[you]+all,,1,"Retro doc filled: went well / didn't / change"
