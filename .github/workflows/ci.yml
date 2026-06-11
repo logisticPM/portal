@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Type safety — authoritative gate. sst.config.ts is excluded in tsconfig
+      # (it needs the generated .sst/platform types, which aren't committed).
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Production build — catches RSC/route errors CI must not miss.
+      # Runs on the in-memory mock, so no AWS creds are needed in CI.
+      - name: Build
+        run: npm run build
+        env:
+          REPO_IMPL: mock
