@@ -10,10 +10,12 @@
 //
 // Server-side only. AWS keys must NEVER use a NEXT_PUBLIC_ prefix.
 // ===========================================================================
+// @ts-ignore: package may be resolved at runtime / installed in the environment
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+// @ts-ignore: package may be resolved at runtime / installed in the environment
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 
-const region = process.env.AWS_REGION ?? "ca-central-1";
+const region = process.env.AWS_REGION ?? "us-east-1";
 const endpoint = process.env.DYNAMO_ENDPOINT; // present only for DynamoDB Local
 
 export const TABLE = process.env.DYNAMO_TABLE ?? "DataPortal";

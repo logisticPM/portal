@@ -18,7 +18,8 @@
     "survey:create": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
     "survey:seed": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed-survey.ts",
     "survey:create:cloud": "cross-env AWS_REGION=us-east-1 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
-    "survey:seed:cloud": "cross-env AWS_REGION=us-east-1 tsx scripts/seed-survey.ts"
+    "survey:seed:cloud": "cross-env AWS_REGION=us-east-1 tsx scripts/seed-survey.ts",
+    "seed:sst": "sst shell -- tsx scripts/seed-sst.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.620.0",

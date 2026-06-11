@@ -1,0 +1,43 @@
+name: Deploy
+
+# Deploys the production stage to AWS on every push to main. Because main is
+# branch-protected (PR + CI required), anything that lands here has already
+# passed CI — so this workflow just ships it.
+on:
+  push:
+    branches: [main]
+
+# Never run two production deploys at once.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # required for AWS OIDC (no long-lived keys — matches our SSO/no-static-keys policy)
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Assume the deploy role via GitHub OIDC. The role ARN is stored as a repo
+      # secret (AWS_DEPLOY_ROLE_ARN). See SETUP below — this step fails until the
+      # OIDC provider + role exist in account 106189426706.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy
+        run: npx sst deploy --stage production
