@@ -7,8 +7,6 @@ Card IDs continue the `RAP-##` series from Sprint 1 (which used RAP-7/9/11/23/27
 
 | ID | Task | Owner | Epic | Pts | Est |
 |----|------|-------|------|:---:|----:|
-| **RAP-28** | **Deploy to AWS** — SST/OpenNext → shared URL; provision real DynamoDB table; server-side secrets (never `NEXT_PUBLIC_`) | **Shiting Huang** | Deploy | 8 | 8 |
-| RAP-36 | CI deploy preview on PR + branch-protect `main` | **Shiting Huang** | Deploy | 3 | 3 |
 | RAP-30 | Horizon-2 ingest spike — pull federal 5% + Indigenous Business Directory sample; map to `Supplier` seed behind the seam (go/no-go) | **Mengshan Li** | Data | 5 | 6 |
 | RAP-31 | **Indigenomics portal** (`analytics`/Index) — build the institute portal shell; surface the **equity** pillar next to procurement, **by-tier** breakdown, **confirmable-vs-context** framing; a11y + demo polish | **Data group** | Indigenomics | 5 | 6 |
 | RAP-38 | Company self-registration entry — mirror `/register` for companies (closes the "no company sign-up entry" gap) | **En-Ping Su** (company) | Company | 2 | 2 |
@@ -25,11 +23,32 @@ Card IDs continue the `RAP-##` series from Sprint 1 (which used RAP-7/9/11/23/27
 ## In Progress
 _(keep WIP low, ideally ≤1 per person)_
 
+| ID | Task | Owner | Pts | Status (2026-06-10) |
+|----|------|-------|:---:|---------------------|
+| **RAP-28** | Deploy to AWS — SST/OpenNext → shared URL | **Shiting Huang** | 8 | **Infra built + merged** ([PR #6]): `sst.config.ts` (Next site + `DataPortal`/`RapSurvey` tables, IAM auto-wired via `link:`, region us-east-1), `seed:sst`, deploy workflow. **DoD not yet met** — there is no live URL: the `main` deploy fails at the AWS-OIDC step. **Blocked on [#8]** (OIDC role + `AWS_DEPLOY_ROLE_ARN` secret — needs IAM admin). |
+| **RAP-36** | CI + branch-protect `main` | **Shiting Huang** | 3 | CI workflow **done + merged + green** ([PR #6]). Branch protection pending → **[#7]** (needs repo admin). ⚠️ **Scope deviation:** built **deploy-on-merge-to-`main`**, *not* per-PR *preview* deploys as the card title says — needs team sign-off that a shared production URL satisfies the card, or a follow-up to add PR previews. |
+
 ## In Review
 _(peer-check against the Definition of Done — must be demoed on the deploy URL, not localhost)_
 
 ## Done
 _(meets DoD: owner · points · time logged · merged + CI green)_
+
+---
+
+## Deploy track — GitHub artifacts (RAP-28 / RAP-36)
+
+| Ref | What | State |
+|---|---|---|
+| [PR #6] | SST config + `seed:sst` + CI/deploy workflows + `sst` devDep | ✅ Merged, CI green |
+| [#7] | Enable branch protection on `main` | ⏳ repo admin |
+| [#8] | AWS OIDC role + `AWS_DEPLOY_ROLE_ARN` secret | ⏳ IAM admin — **live-blocking**: every push to `main` red-flags Deploy until done |
+| [#9] | **RAP-41** (deferred) — Next.js 14→16 upgrade, resolves `npm audit` advisories | 🅿️ post-sprint tech debt (not in the committed 42) |
+
+[PR #6]: https://github.com/logisticPM/portal/pull/6
+[#7]: https://github.com/logisticPM/portal/issues/7
+[#8]: https://github.com/logisticPM/portal/issues/8
+[#9]: https://github.com/logisticPM/portal/issues/9
 
 ---
 
