@@ -25,8 +25,7 @@ _(keep WIP low, ideally ≤1 per person)_
 
 | ID | Task | Owner | Pts | Status (2026-06-10) |
 |----|------|-------|:---:|---------------------|
-| **RAP-28** | Deploy to AWS — SST/OpenNext → shared URL | **Shiting Huang** | 8 | **Infra built + merged** ([PR #6]): `sst.config.ts` (Next site + `DataPortal`/`RapSurvey` tables, IAM auto-wired via `link:`, region us-east-1), `seed:sst`, deploy workflow. **DoD not yet met** — there is no live URL: the `main` deploy fails at the AWS-OIDC step. **Blocked on [#8]** (OIDC role + `AWS_DEPLOY_ROLE_ARN` secret — needs IAM admin). |
-| **RAP-36** | CI + branch-protect `main` | **Shiting Huang** | 3 | CI workflow **done + merged + green** ([PR #6]). Branch protection pending → **[#7]** (needs repo admin). ⚠️ **Scope deviation:** built **deploy-on-merge-to-`main`**, *not* per-PR *preview* deploys as the card title says — needs team sign-off that a shared production URL satisfies the card, or a follow-up to add PR previews. |
+| **RAP-36** | CI + branch-protect `main` | **Shiting Huang** | 3 | CI workflow **done + merged + green** ([PR #6]). Branch protection still pending → **[#7]**. ⚠️ Note: the automated deploy path uses OIDC (**[#8]**) — **not needed for the demo** (the live URL was shipped via a manual `sst deploy`); only required if we want push-to-`main` auto-deploy. Scope deviation (deploy-on-merge vs per-PR preview) still needs team sign-off. |
 
 ## In Review
 _(peer-check against the Definition of Done — must be demoed on the deploy URL, not localhost)_
@@ -34,15 +33,20 @@ _(peer-check against the Definition of Done — must be demoed on the deploy URL
 ## Done
 _(meets DoD: owner · points · time logged · merged + CI green)_
 
+| ID | Task | Owner | Pts | Done (2026-06-12) |
+|----|------|-------|:---:|-------------------|
+| **RAP-28** | Deploy to AWS — SST/OpenNext → shared URL | **Shiting Huang** | 8 | ✅ **LIVE: https://d1hwn8hhp1ytc0.cloudfront.net** — `sst deploy --stage production` (CloudFront + Lambda/OpenNext + production `DataPortal`/`RapSurvey` tables, us-east-1), seeded via `seed:sst`. Smoke-test: all pages 200; coverage renders seeded companies from DynamoDB → `report → confirm → coverage → Index` runs on the real backend. Shipped with the owner's own SSO creds — **no admin/OIDC needed for the URL**. Infra in [PR #6]. |
+
 ---
 
 ## Deploy track — GitHub artifacts (RAP-28 / RAP-36)
 
 | Ref | What | State |
 |---|---|---|
+| **Live URL** | `sst deploy --stage production` (manual, owner's SSO creds) | ✅ **https://d1hwn8hhp1ytc0.cloudfront.net** — seeded + smoke-tested 2026-06-12 |
 | [PR #6] | SST config + `seed:sst` + CI/deploy workflows + `sst` devDep | ✅ Merged, CI green |
-| [#7] | Enable branch protection on `main` | ⏳ repo admin |
-| [#8] | AWS OIDC role + `AWS_DEPLOY_ROLE_ARN` secret | ⏳ IAM admin — **live-blocking**: every push to `main` red-flags Deploy until done |
+| [#7] | Enable branch protection on `main` | ⏳ repo admin — **not a demo blocker** (governance only) |
+| [#8] | AWS OIDC role + `AWS_DEPLOY_ROLE_ARN` secret | ⏳ IAM admin — **downgraded**: only needed for *automated* push-to-`main` deploy; the live URL was shipped manually |
 | [#9] | **RAP-41** (deferred) — Next.js 14→16 upgrade, resolves `npm audit` advisories | 🅿️ post-sprint tech debt (not in the committed 42) |
 
 [PR #6]: https://github.com/logisticPM/portal/pull/6
