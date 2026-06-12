@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import type { IdentityTier, Pillar } from "./types";
+import type { IdentityTier, FlowType, FlowTag } from "./types";
 
 // Supplier responds to a claim naming them (confirm / dispute / correct).
 export async function respondToLine(formData: FormData) {
@@ -27,14 +27,15 @@ export async function createLineAction(formData: FormData) {
   const companyId = String(formData.get("companyId") ?? "").trim();
   const supplierId = String(formData.get("supplierId") ?? "").trim();
   const amount = Number(formData.get("amount"));
-  const pillar = String(formData.get("pillar") || "procurement") as Pillar;
+  const flowType = String(formData.get("flowType") || "procurement") as FlowType;
+  const tags = formData.getAll("tags").map(String).filter(Boolean) as FlowTag[];
   const period = String(formData.get("period") ?? "").trim();
 
   // Light validation — silently no-op on bad input so the page just re-renders.
   if (!companyId || !supplierId || !period) return;
   if (!Number.isFinite(amount) || amount <= 0) return;
 
-  await repo.createReportedLine({ companyId, supplierId, amount, pillar, period });
+  await repo.createReportedLine({ companyId, supplierId, amount, flowType, tags, period });
 
   revalidatePath("/report");
   revalidatePath("/coverage");

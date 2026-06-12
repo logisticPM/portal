@@ -1,6 +1,6 @@
 import { repo } from "@/lib/repo";
 import { withdrawConfirmations } from "@/lib/repo/actions";
-import { money, TierBadge, StatusBadge, PillarBadge } from "@/components/ui";
+import { money, TierBadge, StatusBadge, FlowBadge, TagChip } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +45,9 @@ export default async function RecordPage({
       <div className="flex items-center gap-3">
         <h1 className="font-serif text-2xl">{supplier?.name}</h1>
         <TierBadge party={supplier} />
+        {supplier?.role === "supplier" && supplier.ownershipPct != null && (
+          <span className="text-ink3 text-xs">{supplier.ownershipPct}% Indigenous-owned</span>
+        )}
         <a className="ml-auto text-ink3 underline text-sm" href={`/confirm?as=${supplierId}`}>
           confirm inbox →
         </a>
@@ -67,7 +70,8 @@ export default async function RecordPage({
           {rows.map(({ line, company }) => (
             <div key={line.id} className="flex items-center gap-3 py-2">
               <span className="flex-1">{company}</span>
-              <PillarBadge pillar={line.pillar} />
+              <FlowBadge flowType={line.flowType} />
+              {line.tags?.map((t) => <TagChip key={t} tag={t} />)}
               <span className="text-ink2 text-sm">{line.period}</span>
               <span className="font-serif w-32 text-right">{money(line.amount)}</span>
               <span className="w-24 text-right">

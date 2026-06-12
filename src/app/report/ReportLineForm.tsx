@@ -10,14 +10,15 @@ const tierLabels: Record<IdentityTier, string> = {
   self_declared: "Self-declared",
 };
 
-// The two confirmable pillars in demo scope. procurement = MVP flagship,
-// equity = the high-value second (the phantom-JV fraud signal the Index surfaces).
-// capital/innovation remain Horizon 2 (see docs/sprint2/02_Questionnaire_Expansion_Design §4).
-type ReportablePillar = "procurement" | "equity";
+// The two confirmable FLOW TYPES. procurement = company buys FROM an Indigenous supplier
+// (RAP core, MVP); capital = company invests equity INTO an Indigenous business (ownership
+// frontier). Equity is NOT a flow here — it's the supplier's ownership cert (their tier);
+// innovation is a TAG (checkbox below). See docs/sprint2/04_Pillar_Model_Proposal.
+type FlowType = "procurement" | "capital";
 
-// Each pillar relabels the amount field and the supplier role it names.
-const pillarConfig: Record<
-  ReportablePillar,
+// Each flow relabels the amount field and the counterparty it names.
+const flowConfig: Record<
+  FlowType,
   { amountLabel: string; counterparty: string; hint: string }
 > = {
   procurement: {
@@ -25,10 +26,10 @@ const pillarConfig: Record<
     counterparty: "Supplier",
     hint: "A procurement line — what you paid a named Indigenous supplier, confirmable by them.",
   },
-  equity: {
-    amountLabel: "Equity value / stake (CAD)",
-    counterparty: "Indigenous partner",
-    hint: "An equity / JV stake held with a named Indigenous partner — confirmable by them. A self-declared stake is the phantom-JV signal the Index flags.",
+  capital: {
+    amountLabel: "Equity invested (CAD)",
+    counterparty: "Indigenous business",
+    hint: "A capital line — equity you invested INTO a named Indigenous business, confirmable by them. (Ownership frontier — beyond standard RAP.)",
   },
 };
 
@@ -39,8 +40,8 @@ export function ReportLineForm({
   companyId: string;
   suppliers: Party[];
 }) {
-  const [pillar, setPillar] = useState<ReportablePillar>("procurement");
-  const config = pillarConfig[pillar];
+  const [flowType, setFlowType] = useState<FlowType>("procurement");
+  const config = flowConfig[flowType];
 
   return (
     <form
@@ -48,18 +49,18 @@ export function ReportLineForm({
       className="bg-panel rounded border border-line shadow-card p-5 space-y-4"
     >
       <input type="hidden" name="companyId" value={companyId} />
-      <input type="hidden" name="pillar" value={pillar} />
+      <input type="hidden" name="flowType" value={flowType} />
 
       <div className="grid sm:grid-cols-[8rem_1fr_10rem_8rem] gap-3">
         <label className="space-y-1">
-          <span className="text-ink3 text-xs uppercase tracking-widest">Pillar</span>
+          <span className="text-ink3 text-xs uppercase tracking-widest">Flow</span>
           <select
-            value={pillar}
-            onChange={(e) => setPillar(e.target.value as ReportablePillar)}
+            value={flowType}
+            onChange={(e) => setFlowType(e.target.value as FlowType)}
             className="w-full bg-bg border border-ink/15 rounded px-2 py-2"
           >
             <option value="procurement">procurement</option>
-            <option value="equity">equity</option>
+            <option value="capital">capital</option>
           </select>
         </label>
 
@@ -112,7 +113,11 @@ export function ReportLineForm({
         </label>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-ink2 text-sm">
+          <input type="checkbox" name="tags" value="innovation" />
+          Innovation / R&amp;D
+        </label>
         <button className="bg-amber/20 text-amber border border-amber/40 rounded px-4 py-2 hover:bg-amber/30">
           Report line
         </button>

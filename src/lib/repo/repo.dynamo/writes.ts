@@ -17,7 +17,7 @@ import {
   toLineItem,
   toPartyItem,
 } from "../../dynamo/single-table";
-import type { Confirmation, IdentityTier, Pillar, ReportedLine, Supplier } from "../types";
+import type { Confirmation, FlowTag, FlowType, IdentityTier, ReportedLine, Supplier } from "../types";
 
 type Item = Record<string, any>;
 const now = () => new Date().toISOString();
@@ -43,7 +43,8 @@ export async function createReportedLine(input: {
   companyId: string;
   supplierId: string;
   amount: number;
-  pillar: Pillar;
+  flowType: FlowType;
+  tags?: FlowTag[];
   period: string;
 }): Promise<ReportedLine> {
   const line: ReportedLine = {

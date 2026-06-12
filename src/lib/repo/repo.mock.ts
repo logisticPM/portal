@@ -4,7 +4,8 @@ import type {
   Supplier,
   ReportedLine,
   Confirmation,
-  Pillar,
+  FlowType,
+  FlowTag,
   IdentityTier,
 } from "./types";
 
@@ -16,16 +17,16 @@ import type {
 // State lives in module scope: it persists within a running dev server, resets on restart.
 // ===========================================================================
 
-const PILLARS: Pillar[] = ["equity", "capital", "procurement", "innovation"];
+const FLOWS: FlowType[] = ["procurement", "capital"];
 const TIERS: IdentityTier[] = ["nation", "ccab", "self_declared"];
 
-function emptyPillarMap() {
-  return PILLARS.reduce(
-    (acc, p) => {
-      acc[p] = { reported: 0, confirmed: 0 };
+function emptyFlowMap() {
+  return FLOWS.reduce(
+    (acc, f) => {
+      acc[f] = { reported: 0, confirmed: 0 };
       return acc;
     },
-    {} as Record<Pillar, { reported: number; confirmed: number }>,
+    {} as Record<FlowType, { reported: number; confirmed: number }>,
   );
 }
 
@@ -36,12 +37,12 @@ const parties: Party[] = [
   { id: "c-northway", role: "company", name: "Northway Energy", registered: true, createdAt: now() },
   { id: "c-cedartrust", role: "company", name: "Cedar Trust Bank", registered: true, createdAt: now() },
   { id: "c-mapletel", role: "company", name: "Maple Telecom", registered: true, createdAt: now() },
-  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", registered: true, createdAt: now() },
-  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", registered: true, createdAt: now() },
-  { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", registered: true, createdAt: now() },
-  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", registered: true, createdAt: now() },
-  { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", registered: true, createdAt: now() },
-  { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", registered: true, createdAt: now() },
+  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: now() },
+  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, registered: true, createdAt: now() },
+  { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", ownershipPct: 75, registered: true, createdAt: now() },
+  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, registered: true, createdAt: now() },
+  { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: now() },
+  { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", ownershipPct: 30, registered: true, createdAt: now() },
 ];
 
 let lineSeq = 0;
@@ -50,12 +51,14 @@ const L = (
   supplierId: string,
   amount: number,
   status: ReportedLine["status"],
+  extra: { flowType?: FlowType; tags?: FlowTag[] } = {},
 ): ReportedLine => ({
   id: `l-${++lineSeq}`,
   companyId,
   supplierId,
   amount,
-  pillar: "procurement",
+  flowType: extra.flowType ?? "procurement",
+  tags: extra.tags,
   period: "2025",
   reportedAt: now(),
   status,
@@ -66,10 +69,10 @@ const lines: ReportedLine[] = [
   L("c-northway", "s-raven", 450_000, "confirmed"),
   L("c-northway", "s-sweetgrass", 80_000, "pending"),
   L("c-northway", "s-thunderbird", 300_000, "disputed"),
-  L("c-cedartrust", "s-cedarsage", 620_000, "confirmed"),
+  L("c-cedartrust", "s-cedarsage", 620_000, "confirmed", { flowType: "capital" }), // equity invested INTO an Indigenous business
   L("c-cedartrust", "s-raven", 150_000, "pending"),
   L("c-cedartrust", "s-salish", 40_000, "confirmed"),
-  L("c-mapletel", "s-thunderbird", 900_000, "confirmed"),
+  L("c-mapletel", "s-thunderbird", 900_000, "confirmed", { tags: ["innovation"] }), // R&D-tagged procurement
   L("c-mapletel", "s-eagle", 200_000, "pending"),
   L("c-mapletel", "s-sweetgrass", 25_000, "disputed"),
   L("c-mapletel", "s-cedarsage", 175_000, "confirmed"),
@@ -181,19 +184,19 @@ export const mockRepo: PortalRepo = {
 
   async getCoverage(companyId) {
     const mine = lines.filter((l) => l.companyId === companyId && !l.withdrawn);
-    const byPillar = emptyPillarMap();
+    const byFlow = emptyFlowMap();
     let totalReported = 0;
     let totalConfirmed = 0;
     for (const l of mine) {
       const c = confirmedAmount(l);
-      byPillar[l.pillar].reported += l.amount;
-      byPillar[l.pillar].confirmed += c;
+      byFlow[l.flowType].reported += l.amount;
+      byFlow[l.flowType].confirmed += c;
       totalReported += l.amount;
       totalConfirmed += c;
     }
     return {
       companyId,
-      byPillar,
+      byFlow,
       totalReported,
       totalConfirmed,
       confirmedPct: totalReported ? Math.round((totalConfirmed / totalReported) * 100) : 0,
@@ -202,7 +205,7 @@ export const mockRepo: PortalRepo = {
 
   async getIndexSummary() {
     const active = lines.filter((l) => !l.withdrawn);
-    const byPillar = emptyPillarMap();
+    const byFlow = emptyFlowMap();
     const byTier = TIERS.reduce(
       (acc, t) => {
         acc[t] = { confirmed: 0 };
@@ -210,13 +213,15 @@ export const mockRepo: PortalRepo = {
       },
       {} as Record<IdentityTier, { confirmed: number }>,
     );
+    const byTag: Record<string, { confirmed: number }> = {};
     let totalReported = 0;
     let totalConfirmed = 0;
     for (const l of active) {
       const c = confirmedAmount(l);
-      byPillar[l.pillar].reported += l.amount;
-      byPillar[l.pillar].confirmed += c;
+      byFlow[l.flowType].reported += l.amount;
+      byFlow[l.flowType].confirmed += c;
       byTier[tierOf(l.supplierId)].confirmed += c;
+      for (const t of l.tags ?? []) (byTag[t] ??= { confirmed: 0 }).confirmed += c;
       totalReported += l.amount;
       totalConfirmed += c;
     }
@@ -224,8 +229,9 @@ export const mockRepo: PortalRepo = {
       totalReported,
       totalConfirmed,
       confirmedPct: totalReported ? Math.round((totalConfirmed / totalReported) * 100) : 0,
-      byPillar,
+      byFlow,
       byTier,
+      byTag,
       companyCount: parties.filter((p) => p.role === "company").length,
       supplierCount: parties.filter((p) => p.role === "supplier").length,
       disputedCount: active.filter((l) => l.status === "disputed").length,
