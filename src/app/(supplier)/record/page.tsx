@@ -1,6 +1,6 @@
 import { repo } from "@/lib/repo";
 import { withdrawConfirmations } from "@/lib/repo/actions";
-import { money, TierBadge, StatusBadge } from "@/components/ui";
+import { money, TierBadge, StatusBadge, PillarBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +67,7 @@ export default async function RecordPage({
           {rows.map(({ line, company }) => (
             <div key={line.id} className="flex items-center gap-3 py-2">
               <span className="flex-1">{company}</span>
+              <PillarBadge pillar={line.pillar} />
               <span className="text-ink2 text-sm">{line.period}</span>
               <span className="font-serif w-32 text-right">{money(line.amount)}</span>
               <span className="w-24 text-right">

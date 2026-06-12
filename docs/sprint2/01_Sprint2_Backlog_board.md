@@ -7,8 +7,6 @@ Card IDs continue the `RAP-##` series from Sprint 1 (which used RAP-7/9/11/23/27
 
 | ID | Task | Owner | Epic | Pts | Est |
 |----|------|-------|------|:---:|----:|
-| **RAP-28** | **Deploy to AWS** — SST/OpenNext → shared URL; provision real DynamoDB table; server-side secrets (never `NEXT_PUBLIC_`) | **Shiting Huang** | Deploy | 8 | 8 |
-| RAP-36 | CI deploy preview on PR + branch-protect `main` | **Shiting Huang** | Deploy | 3 | 3 |
 | RAP-30 | Horizon-2 ingest spike — pull federal 5% + Indigenous Business Directory sample; map to `Supplier` seed behind the seam (go/no-go) | **Mengshan Li** | Data | 5 | 6 |
 | RAP-31 | **Indigenomics portal** (`analytics`/Index) — build the institute portal shell; surface the **equity** pillar next to procurement, **by-tier** breakdown, **confirmable-vs-context** framing; a11y + demo polish | **Data group** | Indigenomics | 5 | 6 |
 | RAP-38 | Company self-registration entry — mirror `/register` for companies (closes the "no company sign-up entry" gap) | **En-Ping Su** (company) | Company | 2 | 2 |
@@ -25,11 +23,36 @@ Card IDs continue the `RAP-##` series from Sprint 1 (which used RAP-7/9/11/23/27
 ## In Progress
 _(keep WIP low, ideally ≤1 per person)_
 
+| ID | Task | Owner | Pts | Status (2026-06-10) |
+|----|------|-------|:---:|---------------------|
+| **RAP-36** | CI + branch-protect `main` | **Shiting Huang** | 3 | CI workflow **done + merged + green** ([PR #6]). Branch protection still pending → **[#7]**. ⚠️ Note: the automated deploy path uses OIDC (**[#8]**) — **not needed for the demo** (the live URL was shipped via a manual `sst deploy`); only required if we want push-to-`main` auto-deploy. Scope deviation (deploy-on-merge vs per-PR preview) still needs team sign-off. |
+
 ## In Review
 _(peer-check against the Definition of Done — must be demoed on the deploy URL, not localhost)_
 
 ## Done
 _(meets DoD: owner · points · time logged · merged + CI green)_
+
+| ID | Task | Owner | Pts | Done (2026-06-12) |
+|----|------|-------|:---:|-------------------|
+| **RAP-28** | Deploy to AWS — SST/OpenNext → shared URL | **Shiting Huang** | 8 | ✅ **LIVE: https://d1hwn8hhp1ytc0.cloudfront.net** — `sst deploy --stage production` (CloudFront + Lambda/OpenNext + production `DataPortal`/`RapSurvey` tables, us-east-1), seeded via `seed:sst`. Smoke-test: all pages 200; coverage renders seeded companies from DynamoDB → `report → confirm → coverage → Index` runs on the real backend. Shipped with the owner's own SSO creds — **no admin/OIDC needed for the URL**. Infra in [PR #6]. |
+
+---
+
+## Deploy track — GitHub artifacts (RAP-28 / RAP-36)
+
+| Ref | What | State |
+|---|---|---|
+| **Live URL** | `sst deploy --stage production` (manual, owner's SSO creds) | ✅ **https://d1hwn8hhp1ytc0.cloudfront.net** — seeded + smoke-tested 2026-06-12 |
+| [PR #6] | SST config + `seed:sst` + CI/deploy workflows + `sst` devDep | ✅ Merged, CI green |
+| [#7] | Enable branch protection on `main` | ⏳ repo admin — **not a demo blocker** (governance only) |
+| [#8] | AWS OIDC role + `AWS_DEPLOY_ROLE_ARN` secret | ⏳ IAM admin — **downgraded**: only needed for *automated* push-to-`main` deploy; the live URL was shipped manually |
+| [#9] | **RAP-41** (deferred) — Next.js 14→16 upgrade, resolves `npm audit` advisories | 🅿️ post-sprint tech debt (not in the committed 42) |
+
+[PR #6]: https://github.com/logisticPM/portal/pull/6
+[#7]: https://github.com/logisticPM/portal/issues/7
+[#8]: https://github.com/logisticPM/portal/issues/8
+[#9]: https://github.com/logisticPM/portal/issues/9
 
 ---
 

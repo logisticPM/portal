@@ -60,7 +60,7 @@ Then either:
 | Both domains expose interface only + mock fallback | ✅ |
 | `npm run verify` regression harness (18 checks) | ✅ |
 | Cloud tables (real AWS, us-east-1) | ✅ created + seeded |
-| App hosting on cloud (Amplify/Vercel) | ⏳ deferred |
+| App hosting on cloud (SST + OpenNext) | ✅ live — see [`deploy.md`](./deploy.md) |
 | Survey aggregation method, richer fixtures | ⏳ optional |
 
 Against the design spec's Data-group Definition of Done
@@ -187,8 +187,6 @@ run `aws sso login`. The console is **us-east-1 (N. Virginia)** — not Ohio.
 
 ## What's not done (by design / optional)
 
-- **App hosting on the cloud** (Amplify/Vercel) — deferred; the app currently runs
-  locally against either Local or the cloud table.
 - **Survey aggregation** (cross-org rollup beyond `listResponsesByYear`) — add only
   if the demo shows survey analytics.
 - **Scale / real identity verification / dispute resolution** — Horizon 2 (spec §15).
