@@ -1,6 +1,6 @@
 # Deploy to AWS — how to ship the portal
 
-Owned by **Infra (Shiting)**. This is the single place to learn how the portal
+This is the single place to learn how the portal
 gets onto AWS and how to push changes. Backend/data layer is in
 [`backend.md`](./backend.md); frontend integration in [`frontend-api.md`](./frontend-api.md).
 
