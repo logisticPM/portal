@@ -33,7 +33,7 @@ export default async function CoveragePage({
 
   const company = await repo.getParty(companyId);
   const coverage = await repo.getCoverage(companyId);
-  const pillars = Object.entries(coverage.byPillar);
+  const flows = Object.entries(coverage.byFlow);
 
   return (
     <div className="space-y-8">
@@ -71,15 +71,15 @@ export default async function CoveragePage({
 
       <div>
         <div className="text-ink3 text-xs uppercase tracking-widest mb-3">
-          Reported vs confirmed, by pillar
+          Reported vs confirmed, by flow type
         </div>
         <div className="space-y-3">
-          {pillars.map(([pillar, v]) => {
+          {flows.map(([flow, v]) => {
             const pct = v.reported ? Math.round((v.confirmed / v.reported) * 100) : 0;
             return (
-              <div key={pillar}>
+              <div key={flow}>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="capitalize">{pillar}</span>
+                  <span className="capitalize">{flow}</span>
                   <span className="text-ink3">
                     {money(v.confirmed)} / {money(v.reported)} · {pct}%
                   </span>

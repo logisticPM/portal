@@ -1,6 +1,6 @@
 import { repo } from "@/lib/repo";
 import { respondToLine } from "@/lib/repo/actions";
-import { money, TierBadge, PillarBadge, pillarClaim } from "@/components/ui";
+import { money, TierBadge, FlowBadge, flowClaim, TagChip } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -62,9 +62,10 @@ export default async function ConfirmPage({
             <div key={line.id} className="bg-panel rounded border border-line shadow-card p-4">
               <div className="flex flex-wrap items-baseline gap-2 mb-3">
                 <span className="font-serif text-lg">{company}</span>
-                <span className="text-ink3">{pillarClaim(line.pillar)}</span>
+                <span className="text-ink3">{flowClaim(line.flowType)}</span>
                 <span className="font-serif text-amber text-lg">{money(line.amount)}</span>
-                <PillarBadge pillar={line.pillar} />
+                <FlowBadge flowType={line.flowType} />
+                {line.tags?.map((t) => <TagChip key={t} tag={t} />)}
                 <span className="text-ink3 text-sm">· {line.period}</span>
               </div>
               <div className="flex flex-wrap gap-2 items-center">

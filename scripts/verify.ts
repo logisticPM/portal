@@ -86,7 +86,7 @@ async function main() {
   // demo loop
   const before = await dynamoRepo.getCoverage("c-northway");
   const line = await dynamoRepo.createReportedLine({
-    companyId: "c-northway", supplierId: "s-raven", amount: 500_000, pillar: "procurement", period: "2025",
+    companyId: "c-northway", supplierId: "s-raven", amount: 500_000, flowType: "procurement", period: "2025",
   });
   const inbox = await dynamoRepo.listPendingForSupplier("s-raven");
   check("new line appears in supplier pending inbox", inbox.some((l) => l.id === line.id));

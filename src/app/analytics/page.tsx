@@ -12,7 +12,7 @@ const tierLabels: Record<IdentityTier, string> = {
 
 export default async function AnalyticsPage() {
   const idx = await repo.getIndexSummary();
-  const pillars = Object.entries(idx.byPillar);
+  const flows = Object.entries(idx.byFlow);
 
   return (
     <div className="space-y-8">
@@ -46,15 +46,15 @@ export default async function AnalyticsPage() {
 
       <div>
         <div className="text-ink3 text-xs uppercase tracking-widest mb-3">
-          Reported vs confirmed, by pillar
+          Reported vs confirmed, by flow type
         </div>
         <div className="space-y-3">
-          {pillars.map(([pillar, v]) => {
+          {flows.map(([flow, v]) => {
             const pct = v.reported ? Math.round((v.confirmed / v.reported) * 100) : 0;
             return (
-              <div key={pillar}>
+              <div key={flow}>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="capitalize">{pillar}</span>
+                  <span className="capitalize">{flow}</span>
                   <span className="text-ink3">
                     {money(v.confirmed)} / {money(v.reported)} · {pct}%
                   </span>
@@ -70,7 +70,7 @@ export default async function AnalyticsPage() {
 
       <div>
         <div className="text-ink3 text-xs uppercase tracking-widest mb-3">
-          Confirmed $ by supplier identity tier (the integrity lens)
+          Confirmed $ by ownership-certification tier — the equity / integrity lens
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
           {(["nation", "ccab", "self_declared"] as const).map((t) => (
@@ -81,10 +81,27 @@ export default async function AnalyticsPage() {
           ))}
         </div>
         <p className="text-ink3 text-sm mt-2">
-          How much confirmed spend sits at each verification tier — self-declared is where fraud
-          risk concentrates.
+          How much confirmed spend sits at each ownership-certification tier — self-declared is
+          where phantom-JV fraud risk concentrates. (Equity isn&apos;t a separate flow — it&apos;s
+          this verification layer.)
         </p>
       </div>
+
+      {Object.keys(idx.byTag).length > 0 && (
+        <div>
+          <div className="text-ink3 text-xs uppercase tracking-widest mb-3">
+            Confirmed $ by tag
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {Object.entries(idx.byTag).map(([tag, v]) => (
+              <div key={tag} className="bg-panel rounded border border-line shadow-card p-4">
+                <div className="font-serif text-xl">{money(v.confirmed)}</div>
+                <div className="text-ink3 text-sm capitalize">{tag}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,12 @@
 # 04 · Pillar Model Proposal — procurement-centric: 2 flows + certification layer + tags
 
-**Sprint:** 2 · **Type:** Design proposal + cross-team requirements · **Status:** **PROPOSAL — not agreed.** Touches the seam (`types.ts`) and the product taxonomy → needs **team sign-off + client (Indigenomics) confirmation** before implementation.
-**Branch:** `pillar-model-proposal` (docs only; does **not** modify `main` or `types.ts`).
+**Sprint:** 2 · **Type:** Design proposal + cross-team requirements · **Status:** **Implemented on this branch for review — not yet adopted.** The full `Pillar → FlowType` refactor is built + build-green; **adoption still needs team sign-off** (it changes the seam + reframes #13) **+ client confirmation.**
+**Branch:** `pillar-model-proposal` — now carries the **full implementation** (15 files) + this doc. Does **not** touch `main` (open as a PR for review).
+
+**Implemented on this branch [2026-06-12]** (build-green; rendering verified on mock):
+- **`types.ts` (seam):** `Pillar → FlowType` (`procurement | capital`); equity → `Supplier.ownershipPct` + the existing tier; `ReportedLine.tags?: FlowTag[]`; `byPillar → byFlow` + new `byTag` on the Index.
+- **Data layer:** repo.mock + repo.dynamo (reads/writes) + single-table marshalling + seed fixtures (ownership %, one `innovation`-tagged line, one `capital` line) + `verify.ts`.
+- **UI:** `FlowBadge` / `TagChip` / `flowClaim`; supplier inbox + record show flow + tags + ownership %; the **company report form is reframed** to a Flow selector (procurement/capital) + an Innovation checkbox (was the procurement|equity selector, #13); Index shows by-flow + by-tag + the tier-as-equity lens; coverage by-flow.
 
 ---
 

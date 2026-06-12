@@ -25,23 +25,23 @@ import type {
   IndexSummary,
   Party,
   PartyRole,
-  Pillar,
+  FlowType,
   ReportedLine,
   SupplierRecord,
 } from "../types";
 
 type Item = Record<string, any>;
 
-const PILLARS: Pillar[] = ["equity", "capital", "procurement", "innovation"];
+const FLOWS: FlowType[] = ["procurement", "capital"];
 const TIERS: IdentityTier[] = ["nation", "ccab", "self_declared"];
 
-function emptyPillarMap() {
-  return PILLARS.reduce(
-    (acc, p) => {
-      acc[p] = { reported: 0, confirmed: 0 };
+function emptyFlowMap() {
+  return FLOWS.reduce(
+    (acc, f) => {
+      acc[f] = { reported: 0, confirmed: 0 };
       return acc;
     },
-    {} as Record<Pillar, { reported: number; confirmed: number }>,
+    {} as Record<FlowType, { reported: number; confirmed: number }>,
   );
 }
 
@@ -150,19 +150,19 @@ export async function getCoverage(companyId: string): Promise<Coverage> {
   const lines = items.filter((it) => it.et === "Line" && !it.withdrawn).map(itemToLine);
   const active = indexActiveConfs(items.filter((it) => it.et === "Conf").map(itemToConf));
 
-  const byPillar = emptyPillarMap();
+  const byFlow = emptyFlowMap();
   let totalReported = 0;
   let totalConfirmed = 0;
   for (const l of lines) {
     const c = confirmedAmount(l, active);
-    byPillar[l.pillar].reported += l.amount;
-    byPillar[l.pillar].confirmed += c;
+    byFlow[l.flowType].reported += l.amount;
+    byFlow[l.flowType].confirmed += c;
     totalReported += l.amount;
     totalConfirmed += c;
   }
   return {
     companyId,
-    byPillar,
+    byFlow,
     totalReported,
     totalConfirmed,
     confirmedPct: totalReported ? Math.round((totalConfirmed / totalReported) * 100) : 0,
@@ -188,7 +188,7 @@ export async function getIndexSummary(): Promise<IndexSummary> {
     return p && p.role === "supplier" ? p.identityTier : "self_declared";
   };
 
-  const byPillar = emptyPillarMap();
+  const byFlow = emptyFlowMap();
   const byTier = TIERS.reduce(
     (acc, t) => {
       acc[t] = { confirmed: 0 };
@@ -196,13 +196,15 @@ export async function getIndexSummary(): Promise<IndexSummary> {
     },
     {} as Record<IdentityTier, { confirmed: number }>,
   );
+  const byTag: Record<string, { confirmed: number }> = {};
   let totalReported = 0;
   let totalConfirmed = 0;
   for (const l of lines) {
     const c = confirmedAmount(l, active);
-    byPillar[l.pillar].reported += l.amount;
-    byPillar[l.pillar].confirmed += c;
+    byFlow[l.flowType].reported += l.amount;
+    byFlow[l.flowType].confirmed += c;
     byTier[tierOf(l.supplierId)].confirmed += c;
+    for (const t of l.tags ?? []) (byTag[t] ??= { confirmed: 0 }).confirmed += c;
     totalReported += l.amount;
     totalConfirmed += c;
   }
@@ -210,8 +212,9 @@ export async function getIndexSummary(): Promise<IndexSummary> {
     totalReported,
     totalConfirmed,
     confirmedPct: totalReported ? Math.round((totalConfirmed / totalReported) * 100) : 0,
-    byPillar,
+    byFlow,
     byTier,
+    byTag,
     companyCount: parties.filter((p) => p.role === "company").length,
     supplierCount: parties.filter((p) => p.role === "supplier").length,
     disputedCount: lines.filter((l) => l.status === "disputed").length,

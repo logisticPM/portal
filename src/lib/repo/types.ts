@@ -25,14 +25,20 @@ export interface Company extends BaseParty {
 }
 export interface Supplier extends BaseParty {
   role: "supplier";
-  identityTier: IdentityTier; // required — how the supplier's Indigenous status is verified
+  identityTier: IdentityTier; // the ownership-certification tier — the "equity" / verification layer
+  ownershipPct?: number; // % Indigenous-owned (≥51 to qualify); low + self_declared = phantom-JV risk
 }
 export type Party = Company | Supplier;
 
-// The 4 Indigenomics RAP pillars (NOT Australia's Relationships/Respect/Opportunities/Governance).
-// These ARE the economic flow categories — a line's pillar tells you what kind of flow it is.
-// MVP flagship: 'procurement'. High-value second: 'equity'.
-export type Pillar = "equity" | "capital" | "procurement" | "innovation";
+// FlowType — the kind of economic FLOW a line records: value moving to a NAMED Indigenous
+// counterparty, so that counterparty can confirm it. (Equity is NOT a flow — it's the ownership
+// CERTIFICATION carried on the Supplier, below. Innovation is a TAG, not a flow.)
+//   procurement = company BUYS from an Indigenous supplier            (RAP core, MVP)
+//   capital     = company INVESTS equity INTO an Indigenous business  (ownership frontier, H2)
+export type FlowType = "procurement" | "capital";
+
+// Tags categorise a flow without being one (e.g. an innovation / R&D procurement line).
+export type FlowTag = "innovation" | "capacity";
 
 export type ConfirmationStatus = "pending" | "confirmed" | "disputed" | "corrected";
 
@@ -42,7 +48,8 @@ export interface ReportedLine {
   companyId: string;
   supplierId: string;
   amount: number; // CAD
-  pillar: Pillar;
+  flowType: FlowType; // procurement (buy) | capital (invest into) — the confirmable flow
+  tags?: FlowTag[]; // e.g. ["innovation"] — categorises the flow, not a flow itself
   period: string; // e.g. "2025"
   reportedAt: string; // ISO 8601
   status: ConfirmationStatus; // denormalized for fast listing; 'pending' until the supplier acts
@@ -64,7 +71,7 @@ export interface Confirmation {
 // + corrected lines at corrected amount; disputed/pending/withdrawn contribute 0.
 export interface Coverage {
   companyId: string;
-  byPillar: Record<Pillar, { reported: number; confirmed: number }>;
+  byFlow: Record<FlowType, { reported: number; confirmed: number }>;
   totalReported: number;
   totalConfirmed: number;
   confirmedPct: number;
@@ -84,8 +91,9 @@ export interface IndexSummary {
   totalReported: number;
   totalConfirmed: number;
   confirmedPct: number;
-  byPillar: Record<Pillar, { reported: number; confirmed: number }>;
-  byTier: Record<IdentityTier, { confirmed: number }>; // confirmed $ by supplier identity tier
+  byFlow: Record<FlowType, { reported: number; confirmed: number }>;
+  byTier: Record<IdentityTier, { confirmed: number }>; // confirmed $ by ownership-cert tier — the "equity" integrity lens
+  byTag: Record<string, { confirmed: number }>; // confirmed $ carrying each tag (e.g. innovation)
   companyCount: number;
   supplierCount: number;
   disputedCount: number;
@@ -108,7 +116,8 @@ export interface PortalRepo {
     companyId: string;
     supplierId: string;
     amount: number;
-    pillar: Pillar;
+    flowType: FlowType;
+    tags?: FlowTag[];
     period: string;
   }): Promise<ReportedLine>;
   listLinesForCompany(companyId: string): Promise<ReportedLine[]>;

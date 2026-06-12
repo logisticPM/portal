@@ -1,4 +1,4 @@
-import type { IdentityTier, ConfirmationStatus, Party, Pillar } from "@/lib/repo/types";
+import type { IdentityTier, ConfirmationStatus, Party, FlowType, FlowTag } from "@/lib/repo/types";
 
 export function money(n: number): string {
   return new Intl.NumberFormat("en-CA", {
@@ -45,35 +45,38 @@ export function StatusBadge({ status }: { status: ConfirmationStatus }) {
   );
 }
 
-// A line's pillar is its economic flow category. Procurement is the MVP flagship;
-// equity is the high-value second (JV / ownership — the phantom-JV fraud target).
-const pillarStyles: Record<Pillar, string> = {
+// A line's flow type. procurement = buy FROM; capital = invest INTO. (Equity is the supplier's
+// ownership certification — their tier, not a flow. Innovation is a TAG — see TagChip.)
+const flowStyles: Record<FlowType, string> = {
   procurement: "border-amber/40 text-amber",
-  equity: "border-cedar/40 text-cedar",
-  capital: "border-ink3/40 text-ink2",
-  innovation: "border-ink3/40 text-ink2",
+  capital: "border-cedar/40 text-cedar",
 };
 
-export function PillarBadge({ pillar }: { pillar: Pillar }) {
+export function FlowBadge({ flowType }: { flowType: FlowType }) {
   return (
     <span
-      className={`text-[0.65rem] uppercase tracking-wider border rounded px-1.5 py-0.5 ${pillarStyles[pillar]}`}
+      className={`text-[0.65rem] uppercase tracking-wider border rounded px-1.5 py-0.5 ${flowStyles[flowType]}`}
     >
-      {pillar}
+      {flowType}
     </span>
   );
 }
 
-// Pillar-aware phrasing for the confirm inbox, so an equity claim doesn't read as "paid you".
-export function pillarClaim(pillar: Pillar): string {
-  switch (pillar) {
+// A tag categorises a flow without being one (e.g. an innovation / R&D procurement line).
+export function TagChip({ tag }: { tag: FlowTag }) {
+  return (
+    <span className="text-[0.6rem] uppercase tracking-wider border border-ink3/40 text-ink3 rounded px-1.5 py-0.5">
+      {tag}
+    </span>
+  );
+}
+
+// Flow-aware phrasing for the confirm inbox, so a capital line doesn't read as "paid you".
+export function flowClaim(flowType: FlowType): string {
+  switch (flowType) {
     case "procurement":
       return "says they paid you";
-    case "equity":
-      return "reports an equity stake with you of";
     case "capital":
-      return "reports capital deployed with you of";
-    case "innovation":
-      return "reports an innovation contract with you worth";
+      return "reports an equity investment into you of";
   }
 }
