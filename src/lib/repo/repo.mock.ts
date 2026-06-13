@@ -8,6 +8,9 @@ import type {
   FlowTag,
   IdentityTier,
   SupplierShowcase,
+  Verification,
+  VerificationSource,
+  VerificationStatus,
 } from "./types";
 
 // ===========================================================================
@@ -38,12 +41,12 @@ const parties: Party[] = [
   { id: "c-northway", role: "company", name: "Northway Energy", registered: true, createdAt: now() },
   { id: "c-cedartrust", role: "company", name: "Cedar Trust Bank", registered: true, createdAt: now() },
   { id: "c-mapletel", role: "company", name: "Maple Telecom", registered: true, createdAt: now() },
-  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, sector: "Construction", region: "BC", blurb: "Heavy civil & site construction for energy and public works.", profilePublic: true, registered: true, createdAt: now() },
-  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, sector: "Logistics", region: "AB", blurb: "Freight, warehousing and last-mile across the prairies.", profilePublic: true, registered: true, createdAt: now() },
-  { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", ownershipPct: 75, registered: true, createdAt: now() },
-  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, sector: "Catering", region: "SK", blurb: "Event and corporate catering.", profilePublic: true, registered: true, createdAt: now() },
-  { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: now() },
-  { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", ownershipPct: 30, registered: true, createdAt: now() },
+  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, sector: "Construction", region: "BC", blurb: "Heavy civil & site construction for energy and public works.", profilePublic: true, verifications: [{ source: "nation", reference: "BCR-2024-014", status: "verified", verifiedAt: "2025-01-10T00:00:00.000Z", expiresAt: "2027-01-10", verifiedBy: "Tsleil-Waututh Nation" }], registered: true, createdAt: now() },
+  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, sector: "Logistics", region: "AB", blurb: "Freight, warehousing and last-mile across the prairies.", profilePublic: true, verifications: [{ source: "ccib", reference: "CIB-08831", status: "verified", verifiedAt: "2025-02-01T00:00:00.000Z", expiresAt: "2026-02-01", verifiedBy: "CCIB" }], registered: true, createdAt: now() },
+  { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", ownershipPct: 75, verifications: [{ source: "isc_ibd", reference: "IBD-44120", status: "verified", verifiedAt: "2025-03-01T00:00:00.000Z", verifiedBy: "ISC" }], registered: true, createdAt: now() },
+  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, sector: "Catering", region: "SK", blurb: "Event and corporate catering.", profilePublic: true, verifications: [{ source: "ccib", reference: "CIB-pending", status: "pending" }], registered: true, createdAt: now() },
+  { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", ownershipPct: 100, verifications: [{ source: "nation", reference: "MNBC-2023-77", status: "verified", verifiedAt: "2025-01-05T00:00:00.000Z", verifiedBy: "Métis Nation BC" }], registered: true, createdAt: now() },
+  { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", ownershipPct: 30, verifications: [], registered: true, createdAt: now() },
 ];
 
 let lineSeq = 0;
@@ -110,6 +113,17 @@ function tierOf(supplierId: string): IdentityTier {
   return p && p.role === "supplier" ? p.identityTier : "self_declared";
 }
 
+// identityTier is DERIVED from active (verified, non-expired) verifications — never self-set.
+function isActive(v: Verification): boolean {
+  return v.status === "verified" && (!v.expiresAt || v.expiresAt >= now().slice(0, 10));
+}
+function tierFromVerifications(vs: Verification[] | undefined): IdentityTier {
+  const active = (vs ?? []).filter(isActive);
+  if (active.some((v) => v.source === "nation")) return "nation";
+  if (active.length > 0) return "ccab"; // ccib / isc_ibd / regional all map to the "certified" tier
+  return "self_declared";
+}
+
 // --- repo ------------------------------------------------------------------
 export const mockRepo: PortalRepo = {
   async getParty(id) {
@@ -125,7 +139,8 @@ export const mockRepo: PortalRepo = {
       id: `s-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
       role: "supplier",
       name: input.name,
-      identityTier: input.identityTier,
+      identityTier: "self_declared",
+      verifications: [],
       registered: true,
       createdAt: now(),
     };
@@ -207,6 +222,7 @@ export const mockRepo: PortalRepo = {
     }
     return {
       supplierId, name: p.name, identityTier: p.identityTier, ownershipPct: p.ownershipPct,
+      verifications: (p.verifications ?? []).filter(isActive),
       sector: p.sector, blurb: p.blurb, region: p.region, website: p.website,
       confirmedRevenue, byFlow, confirmedBuyerCount: buyers.size, tags: [...tagSet], asOf,
     };
@@ -221,6 +237,41 @@ export const mockRepo: PortalRepo = {
     if (input.website !== undefined) p.website = input.website || undefined;
     if (input.profilePublic !== undefined) p.profilePublic = input.profilePublic;
     return p;
+  },
+
+  async claimVerification(supplierId, input) {
+    const p = parties.find((x) => x.id === supplierId);
+    if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
+    p.verifications = (p.verifications ?? []).filter((v) => v.source !== input.source); // one per source
+    const v: Verification = { source: input.source, reference: input.reference, status: "pending" };
+    p.verifications.push(v);
+    return v;
+  },
+
+  async resolveVerification(supplierId, source, input) {
+    const p = parties.find((x) => x.id === supplierId);
+    if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
+    const v = (p.verifications ?? []).find((x) => x.source === source);
+    if (!v) throw new Error(`no ${source} verification to resolve for ${supplierId}`);
+    v.status = input.status;
+    if (input.status === "verified") {
+      v.verifiedAt = now();
+      v.expiresAt = input.expiresAt;
+      v.verifiedBy = input.verifiedBy;
+    }
+    p.identityTier = tierFromVerifications(p.verifications); // recompute the cache
+    return p;
+  },
+
+  async listPendingVerifications() {
+    const out: { supplier: Supplier; verification: Verification }[] = [];
+    for (const p of parties) {
+      if (p.role !== "supplier") continue;
+      for (const v of p.verifications ?? []) {
+        if (v.status === "pending") out.push({ supplier: p, verification: v });
+      }
+    }
+    return out;
   },
 
   async getCoverage(companyId) {
@@ -266,6 +317,15 @@ export const mockRepo: PortalRepo = {
       totalReported += l.amount;
       totalConfirmed += c;
     }
+    const integrity = { certifiedNoActivity: 0, selfDeclaredWithActivity: 0 };
+    for (const p of parties) {
+      if (p.role !== "supplier") continue;
+      const confirmed = active
+        .filter((l) => l.supplierId === p.id)
+        .reduce((s, l) => s + confirmedAmount(l), 0);
+      if (p.identityTier !== "self_declared" && confirmed === 0) integrity.certifiedNoActivity++;
+      if (p.identityTier === "self_declared" && confirmed > 0) integrity.selfDeclaredWithActivity++;
+    }
     return {
       totalReported,
       totalConfirmed,
@@ -276,6 +336,7 @@ export const mockRepo: PortalRepo = {
       companyCount: parties.filter((p) => p.role === "company").length,
       supplierCount: parties.filter((p) => p.role === "supplier").length,
       disputedCount: active.filter((l) => l.status === "disputed").length,
+      integrity,
     };
   },
 

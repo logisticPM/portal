@@ -31,6 +31,7 @@ import type {
   PartyRole,
   ReportedLine,
   Supplier,
+  Verification,
 } from "../repo/types";
 
 // --- index names (used by repo.dynamo queries + the create-table script) ----
@@ -83,6 +84,7 @@ export function toPartyItem(p: Party) {
     region: p.role === "supplier" ? p.region : undefined,
     website: p.role === "supplier" ? p.website : undefined,
     profilePublic: p.role === "supplier" ? p.profilePublic : undefined,
+    verifications: p.role === "supplier" ? (p.verifications ?? []) : undefined,
     registered: p.registered,
     createdAt: p.createdAt,
   };
@@ -145,6 +147,7 @@ export function itemToParty(it: any): Party {
       region: it.region,
       website: it.website,
       profilePublic: it.profilePublic,
+      verifications: (it.verifications ?? []) as Verification[],
       registered: it.registered,
       createdAt: it.createdAt,
     } satisfies Supplier;

@@ -18,6 +18,7 @@ export const dynamoRepo: PortalRepo = {
   getCoverage: reads.getCoverage,
   getIndexSummary: reads.getIndexSummary,
   exportRecords: reads.exportRecords,
+  listPendingVerifications: reads.listPendingVerifications,
 
   // writes / integrity — Sunny
   createReportedLine: writes.createReportedLine,
@@ -25,4 +26,6 @@ export const dynamoRepo: PortalRepo = {
   withdraw: writes.withdraw,
   registerSupplier: writes.registerSupplier,
   updateSupplierProfile: writes.updateSupplierProfile,
+  claimVerification: writes.claimVerification,
+  resolveVerification: writes.resolveVerification,
 };
