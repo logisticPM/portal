@@ -6,6 +6,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch: # allow manual re-deploy from the Actions tab
 
 # Never run two production deploys at once.
 concurrency:
