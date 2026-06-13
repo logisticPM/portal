@@ -87,6 +87,23 @@ export default async function AnalyticsPage() {
         </p>
       </div>
 
+      {(idx.integrity.certifiedNoActivity > 0 || idx.integrity.selfDeclaredWithActivity > 0) && (
+        <div>
+          <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Integrity signals (status × substance)</div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="bg-panel rounded border border-line shadow-card p-4">
+              <div className="font-serif text-xl text-rust">{idx.integrity.certifiedNoActivity}</div>
+              <div className="text-ink3 text-sm">certified · but no confirmed activity</div>
+            </div>
+            <div className="bg-panel rounded border border-line shadow-card p-4">
+              <div className="font-serif text-xl text-rust">{idx.integrity.selfDeclaredWithActivity}</div>
+              <div className="text-ink3 text-sm">self-declared · with confirmed spend</div>
+            </div>
+          </div>
+          <p className="text-ink3 text-sm mt-2">A certification (status) without confirmed activity (substance) — or large spend with no verification — is the shell-company signal. Counts only; routed to human/Nation/CCIB review, never auto-judged.</p>
+        </div>
+      )}
+
       {Object.keys(idx.byTag).length > 0 && (
         <div>
           <div className="text-ink3 text-xs uppercase tracking-widest mb-3">
