@@ -9,6 +9,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 const LINKS: { href: string; label: string; keepAs: boolean }[] = [
   { href: "/confirm", label: "Confirm inbox", keepAs: true },
   { href: "/record", label: "My Record", keepAs: true },
+  { href: "/profile", label: "My Profile", keepAs: true },
   { href: "/register", label: "Register", keepAs: false },
 ];
 

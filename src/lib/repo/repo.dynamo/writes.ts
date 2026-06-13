@@ -6,12 +6,13 @@
 // or Sharon's pending-inbox query goes stale. And NEVER hard-delete (OCAP).
 // ===========================================================================
 import { randomUUID } from "crypto";
-import { PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc, TABLE } from "../../dynamo/client";
 import {
   GSI1,
   gsi1Supplier,
   itemToLine,
+  itemToParty,
   keys,
   toConfItem,
   toLineItem,
@@ -168,4 +169,23 @@ export async function registerSupplier(input: {
   };
   await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(supplier) }));
   return supplier;
+}
+
+// AP-profile — supplier edits their own showcase profile fields + public toggle
+export async function updateSupplierProfile(supplierId: string, input: {
+  sector?: string; blurb?: string; region?: string; website?: string; profilePublic?: boolean;
+}): Promise<Supplier> {
+  const res = await ddbDoc.send(new GetCommand({ TableName: TABLE, Key: keys.party(supplierId) }));
+  const p = res.Item ? itemToParty(res.Item as Item) : null;
+  if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
+  const updated: Supplier = {
+    ...p,
+    sector: input.sector !== undefined ? (input.sector || undefined) : p.sector,
+    blurb: input.blurb !== undefined ? (input.blurb || undefined) : p.blurb,
+    region: input.region !== undefined ? (input.region || undefined) : p.region,
+    website: input.website !== undefined ? (input.website || undefined) : p.website,
+    profilePublic: input.profilePublic ?? p.profilePublic,
+  };
+  await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(updated) }));
+  return updated;
 }

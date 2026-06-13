@@ -17,10 +17,10 @@ export const parties: Party[] = [
   { id: "c-cedartrust", role: "company", name: "Cedar Trust Bank", registered: true, createdAt: T },
   { id: "c-mapletel", role: "company", name: "Maple Telecom", registered: true, createdAt: T },
   // suppliers (Indigenous parties — each carries a verification tier; Q32 certified-vs-self)
-  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: T },
-  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, registered: true, createdAt: T },
+  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, sector: "Construction", region: "BC", blurb: "Heavy civil & site construction for energy and public works.", profilePublic: true, registered: true, createdAt: T },
+  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, sector: "Logistics", region: "AB", blurb: "Freight, warehousing and last-mile across the prairies.", profilePublic: true, registered: true, createdAt: T },
   { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", ownershipPct: 75, registered: true, createdAt: T },
-  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, registered: true, createdAt: T },
+  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, sector: "Catering", region: "SK", blurb: "Event and corporate catering.", profilePublic: true, registered: true, createdAt: T },
   { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: T },
   { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", ownershipPct: 30, registered: true, createdAt: T },
 ];

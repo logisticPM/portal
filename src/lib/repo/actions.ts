@@ -66,3 +66,19 @@ export async function registerSupplierAction(formData: FormData) {
   revalidatePath("/analytics");
   redirect(`/record?as=${supplier.id}`);
 }
+
+// Supplier edits their showcase profile (self-described fields + the public toggle).
+export async function updateSupplierProfileAction(formData: FormData) {
+  const supplierId = String(formData.get("supplierId") ?? "").trim();
+  if (!supplierId) return;
+  await repo.updateSupplierProfile(supplierId, {
+    sector: String(formData.get("sector") ?? "").trim(),
+    region: String(formData.get("region") ?? "").trim(),
+    website: String(formData.get("website") ?? "").trim(),
+    blurb: String(formData.get("blurb") ?? "").trim(),
+    profilePublic: formData.get("profilePublic") === "true",
+  });
+  revalidatePath("/profile");
+  revalidatePath(`/s/${supplierId}`);
+  redirect(`/profile?as=${supplierId}`);
+}

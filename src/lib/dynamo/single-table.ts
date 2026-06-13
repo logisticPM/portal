@@ -78,6 +78,11 @@ export function toPartyItem(p: Party) {
     name: p.name,
     identityTier: p.role === "supplier" ? p.identityTier : undefined,
     ownershipPct: p.role === "supplier" ? p.ownershipPct : undefined,
+    sector: p.role === "supplier" ? p.sector : undefined,
+    blurb: p.role === "supplier" ? p.blurb : undefined,
+    region: p.role === "supplier" ? p.region : undefined,
+    website: p.role === "supplier" ? p.website : undefined,
+    profilePublic: p.role === "supplier" ? p.profilePublic : undefined,
     registered: p.registered,
     createdAt: p.createdAt,
   };
@@ -135,6 +140,11 @@ export function itemToParty(it: any): Party {
       name: it.name,
       identityTier: it.identityTier,
       ownershipPct: it.ownershipPct,
+      sector: it.sector,
+      blurb: it.blurb,
+      region: it.region,
+      website: it.website,
+      profilePublic: it.profilePublic,
       registered: it.registered,
       createdAt: it.createdAt,
     } satisfies Supplier;

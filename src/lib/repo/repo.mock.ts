@@ -7,6 +7,7 @@ import type {
   FlowType,
   FlowTag,
   IdentityTier,
+  SupplierShowcase,
 } from "./types";
 
 // ===========================================================================
@@ -37,10 +38,10 @@ const parties: Party[] = [
   { id: "c-northway", role: "company", name: "Northway Energy", registered: true, createdAt: now() },
   { id: "c-cedartrust", role: "company", name: "Cedar Trust Bank", registered: true, createdAt: now() },
   { id: "c-mapletel", role: "company", name: "Maple Telecom", registered: true, createdAt: now() },
-  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: now() },
-  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, registered: true, createdAt: now() },
+  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, sector: "Construction", region: "BC", blurb: "Heavy civil & site construction for energy and public works.", profilePublic: true, registered: true, createdAt: now() },
+  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, sector: "Logistics", region: "AB", blurb: "Freight, warehousing and last-mile across the prairies.", profilePublic: true, registered: true, createdAt: now() },
   { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", ownershipPct: 75, registered: true, createdAt: now() },
-  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, registered: true, createdAt: now() },
+  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, sector: "Catering", region: "SK", blurb: "Event and corporate catering.", profilePublic: true, registered: true, createdAt: now() },
   { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: now() },
   { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", ownershipPct: 30, registered: true, createdAt: now() },
 ];
@@ -180,6 +181,46 @@ export const mockRepo: PortalRepo = {
       disputedCount: mine.filter((l) => l.status === "disputed").length,
       lines: mine,
     };
+  },
+
+  async getSupplierShowcase(supplierId) {
+    const p = parties.find((x) => x.id === supplierId);
+    if (!p || p.role !== "supplier" || p.profilePublic !== true) return null;
+    const mine = lines.filter((l) => l.supplierId === supplierId && !l.withdrawn);
+    const byFlow = FLOWS.reduce(
+      (acc, f) => { acc[f] = { confirmed: 0 }; return acc; },
+      {} as Record<FlowType, { confirmed: number }>,
+    );
+    const buyers = new Set<string>();
+    const tagSet = new Set<string>();
+    let confirmedRevenue = 0;
+    let asOf = "";
+    for (const l of mine) {
+      const c = confirmedAmount(l);
+      if (c > 0) {
+        byFlow[l.flowType].confirmed += c;
+        confirmedRevenue += c;
+        buyers.add(l.companyId);
+        for (const t of l.tags ?? []) tagSet.add(t);
+        if (l.period > asOf) asOf = l.period;
+      }
+    }
+    return {
+      supplierId, name: p.name, identityTier: p.identityTier, ownershipPct: p.ownershipPct,
+      sector: p.sector, blurb: p.blurb, region: p.region, website: p.website,
+      confirmedRevenue, byFlow, confirmedBuyerCount: buyers.size, tags: [...tagSet], asOf,
+    };
+  },
+
+  async updateSupplierProfile(supplierId, input) {
+    const p = parties.find((x) => x.id === supplierId);
+    if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
+    if (input.sector !== undefined) p.sector = input.sector || undefined;
+    if (input.blurb !== undefined) p.blurb = input.blurb || undefined;
+    if (input.region !== undefined) p.region = input.region || undefined;
+    if (input.website !== undefined) p.website = input.website || undefined;
+    if (input.profilePublic !== undefined) p.profilePublic = input.profilePublic;
+    return p;
   },
 
   async getCoverage(companyId) {
