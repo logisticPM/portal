@@ -74,6 +74,21 @@ export async function claimVerificationAction(formData: FormData) {
   revalidatePath("/profile");
 }
 
+// Reviewer resolves a pending certification claim (verified → tier rises; revoked → stays self_declared).
+export async function resolveVerificationAction(formData: FormData) {
+  const supplierId = String(formData.get("supplierId") ?? "").trim();
+  const source = String(formData.get("source") ?? "") as VerificationSource;
+  const status = String(formData.get("status") ?? "") as "verified" | "revoked";
+  if (!supplierId || !source) return;
+  await repo.resolveVerification(supplierId, source, {
+    status,
+    verifiedBy: status === "verified" ? "Indigenomics (demo verifier)" : undefined,
+    expiresAt: status === "verified" ? new Date(Date.now() + 365 * 864e5).toISOString().slice(0, 10) : undefined,
+  });
+  revalidatePath("/verify");
+  revalidatePath("/profile");
+}
+
 // Supplier edits their showcase profile (self-described fields + the public toggle).
 export async function updateSupplierProfileAction(formData: FormData) {
   const supplierId = String(formData.get("supplierId") ?? "").trim();
