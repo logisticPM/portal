@@ -6,7 +6,7 @@
 // repo against (same inputs → same coverage/record/index numbers). Edit freely —
 // add suppliers, change amounts/statuses — to make the coverage view more convincing.
 // ===========================================================================
-import type { Confirmation, FlowTag, FlowType, Party, ReportedLine } from "../repo/types";
+import type { Confirmation, FlowTag, FlowType, Party, ReportedLine, Verification } from "../repo/types";
 
 // fixed timestamp so seeding is deterministic (re-running gives identical items)
 const T = "2025-01-15T00:00:00.000Z";
@@ -17,12 +17,12 @@ export const parties: Party[] = [
   { id: "c-cedartrust", role: "company", name: "Cedar Trust Bank", registered: true, createdAt: T },
   { id: "c-mapletel", role: "company", name: "Maple Telecom", registered: true, createdAt: T },
   // suppliers (Indigenous parties — each carries a verification tier; Q32 certified-vs-self)
-  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, sector: "Construction", region: "BC", blurb: "Heavy civil & site construction for energy and public works.", profilePublic: true, registered: true, createdAt: T },
-  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, sector: "Logistics", region: "AB", blurb: "Freight, warehousing and last-mile across the prairies.", profilePublic: true, registered: true, createdAt: T },
-  { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", ownershipPct: 75, registered: true, createdAt: T },
-  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, sector: "Catering", region: "SK", blurb: "Event and corporate catering.", profilePublic: true, registered: true, createdAt: T },
-  { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", ownershipPct: 100, registered: true, createdAt: T },
-  { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", ownershipPct: 30, registered: true, createdAt: T },
+  { id: "s-eagle", role: "supplier", name: "Eagle River Construction", identityTier: "nation", ownershipPct: 100, sector: "Construction", region: "BC", blurb: "Heavy civil & site construction for energy and public works.", profilePublic: true, verifications: [{ source: "nation", reference: "BCR-2024-014", status: "verified", verifiedAt: "2025-01-10T00:00:00.000Z", expiresAt: "2027-01-10", verifiedBy: "Tsleil-Waututh Nation" }] as Verification[], registered: true, createdAt: T },
+  { id: "s-raven", role: "supplier", name: "Raven Logistics", identityTier: "ccab", ownershipPct: 80, sector: "Logistics", region: "AB", blurb: "Freight, warehousing and last-mile across the prairies.", profilePublic: true, verifications: [{ source: "ccib", reference: "CIB-08831", status: "verified", verifiedAt: "2025-02-01T00:00:00.000Z", expiresAt: "2027-02-01", verifiedBy: "CCIB" }] as Verification[], registered: true, createdAt: T },
+  { id: "s-thunderbird", role: "supplier", name: "Thunderbird IT Services", identityTier: "ccab", ownershipPct: 75, verifications: [{ source: "isc_ibd", reference: "IBD-44120", status: "verified", verifiedAt: "2025-03-01T00:00:00.000Z", verifiedBy: "ISC" }] as Verification[], registered: true, createdAt: T },
+  { id: "s-sweetgrass", role: "supplier", name: "Sweetgrass Catering", identityTier: "self_declared", ownershipPct: 35, sector: "Catering", region: "SK", blurb: "Event and corporate catering.", profilePublic: true, verifications: [{ source: "ccib", reference: "CIB-pending", status: "pending" }] as Verification[], registered: true, createdAt: T },
+  { id: "s-cedarsage", role: "supplier", name: "Cedar & Sage Consulting", identityTier: "nation", ownershipPct: 100, verifications: [{ source: "nation", reference: "MNBC-2023-77", status: "verified", verifiedAt: "2025-01-05T00:00:00.000Z", verifiedBy: "Métis Nation BC" }] as Verification[], registered: true, createdAt: T },
+  { id: "s-salish", role: "supplier", name: "Salish Office Supplies", identityTier: "self_declared", ownershipPct: 30, verifications: [] as Verification[], registered: true, createdAt: T },
 ];
 
 // every line is a procurement claim (MVP flagship pillar); amount = exact CAD (Q31), period = annual (Q5)

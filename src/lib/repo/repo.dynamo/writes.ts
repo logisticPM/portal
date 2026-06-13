@@ -18,7 +18,7 @@ import {
   toLineItem,
   toPartyItem,
 } from "../../dynamo/single-table";
-import type { Confirmation, FlowTag, FlowType, IdentityTier, ReportedLine, Supplier } from "../types";
+import type { Confirmation, FlowTag, FlowType, IdentityTier, ReportedLine, Supplier, Verification, VerificationSource, VerificationStatus } from "../types";
 
 type Item = Record<string, any>;
 const now = () => new Date().toISOString();
@@ -154,21 +154,64 @@ export async function withdraw(partyId: string): Promise<void> {
   }
 }
 
-// AP10 — register a supplier (STRETCH)
+// identityTier is DERIVED from active (verified, non-expired) verifications — never self-set.
+function isActive(v: Verification): boolean {
+  return v.status === "verified" && (!v.expiresAt || v.expiresAt >= now().slice(0, 10));
+}
+function tierFromVerifications(vs: Verification[] | undefined): IdentityTier {
+  const active = (vs ?? []).filter(isActive);
+  if (active.some((v) => v.source === "nation")) return "nation";
+  if (active.length > 0) return "ccab";
+  return "self_declared";
+}
+
+// AP10 — register a supplier (new suppliers start self_declared; tier only rises via verified Verification)
 export async function registerSupplier(input: {
   name: string;
-  identityTier: IdentityTier;
 }): Promise<Supplier> {
   const supplier: Supplier = {
     id: `s-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
     role: "supplier",
     name: input.name,
-    identityTier: input.identityTier,
+    identityTier: "self_declared",
+    verifications: [],
     registered: true,
     createdAt: now(),
   };
   await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(supplier) }));
   return supplier;
+}
+
+// AP-verification — supplier claims a linked external certification (status: pending)
+export async function claimVerification(supplierId: string, input: { source: VerificationSource; reference?: string }): Promise<Verification> {
+  const res = await ddbDoc.send(new GetCommand({ TableName: TABLE, Key: keys.party(supplierId) }));
+  const p = res.Item ? itemToParty(res.Item as Item) : null;
+  if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
+  const verifications = (p.verifications ?? []).filter((v) => v.source !== input.source); // one per source
+  const v: Verification = { source: input.source, reference: input.reference, status: "pending" };
+  verifications.push(v);
+  const updated: Supplier = { ...p, verifications };
+  await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(updated) }));
+  return v;
+}
+
+// AP-verification — verifier resolves a pending claim (verify/expire/revoke); recomputes identityTier
+export async function resolveVerification(supplierId: string, source: VerificationSource, input: { status: VerificationStatus; expiresAt?: string; verifiedBy?: string }): Promise<Supplier> {
+  const res = await ddbDoc.send(new GetCommand({ TableName: TABLE, Key: keys.party(supplierId) }));
+  const p = res.Item ? itemToParty(res.Item as Item) : null;
+  if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
+  const verifications = p.verifications ?? [];
+  const v = verifications.find((x) => x.source === source);
+  if (!v) throw new Error(`no ${source} verification to resolve for ${supplierId}`);
+  v.status = input.status;
+  if (input.status === "verified") {
+    v.verifiedAt = now();
+    v.expiresAt = input.expiresAt;
+    v.verifiedBy = input.verifiedBy;
+  }
+  const updated: Supplier = { ...p, verifications, identityTier: tierFromVerifications(verifications) };
+  await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(updated) }));
+  return updated;
 }
 
 // AP-profile — supplier edits their own showcase profile fields + public toggle

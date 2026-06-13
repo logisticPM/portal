@@ -1,5 +1,5 @@
 import { repo } from "@/lib/repo";
-import { updateSupplierProfileAction } from "@/lib/repo/actions";
+import { updateSupplierProfileAction, claimVerificationAction } from "@/lib/repo/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +53,40 @@ export default async function ProfilePage({ searchParams }: { searchParams: { as
         Your showcase is built from your confirmed record — you own it (OCAP). These fields are your
         own words; the verified numbers come from the confirmation engine. Public is your choice.
       </p>
+      <div className="bg-panel rounded border border-line shadow-card p-5 space-y-3">
+        <div className="text-ink3 text-xs uppercase tracking-widest">My certifications (status layer)</div>
+        {(supplier.verifications ?? []).length === 0 ? (
+          <p className="text-ink3 text-sm">None yet. Link a certification below — we verify the link against the issuer; we don&apos;t re-certify you.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {(supplier.verifications ?? []).map((v) => (
+              <li key={v.source} className="flex items-center gap-2">
+                <span className="uppercase tracking-wider text-xs border border-line rounded px-1.5 py-0.5">{v.source.replace("_", " ")}</span>
+                <span className="text-ink2">{v.reference}</span>
+                <span className={`text-xs ${v.status === "verified" ? "text-cedar" : v.status === "pending" ? "text-ink3" : "text-rust"}`}>{v.status}</span>
+                {v.expiresAt && <span className="text-ink3 text-xs">· exp {v.expiresAt}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <form action={claimVerificationAction} className="flex flex-wrap items-end gap-2 pt-2">
+          <input type="hidden" name="supplierId" value={supplierId} />
+          <label className="space-y-1">
+            <span className="block text-ink3 text-xs uppercase tracking-widest">Source</span>
+            <select name="source" className="bg-bg border border-ink/15 rounded px-2 py-2">
+              <option value="ccib">CCIB (CIB)</option>
+              <option value="isc_ibd">ISC IBD</option>
+              <option value="nation">Nation</option>
+              <option value="regional">Regional</option>
+            </select>
+          </label>
+          <label className="space-y-1 flex-1">
+            <span className="block text-ink3 text-xs uppercase tracking-widest">Reference</span>
+            <input name="reference" placeholder="cert # / IBD id / BCR ref" className="w-full bg-bg border border-ink/15 rounded px-2 py-2" />
+          </label>
+          <button className="bg-cedar/20 text-cedar border border-cedar/40 rounded px-4 py-2 hover:bg-cedar/30">Claim</button>
+        </form>
+      </div>
       <form action={updateSupplierProfileAction} className="space-y-4 bg-panel rounded border border-line shadow-card p-5">
         <input type="hidden" name="supplierId" value={supplierId} />
         <Field name="sector" label="Sector" defaultValue={supplier.sector} placeholder="e.g. Construction" />

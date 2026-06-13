@@ -27,8 +27,10 @@ import type {
   PartyRole,
   FlowType,
   ReportedLine,
+  Supplier,
   SupplierRecord,
   SupplierShowcase,
+  Verification,
 } from "../types";
 
 type Item = Record<string, any>;
@@ -209,6 +211,15 @@ export async function getIndexSummary(): Promise<IndexSummary> {
     totalReported += l.amount;
     totalConfirmed += c;
   }
+  const integrity = { certifiedNoActivity: 0, selfDeclaredWithActivity: 0 };
+  for (const p of parties) {
+    if (p.role !== "supplier") continue;
+    const confirmed = lines
+      .filter((l) => l.supplierId === p.id)
+      .reduce((s, l) => s + confirmedAmount(l, active), 0);
+    if (p.identityTier !== "self_declared" && confirmed === 0) integrity.certifiedNoActivity++;
+    if (p.identityTier === "self_declared" && confirmed > 0) integrity.selfDeclaredWithActivity++;
+  }
   return {
     totalReported,
     totalConfirmed,
@@ -219,6 +230,7 @@ export async function getIndexSummary(): Promise<IndexSummary> {
     companyCount: parties.filter((p) => p.role === "company").length,
     supplierCount: parties.filter((p) => p.role === "supplier").length,
     disputedCount: lines.filter((l) => l.status === "disputed").length,
+    integrity,
   };
 }
 
@@ -255,11 +267,35 @@ export async function getSupplierShowcase(supplierId: string): Promise<SupplierS
       if (l.period > asOf) asOf = l.period;
     }
   }
+  const isActive = (v: Verification) =>
+    v.status === "verified" && (!v.expiresAt || v.expiresAt >= new Date().toISOString().slice(0, 10));
   return {
     supplierId, name: p.name, identityTier: p.identityTier, ownershipPct: p.ownershipPct,
+    verifications: (p.verifications ?? []).filter(isActive),
     sector: p.sector, blurb: p.blurb, region: p.region, website: p.website,
     confirmedRevenue, byFlow, confirmedBuyerCount: buyers.size, tags: [...tagSet], asOf,
   };
+}
+
+// AP-pending-verifications — list all suppliers with pending verification claims (reviewer queue)
+export async function listPendingVerifications(): Promise<{ supplier: Supplier; verification: Verification }[]> {
+  const items: Item[] = [];
+  let ExclusiveStartKey: Record<string, any> | undefined;
+  do {
+    const res = await ddbDoc.send(new ScanCommand({ TableName: TABLE, ExclusiveStartKey }));
+    items.push(...((res.Items ?? []) as Item[]));
+    ExclusiveStartKey = res.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+
+  const out: { supplier: Supplier; verification: Verification }[] = [];
+  for (const it of items) {
+    if (it.et !== "Party" || it.role !== "supplier") continue;
+    const p = itemToParty(it) as Supplier;
+    for (const v of (p.verifications ?? []) as Verification[]) {
+      if (v.status === "pending") out.push({ supplier: p, verification: v });
+    }
+  }
+  return out;
 }
 
 // AP9 — export everything about a party (OCAP Access). Full record, incl. withdrawn items.

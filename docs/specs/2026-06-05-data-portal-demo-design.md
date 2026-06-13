@@ -59,6 +59,7 @@ Three product decisions promoted here from the Sprint 2 design docs (these **sup
 1. **Three persona portals + a demo "sign in as" landing** replace the single role-switcher page — *information architecture only; **real auth stays Horizon 2**.* → attachment [`sprint2/03_Portal_IA_and_Login_Routing.md`](../sprint2/03_Portal_IA_and_Login_Routing.md).
 2. **Questionnaire expands to `procurement` + `equity`** as confirmable pillars (equity = the high-value second / phantom-JV fraud target). Adds a company-profile section + a read-only **"self-reported · unverified"** context block (employment, culture, governance). → attachment [`sprint2/02_Questionnaire_Expansion_Design.md`](../sprint2/02_Questionnaire_Expansion_Design.md). See §6.1.
 3. **Supplier self-registration is built** (no longer a stretch — see §13).
+- **Positioning [2026-06-13]:** verify **substance, not status** — complement CCIB (CIB + Supply Change marketplace) / ISC / Nations, don't compete; **not a marketplace, not a re-certifier**. The differentiator is the confirmation/integrity layer (`06_Verification_System_Design`), consent-inverted.
 
 **Ownership (reassigned 2026-06-10, see §10):** the **Data group** owns the Indigenomics portal **and** the AWS deploy; **Jack** = supplier portal; the **company owner** = report form + company sign-up.
 

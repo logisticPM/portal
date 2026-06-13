@@ -9,6 +9,19 @@
 // 'self_declared' is the weakest tier — and the one fraud exploits — so it is shown explicitly.
 export type IdentityTier = "nation" | "ccab" | "self_declared";
 
+export type VerificationSource = "nation" | "ccib" | "isc_ibd" | "regional";
+export type VerificationStatus = "verified" | "pending" | "expired" | "revoked";
+
+// A LINKED external certification (Layer A). We reference it; we never issue it.
+export interface Verification {
+  source: VerificationSource;
+  reference?: string;   // CIB member #, IBD listing id, band-council-resolution ref
+  status: VerificationStatus;
+  verifiedAt?: string;  // ISO
+  expiresAt?: string;   // ISO; past → treated as expired
+  verifiedBy?: string;
+}
+
 export type PartyRole = "company" | "supplier";
 
 // Company and Supplier are SEPARATE kinds of party, distinguished by `role`.
@@ -33,6 +46,7 @@ export interface Supplier extends BaseParty {
   region?: string;
   website?: string;
   profilePublic?: boolean; // OCAP toggle; default false
+  verifications?: Verification[]; // Layer A: linked external certifications (drive identityTier)
 }
 export type Party = Company | Supplier;
 
@@ -89,6 +103,7 @@ export interface SupplierShowcase {
   name: string;
   identityTier: IdentityTier;
   ownershipPct?: number;
+  verifications: Verification[]; // active (verified, non-expired) certs, for provenance display
   sector?: string;
   blurb?: string;
   region?: string;
@@ -120,6 +135,7 @@ export interface IndexSummary {
   companyCount: number;
   supplierCount: number;
   disputedCount: number;
+  integrity: { certifiedNoActivity: number; selfDeclaredWithActivity: number }; // status×substance mismatch counts
 }
 
 export interface ExportBundle {
@@ -132,7 +148,7 @@ export interface PortalRepo {
   // --- parties / registry ---
   getParty(id: string): Promise<Party | null>;
   listParties(role?: PartyRole): Promise<Party[]>;
-  registerSupplier(input: { name: string; identityTier: IdentityTier }): Promise<Supplier>; // stretch
+  registerSupplier(input: { name: string }): Promise<Supplier>;
 
   // --- company side ---
   createReportedLine(input: {
@@ -158,6 +174,9 @@ export interface PortalRepo {
   updateSupplierProfile(supplierId: string, input: {
     sector?: string; blurb?: string; region?: string; website?: string; profilePublic?: boolean;
   }): Promise<Supplier>;
+  claimVerification(supplierId: string, input: { source: VerificationSource; reference?: string }): Promise<Verification>;
+  resolveVerification(supplierId: string, source: VerificationSource, input: { status: VerificationStatus; expiresAt?: string; verifiedBy?: string }): Promise<Supplier>;
+  listPendingVerifications(): Promise<{ supplier: Supplier; verification: Verification }[]>;
 
   // --- index / coverage ---
   getCoverage(companyId: string): Promise<Coverage>; // per-company (Nate)

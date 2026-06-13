@@ -41,6 +41,15 @@ export default async function ShowcasePage({ params }: { params: { supplierId: s
             <span className="text-ink3 text-sm">{s.ownershipPct}% Indigenous-owned</span>
           )}
         </div>
+        {s.verifications.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {s.verifications.map((v) => (
+              <span key={v.source} className="text-[0.65rem] uppercase tracking-wider border border-cedar/40 text-cedar rounded px-1.5 py-0.5">
+                {v.source.replace("_", " ")}{v.reference ? ` · ${v.reference}` : ""}{v.verifiedBy ? ` · ${v.verifiedBy}` : ""}
+              </span>
+            ))}
+          </div>
+        )}
         {s.blurb && <p className="text-ink2 mt-2">{s.blurb}</p>}
         <div className="text-ink3 text-sm mt-1">
           {[s.sector, s.region].filter(Boolean).join(" · ")}

@@ -105,9 +105,9 @@ async function main() {
   check("supplier record reflects corrected revenue", sweetgrass.confirmedRevenue === 50_000, `$${sweetgrass.confirmedRevenue}`);
 
   // registerSupplier (previously untested)
-  const newSup = await dynamoRepo.registerSupplier({ name: "Verify Test Co", identityTier: "ccab" });
+  const newSup = await dynamoRepo.registerSupplier({ name: "Verify Test Co" });
   const fetched = await dynamoRepo.getParty(newSup.id);
-  check("registerSupplier persists with tier", fetched?.role === "supplier" && (fetched as any).identityTier === "ccab");
+  check("registerSupplier persists as self_declared", fetched?.role === "supplier" && (fetched as any).identityTier === "self_declared");
   const suppliers = await dynamoRepo.listParties("supplier");
   check("registered supplier appears in registry", suppliers.some((s) => s.id === newSup.id), `${suppliers.length} suppliers`);
 
