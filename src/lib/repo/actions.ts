@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import type { FlowType, FlowTag } from "./types";
+import type { FlowType, FlowTag, VerificationSource } from "./types";
 
 // Supplier responds to a claim naming them (confirm / dispute / correct).
 export async function respondToLine(formData: FormData) {
@@ -62,6 +62,16 @@ export async function registerSupplierAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/analytics");
   redirect(`/record?as=${supplier.id}`);
+}
+
+// Supplier links an external certification (claim → pending; reviewer resolves to verified/revoked).
+export async function claimVerificationAction(formData: FormData) {
+  const supplierId = String(formData.get("supplierId") ?? "").trim();
+  const source = String(formData.get("source") ?? "") as VerificationSource;
+  const reference = String(formData.get("reference") ?? "").trim() || undefined;
+  if (!supplierId || !source) return;
+  await repo.claimVerification(supplierId, { source, reference });
+  revalidatePath("/profile");
 }
 
 // Supplier edits their showcase profile (self-described fields + the public toggle).
