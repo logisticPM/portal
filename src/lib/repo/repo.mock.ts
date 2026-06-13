@@ -202,8 +202,8 @@ export const mockRepo: PortalRepo = {
         confirmedRevenue += c;
         buyers.add(l.companyId);
         for (const t of l.tags ?? []) tagSet.add(t);
+        if (l.period > asOf) asOf = l.period;
       }
-      if (l.period > asOf) asOf = l.period;
     }
     return {
       supplierId, name: p.name, identityTier: p.identityTier, ownershipPct: p.ownershipPct,
@@ -215,10 +215,10 @@ export const mockRepo: PortalRepo = {
   async updateSupplierProfile(supplierId, input) {
     const p = parties.find((x) => x.id === supplierId);
     if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
-    if (input.sector !== undefined) p.sector = input.sector;
-    if (input.blurb !== undefined) p.blurb = input.blurb;
-    if (input.region !== undefined) p.region = input.region;
-    if (input.website !== undefined) p.website = input.website;
+    if (input.sector !== undefined) p.sector = input.sector || undefined;
+    if (input.blurb !== undefined) p.blurb = input.blurb || undefined;
+    if (input.region !== undefined) p.region = input.region || undefined;
+    if (input.website !== undefined) p.website = input.website || undefined;
     if (input.profilePublic !== undefined) p.profilePublic = input.profilePublic;
     return p;
   },

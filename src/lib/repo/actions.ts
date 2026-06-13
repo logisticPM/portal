@@ -72,12 +72,13 @@ export async function updateSupplierProfileAction(formData: FormData) {
   const supplierId = String(formData.get("supplierId") ?? "").trim();
   if (!supplierId) return;
   await repo.updateSupplierProfile(supplierId, {
-    sector: String(formData.get("sector") ?? "").trim() || undefined,
-    region: String(formData.get("region") ?? "").trim() || undefined,
-    website: String(formData.get("website") ?? "").trim() || undefined,
-    blurb: String(formData.get("blurb") ?? "").trim() || undefined,
+    sector: String(formData.get("sector") ?? "").trim(),
+    region: String(formData.get("region") ?? "").trim(),
+    website: String(formData.get("website") ?? "").trim(),
+    blurb: String(formData.get("blurb") ?? "").trim(),
     profilePublic: formData.get("profilePublic") === "true",
   });
   revalidatePath("/profile");
   revalidatePath(`/s/${supplierId}`);
+  redirect(`/profile?as=${supplierId}`);
 }

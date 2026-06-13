@@ -180,10 +180,10 @@ export async function updateSupplierProfile(supplierId: string, input: {
   if (!p || p.role !== "supplier") throw new Error(`supplier not found: ${supplierId}`);
   const updated: Supplier = {
     ...p,
-    sector: input.sector ?? p.sector,
-    blurb: input.blurb ?? p.blurb,
-    region: input.region ?? p.region,
-    website: input.website ?? p.website,
+    sector: input.sector !== undefined ? (input.sector || undefined) : p.sector,
+    blurb: input.blurb !== undefined ? (input.blurb || undefined) : p.blurb,
+    region: input.region !== undefined ? (input.region || undefined) : p.region,
+    website: input.website !== undefined ? (input.website || undefined) : p.website,
     profilePublic: input.profilePublic ?? p.profilePublic,
   };
   await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(updated) }));

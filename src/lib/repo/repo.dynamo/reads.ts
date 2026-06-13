@@ -252,8 +252,8 @@ export async function getSupplierShowcase(supplierId: string): Promise<SupplierS
       confirmedRevenue += c;
       buyers.add(l.companyId);
       for (const t of l.tags ?? []) tagSet.add(t);
+      if (l.period > asOf) asOf = l.period;
     }
-    if (l.period > asOf) asOf = l.period;
   }
   return {
     supplierId, name: p.name, identityTier: p.identityTier, ownershipPct: p.ownershipPct,
