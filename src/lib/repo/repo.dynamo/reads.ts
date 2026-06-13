@@ -28,6 +28,7 @@ import type {
   FlowType,
   ReportedLine,
   SupplierRecord,
+  SupplierShowcase,
 } from "../types";
 
 type Item = Record<string, any>;
@@ -218,6 +219,46 @@ export async function getIndexSummary(): Promise<IndexSummary> {
     companyCount: parties.filter((p) => p.role === "company").length,
     supplierCount: parties.filter((p) => p.role === "supplier").length,
     disputedCount: lines.filter((l) => l.status === "disputed").length,
+  };
+}
+
+// AP-showcase — public-safe supplier showcase aggregate (counts only, no named buyers)
+export async function getSupplierShowcase(supplierId: string): Promise<SupplierShowcase | null> {
+  const partyRes = await ddbDoc.send(new GetCommand({ TableName: TABLE, Key: keys.party(supplierId) }));
+  const p = partyRes.Item ? itemToParty(partyRes.Item as Item) : null;
+  if (!p || p.role !== "supplier" || p.profilePublic !== true) return null;
+
+  const res = await ddbDoc.send(new QueryCommand({
+    TableName: TABLE, IndexName: GSI1,
+    KeyConditionExpression: "GSI1PK = :pk",
+    ExpressionAttributeValues: { ":pk": gsi1Supplier(supplierId) },
+  }));
+  const items = (res.Items ?? []) as Item[];
+  const lines = items.filter((it) => it.et === "Line" && !it.withdrawn).map(itemToLine);
+  const active = indexActiveConfs(items.filter((it) => it.et === "Conf").map(itemToConf));
+
+  const byFlow = FLOWS.reduce(
+    (acc, f) => { acc[f] = { confirmed: 0 }; return acc; },
+    {} as Record<FlowType, { confirmed: number }>,
+  );
+  const buyers = new Set<string>();
+  const tagSet = new Set<string>();
+  let confirmedRevenue = 0;
+  let asOf = "";
+  for (const l of lines) {
+    const c = confirmedAmount(l, active);
+    if (c > 0) {
+      byFlow[l.flowType].confirmed += c;
+      confirmedRevenue += c;
+      buyers.add(l.companyId);
+      for (const t of l.tags ?? []) tagSet.add(t);
+    }
+    if (l.period > asOf) asOf = l.period;
+  }
+  return {
+    supplierId, name: p.name, identityTier: p.identityTier, ownershipPct: p.ownershipPct,
+    sector: p.sector, blurb: p.blurb, region: p.region, website: p.website,
+    confirmedRevenue, byFlow, confirmedBuyerCount: buyers.size, tags: [...tagSet], asOf,
   };
 }
 

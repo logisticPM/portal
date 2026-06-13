@@ -14,6 +14,7 @@ export const dynamoRepo: PortalRepo = {
   listLinesForCompany: reads.listLinesForCompany,
   listPendingForSupplier: reads.listPendingForSupplier,
   getSupplierRecord: reads.getSupplierRecord,
+  getSupplierShowcase: reads.getSupplierShowcase,
   getCoverage: reads.getCoverage,
   getIndexSummary: reads.getIndexSummary,
   exportRecords: reads.exportRecords,
@@ -23,4 +24,5 @@ export const dynamoRepo: PortalRepo = {
   recordConfirmation: writes.recordConfirmation,
   withdraw: writes.withdraw,
   registerSupplier: writes.registerSupplier,
+  updateSupplierProfile: writes.updateSupplierProfile,
 };

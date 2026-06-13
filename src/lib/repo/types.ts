@@ -27,6 +27,12 @@ export interface Supplier extends BaseParty {
   role: "supplier";
   identityTier: IdentityTier; // the ownership-certification tier — the "equity" / verification layer
   ownershipPct?: number; // % Indigenous-owned (≥51 to qualify); low + self_declared = phantom-JV risk
+  // --- showcase (self-described, supplier-editable) ---
+  sector?: string;
+  blurb?: string;
+  region?: string;
+  website?: string;
+  profilePublic?: boolean; // OCAP toggle; default false
 }
 export type Party = Company | Supplier;
 
@@ -75,6 +81,23 @@ export interface Coverage {
   totalReported: number;
   totalConfirmed: number;
   confirmedPct: number;
+}
+
+// Public-safe showcase aggregate. NEVER carries named buyers or per-deal lines.
+export interface SupplierShowcase {
+  supplierId: string;
+  name: string;
+  identityTier: IdentityTier;
+  ownershipPct?: number;
+  sector?: string;
+  blurb?: string;
+  region?: string;
+  website?: string;
+  confirmedRevenue: number;
+  byFlow: Record<FlowType, { confirmed: number }>;
+  confirmedBuyerCount: number;
+  tags: string[];
+  asOf: string;
 }
 
 // Supplier-side mirror — what a supplier sees about themselves (OCAP Access/Ownership).
@@ -131,6 +154,10 @@ export interface PortalRepo {
     byPartyId: string;
   }): Promise<Confirmation>;
   getSupplierRecord(supplierId: string): Promise<SupplierRecord>; // the "My Record" view
+  getSupplierShowcase(supplierId: string): Promise<SupplierShowcase | null>;
+  updateSupplierProfile(supplierId: string, input: {
+    sector?: string; blurb?: string; region?: string; website?: string; profilePublic?: boolean;
+  }): Promise<Supplier>;
 
   // --- index / coverage ---
   getCoverage(companyId: string): Promise<Coverage>; // per-company (Nate)
