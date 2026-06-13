@@ -167,7 +167,10 @@ export function itemToLine(it: any): ReportedLine {
     companyId: it.companyId,
     supplierId: it.supplierId,
     amount: it.amount,
-    flowType: it.flowType,
+    // Defensive: legacy/old-model lines (pre-FlowType) or a retired pillar value
+    // can leave flowType missing/invalid. Coerce to the core flow so the Index
+    // aggregation (byFlow[l.flowType]) never crashes on an unknown key.
+    flowType: it.flowType === "capital" ? "capital" : "procurement",
     tags: it.tags && it.tags.length ? it.tags : undefined,
     period: it.period,
     reportedAt: it.reportedAt,
