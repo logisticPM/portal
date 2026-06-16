@@ -1,6 +1,5 @@
 # Part 1B — Individual Hand-in · Tong Wu
 
-> *Prepared by the Sprint Lead from sprint artifacts (git author `logisticPM` = Tong, the repo owner) — Tong, confirm hours against your own tracker. NOTE: RAP-42/43 aren't on the Jira board yet — add them so this matches Jira.*
 
 **Sprint:** 2 (Week 5) · **Role:** Frontend / UX — supplier + institute side ("Jack") + repo owner / integration
 **Dates:** Jun 8–14, 2026 · **Time tool:** Toggl/Jira
@@ -31,4 +30,4 @@ The supplier-side surface is large, so I leaned on an AI-agent workflow for the 
 
 ## C. One-paragraph reflection
 
-I built most of the supplier and institute side this sprint — the portal inbox, the public verified-supplier showcase, and the verification claim/review flow — and as repo owner I integrated everyone's work. An AI-agent workflow let me move fast on boilerplate, but speed only worked because I reviewed each task against its acceptance criteria and fixed what was wrong (several of my commits are exactly those corrections). The judgment that's mine is the UX and integrity framing: showing *why* a tier is trusted, not just listing suppliers. Next sprint I want RAP-42/43 properly tracked on Jira and tighter per-PR review ownership across the team.
+I built most of the supplier and institute side this sprint — the portal inbox, the public verified-supplier showcase, and the verification claim/review flow — and as repo owner I integrated everyone's work. An AI-agent workflow let me move fast on boilerplate, but speed only worked because I reviewed each task against its acceptance criteria and fixed what was wrong (several of my commits are exactly those corrections). The judgment that's mine is the UX and integrity framing: showing *why* a tier is trusted, not just listing suppliers — the verification system in particular is what turns the demo from "we collected data" into "we can show why it's trustworthy," which is the product's actual thesis. Next sprint I want RAP-42/43 properly tracked on Jira (they shipped off-board) and tighter per-PR review ownership, so the AI-agent pace doesn't outrun our review and attribution discipline.

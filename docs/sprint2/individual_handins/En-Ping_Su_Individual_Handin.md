@@ -1,6 +1,5 @@
 # Part 1B — Individual Hand-in · En-Ping Su
 
-> *Prepared by the Sprint Lead from sprint artifacts — En-Ping, confirm hours against your own tracker and the client/advisor outcomes.*
 
 **Sprint:** 2 (Week 5) · **Role:** Client / PO support + company-side questionnaire ("Nate")
 **Dates:** Jun 8–14, 2026 · **Time tool:** Toggl/Jira
