@@ -20,10 +20,10 @@ Sprint 1 built three of four deferred cards ahead of plan, so Sprint 2's centre 
 
 | Area | Card(s) | Outcome | Status |
 |---|---|---|---|
-| **AWS deploy (core DoD)** | RAP-28, RAP-36 | App **live** on AWS via SST v4 + OpenNext (Next on Lambda + CloudFront + DynamoDB), per-stage tables, server-side IAM via SSO — **`d1hwn8hhp1ytc0.cloudfront.net`**; CI deploy workflow merged | RAP-28 **✅ Done** · RAP-36 **In Progress** (branch-protect pending) |
-| **Data layer** | RAP-27 (carry), RAP-39 | Survey domain added as a 2nd table (`RapSurvey`, all 41 questions); interface-only seams + mock; `npm run verify` 18/18 parity; backend + frontend docs. Clean seed + parity done; equity-line seed remaining | data layer **✅** · RAP-39 **In Progress** |
-| **Company / questionnaire** | RAP-34, RAP-38 | procurement \| equity pillar selector wired into the report form (RAP-34); company self-registration not started | RAP-34 **✅ Done** · RAP-38 **To Do** |
-| **Supplier + institute** | RAP-40, **RAP-42**, **RAP-43**, RAP-31 | Supplier portal + pillar-aware inbox; **verified supplier showcase** (`/s/[id]`); **verification system** (claim/resolve + derived tier + status×substance integrity flag); Index/analytics hardening | RAP-40/42/43 **✅ Done** · RAP-31 **In Progress** |
+| **AWS deploy (core DoD)** | RAP-28, RAP-36 | App **live** on AWS via SST v4 + OpenNext (Next on Lambda + CloudFront + DynamoDB), per-stage tables, server-side IAM via SSO — **`d1hwn8hhp1ytc0.cloudfront.net`**; CI deploy workflow merged | RAP-28 **Done** · RAP-36 **In Progress** (branch-protect pending) |
+| **Data layer** | RAP-27 (carry), RAP-39 | Survey domain added as a 2nd table (`RapSurvey`, all 41 questions); interface-only seams + mock; `npm run verify` 18/18 parity; backend + frontend docs. Clean seed + parity done; equity-line seed remaining | data layer **Done** · RAP-39 **In Progress** |
+| **Company / questionnaire** | RAP-34, RAP-38 | procurement \| equity pillar selector wired into the report form (RAP-34); company self-registration not started | RAP-34 **Done** · RAP-38 **To Do** |
+| **Supplier + institute** | RAP-40, **RAP-42**, **RAP-43**, RAP-31 | Supplier portal + pillar-aware inbox; **verified supplier showcase** (`/s/[id]`); **verification system** (claim/resolve + derived tier + status×substance integrity flag); Index/analytics hardening | RAP-40/42/43 **Done** · RAP-31 **In Progress** |
 | **Pillar model** | (proposal) | `Pillar → FlowType` procurement-centric refactor merged (PR #15) | **Merged — adoption pending team sign-off** |
 | **Client / advisor / legal** | RAP-32, RAP-33, RAP-35 | Greenlight chase; advisor booking; consent-app LICENSE review | **To Do / carried** |
 

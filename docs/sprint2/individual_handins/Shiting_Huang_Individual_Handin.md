@@ -1,6 +1,5 @@
 # Part 1B — Individual Hand-in · Shiting Huang
 
-> *Prepared by the Sprint Lead from sprint artifacts — Shiting, confirm hours against your own tracker.*
 
 **Sprint:** 2 (Week 5) · **Role:** Infra / Backend · Architecture
 **Dates:** Jun 8–14, 2026 · **Time tool:** Toggl/Jira
@@ -29,4 +28,4 @@ I used AI to speed up the IaC and workflow drafts, but **the deployment design a
 
 ## C. One-paragraph reflection
 
-I owned the sprint's core Definition of Done: getting the slice off localhost and onto a real shared URL on AWS. The hard parts were judgment, not generation — secrets server-side only, SSO instead of static keys, scoping the Lambda's table access, and wiring per-stage data. AI drafted the config faster than I'd type it, but SST/AWS behaviour changes quickly, so I verified everything against current docs and proved it by deploying and running the full loop on the live URL. The one thing still open is branch protection on `main` (RAP-36), which carries.
+I owned the sprint's core Definition of Done: getting the slice off localhost and onto a real shared URL on AWS. The hard parts were judgment, not generation — secrets server-side only, SSO instead of static keys, scoping the Lambda's table access, and wiring per-stage data so production has its own DynamoDB. AI drafted the config faster than I'd type it, but SST/AWS behaviour changes quickly, so I verified everything against current docs and proved it by deploying and running the full `report → confirm → coverage → Index` loop on the live URL. The Index 500 was a useful reminder that a mid-sprint schema change (the pillar-model refactor) can break data that's already deployed, so I made the read path tolerant of older items instead of just patching the seed — that's the kind of thing only shows up once you're running on real, persisted data rather than a fresh local mock. The one thing still open is branch protection on `main` (RAP-36), which carries; next sprint I'd finish the automated deploy-on-merge so shipping doesn't depend on someone running it locally, and add an idle-teardown step to keep the sandbox comfortably within the free tier.
