@@ -7,8 +7,9 @@ const SESSION_COOKIE = "portal_session";
 // Routes reachable without a session.
 function isPublic(path: string): boolean {
   return (
+    path === "/" || // pre-login branded landing
     path === "/login" ||
-    path === "/register" || // new suppliers register before they have an account
+    path === "/register" || // anyone registers before they have an account
     path.startsWith("/s/") || // public verified-supplier showcase
     path.startsWith("/api/") ||
     path.startsWith("/_next/") ||
@@ -34,11 +35,10 @@ export function middleware(req: NextRequest) {
   // not signed in → login
   if (!kind) return redirectTo(req, "/login");
 
-  // light persona guard — wrong portal bounces to your home
-  const home = kind === "company" ? "/report" : kind === "supplier" ? "/confirm" : "/analytics";
-  if (kind !== "company" && hits(pathname, COMPANY_ONLY)) return redirectTo(req, home);
-  if (kind !== "supplier" && hits(pathname, SUPPLIER_ONLY)) return redirectTo(req, home);
-  if (kind !== "indigenomics" && hits(pathname, INDIGENOMICS_ONLY)) return redirectTo(req, home);
+  // light persona guard — wrong portal bounces to your dashboard
+  if (kind !== "company" && hits(pathname, COMPANY_ONLY)) return redirectTo(req, "/home");
+  if (kind !== "supplier" && hits(pathname, SUPPLIER_ONLY)) return redirectTo(req, "/home");
+  if (kind !== "indigenomics" && hits(pathname, INDIGENOMICS_ONLY)) return redirectTo(req, "/home");
 
   return NextResponse.next();
 }
