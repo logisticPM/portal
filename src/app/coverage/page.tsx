@@ -1,4 +1,5 @@
 import { repo } from "@/lib/repo";
+import { partyIdFrom } from "@/lib/auth";
 import { money } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export default async function CoveragePage({
 }: {
   searchParams: { as?: string };
 }) {
-  const companyId = searchParams.as;
+  const companyId = partyIdFrom(searchParams);
   const companies = await repo.listParties("company");
 
   // No company chosen yet → pick one (mirrors report/confirm/record).

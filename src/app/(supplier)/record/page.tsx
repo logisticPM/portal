@@ -1,4 +1,5 @@
 import { repo } from "@/lib/repo";
+import { partyIdFrom } from "@/lib/auth";
 import { withdrawConfirmations } from "@/lib/repo/actions";
 import { money, TierBadge, StatusBadge, FlowBadge, TagChip } from "@/components/ui";
 
@@ -9,7 +10,7 @@ export default async function RecordPage({
 }: {
   searchParams: { as?: string };
 }) {
-  const supplierId = searchParams.as;
+  const supplierId = partyIdFrom(searchParams);
   const suppliers = await repo.listParties("supplier");
 
   if (!supplierId) {

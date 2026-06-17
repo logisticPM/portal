@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Fraunces, Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
+import { repo } from "@/lib/repo";
+import { getSession } from "@/lib/auth";
+import { signOut } from "@/lib/repo/actions";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -20,7 +23,18 @@ export const metadata: Metadata = {
   description: "Consent-based, verified economic data — demo on synthetic data",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = getSession();
+  let label: string | null = null;
+  if (session) {
+    label =
+      session.kind === "indigenomics"
+        ? "Indigenomics"
+        : session.partyId
+          ? ((await repo.getParty(session.partyId))?.name ?? session.partyId)
+          : null;
+  }
+
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body className="min-h-screen">
@@ -28,9 +42,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="/" className="font-serif text-lg">
             Indigenomics <span className="text-amber italic">Data Portal</span>
           </a>
-          <span className="text-xs uppercase tracking-[0.18em] text-ink3">
-            demo · synthetic data
-          </span>
+          <div className="flex items-center gap-4 text-xs">
+            <span className="uppercase tracking-[0.18em] text-ink3">demo · synthetic data</span>
+            {label && (
+              <span className="text-ink3">
+                · signed in as <span className="text-ink2">{label}</span>
+              </span>
+            )}
+            {session && (
+              <form action={signOut}>
+                <button className="underline text-ink3 hover:text-ink">switch account</button>
+              </form>
+            )}
+          </div>
         </header>
         <main className="px-6 py-10 max-w-5xl mx-auto">{children}</main>
       </body>
