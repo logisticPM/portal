@@ -149,6 +149,7 @@ export interface PortalRepo {
   getParty(id: string): Promise<Party | null>;
   listParties(role?: PartyRole): Promise<Party[]>;
   registerSupplier(input: { name: string }): Promise<Supplier>;
+  registerCompany(input: { name: string }): Promise<Company>;
 
   // --- company side ---
   createReportedLine(input: {

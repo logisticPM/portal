@@ -52,11 +52,11 @@ export default async function LoginPage() {
       </form>
 
       <p className="text-ink3 text-sm">
-        New Indigenous supplier?{" "}
+        New here?{" "}
         <a href="/register" className="text-cedar underline">
-          register here
-        </a>
-        .
+          create an account
+        </a>{" "}
+        — company, supplier, or Indigenomics.
       </p>
     </div>
   );

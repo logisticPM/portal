@@ -1,6 +1,7 @@
 import type {
   PortalRepo,
   Party,
+  Company,
   Supplier,
   ReportedLine,
   Confirmation,
@@ -141,6 +142,18 @@ export const mockRepo: PortalRepo = {
       name: input.name,
       identityTier: "self_declared",
       verifications: [],
+      registered: true,
+      createdAt: now(),
+    };
+    parties.push(party);
+    return party;
+  },
+
+  async registerCompany(input) {
+    const party: Company = {
+      id: `c-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
+      role: "company",
+      name: input.name,
       registered: true,
       createdAt: now(),
     };

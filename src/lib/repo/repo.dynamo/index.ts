@@ -25,6 +25,7 @@ export const dynamoRepo: PortalRepo = {
   recordConfirmation: writes.recordConfirmation,
   withdraw: writes.withdraw,
   registerSupplier: writes.registerSupplier,
+  registerCompany: writes.registerCompany,
   updateSupplierProfile: writes.updateSupplierProfile,
   claimVerification: writes.claimVerification,
   resolveVerification: writes.resolveVerification,

@@ -90,15 +90,32 @@ export async function withdrawConfirmations(formData: FormData) {
   revalidatePath("/analytics");
 }
 
-// Supplier self-registration: new suppliers start self_declared; tier rises only via verified certifications.
-export async function registerSupplierAction(formData: FormData) {
+// Self-registration for any role. company/supplier create a party (new suppliers
+// start self_declared; tier rises only via verified certifications); indigenomics
+// is the singleton institute (no entity). Auto-signs-in and routes to that portal.
+export async function registerAction(formData: FormData) {
+  const role = String(formData.get("role") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return;
-  const supplier = await repo.registerSupplier({ name });
-  // auto-sign-in the new supplier so they land straight in their portal
-  writeSession({ kind: "supplier", partyId: supplier.id });
-  revalidatePath("/analytics");
-  redirect("/confirm");
+
+  if (role === "indigenomics") {
+    writeSession({ kind: "indigenomics" });
+    redirect("/analytics");
+  }
+
+  if (!name) return; // company/supplier need a name
+  if (role === "company") {
+    const company = await repo.registerCompany({ name });
+    writeSession({ kind: "company", partyId: company.id });
+    revalidatePath("/analytics");
+    redirect("/report");
+  }
+  if (role === "supplier") {
+    const supplier = await repo.registerSupplier({ name });
+    writeSession({ kind: "supplier", partyId: supplier.id });
+    revalidatePath("/analytics");
+    redirect("/confirm");
+  }
+  // unknown role → no-op (form re-renders)
 }
 
 // Supplier links an external certification (claim → pending; reviewer resolves to verified/revoked).

@@ -18,7 +18,7 @@ import {
   toLineItem,
   toPartyItem,
 } from "../../dynamo/single-table";
-import type { Confirmation, FlowTag, FlowType, IdentityTier, ReportedLine, Supplier, Verification, VerificationSource, VerificationStatus } from "../types";
+import type { Company, Confirmation, FlowTag, FlowType, IdentityTier, ReportedLine, Supplier, Verification, VerificationSource, VerificationStatus } from "../types";
 
 type Item = Record<string, any>;
 const now = () => new Date().toISOString();
@@ -180,6 +180,18 @@ export async function registerSupplier(input: {
   };
   await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(supplier) }));
   return supplier;
+}
+
+export async function registerCompany(input: { name: string }): Promise<Company> {
+  const company: Company = {
+    id: `c-${input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
+    role: "company",
+    name: input.name,
+    registered: true,
+    createdAt: now(),
+  };
+  await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(company) }));
+  return company;
 }
 
 // AP-verification — supplier claims a linked external certification (status: pending)
