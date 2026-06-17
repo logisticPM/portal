@@ -1,4 +1,5 @@
 import { repo } from "@/lib/repo";
+import { partyIdFrom } from "@/lib/auth";
 import { money, TierBadge, StatusBadge, FlowBadge, TagChip } from "@/components/ui";
 import type { Party } from "@/lib/repo/types";
 import { ReportLineForm } from "./ReportLineForm";
@@ -10,7 +11,7 @@ export default async function ReportPage({
 }: {
   searchParams: { as?: string };
 }) {
-  const companyId = searchParams.as;
+  const companyId = partyIdFrom(searchParams);
   const companies = await repo.listParties("company");
 
   // No company chosen yet → pick one (mirrors confirm/record).

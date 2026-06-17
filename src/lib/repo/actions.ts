@@ -1,9 +1,45 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
+import { SESSION_COOKIE, personaHome, type Session, type SessionKind } from "@/lib/auth";
 import type { FlowType, FlowTag, VerificationSource } from "./types";
+
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+
+function writeSession(session: Session) {
+  const value = session.partyId ? `${session.kind}:${session.partyId}` : session.kind;
+  cookies().set(SESSION_COOKIE, value, {
+    path: "/",
+    sameSite: "lax",
+    maxAge: SESSION_MAX_AGE,
+  });
+}
+
+// Mock login: the chosen account determines the persona, which determines the
+// portal we route to. Value is "company:<id>" / "supplier:<id>" / "indigenomics".
+export async function signIn(formData: FormData) {
+  const account = String(formData.get("account") ?? "");
+  let session: Session | null = null;
+  if (account === "indigenomics") {
+    session = { kind: "indigenomics" };
+  } else {
+    const [kind, partyId] = account.split(":");
+    if ((kind === "company" || kind === "supplier") && partyId) {
+      session = { kind: kind as SessionKind, partyId };
+    }
+  }
+  if (!session) return; // invalid → no-op, login page re-renders
+  writeSession(session);
+  redirect(personaHome(session.kind));
+}
+
+export async function signOut() {
+  cookies().delete(SESSION_COOKIE);
+  redirect("/login");
+}
 
 // Supplier responds to a claim naming them (confirm / dispute / correct).
 export async function respondToLine(formData: FormData) {
@@ -59,9 +95,10 @@ export async function registerSupplierAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
   const supplier = await repo.registerSupplier({ name });
-  revalidatePath("/");
+  // auto-sign-in the new supplier so they land straight in their portal
+  writeSession({ kind: "supplier", partyId: supplier.id });
   revalidatePath("/analytics");
-  redirect(`/record?as=${supplier.id}`);
+  redirect("/confirm");
 }
 
 // Supplier links an external certification (claim → pending; reviewer resolves to verified/revoked).

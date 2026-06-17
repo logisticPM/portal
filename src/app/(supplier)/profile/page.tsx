@@ -1,4 +1,5 @@
 import { repo } from "@/lib/repo";
+import { partyIdFrom } from "@/lib/auth";
 import { updateSupplierProfileAction, claimVerificationAction } from "@/lib/repo/actions";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ function Field({ name, label, defaultValue, placeholder }: {
 }
 
 export default async function ProfilePage({ searchParams }: { searchParams: { as?: string } }) {
-  const supplierId = searchParams.as;
+  const supplierId = partyIdFrom(searchParams);
   const suppliers = await repo.listParties("supplier");
 
   if (!supplierId) {
