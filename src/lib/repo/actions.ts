@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import { SESSION_COOKIE, personaHome, type Session, type SessionKind } from "@/lib/auth";
+import { SESSION_COOKIE, type Session, type SessionKind } from "@/lib/auth";
 import type { FlowType, FlowTag, VerificationSource } from "./types";
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
@@ -33,7 +33,7 @@ export async function signIn(formData: FormData) {
   }
   if (!session) return; // invalid → no-op, login page re-renders
   writeSession(session);
-  redirect(personaHome(session.kind));
+  redirect("/home");
 }
 
 export async function signOut() {
@@ -99,7 +99,7 @@ export async function registerAction(formData: FormData) {
 
   if (role === "indigenomics") {
     writeSession({ kind: "indigenomics" });
-    redirect("/analytics");
+    redirect("/home");
   }
 
   if (!name) return; // company/supplier need a name
@@ -107,13 +107,13 @@ export async function registerAction(formData: FormData) {
     const company = await repo.registerCompany({ name });
     writeSession({ kind: "company", partyId: company.id });
     revalidatePath("/analytics");
-    redirect("/report");
+    redirect("/home");
   }
   if (role === "supplier") {
     const supplier = await repo.registerSupplier({ name });
     writeSession({ kind: "supplier", partyId: supplier.id });
     revalidatePath("/analytics");
-    redirect("/confirm");
+    redirect("/home");
   }
   // unknown role → no-op (form re-renders)
 }

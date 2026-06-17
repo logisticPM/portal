@@ -44,9 +44,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </a>
           <div className="flex items-center gap-4 text-xs">
             <span className="uppercase tracking-[0.18em] text-ink3">demo · synthetic data</span>
+            {session && (
+              <a href="/home" className="text-ink2 hover:text-ink">
+                Home
+              </a>
+            )}
             {label && (
               <span className="text-ink3">
-                · signed in as <span className="text-ink2">{label}</span>
+                signed in as <span className="text-ink2">{label}</span>
               </span>
             )}
             {session && (
