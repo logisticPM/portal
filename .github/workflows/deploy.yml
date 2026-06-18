@@ -7,6 +7,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch: # allow manual re-deploy from the Actions tab
+    inputs:
+      reseed:
+        description: "Reseed production tables after deploy (overwrites demo data with the canonical fixtures)"
+        type: boolean
+        default: false
 
 # Never run two production deploys at once.
 concurrency:
@@ -42,3 +47,11 @@ jobs:
 
       - name: Deploy
         run: npx sst deploy --stage production
+
+      # Opt-in only: never runs on a normal push, so routine merges never touch
+      # demo data. Reseed by triggering this workflow manually (Actions tab →
+      # "Run workflow") with reseed=true. Upsert of the canonical fixtures —
+      # see scripts/seed-sst.ts and docs/deploy.md.
+      - name: Seed production
+        if: github.event_name == 'workflow_dispatch' && inputs.reseed
+        run: npx sst shell --stage production -- tsx scripts/seed-sst.ts
