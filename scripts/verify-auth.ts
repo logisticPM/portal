@@ -5,7 +5,7 @@
 // ===========================================================================
 import { hashPassword, verifyPassword } from "../src/lib/auth/password";
 import { signSession, verifySession, type Session } from "../src/lib/auth";
-import { itemToUser, keys, toUserItem } from "../src/lib/dynamo/single-table";
+import { itemToUser, toUserItem } from "../src/lib/dynamo/single-table";
 import type { User } from "../src/lib/repo/types";
 
 let pass = 0;
@@ -41,8 +41,10 @@ async function main() {
   // --- user marshalling ---
   const u: User = { email: "northway@demo", passwordHash: "a:b", kind: "company", partyId: "c-northway", createdAt: "2025-01-15T00:00:00.000Z" };
   const item = toUserItem(u);
-  check("user: PK is USER#<email>", item.PK === keys.user("northway@demo").PK);
+  check("user: PK is USER#<email>", item.PK === "USER#northway@demo" && item.SK === "USER");
   check("user: round-trips via itemToUser", JSON.stringify(itemToUser(item)) === JSON.stringify(u));
+  const uIndig: User = { email: "institute@demo", passwordHash: "x:y", kind: "indigenomics", createdAt: "2025-01-15T00:00:00.000Z" };
+  check("user: indigenomics round-trips (no partyId)", JSON.stringify(itemToUser(toUserItem(uIndig))) === JSON.stringify(uIndig));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
