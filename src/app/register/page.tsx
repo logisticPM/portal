@@ -10,8 +10,9 @@ const ERRORS: Record<string, string> = {
 };
 
 // Public, top-level registration for any role (company / supplier / Indigenomics).
-export default function RegisterPage({ searchParams }: { searchParams?: { error?: string } }) {
-  const error = searchParams?.error ? ERRORS[searchParams.error] ?? "Registration failed." : null;
+export default function RegisterPage({ searchParams }: { searchParams?: { error?: string | string[] } }) {
+  const code = Array.isArray(searchParams?.error) ? searchParams?.error[0] : searchParams?.error;
+  const error = code ? ERRORS[code] ?? "Registration failed." : null;
   return (
     <div className="max-w-md mx-auto space-y-6">
       <div>

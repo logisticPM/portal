@@ -7,8 +7,9 @@ const ERRORS: Record<string, string> = {
   throttled: "Too many attempts. Try again in a few minutes.",
 };
 
-export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
-  const error = searchParams?.error ? ERRORS[searchParams.error] ?? "Sign-in failed." : null;
+export default function LoginPage({ searchParams }: { searchParams?: { error?: string | string[] } }) {
+  const code = Array.isArray(searchParams?.error) ? searchParams?.error[0] : searchParams?.error;
+  const error = code ? ERRORS[code] ?? "Sign-in failed." : null;
   return (
     <div className="max-w-md mx-auto space-y-6">
       <div>
