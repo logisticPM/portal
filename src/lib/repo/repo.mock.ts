@@ -3,6 +3,7 @@ import type {
   Party,
   Company,
   Supplier,
+  User,
   ReportedLine,
   Confirmation,
   FlowType,
@@ -36,6 +37,9 @@ function emptyFlowMap() {
 }
 
 const now = () => new Date().toISOString();
+
+// auth accounts (seeded in Task 12 via the same fixture the dynamo seed uses)
+const users: User[] = [];
 
 // --- seed data (synthetic, fictional) -------------------------------------
 const parties: Party[] = [
@@ -159,6 +163,15 @@ export const mockRepo: PortalRepo = {
     };
     parties.push(party);
     return party;
+  },
+
+  async getUserByEmail(email) {
+    return users.find((u) => u.email === email.toLowerCase()) ?? null;
+  },
+  async createUser(input) {
+    const user: User = { ...input, email: input.email.toLowerCase() };
+    users.push(user);
+    return user;
   },
 
   async createReportedLine(input) {
