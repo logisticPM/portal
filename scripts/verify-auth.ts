@@ -7,6 +7,9 @@ import { hashPassword, verifyPassword } from "../src/lib/auth/password";
 import { signSession, verifySession, type Session } from "../src/lib/auth";
 import { itemToUser, toUserItem } from "../src/lib/dynamo/single-table";
 import type { User } from "../src/lib/repo/types";
+import { createSingleTable } from "../src/lib/dynamo/create";
+import { mockRepo } from "../src/lib/repo/repo.mock";
+import { dynamoRepo } from "../src/lib/repo/repo.dynamo";
 
 let pass = 0;
 let fail = 0;
@@ -45,6 +48,21 @@ async function main() {
   check("user: round-trips via itemToUser", JSON.stringify(itemToUser(item)) === JSON.stringify(u));
   const uIndig: User = { email: "institute@demo", passwordHash: "x:y", kind: "indigenomics", createdAt: "2025-01-15T00:00:00.000Z" };
   check("user: indigenomics round-trips (no partyId)", JSON.stringify(itemToUser(toUserItem(uIndig))) === JSON.stringify(uIndig));
+
+  // --- user repo parity (DynamoDB Local) ---
+  if (process.env.DYNAMO_ENDPOINT) {
+    await createSingleTable("DataPortal");
+    const acct: User = { email: "Parity@Demo", passwordHash: "s:h", kind: "supplier", partyId: "s-eagle", createdAt: "2025-01-15T00:00:00.000Z" };
+    await mockRepo.createUser(acct);
+    await dynamoRepo.createUser(acct);
+    const m = await mockRepo.getUserByEmail("parity@demo");
+    const d = await dynamoRepo.getUserByEmail("parity@demo");
+    check("user: email lowercased on create", m?.email === "parity@demo" && d?.email === "parity@demo");
+    check("user: mock ≡ dynamo", JSON.stringify(m) === JSON.stringify(d));
+    check("user: unknown email → null", (await dynamoRepo.getUserByEmail("nobody@demo")) === null);
+  } else {
+    check("user: parity skipped (no DYNAMO_ENDPOINT)", true, "run with ddb:up for full coverage");
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
