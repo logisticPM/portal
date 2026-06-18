@@ -5,11 +5,7 @@ import { money, TierBadge, StatusBadge, FlowBadge, TagChip } from "@/components/
 
 export const dynamic = "force-dynamic";
 
-export default async function RecordPage({
-  searchParams,
-}: {
-  searchParams: { as?: string };
-}) {
+export default async function RecordPage() {
   const supplierId = partyIdFrom();
   const suppliers = await repo.listParties("supplier");
 

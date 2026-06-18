@@ -20,7 +20,7 @@ function Field({ name, label, defaultValue, placeholder }: {
   );
 }
 
-export default async function ProfilePage({ searchParams }: { searchParams: { as?: string } }) {
+export default async function ProfilePage() {
   const supplierId = partyIdFrom();
   const suppliers = await repo.listParties("supplier");
 
