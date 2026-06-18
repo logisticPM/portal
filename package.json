@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "verify": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/verify.ts",
+    "verify:auth": "tsx scripts/verify-auth.ts",
     "ddb:up": "docker compose up -d",
     "ddb:down": "docker compose down",
     "ddb:create": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/create-table.ts",
