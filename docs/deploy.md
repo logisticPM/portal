@@ -77,7 +77,9 @@ CloudFront (CDN) ──┬── static assets ─▶ S3 (Web assets bucket)
 
 ## Ship a change
 
-After editing app code, just redeploy the same stage:
+**Normally you don't deploy by hand** — every push to `main` auto-deploys
+production via the `Deploy` workflow (GitHub OIDC, no static keys). Merge a PR and
+it ships. To deploy manually anyway (e.g. from the Actions tab or local):
 
 ```bash
 aws sso login                      # if creds expired
@@ -86,6 +88,19 @@ npx sst deploy --stage production  # ships the new build; URL stays the same
 
 Data persists across deploys (the tables aren't recreated), so you only re-seed
 if you changed the fixtures or want a clean demo state.
+
+### Reseeding production
+
+The auto-deploy **does not** reseed — routine merges never touch demo data (so a
+live confirmation made during a demo survives the next merge). Reseed only when
+you mean to, two ways:
+
+- **From the Actions tab:** run the `Deploy` workflow manually with the
+  **`reseed` input checked** (`reseed=true`). It deploys, then runs `seed:sst`.
+- **Locally:** `aws sso login && npx sst shell --stage production -- tsx scripts/seed-sst.ts`
+
+Either way it's an **upsert** of the canonical fixtures (`PutItem` overwrites items
+with the same key) — it refreshes the seed but does **not** delete stray items.
 
 ---
 
