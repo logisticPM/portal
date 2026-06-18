@@ -29,8 +29,18 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (isPublic(pathname)) return NextResponse.next();
 
-  // cookie value is "kind:partyId" (or just "indigenomics") — see src/lib/auth.ts
-  const kind = req.cookies.get(SESSION_COOKIE)?.value?.split(":")[0];
+  // Cookie value is "<base64url(payload)>.<sig>"; read kind from the payload for
+  // routing only. Real verification (HMAC + exp) happens in getSession() on the page.
+  const raw = req.cookies.get(SESSION_COOKIE)?.value;
+  let kind: string | undefined;
+  if (raw) {
+    try {
+      const body = raw.slice(0, raw.indexOf("."));
+      kind = JSON.parse(Buffer.from(body, "base64url").toString("utf8")).kind;
+    } catch {
+      kind = undefined;
+    }
+  }
 
   // not signed in → login
   if (!kind) return redirectTo(req, "/login");
