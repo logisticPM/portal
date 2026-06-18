@@ -9,7 +9,7 @@
 import type { Confirmation, FlowTag, FlowType, Party, ReportedLine, User, Verification } from "../repo/types";
 
 // fixed timestamp so seeding is deterministic (re-running gives identical items)
-const T = "2025-01-15T00:00:00.000Z";
+export const T = "2025-01-15T00:00:00.000Z";
 
 export const parties: Party[] = [
   // companies (buyers being measured — no identity tier)

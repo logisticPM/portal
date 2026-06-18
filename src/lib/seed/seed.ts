@@ -8,7 +8,7 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc, TABLE } from "../dynamo/client";
 import { toConfItem, toLineItem, toPartyItem, toUserItem } from "../dynamo/single-table";
-import { confirmations, DEMO_PASSWORD, demoUsers, lines, parties } from "./fixtures";
+import { confirmations, DEMO_PASSWORD, demoUsers, lines, parties, T } from "./fixtures";
 import { hashPassword } from "../auth/password";
 import type { User } from "../repo/types";
 
@@ -28,7 +28,6 @@ export async function seedAll(): Promise<{
   ];
 
   const hash = await hashPassword(DEMO_PASSWORD);
-  const T = "2025-01-15T00:00:00.000Z";
   const userItems = demoUsers.map((u) =>
     toUserItem({ email: u.email, passwordHash: hash, kind: u.kind, partyId: u.partyId, createdAt: T } as User),
   );
