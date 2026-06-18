@@ -103,18 +103,24 @@ export async function registerAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
-  if (!email || password.length < 8) redirect("/register?error=weak");
+  if (!email || !email.includes("@") || password.length < 8) redirect("/register?error=weak");
   if ((role === "company" || role === "supplier") && !name) redirect("/register?error=name");
+  // NOTE: check-then-create is not atomic — concurrent same-email registrations could race.
+  // Acceptable at demo scale; harden with a DynamoDB ConditionalPut before production.
   if (await repo.getUserByEmail(email)) redirect("/register?error=exists");
 
   const passwordHash = await hashPassword(password);
   const createdAt = new Date().toISOString();
 
+  // NOTE: the institute is conceptually a singleton, but that invariant is not enforced —
+  // a second indigenomics registration with a fresh email is accepted (acceptable for the demo).
   if (role === "indigenomics") {
     await repo.createUser({ email, passwordHash, kind: "indigenomics", createdAt });
     writeSession({ kind: "indigenomics", email });
     redirect("/home");
   }
+  // NOTE: entity-then-account is not transactional — if createUser throws after registerCompany/
+  // registerSupplier, an orphan party with no account remains (acceptable for the demo).
   if (role === "company") {
     const company = await repo.registerCompany({ name });
     await repo.createUser({ email, passwordHash, kind: "company", partyId: company.id, createdAt });
