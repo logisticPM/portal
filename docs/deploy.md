@@ -57,7 +57,7 @@ CloudFront (CDN) ──┬── static assets ─▶ S3 (Web assets bucket)
 3. **Logged in:** `aws sso login` (sessions last ~8h; re-run when expired).
    Verify with `aws sts get-caller-identity`.
 4. **Session secret set:** `npx sst secret set AuthSecret "$(openssl rand -base64 32)" --stage <stage>`
-   (HMAC key for login sessions; required — the app throws in production if unset).
+   (HMAC key for login sessions. **`sst deploy` itself fails if this secret is unset for the target stage** — set it before the first deploy of any new stage, including before the CI auto-deploy runs against `production`.)
 
 ---
 
