@@ -12,6 +12,7 @@ import { mockRepo } from "../src/lib/repo/repo.mock";
 import { dynamoRepo } from "../src/lib/repo/repo.dynamo";
 import { DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
+import { assertNotLocked, clearFailures, recordFailure, MAX_FAILS } from "../src/lib/auth/rate-limit";
 
 let pass = 0;
 let fail = 0;
@@ -66,6 +67,14 @@ async function main() {
   } else {
     console.warn("⚠️  user repo parity skipped — set DYNAMO_ENDPOINT (npm run ddb:up) for full coverage");
   }
+
+  // --- rate limit (in-memory path; email isolated per test run) ---
+  const rlEmail = `rl-${NOW}@demo`;
+  check("rl: starts unlocked", (await assertNotLocked(rlEmail)) === true);
+  for (let i = 0; i < MAX_FAILS; i++) await recordFailure(rlEmail);
+  check("rl: locks after MAX_FAILS", (await assertNotLocked(rlEmail)) === false);
+  await clearFailures(rlEmail);
+  check("rl: clear unlocks", (await assertNotLocked(rlEmail)) === true);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
