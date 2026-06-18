@@ -48,8 +48,10 @@ export async function signOut() {
 
 // Supplier responds to a claim naming them (confirm / dispute / correct).
 export async function respondToLine(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const byPartyId = session.partyId; // actor is the logged-in supplier, not a client-supplied id
   const lineId = String(formData.get("lineId"));
-  const byPartyId = String(formData.get("byPartyId"));
   const status = String(formData.get("status")) as "confirmed" | "disputed" | "corrected";
   const correctedRaw = formData.get("correctedAmount");
   const correctedAmount = correctedRaw ? Number(correctedRaw) : undefined;
@@ -65,7 +67,9 @@ export async function respondToLine(formData: FormData) {
 // Australia collects only an aggregate total; we itemize per named supplier so each
 // line is confirmable. New lines start 'pending' until the supplier acts.
 export async function createLineAction(formData: FormData) {
-  const companyId = String(formData.get("companyId") ?? "").trim();
+  const session = getSession();
+  if (session?.kind !== "company" || !session.partyId) return;
+  const companyId = session.partyId; // actor is the logged-in company
   const supplierId = String(formData.get("supplierId") ?? "").trim();
   const amount = Number(formData.get("amount"));
   const flowType = String(formData.get("flowType") || "procurement") as FlowType;
@@ -87,7 +91,9 @@ export async function createLineAction(formData: FormData) {
 
 // OCAP: supplier withdraws their confirmations → lines revert to 'pending'.
 export async function withdrawConfirmations(formData: FormData) {
-  const supplierId = String(formData.get("supplierId"));
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const supplierId = session.partyId;
   await repo.withdraw(supplierId);
 
   revalidatePath("/record");
@@ -138,7 +144,9 @@ export async function registerAction(formData: FormData) {
 
 // Supplier links an external certification (claim → pending; reviewer resolves to verified/revoked).
 export async function claimVerificationAction(formData: FormData) {
-  const supplierId = String(formData.get("supplierId") ?? "").trim();
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const supplierId = session.partyId;
   const source = String(formData.get("source") ?? "") as VerificationSource;
   const reference = String(formData.get("reference") ?? "").trim() || undefined;
   if (!supplierId || !source) return;
@@ -164,8 +172,9 @@ export async function resolveVerificationAction(formData: FormData) {
 
 // Supplier edits their showcase profile (self-described fields + the public toggle).
 export async function updateSupplierProfileAction(formData: FormData) {
-  const supplierId = String(formData.get("supplierId") ?? "").trim();
-  if (!supplierId) return;
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const supplierId = session.partyId;
   await repo.updateSupplierProfile(supplierId, {
     sector: String(formData.get("sector") ?? "").trim(),
     region: String(formData.get("region") ?? "").trim(),
