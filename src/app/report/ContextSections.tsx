@@ -68,24 +68,49 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 }
 
 // --- Section A · Organisation profile ------------------------------------------
-export function ProfileCard({ org }: { org: Organization }) {
+export function ProfileCard({ org, companyId }: { org?: Organization; companyId: string }) {
   return (
     <section>
-      <SectionHeader letter="A" title="Organisation profile" />
-      <div className="bg-panel rounded border border-line shadow-card p-5 grid sm:grid-cols-3 gap-4">
-        <Field label="Industry" value={humanIndustry(org.industry)} />
-        <Field label="Latest RAP type" value={rapTypeLabels[org.latestRapType]} />
-        <Field label="Employees" value={org.totalEmployees.toLocaleString("en-CA")} />
-        <Field label="Listed (TSX 200)" value={org.asx200 ? "Yes" : "No"} />
-        <Field label="Primary contact" value={org.contactName} />
-        <Field label="Contact email" value={org.contactEmail} />
+      <div className="flex items-center gap-3 mb-2">
+        <span className="text-ink3 text-xs uppercase tracking-widest">A · Organisation profile</span>
+        <a className="ml-auto text-ink3 underline text-sm" href={`/report?as=${companyId}&edit=profile`}>
+          {org ? "Edit" : "Add profile"}
+        </a>
       </div>
+      {org ? (
+        <div className="bg-panel rounded border border-line shadow-card p-5 grid sm:grid-cols-3 gap-4">
+          <Field label="Industry" value={humanIndustry(org.industry)} />
+          <Field label="Latest RAP type" value={rapTypeLabels[org.latestRapType]} />
+          <Field label="Employees" value={org.totalEmployees.toLocaleString("en-CA")} />
+          <Field label="Listed (TSX 200)" value={org.asx200 ? "Yes" : "No"} />
+          <Field label="Primary contact" value={org.contactName || "—"} />
+          <Field label="Contact email" value={org.contactEmail || "—"} />
+        </div>
+      ) : (
+        <p className="text-ink3">No profile yet. Add one to describe this organisation.</p>
+      )}
     </section>
   );
 }
 
 // --- Sections C / D · self-report context --------------------------------------
-export function ContextBlocks({ survey }: { survey: SurveyResponse }) {
+export function ContextBlocks({ survey, companyId }: { survey?: SurveyResponse; companyId: string }) {
+  const editHref = `/report?as=${companyId}&edit=context`;
+
+  if (!survey) {
+    return (
+      <section>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-ink3 text-xs uppercase tracking-widest">C / D · Context</span>
+          <a className="ml-auto text-ink3 underline text-sm" href={editHref}>
+            Add context
+          </a>
+        </div>
+        <p className="text-ink3">No self-reported context yet. Add workforce, culture, and governance details.</p>
+      </section>
+    );
+  }
+
   const staff = survey.indigenousStaff;
   const byLevel = survey.indigenousStaffByLevel;
   const cl = survey.culturalLearning;
@@ -94,16 +119,18 @@ export function ContextBlocks({ survey }: { survey: SurveyResponse }) {
     <div className="space-y-6">
       {/* C · Workforce & culture */}
       <section>
-        <SectionHeader letter="C" title="Workforce & culture" stamped />
+        <div className="flex items-center gap-3 mb-2">
+          <SectionHeader letter="C" title="Workforce & culture" stamped />
+          <a className="ml-auto text-ink3 underline text-sm" href={editHref}>
+            Edit
+          </a>
+        </div>
         <div className="bg-panel/60 rounded border border-line p-5 grid sm:grid-cols-3 gap-4">
           <Field
             label="Indigenous staff"
             value={staff.total === null ? "Not collected" : staff.total.toLocaleString("en-CA")}
           />
-          <Field
-            label="Senior exec / board"
-            value={`${byLevel.seniorExec} exec · ${byLevel.board} board`}
-          />
+          <Field label="Senior exec / board" value={`${byLevel.seniorExec} exec · ${byLevel.board} board`} />
           <Field label="Mgmt / entry-level" value={`${byLevel.middleManagement} · ${byLevel.entryLevel}`} />
           <Field
             label="Cultural learning (hrs)"

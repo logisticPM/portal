@@ -5,6 +5,8 @@ import { money, TierBadge, StatusBadge, FlowBadge, TagChip } from "@/components/
 import type { Party } from "@/lib/repo/types";
 import { ReportLineForm } from "./ReportLineForm";
 import { ProfileCard, ContextBlocks } from "./ContextSections";
+import { ProfileForm } from "./ProfileForm";
+import { ContextForm } from "./ContextForm";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +18,10 @@ const companyToOrgId = (companyId: string) => companyId.replace(/^c-/, "org-");
 export default async function ReportPage({
   searchParams,
 }: {
-  searchParams: { as?: string };
+  searchParams: { as?: string; edit?: string };
 }) {
   const companyId = partyIdFrom(searchParams);
+  const edit = searchParams.edit;
   const companies = await repo.listParties("company");
 
   // No company chosen yet → pick one (mirrors confirm/record).
@@ -63,8 +66,12 @@ export default async function ReportPage({
           coverage →
         </a>
       </div>
-      {/* A · Organisation profile (self-report, from the RAP Impact Survey) */}
-      {org ? <ProfileCard org={org} /> : null}
+      {/* A · Organisation profile (self-report) — read-only card or edit form */}
+      {edit === "profile" ? (
+        <ProfileForm companyId={companyId} orgId={orgId} org={org ?? undefined} />
+      ) : (
+        <ProfileCard org={org ?? undefined} companyId={companyId} />
+      )}
 
       {/* B · Confirmable economic lines — the only section that flows to coverage/Index */}
       <section className="space-y-4">
@@ -111,8 +118,17 @@ export default async function ReportPage({
         </div>
       </section>
 
-      {/* C / D · self-report context (displayed, never confirmed) */}
-      {survey ? <ContextBlocks survey={survey} /> : null}
+      {/* C / D · self-report context — read-only blocks or edit form */}
+      {edit === "context" ? (
+        <ContextForm
+          companyId={companyId}
+          orgId={orgId}
+          year={SURVEY_YEAR}
+          survey={survey ?? undefined}
+        />
+      ) : (
+        <ContextBlocks survey={survey ?? undefined} companyId={companyId} />
+      )}
     </div>
   );
 }
