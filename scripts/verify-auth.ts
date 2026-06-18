@@ -4,6 +4,7 @@
 // sections (added later) need DynamoDB Local (`npm run ddb:up`).
 // ===========================================================================
 import { hashPassword, verifyPassword } from "../src/lib/auth/password";
+import { signSession, verifySession, type Session } from "../src/lib/auth";
 
 let pass = 0;
 let fail = 0;
@@ -19,6 +20,18 @@ async function main() {
   check("password: correct verifies", await verifyPassword("correct horse", stored));
   check("password: wrong rejected", !(await verifyPassword("wrong", stored)));
   check("password: malformed rejected", !(await verifyPassword("x", "not-a-hash")));
+
+  // --- session sign/verify ---
+  const NOW = 1_700_000_000;
+  const sess: Session = { kind: "company", partyId: "c-northway", email: "northway@demo" };
+  const token = signSession(sess, NOW);
+  const ok = verifySession(token, NOW + 10);
+  check("session: round-trips", !!ok && ok.kind === "company" && ok.partyId === "c-northway" && ok.email === "northway@demo");
+  check("session: expired rejected", verifySession(token, NOW + 60 * 60 * 24 * 8) === null);
+  check("session: tampered payload rejected", verifySession("x" + token, NOW + 10) === null);
+  check("session: bad signature rejected", verifySession(token.split(".")[0] + ".deadbeef", NOW + 10) === null);
+  const inst = signSession({ kind: "indigenomics", email: "institute@demo" }, NOW);
+  check("session: indigenomics has no partyId", verifySession(inst, NOW + 10)?.partyId === undefined);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
