@@ -62,6 +62,7 @@ export function verifySession(raw: string, nowSec: number): Session | null {
   } catch {
     return null;
   }
+  if (!p || typeof p !== "object" || Array.isArray(p)) return null;
   if (typeof p.exp !== "number" || p.exp < nowSec) return null;
   if (p.kind === "company" || p.kind === "supplier") {
     return p.partyId ? { kind: p.kind, partyId: p.partyId, email: p.email } : null;

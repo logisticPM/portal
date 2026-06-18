@@ -30,6 +30,9 @@ async function main() {
   check("session: expired rejected", verifySession(token, NOW + 60 * 60 * 24 * 8) === null);
   check("session: tampered payload rejected", verifySession("x" + token, NOW + 10) === null);
   check("session: bad signature rejected", verifySession(token.split(".")[0] + ".deadbeef", NOW + 10) === null);
+  const [bodyPart, sigPart] = token.split(".");
+  const flipped = bodyPart + "." + (sigPart[0] === "A" ? "B" : "A") + sigPart.slice(1);
+  check("session: same-length wrong signature rejected", verifySession(flipped, NOW + 10) === null);
   const inst = signSession({ kind: "indigenomics", email: "institute@demo" }, NOW);
   check("session: indigenomics has no partyId", verifySession(inst, NOW + 10)?.partyId === undefined);
 
