@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession, type Session } from "@/lib/auth";
+import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession, getSession, type Session } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { assertNotLocked, clearFailures, recordFailure } from "@/lib/auth/rate-limit";
 import type { FlowType, FlowTag, VerificationSource } from "./types";
@@ -148,6 +148,7 @@ export async function claimVerificationAction(formData: FormData) {
 
 // Reviewer resolves a pending certification claim (verified → tier rises; revoked → stays self_declared).
 export async function resolveVerificationAction(formData: FormData) {
+  if (getSession()?.kind !== "indigenomics") return;
   const supplierId = String(formData.get("supplierId") ?? "").trim();
   const source = String(formData.get("source") ?? "") as VerificationSource;
   const status = String(formData.get("status") ?? "") as "verified" | "revoked";
