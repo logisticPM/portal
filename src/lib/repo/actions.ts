@@ -4,35 +4,40 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import { SESSION_COOKIE, type Session, type SessionKind } from "@/lib/auth";
+import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession, type Session } from "@/lib/auth";
+import { verifyPassword } from "@/lib/auth/password";
+import { assertNotLocked, clearFailures, recordFailure } from "@/lib/auth/rate-limit";
 import type { FlowType, FlowTag, VerificationSource } from "./types";
 
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
-
 function writeSession(session: Session) {
-  const value = session.partyId ? `${session.kind}:${session.partyId}` : session.kind;
+  const value = signSession(session, Math.floor(Date.now() / 1000));
   cookies().set(SESSION_COOKIE, value, {
     path: "/",
-    sameSite: "lax",
-    maxAge: SESSION_MAX_AGE,
+    httpOnly: true, // JS can't read it → mitigates XSS token theft
+    secure: process.env.NODE_ENV === "production", // HTTPS-only in prod
+    sameSite: "lax", // CSRF mitigation; lax keeps top-level nav working
+    maxAge: SESSION_TTL_SECONDS, // tracks the signed token's exp
   });
 }
 
-// Mock login: the chosen account determines the persona, which determines the
-// portal we route to. Value is "company:<id>" / "supplier:<id>" / "indigenomics".
+// Real login: email + password. Rate-limit gate runs BEFORE the lookup/hash so a
+// locked-out or attacker request never triggers the expensive scrypt verify.
 export async function signIn(formData: FormData) {
-  const account = String(formData.get("account") ?? "");
-  let session: Session | null = null;
-  if (account === "indigenomics") {
-    session = { kind: "indigenomics" };
-  } else {
-    const [kind, partyId] = account.split(":");
-    if ((kind === "company" || kind === "supplier") && partyId) {
-      session = { kind: kind as SessionKind, partyId };
-    }
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  if (!email || !password) redirect("/login?error=invalid");
+
+  if (!(await assertNotLocked(email))) redirect("/login?error=throttled");
+
+  const user = await repo.getUserByEmail(email);
+  const ok = user ? await verifyPassword(password, user.passwordHash) : false;
+  if (!user || !ok) {
+    await recordFailure(email);
+    redirect("/login?error=invalid");
   }
-  if (!session) return; // invalid → no-op, login page re-renders
-  writeSession(session);
+
+  await clearFailures(email);
+  writeSession({ kind: user.kind, partyId: user.partyId, email: user.email });
   redirect("/home");
 }
 
