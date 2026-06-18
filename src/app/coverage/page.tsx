@@ -9,7 +9,7 @@ export default async function CoveragePage({
 }: {
   searchParams: { as?: string };
 }) {
-  const companyId = partyIdFrom(searchParams);
+  const companyId = partyIdFrom();
   const companies = await repo.listParties("company");
 
   // No company chosen yet → pick one (mirrors report/confirm/record).

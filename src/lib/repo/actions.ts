@@ -77,7 +77,7 @@ export async function createLineAction(formData: FormData) {
   revalidatePath("/coverage");
   revalidatePath("/confirm"); // a new line appears in the named supplier's inbox
   revalidatePath("/analytics");
-  redirect(`/report?as=${companyId}`);
+  redirect("/report");
 }
 
 // OCAP: supplier withdraws their confirmations → lines revert to 'pending'.
@@ -156,5 +156,5 @@ export async function updateSupplierProfileAction(formData: FormData) {
   });
   revalidatePath("/profile");
   revalidatePath(`/s/${supplierId}`);
-  redirect(`/profile?as=${supplierId}`);
+  redirect("/profile");
 }

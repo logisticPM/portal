@@ -21,7 +21,7 @@ function Field({ name, label, defaultValue, placeholder }: {
 }
 
 export default async function ProfilePage({ searchParams }: { searchParams: { as?: string } }) {
-  const supplierId = partyIdFrom(searchParams);
+  const supplierId = partyIdFrom();
   const suppliers = await repo.listParties("supplier");
 
   if (!supplierId) {

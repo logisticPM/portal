@@ -18,9 +18,9 @@ const companyToOrgId = (companyId: string) => companyId.replace(/^c-/, "org-");
 export default async function ReportPage({
   searchParams,
 }: {
-  searchParams: { as?: string; edit?: string };
+  searchParams: { edit?: string };
 }) {
-  const companyId = partyIdFrom(searchParams);
+  const companyId = partyIdFrom(); // identity from session only (?as= removed in real-login)
   const edit = searchParams.edit;
   const companies = await repo.listParties("company");
 
