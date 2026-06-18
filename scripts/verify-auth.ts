@@ -15,7 +15,7 @@ function check(name: string, ok: boolean, extra = "") {
 async function main() {
   // --- password ---
   const stored = await hashPassword("correct horse");
-  check("password: format is salt:hash", /^[0-9a-f]+:[0-9a-f]+$/.test(stored), stored.slice(0, 16) + "…");
+  check("password: format is salt:hash", /^[0-9a-f]{32}:[0-9a-f]{128}$/.test(stored), stored.slice(0, 16) + "…");
   check("password: correct verifies", await verifyPassword("correct horse", stored));
   check("password: wrong rejected", !(await verifyPassword("wrong", stored)));
   check("password: malformed rejected", !(await verifyPassword("x", "not-a-hash")));

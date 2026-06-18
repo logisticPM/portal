@@ -7,6 +7,7 @@ import { promisify } from "util";
 
 const scryptAsync = promisify(scrypt);
 const KEYLEN = 64;
+// scrypt cost: Node defaults N=16384, r=8, p=1 — meets the OWASP minimum.
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
@@ -15,7 +16,9 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt, hashHex] = stored.split(":");
+  const parts = stored.split(":");
+  if (parts.length !== 2) return false;
+  const [salt, hashHex] = parts;
   if (!salt || !hashHex) return false;
   const expected = Buffer.from(hashHex, "hex");
   const derived = (await scryptAsync(password, salt, KEYLEN)) as Buffer;
