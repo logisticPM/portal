@@ -13,6 +13,7 @@ const industryLabels: Partial<Record<Industry, string>> = {
   mining: "Mining",
   transport: "Transport",
   retail: "Retail",
+  unspecified: "—",
 };
 
 const rapTypeLabels: Record<RapType, string> = {

@@ -39,7 +39,8 @@ export type Industry =
   | "social_services"
   | "sport"
   | "tourism"
-  | "transport";
+  | "transport"
+  | "unspecified"; // blank — new org has not chosen an industry yet
 
 // Q17 — NRW participation (multi-select)
 export type NrwParticipation =
