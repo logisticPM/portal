@@ -17,8 +17,9 @@ import {
   toConfItem,
   toLineItem,
   toPartyItem,
+  toUserItem,
 } from "../../dynamo/single-table";
-import type { Company, Confirmation, FlowTag, FlowType, IdentityTier, ReportedLine, Supplier, Verification, VerificationSource, VerificationStatus } from "../types";
+import type { Company, Confirmation, FlowTag, FlowType, IdentityTier, ReportedLine, Supplier, User, Verification, VerificationSource, VerificationStatus } from "../types";
 
 type Item = Record<string, any>;
 const now = () => new Date().toISOString();
@@ -224,6 +225,13 @@ export async function resolveVerification(supplierId: string, source: Verificati
   const updated: Supplier = { ...p, verifications, identityTier: tierFromVerifications(verifications) };
   await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toPartyItem(updated) }));
   return updated;
+}
+
+// AUTH — create an account (idempotent overwrite on the same email key)
+export async function createUser(input: User): Promise<User> {
+  const user: User = { ...input, email: input.email.toLowerCase() };
+  await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toUserItem(user) }));
+  return user;
 }
 
 // AP-profile — supplier edits their own showcase profile fields + public toggle

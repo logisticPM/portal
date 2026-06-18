@@ -29,4 +29,8 @@ export const dynamoRepo: PortalRepo = {
   updateSupplierProfile: writes.updateSupplierProfile,
   claimVerification: writes.claimVerification,
   resolveVerification: writes.resolveVerification,
+
+  // AUTH — user accounts
+  getUserByEmail: reads.getUserByEmail,
+  createUser: writes.createUser,
 };
