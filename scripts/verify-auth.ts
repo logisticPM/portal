@@ -5,6 +5,8 @@
 // ===========================================================================
 import { hashPassword, verifyPassword } from "../src/lib/auth/password";
 import { signSession, verifySession, type Session } from "../src/lib/auth";
+import { itemToUser, keys, toUserItem } from "../src/lib/dynamo/single-table";
+import type { User } from "../src/lib/repo/types";
 
 let pass = 0;
 let fail = 0;
@@ -35,6 +37,12 @@ async function main() {
   check("session: same-length wrong signature rejected", verifySession(flipped, NOW + 10) === null);
   const inst = signSession({ kind: "indigenomics", email: "institute@demo" }, NOW);
   check("session: indigenomics has no partyId", verifySession(inst, NOW + 10)?.partyId === undefined);
+
+  // --- user marshalling ---
+  const u: User = { email: "northway@demo", passwordHash: "a:b", kind: "company", partyId: "c-northway", createdAt: "2025-01-15T00:00:00.000Z" };
+  const item = toUserItem(u);
+  check("user: PK is USER#<email>", item.PK === keys.user("northway@demo").PK);
+  check("user: round-trips via itemToUser", JSON.stringify(itemToUser(item)) === JSON.stringify(u));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
