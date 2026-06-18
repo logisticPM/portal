@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
 import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession, type Session } from "@/lib/auth";
-import { verifyPassword } from "@/lib/auth/password";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { assertNotLocked, clearFailures, recordFailure } from "@/lib/auth/rate-limit";
 import type { FlowType, FlowTag, VerificationSource } from "./types";
 
@@ -95,32 +95,39 @@ export async function withdrawConfirmations(formData: FormData) {
   revalidatePath("/analytics");
 }
 
-// Self-registration for any role. company/supplier create a party (new suppliers
-// start self_declared; tier rises only via verified certifications); indigenomics
-// is the singleton institute (no entity). Auto-signs-in and routes to that portal.
+// Self-registration for any role. Creates the entity (company/supplier) or the
+// singleton institute, then a 1:1 User account with a hashed password, then signs in.
 export async function registerAction(formData: FormData) {
   const role = String(formData.get("role") ?? "");
   const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+
+  if (!email || password.length < 8) redirect("/register?error=weak");
+  if ((role === "company" || role === "supplier") && !name) redirect("/register?error=name");
+  if (await repo.getUserByEmail(email)) redirect("/register?error=exists");
+
+  const passwordHash = await hashPassword(password);
+  const createdAt = new Date().toISOString();
 
   if (role === "indigenomics") {
-    writeSession({ kind: "indigenomics" });
+    await repo.createUser({ email, passwordHash, kind: "indigenomics", createdAt });
+    writeSession({ kind: "indigenomics", email });
     redirect("/home");
   }
-
-  if (!name) return; // company/supplier need a name
   if (role === "company") {
     const company = await repo.registerCompany({ name });
-    writeSession({ kind: "company", partyId: company.id });
-    revalidatePath("/analytics");
+    await repo.createUser({ email, passwordHash, kind: "company", partyId: company.id, createdAt });
+    writeSession({ kind: "company", partyId: company.id, email });
     redirect("/home");
   }
   if (role === "supplier") {
     const supplier = await repo.registerSupplier({ name });
-    writeSession({ kind: "supplier", partyId: supplier.id });
-    revalidatePath("/analytics");
+    await repo.createUser({ email, passwordHash, kind: "supplier", partyId: supplier.id, createdAt });
+    writeSession({ kind: "supplier", partyId: supplier.id, email });
     redirect("/home");
   }
-  // unknown role → no-op (form re-renders)
+  redirect("/register?error=role");
 }
 
 // Supplier links an external certification (claim → pending; reviewer resolves to verified/revoked).
