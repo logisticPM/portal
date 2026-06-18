@@ -7,13 +7,16 @@
 // ===========================================================================
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc, TABLE } from "../dynamo/client";
-import { toConfItem, toLineItem, toPartyItem } from "../dynamo/single-table";
-import { confirmations, lines, parties } from "./fixtures";
+import { toConfItem, toLineItem, toPartyItem, toUserItem } from "../dynamo/single-table";
+import { confirmations, DEMO_PASSWORD, demoUsers, lines, parties } from "./fixtures";
+import { hashPassword } from "../auth/password";
+import type { User } from "../repo/types";
 
 export async function seedAll(): Promise<{
   parties: number;
   lines: number;
   confirmations: number;
+  users: number;
 }> {
   // a confirmation needs its line's companyId to land in the right partition
   const lineCompany = new Map(lines.map((l) => [l.id, l.companyId]));
@@ -24,6 +27,13 @@ export async function seedAll(): Promise<{
     ...confirmations.map((c) => toConfItem(c, lineCompany.get(c.lineId)!)),
   ];
 
+  const hash = await hashPassword(DEMO_PASSWORD);
+  const T = "2025-01-15T00:00:00.000Z";
+  const userItems = demoUsers.map((u) =>
+    toUserItem({ email: u.email, passwordHash: hash, kind: u.kind, partyId: u.partyId, createdAt: T } as User),
+  );
+  items.push(...userItems);
+
   for (const Item of items) {
     await ddbDoc.send(new PutCommand({ TableName: TABLE, Item }));
   }
@@ -32,5 +42,6 @@ export async function seedAll(): Promise<{
     parties: parties.length,
     lines: lines.length,
     confirmations: confirmations.length,
+    users: demoUsers.length,
   };
 }

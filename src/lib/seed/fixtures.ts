@@ -6,7 +6,7 @@
 // repo against (same inputs → same coverage/record/index numbers). Edit freely —
 // add suppliers, change amounts/statuses — to make the coverage view more convincing.
 // ===========================================================================
-import type { Confirmation, FlowTag, FlowType, Party, ReportedLine, Verification } from "../repo/types";
+import type { Confirmation, FlowTag, FlowType, Party, ReportedLine, User, Verification } from "../repo/types";
 
 // fixed timestamp so seeding is deterministic (re-running gives identical items)
 const T = "2025-01-15T00:00:00.000Z";
@@ -68,3 +68,17 @@ export const confirmations: Confirmation[] = lines
     byPartyId: l.supplierId,
     respondedAt: T,
   }));
+
+// --- demo auth accounts (synthetic-data only — see design §10) ---
+// Shared, obviously-fake password so the team can sign in as any seeded entity
+// at the showcase. NEVER seed these against a real-data environment.
+export const DEMO_PASSWORD = "demo-portal-2026";
+
+export const demoUsers: { email: string; kind: "company" | "supplier" | "indigenomics"; partyId?: string }[] = [
+  ...parties.map((p) => ({
+    email: `${p.id.replace(/^[cs]-/, "")}@demo`, // c-northway → northway@demo
+    kind: p.role,
+    partyId: p.id,
+  })),
+  { email: "institute@demo", kind: "indigenomics" as const },
+];

@@ -6,7 +6,7 @@ import { seedAll } from "../src/lib/seed/seed";
 async function main() {
   const n = await seedAll();
   console.log(
-    `✅ seeded ${n.parties} parties, ${n.lines} lines, ${n.confirmations} confirmations`,
+    `✅ seeded ${n.parties} parties, ${n.lines} lines, ${n.confirmations} confirmations, ${n.users} users`,
   );
 }
 
