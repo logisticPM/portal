@@ -10,6 +10,8 @@ import type { User } from "../src/lib/repo/types";
 import { createSingleTable } from "../src/lib/dynamo/create";
 import { mockRepo } from "../src/lib/repo/repo.mock";
 import { dynamoRepo } from "../src/lib/repo/repo.dynamo";
+import { DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { ddbDoc } from "../src/lib/dynamo/client";
 
 let pass = 0;
 let fail = 0;
@@ -60,8 +62,9 @@ async function main() {
     check("user: email lowercased on create", m?.email === "parity@demo" && d?.email === "parity@demo");
     check("user: mock ≡ dynamo", JSON.stringify(m) === JSON.stringify(d));
     check("user: unknown email → null", (await dynamoRepo.getUserByEmail("nobody@demo")) === null);
+    await ddbDoc.send(new DeleteCommand({ TableName: "DataPortal", Key: { PK: "USER#parity@demo", SK: "USER" } }));
   } else {
-    check("user: parity skipped (no DYNAMO_ENDPOINT)", true, "run with ddb:up for full coverage");
+    console.warn("⚠️  user repo parity skipped — set DYNAMO_ENDPOINT (npm run ddb:up) for full coverage");
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
@@ -69,6 +72,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error(e);
+  console.error("❌ verify-auth crashed:", e);
   process.exit(1);
 });
