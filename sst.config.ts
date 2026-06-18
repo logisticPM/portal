@@ -59,6 +59,10 @@ export default $config({
     // it later without an infra change. Linked for IAM but unused by the MVP.
     const exports = new sst.aws.Bucket("Exports");
 
+    // HMAC key for signing session cookies (auth.ts). Set per stage with:
+    //   npx sst secret set AuthSecret <random-string> --stage <stage>
+    const authSecret = new sst.Secret("AuthSecret");
+
     new sst.aws.Nextjs("Web", {
       // Grants the Lambda execution role least-privilege access to exactly these
       // resources (the two tables + their GSIs, and the export bucket).
@@ -70,6 +74,7 @@ export default $config({
         // the SST-managed names through, and the data layer is unchanged.
         DYNAMO_TABLE: dataPortal.name,
         SURVEY_TABLE: rapSurvey.name,
+        AUTH_SECRET: authSecret.value,
         // NOTE: AWS_REGION is a reserved Lambda env var, auto-set by the runtime
         // to the function's region (us-east-1) — do not set it here. The
         // client.ts fallback only matters for local runs.
