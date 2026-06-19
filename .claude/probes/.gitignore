@@ -1,0 +1,3 @@
+# per-member data and identity — never commit these
+data/
+member_id.txt
