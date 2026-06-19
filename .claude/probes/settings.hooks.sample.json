@@ -1,0 +1,25 @@
+{
+  "_comment": "Coordination-probe hooks. Do NOT enable team-wide before consent (Research Proposal §10). To activate: merge this 'hooks' block into your .claude/settings.json (team-shared) or .claude/settings.local.json (just you). On machines where 'python' is not on PATH, change it to 'python3'. $CLAUDE_PROJECT_DIR is provided by Claude Code at runtime. The PostToolUse matcher below skips high-volume read/search tools; use \".*\" to capture every tool call.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__.*|Edit|Write|NotebookEdit|Bash|PowerShell|Task",
+        "hooks": [
+          { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/probes/coordination_probe.py\"" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/probes/coordination_probe.py\"" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/probes/coordination_probe.py\"" } ] }
+    ],
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/probes/coordination_probe.py\"" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/.claude/probes/coordination_probe.py\"" } ] }
+    ]
+  }
+}
