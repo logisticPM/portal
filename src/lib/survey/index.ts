@@ -17,4 +17,5 @@ export type {
   RapType,
   Likert,
   Rating1to5,
+  GovernanceStructure,
 } from "./types";
