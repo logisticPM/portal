@@ -34,7 +34,7 @@ export const dynamoCaseRepo: CaseRepo = {
     return buildFacets(filterCases(await scanAll(), filter));
   },
   async getActivationSummary() {
-    return buildActivation(await scanAll());
+    return buildActivation(filterCases(await scanAll(), { tier: "core" }));
   },
   async getCitationGraph(id) {
     return buildGraph(await scanAll(), id);

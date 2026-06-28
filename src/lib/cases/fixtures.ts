@@ -23,7 +23,7 @@ export const caseFixtures: LegalCase[] = [
       { paragraph: "para-2", text: "Aboriginal title confers the right to use and control the land and to reap its economic benefits." },
     ],
     casesCited: ["[1997] 3 SCR 1010"], casesCiting: [], citingCount: 0,
-    enrichmentLevel: "deep", fullTextAvailable: true,
+    enrichmentLevel: "deep", corpusTier: "core", fullTextAvailable: true,
     provenance: prov("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14246/index.do"),
   },
   {
@@ -40,7 +40,7 @@ export const caseFixtures: LegalCase[] = [
     ] },
     chunks: [{ paragraph: "para-1", text: "The duty to consult arises when the Crown has knowledge of a potential Aboriginal claim and contemplates conduct that might adversely affect it." }],
     casesCited: [], casesCiting: ["2014 SCC 44"], citingCount: 1,
-    enrichmentLevel: "deep", fullTextAvailable: true,
+    enrichmentLevel: "deep", corpusTier: "core", fullTextAvailable: true,
     provenance: prov("https://canlii.org/en/ca/scc/doc/2004/2004scc73/2004scc73.html"),
   },
   {
@@ -51,7 +51,7 @@ export const caseFixtures: LegalCase[] = [
     outcome: { outcomeType: "precedent", winType: "mixed",
       whoWon: "Nisga'a (doctrine; lost on procedure)", holding: "First recognition that Aboriginal title exists at common law independent of statute." },
     casesCited: [], casesCiting: [], citingCount: 0,
-    enrichmentLevel: "index", fullTextAvailable: true,
+    enrichmentLevel: "index", corpusTier: "core", fullTextAvailable: true,
     provenance: prov("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/5113/index.do"),
   },
   {
@@ -62,7 +62,7 @@ export const caseFixtures: LegalCase[] = [
     outcome: { outcomeType: "remand", winType: "party_win",
       whoWon: "Fort McKay First Nation", holding: "AER must consider the honour of the Crown; Rigel oil sands approval vacated and remitted." },
     casesCited: ["2004 SCC 73"], casesCiting: [], citingCount: 0,
-    enrichmentLevel: "index", fullTextAvailable: false, // provincial gap — A2AJ has no ABCA
+    enrichmentLevel: "index", corpusTier: "core", fullTextAvailable: false, // provincial gap — A2AJ has no ABCA
     provenance: { source: "summary_site", sourceUrl: "https://sites.usask.ca/nativelaw/2020/05/14/fort-mckay-first-nation-v-prosper-petroleum-ltd-2020-abca-163/",
       upstreamLicense: "Official text at albertacourts.ca; summary via USask Indigenous Law Centre.", ingestedAt: "2026-06-27T00:00:00.000Z", unofficial: true },
   },

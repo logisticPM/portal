@@ -57,6 +57,7 @@ export function a2ajToCase(r: A2ajRecord): LegalCase {
     casesCiting: r.cases_citing_en ?? [],
     citingCount: r.citing_cases_count ?? 0,
     enrichmentLevel: "index",
+    corpusTier: "substrate",
     fullTextAvailable: !!text,
     provenance: {
       source: "a2aj", sourceUrl: r.url_en,
