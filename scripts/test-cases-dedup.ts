@@ -9,4 +9,9 @@ assert.equal(normalizeCitation(" 2014 SCC 44 "), "2014 scc 44", "normalize trims
 const out = dedupeByCitation([r("2014 SCC 44"), r("2014 SCC 44"), r("2014 BCCA 1"), r("2013 BCSC 9")]);
 assert.equal(out.length, 3, "dup citation collapsed, 3 distinct kept");
 assert.deepEqual(out.map((x) => x.citation_en).sort(), ["2013 BCSC 9", "2014 BCCA 1", "2014 SCC 44"]);
+import { dateWindows } from "../src/lib/cases/ingest/harvest";
+const w = dateWindows("2010-01-01", "2019-12-31", 5);
+assert.equal(w.length, 2, "10 years / 5-year windows = 2");
+assert.deepEqual(w[0], ["2010-01-01", "2014-12-31"]);
+assert.deepEqual(w[1], ["2015-01-01", "2019-12-31"]);
 console.log("✅ dedup tests passed");
