@@ -3,7 +3,7 @@
 // text. Every exclusion carries a documented reason → PRISMA counts. Pure + testable.
 import type { LegalCase } from "../types";
 
-const INDIGENOUS = /\b(aboriginal|indigenous|first nation|m[ée]tis|inuit|treaty|band council)\b/i;
+const INDIGENOUS = /\b(aboriginal|indigenous|first nations?|m[ée]tis|inuit|treaty|band council)\b/i;
 const ECONOMIC = /\b(title|duty to consult|resource|royalt|revenue|fiduciary|compensation|annuit|self-government|economic)\b/i;
 
 export interface IncludeResult { include: boolean; reason?: string; }
