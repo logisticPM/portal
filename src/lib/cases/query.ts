@@ -39,7 +39,7 @@ export function searchCases(cases: LegalCase[], query: string, f?: CaseFilter): 
   return base
     .map((c) => ({ c, s: score(c, q) }))
     .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s || b.c.citingCount - a.c.citingCount)
+    .sort((a, b) => b.s - a.s || b.c.citingCount - a.c.citingCount || a.c.id.localeCompare(b.c.id))
     .map((x) => x.c);
 }
 
@@ -67,7 +67,7 @@ export function buildActivation(cases: LegalCase[]): ActivationSummary {
     economicValue.equity += c.economic?.equityStake ?? 0;
   }
   const landmarkCases = [...cases]
-    .sort((a, b) => b.citingCount - a.citingCount)
+    .sort((a, b) => b.citingCount - a.citingCount || a.id.localeCompare(b.id))
     .slice(0, 5)
     .map((c) => ({ id: c.id, styleOfCause: c.styleOfCause, citingCount: c.citingCount }));
   return { totalCases: cases.length, byTheme, economicValue, valueRealization, landmarkCases };
