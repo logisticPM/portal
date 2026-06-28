@@ -29,6 +29,9 @@ export function toCaseItem(c: LegalCase) {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Reconstruct LegalCase with explicit field ordering so JSON.stringify equality
 // holds against the in-memory mock (DynamoDB does not preserve map-key order).
+// MAINTAINER: when you add a field to LegalCase (types.ts), add it here too —
+// TypeScript will NOT error on a missing field, so an omission silently drops
+// data on round-trip. The deepEqual in scripts/test-cases-table.ts guards this.
 export function itemToCase(it: any): LegalCase {
   const d = it.data as LegalCase;
   const c: LegalCase = {
