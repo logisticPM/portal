@@ -43,6 +43,12 @@ export function searchCases(cases: LegalCase[], query: string, f?: CaseFilter): 
     .map((x) => x.c);
 }
 
+// Sort object keys for deterministic JSON.stringify across mock and dynamo
+// (scan order is not guaranteed; key insertion order would vary otherwise).
+function sortKeys<T extends object>(o: T): T {
+  return Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b))) as T;
+}
+
 export function buildFacets(cases: LegalCase[]): Facets {
   const f: Facets = { byTheme: {}, byLevel: {}, byWinType: {}, byNation: {} };
   for (const c of cases) {
@@ -51,7 +57,12 @@ export function buildFacets(cases: LegalCase[]): Facets {
     f.byWinType[c.outcome.winType] = (f.byWinType[c.outcome.winType] ?? 0) + 1;
     for (const n of c.nations) f.byNation[n] = (f.byNation[n] ?? 0) + 1;
   }
-  return f;
+  return {
+    byTheme: sortKeys(f.byTheme),
+    byLevel: sortKeys(f.byLevel),
+    byWinType: sortKeys(f.byWinType),
+    byNation: sortKeys(f.byNation),
+  };
 }
 
 export function buildActivation(cases: LegalCase[]): ActivationSummary {
@@ -70,7 +81,13 @@ export function buildActivation(cases: LegalCase[]): ActivationSummary {
     .sort((a, b) => b.citingCount - a.citingCount || a.id.localeCompare(b.id))
     .slice(0, 5)
     .map((c) => ({ id: c.id, styleOfCause: c.styleOfCause, citingCount: c.citingCount }));
-  return { totalCases: cases.length, byTheme, economicValue, valueRealization, landmarkCases };
+  return {
+    totalCases: cases.length,
+    byTheme: sortKeys(byTheme),
+    economicValue,
+    valueRealization: sortKeys(valueRealization),
+    landmarkCases,
+  };
 }
 
 export function buildGraph(cases: LegalCase[], id: string): CitationGraph {

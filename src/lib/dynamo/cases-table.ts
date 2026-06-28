@@ -27,6 +27,68 @@ export function toCaseItem(c: LegalCase) {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// Reconstruct LegalCase with explicit field ordering so JSON.stringify equality
+// holds against the in-memory mock (DynamoDB does not preserve map-key order).
 export function itemToCase(it: any): LegalCase {
-  return it.data as LegalCase;
+  const d = it.data as LegalCase;
+  const c: LegalCase = {
+    id: d.id,
+    citation: d.citation,
+    ...(d.citation2 !== undefined ? { citation2: d.citation2 } : {}),
+    styleOfCause: d.styleOfCause,
+    court: d.court,
+    level: d.level,
+    year: d.year,
+    jurisdiction: d.jurisdiction,
+    nations: d.nations,
+    themes: d.themes,
+    outcome: {
+      outcomeType: d.outcome.outcomeType,
+      winType: d.outcome.winType,
+      whoWon: d.outcome.whoWon,
+      holding: d.outcome.holding,
+    },
+    ...(d.economic !== undefined ? {
+      economic: {
+        valueType: d.economic.valueType,
+        ...(d.economic.settlementAmount !== undefined ? { settlementAmount: d.economic.settlementAmount } : {}),
+        ...(d.economic.resourceRevenue !== undefined ? { resourceRevenue: d.economic.resourceRevenue } : {}),
+        ...(d.economic.equityStake !== undefined ? { equityStake: d.economic.equityStake } : {}),
+        economicSummary: d.economic.economicSummary,
+      },
+    } : {}),
+    ...(d.valueRealization !== undefined ? {
+      valueRealization: {
+        status: d.valueRealization.status,
+        note: d.valueRealization.note,
+        asOf: d.valueRealization.asOf,
+      },
+    } : {}),
+    ...(d.summary !== undefined ? {
+      summary: {
+        claims: d.summary.claims.map((cl: any) => ({
+          text: cl.text,
+          sourceParagraph: cl.sourceParagraph,
+          sourceUrl: cl.sourceUrl,
+        })),
+      },
+    } : {}),
+    ...(d.chunks !== undefined ? {
+      chunks: d.chunks.map((ch: any) => ({ paragraph: ch.paragraph, text: ch.text })),
+    } : {}),
+    casesCited: d.casesCited,
+    casesCiting: d.casesCiting,
+    citingCount: d.citingCount,
+    enrichmentLevel: d.enrichmentLevel,
+    fullTextAvailable: d.fullTextAvailable,
+    provenance: {
+      source: d.provenance.source,
+      sourceUrl: d.provenance.sourceUrl,
+      upstreamLicense: d.provenance.upstreamLicense,
+      ingestedAt: d.provenance.ingestedAt,
+      unofficial: d.provenance.unofficial,
+    },
+    ...(d.sensitivity !== undefined ? { sensitivity: d.sensitivity } : {}),
+  };
+  return c;
 }
