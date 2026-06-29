@@ -51,7 +51,7 @@ export function a2ajToCase(r: A2ajRecord): LegalCase {
     jurisdiction: "Canada",
     nations: [], // enrichment fills this
     themes: [],  // enrichment fills this
-    outcome: { outcomeType: "precedent", winType: "mixed", whoWon: "", holding: "" },
+    outcome: { outcomeType: "unclassified", winType: "unclassified", whoWon: "", holding: "" },
     chunks: text ? chunkText(text) : undefined,
     casesCited: r.cases_cited_en ?? [],
     casesCiting: r.cases_citing_en ?? [],

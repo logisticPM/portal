@@ -11,7 +11,8 @@ Indigenous economic-justice case law made searchable + analytically actionable (
 - Core cases flagged needs-review (LLM disagreement): **0**
 
 ## Collection process
-- Frame: **A2AJ** (api.a2aj.ca). Theme queries: {"land_rights":["aboriginal title","land claim"],"resource_revenue":["revenue sharing","resource revenue"],"duty_to_consult":["duty to consult","honour of the crown"],"treaty":["treaty rights","treaty annuity"],"fiduciary":["fiduciary duty"],"self_determination":["self-government","self-determination"]}. Seeds: 14. Window: 1970-01-01–2026-12-31. Depth-1 forward snowball.
+- Frame: **A2AJ** (api.a2aj.ca). Theme queries: {"land_rights":["aboriginal title","land claim"],"resource_revenue":["revenue sharing","resource revenue"],"duty_to_consult":["duty to consult","honour of the crown"],"treaty":["treaty rights","treaty annuity"],"fiduciary":["fiduciary duty"],"self_determination":["self-government","self-determination"]}. Seeds: 14. Window: 1970-01-01–2026-12-31. Forward-citation snowball intentionally omitted (preferential-attachment explosion).
+- Substrate note: search-harvested records are metadata + snippet (A2AJ `/search` does not return full text); full text is fetched only for seeds/promotion. Full-text RAG indexing requires a per-case `/fetch` pass (Phase 2-B).
 - PRISMA counts: {
   "identified": 3485,
   "deduped": 3485,

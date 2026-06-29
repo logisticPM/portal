@@ -25,7 +25,8 @@ Indigenous economic-justice case law made searchable + analytically actionable (
 - Core cases flagged needs-review (LLM disagreement): **${needsReview}**
 
 ## Collection process
-- Frame: **A2AJ** (api.a2aj.ca). Theme queries: ${JSON.stringify(THEME_QUERIES)}. Seeds: ${SEED_CITATIONS.length}. Window: ${DATE_FROM}–${DATE_TO}. Depth-1 forward snowball.
+- Frame: **A2AJ** (api.a2aj.ca). Theme queries: ${JSON.stringify(THEME_QUERIES)}. Seeds: ${SEED_CITATIONS.length}. Window: ${DATE_FROM}–${DATE_TO}. Forward-citation snowball intentionally omitted (preferential-attachment explosion).
+- Substrate note: search-harvested records are metadata + snippet (A2AJ \`/search\` does not return full text); full text is fetched only for seeds/promotion. Full-text RAG indexing requires a per-case \`/fetch\` pass (Phase 2-B).
 - PRISMA counts: ${prisma}
 
 ## ⚠️ Coverage ceiling (limitations)
