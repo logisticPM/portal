@@ -9,14 +9,14 @@ import type {
 export { caseFixtures }; // convenience re-export for tests
 
 export function filterCases(cases: LegalCase[], f?: CaseFilter): LegalCase[] {
-  if (!f) return cases;
   return cases.filter((c) =>
-    (!f.themes?.length || f.themes.some((t) => c.themes.includes(t))) &&
-    (!f.level || c.level === f.level) &&
-    (!f.winType || c.outcome.winType === f.winType) &&
-    (!f.nation || c.nations.includes(f.nation)) &&
-    (f.yearFrom === undefined || c.year >= f.yearFrom) &&
-    (f.yearTo === undefined || c.year <= f.yearTo));
+    (f?.tier ? c.corpusTier === f.tier : c.corpusTier === "core") &&  // default: core-only
+    (!f?.themes?.length || f.themes.some((t) => c.themes.includes(t))) &&
+    (!f?.level || c.level === f.level) &&
+    (!f?.winType || c.outcome.winType === f.winType) &&
+    (!f?.nation || c.nations.includes(f.nation)) &&
+    (f?.yearFrom === undefined || c.year >= f.yearFrom) &&
+    (f?.yearTo === undefined || c.year <= f.yearTo));
 }
 
 // Hybrid-spirit scoring: exact tokens (citation, name, nation) weighted highest —

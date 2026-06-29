@@ -83,6 +83,8 @@ export function itemToCase(it: any): LegalCase {
     casesCiting: d.casesCiting,
     citingCount: d.citingCount,
     enrichmentLevel: d.enrichmentLevel,
+    corpusTier: d.corpusTier,
+    ...(d.labelMeta !== undefined ? { labelMeta: d.labelMeta } : {}),
     fullTextAvailable: d.fullTextAvailable,
     provenance: {
       source: d.provenance.source,

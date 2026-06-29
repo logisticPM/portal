@@ -7,8 +7,17 @@ export type Theme =
 export type CourtLevel =
   | "scc" | "fca" | "fc" | "provincial_appeal" | "provincial_superior" | "tribunal";
 
-export type OutcomeType = "precedent" | "procedural" | "remand" | "regulatory" | "settlement";
-export type WinType = "doctrine_win" | "party_win" | "mixed" | "loss";
+export type OutcomeType = "precedent" | "procedural" | "remand" | "regulatory" | "settlement" | "unclassified";
+export type WinType = "doctrine_win" | "party_win" | "mixed" | "loss" | "unclassified";
+export type CorpusTier = "substrate" | "core";
+
+export interface ThemeLabelMeta {
+  method: "curated" | "dual_llm";
+  models?: string[];
+  agreement?: "full" | "partial" | "none";
+  confidence: "high" | "low";
+  needsReview: boolean;
+}
 
 export interface CaseOutcome {
   outcomeType: OutcomeType;
@@ -62,6 +71,8 @@ export interface LegalCase {
   casesCiting: string[];  // citation strings
   citingCount: number;
   enrichmentLevel: EnrichmentLevel;
+  corpusTier: CorpusTier;
+  labelMeta?: ThemeLabelMeta;
   fullTextAvailable: boolean;
   provenance: Provenance;
   sensitivity?: string;
@@ -70,6 +81,7 @@ export interface LegalCase {
 export interface CaseFilter {
   themes?: Theme[]; level?: CourtLevel; winType?: WinType;
   nation?: string; yearFrom?: number; yearTo?: number;
+  tier?: CorpusTier;
 }
 export interface Facets {
   byTheme: Partial<Record<Theme, number>>;

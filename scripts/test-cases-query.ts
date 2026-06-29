@@ -34,4 +34,15 @@ assert.ok(a.landmarkCases.length > 0, "has landmark cases");
 const g = buildGraph(all, "haida-2004");
 assert.equal(g.citing[0]?.id, "tsilhqotin-2014", "haida is cited by tsilhqotin");
 
+// --- Phase 2-A: corpusTier ---
+import { filterCases as fc2 } from "../src/lib/cases/query";
+const withSub = [
+  ...caseFixtures,
+  { ...caseFixtures[0], id: "sub-1", citation: "9999 SCC 1", corpusTier: "substrate" as const,
+    themes: [] as never[], outcome: { outcomeType: "unclassified" as const, winType: "unclassified" as const, whoWon: "", holding: "" } },
+];
+assert.equal(fc2(withSub).length, 4, "default filter is core-only (excludes substrate)");
+assert.equal(fc2(withSub, { tier: "substrate" }).length, 1, "tier:substrate returns substrate only");
+assert.equal(fc2(withSub, { tier: "core" }).length, 4, "tier:core returns core only");
+
 console.log("✅ query tests passed");

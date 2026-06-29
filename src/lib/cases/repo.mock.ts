@@ -16,7 +16,7 @@ export const mockCaseRepo: CaseRepo = {
     return buildFacets(filterCases(caseFixtures, filter));
   },
   async getActivationSummary() {
-    return buildActivation(caseFixtures);
+    return buildActivation(filterCases(caseFixtures, { tier: "core" }));
   },
   async getCitationGraph(id) {
     return buildGraph(caseFixtures, id);
