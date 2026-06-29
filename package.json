@@ -25,7 +25,8 @@
     "cases:seed:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases tsx scripts/seed-cases.ts",
     "seed:sst": "sst shell -- tsx scripts/seed-sst.ts",
     "cases:ingest": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases tsx scripts/cases-ingest.ts",
-    "cases:ingest:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases tsx scripts/cases-ingest.ts"
+    "cases:ingest:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases tsx scripts/cases-ingest.ts",
+    "cases:validate": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-validate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.620.0",
