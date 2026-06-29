@@ -19,6 +19,9 @@ import { seedAll } from "../src/lib/seed/seed";
 import { mockSurveyRepo } from "../src/lib/survey/repo.mock";
 import { dynamoSurveyRepo } from "../src/lib/survey/repo.dynamo";
 import { seedSurvey } from "../src/lib/survey/seed";
+import { mockCaseRepo } from "../src/lib/cases/repo.mock";
+import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
+import { seedCases } from "./seed-cases";
 
 let pass = 0;
 let fail = 0;
@@ -55,6 +58,9 @@ async function freshSeed() {
   await resetTable("RapSurvey");
   await seedAll();
   await seedSurvey();
+  await createSingleTable("LegalCases");
+  await resetTable("LegalCases");
+  await (async () => { process.env.CASES_TABLE = "LegalCases"; await seedCases(); })();
 }
 
 async function main() {
@@ -131,6 +137,19 @@ async function main() {
   const [ms, ds] = [await mockSurveyRepo.listResponsesByYear("2025"), await dynamoSurveyRepo.listResponsesByYear("2025")];
   check("survey listResponsesByYear: mock ≡ dynamo", eq(ms.map((x) => x.orgId).sort(), ds.map((x) => x.orgId).sort()),
     `${ds.length} responses`);
+
+  // ---- Cases: dynamo ≡ mock on the seeded reads ----
+  console.log("\n# 4. cases (dynamo ≡ mock)");
+  const mList = await mockCaseRepo.listCases();
+  const dList = await dynamoCaseRepo.listCases();
+  check("cases: list count mock≡dynamo", mList.length === dList.length, `${mList.length}/${dList.length}`);
+  check("cases: list ids mock≡dynamo", eq(sortIds(mList), sortIds(dList)));
+  check("cases: getCase mock≡dynamo",
+    eq(await mockCaseRepo.getCase("haida-2004"), await dynamoCaseRepo.getCase("haida-2004")));
+  check("cases: activation mock≡dynamo",
+    eq(await mockCaseRepo.getActivationSummary(), await dynamoCaseRepo.getActivationSummary()));
+  check("cases: search mock≡dynamo",
+    eq(sortIds(await mockCaseRepo.searchCases("Tsilhqot'in")), sortIds(await dynamoCaseRepo.searchCases("Tsilhqot'in"))));
 
   // leave a clean, seeded state for demoing
   await freshSeed();
