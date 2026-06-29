@@ -1,5 +1,6 @@
 // Live ingestion. PHASE A.1: harvest → dedup → map → upsert as substrate.
-// (Inclusion filter + labeling promotion added in Task 9.) Idempotent by CASE#id.
+// PHASE A.2 (Task 9): inclusion filter + enrichment-merge / dual-LLM label → promote to core.
+// Idempotent by CASE#id.
 import "./fetch-polyfill"; // must be first: patches global.fetch before any live-network modules load
 import { BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
@@ -8,7 +9,11 @@ import { a2ajToCase, type A2ajRecord } from "../src/lib/cases/ingest/a2aj";
 import { dedupeByCitation } from "../src/lib/cases/ingest/dedup";
 import { harvestQuery, fetchCitation } from "../src/lib/cases/ingest/harvest";
 import { THEME_QUERIES, SEED_CITATIONS, GAP_CITATIONS, DATE_FROM, DATE_TO, WINDOW_YEARS } from "../src/lib/cases/ingest/sources";
-import type { LegalCase } from "../src/lib/cases/types";
+import type { LegalCase, Theme } from "../src/lib/cases/types";
+import { includeCandidate, emptyPrisma, tallyExclude } from "../src/lib/cases/ingest/include";
+import { labelCase } from "../src/lib/cases/ingest/labeler";
+import { enrichment } from "../src/lib/cases/enrichment";
+import { promises as fs } from "node:fs";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
@@ -33,10 +38,42 @@ async function upsert(cases: LegalCase[]) {
 
 export async function ingest() {
   const raw = await gatherRaw();
+  const prisma = emptyPrisma();
+  prisma.identified = raw.length;
+  prisma.deduped = raw.length; // gatherRaw already dedupes
+
   const substrate: LegalCase[] = raw.map((r) => ({ ...a2ajToCase(r), corpusTier: "substrate" }));
   await upsert(substrate);
-  console.log(`✅ ingested ${substrate.length} substrate cases into "${TABLE}"`);
-  // PHASE A.2 (Task 9) appends include-filter + label + promote-to-core here.
+
+  const core: LegalCase[] = [];
+  for (const c of substrate) {
+    prisma.screened++;
+    // Flagship check first: seed citations in enrichment.ts are always promoted to core
+    // regardless of inclusion filter (they were curated by hand; the search-API result
+    // may lack full text, which would cause the text-based filter to false-negative).
+    const enr = enrichment[c.citation];
+    if (enr) {
+      core.push({ ...c, ...enr, corpusTier: "core", enrichmentLevel: "deep",
+        labelMeta: { method: "curated", confidence: "high", needsReview: false } });
+      prisma.included++;
+      continue;
+    }
+    const verdict = includeCandidate(c);
+    if (!verdict.include) { tallyExclude(prisma, verdict.reason ?? "unknown"); continue; }
+    let labeled;
+    try {
+      const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
+      labeled = await labelCase(text);
+    } catch {
+      continue; // no LLM models configured → leave in substrate, do not promote
+    }
+    core.push({ ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta });
+    prisma.included++;
+  }
+  await upsert(core);
+  await fs.writeFile("scripts/.cache/prisma.json", JSON.stringify(prisma, null, 2));
+  console.log(`✅ substrate ${substrate.length} · core ${core.length} · excluded ${substrate.length - core.length}`);
+  console.log("PRISMA:", JSON.stringify(prisma.excluded));
 }
 
 if (require.main === module) ingest().catch((e) => { console.error("❌ cases-ingest failed:", e); process.exit(1); });
