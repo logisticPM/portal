@@ -151,6 +151,21 @@ async function main() {
   check("cases: search mock≡dynamo",
     eq(sortIds(await mockCaseRepo.searchCases("Tsilhqot'in")), sortIds(await dynamoCaseRepo.searchCases("Tsilhqot'in"))));
 
+  // ---- Cases Phase 2-A: tier + unclassified flow ----
+  const { toCaseItem } = await import("../src/lib/dynamo/cases-table");
+  const subItem = toCaseItem({
+    ...(await mockCaseRepo.getCase("haida-2004"))!,
+    id: "verify-substrate", citation: "9999 SCC 9", corpusTier: "substrate",
+    themes: [], outcome: { outcomeType: "unclassified", winType: "unclassified", whoWon: "", holding: "" },
+  });
+  await ddbDoc.send(new (await import("@aws-sdk/lib-dynamodb")).PutCommand({ TableName: "LegalCases", Item: subItem }));
+  const coreList = await dynamoCaseRepo.listCases();                    // default core-only
+  const subList = await dynamoCaseRepo.listCases({ tier: "substrate" });
+  check("cases: listCases excludes substrate", coreList.every((c) => c.corpusTier === "core"));
+  check("cases: tier:substrate returns substrate", subList.some((c) => c.id === "verify-substrate"));
+  check("cases: substrate round-trips unclassified",
+    (await dynamoCaseRepo.getCase("verify-substrate"))?.outcome.winType === "unclassified");
+
   // leave a clean, seeded state for demoing
   await freshSeed();
 
