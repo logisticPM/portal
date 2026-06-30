@@ -27,6 +27,7 @@ export interface SearchIndex {
   units: RetrievalUnit[];
   cases: Map<string, LegalCase>; // PROFILE-derived (no chunks) — enough for list display
   embedderId: string | null;     // the embedder that wrote the stored vectors, if any
+  vdim: number | null;           // dimension of the stored vectors (compatibility axis)
 }
 
 let cached: SearchIndex | null = null;
@@ -42,6 +43,7 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
   const cases = new Map<string, LegalCase>();
   const chunks: { caseId: string; idx: number; text: string; vec?: Float32Array }[] = [];
   let embedderId: string | null = null;
+  let vdim: number | null = null;
 
   let start: Record<string, any> | undefined;
   do {
@@ -57,6 +59,7 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
         let vec: Float32Array | undefined;
         if (it.vec && typeof it.vdim === "number" && it.embedderId) {
           embedderId = it.embedderId;
+          vdim = it.vdim;
           vec = unpackF32(it.vec, it.vdim);
         }
         chunks.push({ caseId, idx, text: it.text, vec });
@@ -65,6 +68,6 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
     start = r.LastEvaluatedKey;
   } while (start);
 
-  cached = { units: assembleUnits(profiles, chunks), cases, embedderId };
+  cached = { units: assembleUnits(profiles, chunks), cases, embedderId, vdim };
   return cached;
 }

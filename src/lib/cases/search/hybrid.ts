@@ -50,7 +50,9 @@ export function hybridRank(
 
   if (queryVec) {
     const dense = units
-      .filter((u) => u.vec)
+      // length guard: never dot vectors of different dims (would yield NaN and
+      // silently corrupt the dense ranking). Mismatched-dim vecs are simply skipped.
+      .filter((u) => u.vec && u.vec.length === queryVec.length)
       .map((u) => ({ id: u.unitId, score: dot(queryVec, u.vec!) }))
       .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
       .map((r) => ({ id: r.id }));

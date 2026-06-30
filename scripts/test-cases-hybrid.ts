@@ -52,5 +52,17 @@ assert.equal(units2[1].unitId, "caseA#chunk#1");
   const [qVec] = await emb.embed(["duty to consult"]);
   const ranked2 = hybridRank(withVecs, "duty to consult", qVec);
   assert.equal(ranked2[0].caseId, "caseA", "stub dense+bm25 ranks caseA first");
+
+  // dim-mismatch defense: a stored vec whose length ≠ the query vec's is skipped,
+  // never dotted (would be NaN) — dense degrades, BM25 still ranks correctly.
+  const mixedUnits = [
+    { unitId: "x#chunk#1", caseId: "x", text: "duty to consult", vec: Float32Array.from([1, 0, 0, 0]) },
+    { unitId: "y#chunk#1", caseId: "y", text: "commercial fishing quota", vec: Float32Array.from([0, 1, 0, 0]) },
+  ];
+  const qv2 = Float32Array.from([1, 0]); // length 2 ≠ stored length 4
+  const mixedRanked = hybridRank(mixedUnits, "duty to consult", qv2);
+  assert.ok(mixedRanked.every((r) => Number.isFinite(r.score)), "no NaN from dim mismatch");
+  assert.equal(mixedRanked[0].caseId, "x", "BM25 still ranks x first despite dim mismatch");
+
   console.log("✅ hybrid + index-assembly tests passed");
 })().catch((e) => { console.error("❌ test failed:", e); process.exit(1); });

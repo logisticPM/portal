@@ -67,10 +67,10 @@ export const dynamoCaseRepo: CaseRepo = {
     const idx = await getSearchIndex();
     const embedder = getEmbedder();
     let queryVec = null as Float32Array | null;
-    if (idx.embedderId && idx.embedderId === embedder.id) {
+    if (idx.embedderId === embedder.id && idx.vdim === embedder.dim) {
       queryVec = (await embedder.embed([query]))[0];
     } else if (idx.embedderId) {
-      console.warn(`[hybrid] embedder mismatch active=${embedder.id} stored=${idx.embedderId} → BM25-only`);
+      console.warn(`[hybrid] embedder/dim mismatch active=${embedder.id}/${embedder.dim} stored=${idx.embedderId}/${idx.vdim} → BM25-only`);
     } else {
       console.warn(`[hybrid] no stored vectors → BM25-only`);
     }
