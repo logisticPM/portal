@@ -23,6 +23,7 @@ import { mockCaseRepo } from "../src/lib/cases/repo.mock";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { caseToItems } from "../src/lib/dynamo/cases-table";
 import { seedCases } from "./seed-cases";
+import { invalidateSearchIndex } from "../src/lib/cases/search/build-index";
 
 let pass = 0;
 let fail = 0;
@@ -167,6 +168,16 @@ async function main() {
   check("cases: tier:substrate returns substrate", subList.some((c) => c.id === "verify-substrate"));
   check("cases: substrate round-trips unclassified",
     (await dynamoCaseRepo.getCase("verify-substrate"))?.outcome.winType === "unclassified");
+
+  // ---- 5. cases hybrid retrieval (BM25-only path; no vectors seeded) ----
+  console.log("\n# 5. cases hybrid retrieval");
+  invalidateSearchIndex(); // table changed since any prior index build
+  const hybridHits = await dynamoCaseRepo.hybridSearch("Haida");
+  check("cases: hybridSearch finds Haida (BM25-only)", hybridHits.some((c) => c.id === "haida-2004"),
+    `${hybridHits.length} hits`);
+  const mockHybrid = await mockCaseRepo.hybridSearch("Haida");
+  check("cases: mock hybridSearch (keyword fallback) finds Haida", mockHybrid.some((c) => c.id === "haida-2004"));
+  // hybridSearch is intentionally EXCLUDED from dynamo ≡ mock equality (mock has no vectors).
 
   // leave a clean, seeded state for demoing
   await freshSeed();
