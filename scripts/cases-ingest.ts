@@ -36,6 +36,25 @@ async function upsert(cases: LegalCase[]) {
     await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [TABLE]: items.slice(i, i + 25) } }));
 }
 
+// Decide promotion for a single case. Returns the promoted core case, or null if the
+// case should stay in substrate. Used by both promoteSubstrate and cases-fetch-fulltext.
+// NOTE: does NOT compute PRISMA tally — the caller (promoteSubstrate) owns tallying.
+export async function promoteOne(c: LegalCase): Promise<LegalCase | null> {
+  const enr = enrichment[c.citation];
+  if (enr) {
+    return { ...c, ...enr, corpusTier: "core", enrichmentLevel: "deep",
+      labelMeta: { method: "curated", confidence: "high", needsReview: false } };
+  }
+  if (!includeCandidate(c).include) return null;
+  try {
+    const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
+    const labeled = await labelCase(text);
+    return { ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta };
+  } catch {
+    return null; // no LLM models configured → leave in substrate
+  }
+}
+
 export async function promoteSubstrate(substrate: LegalCase[]): Promise<{ core: LegalCase[]; prisma: ReturnType<typeof emptyPrisma> }> {
   const prisma = emptyPrisma();
   prisma.identified = substrate.length;
@@ -43,24 +62,19 @@ export async function promoteSubstrate(substrate: LegalCase[]): Promise<{ core: 
   const core: LegalCase[] = [];
   for (const c of substrate) {
     prisma.screened++;
-    const enr = enrichment[c.citation];
-    if (enr) {
-      core.push({ ...c, ...enr, corpusTier: "core", enrichmentLevel: "deep",
-        labelMeta: { method: "curated", confidence: "high", needsReview: false } });
-      prisma.included++;
+    // Check enrichment first (curated flagship → always include, no PRISMA exclude)
+    if (enrichment[c.citation]) {
+      const promoted = await promoteOne(c);
+      if (promoted) { core.push(promoted); prisma.included++; }
       continue;
     }
+    // Check inclusion filter so we can tally the exclude reason
     const verdict = includeCandidate(c);
     if (!verdict.include) { tallyExclude(prisma, verdict.reason ?? "unknown"); continue; }
-    let labeled;
-    try {
-      const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
-      labeled = await labelCase(text);
-    } catch {
-      continue; // no LLM models configured → leave in substrate
-    }
-    core.push({ ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta });
-    prisma.included++;
+    // Passes filter → attempt label (promoteOne handles the try/catch)
+    const promoted = await promoteOne(c);
+    if (promoted) { core.push(promoted); prisma.included++; }
+    // if promoteOne returns null here it means labelCase threw → stays substrate (no tally)
   }
   return { core, prisma };
 }
