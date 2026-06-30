@@ -36,21 +36,13 @@ async function upsert(cases: LegalCase[]) {
     await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [TABLE]: items.slice(i, i + 25) } }));
 }
 
-export async function ingest() {
-  const raw = await gatherRaw();
+export async function promoteSubstrate(substrate: LegalCase[]): Promise<{ core: LegalCase[]; prisma: ReturnType<typeof emptyPrisma> }> {
   const prisma = emptyPrisma();
-  prisma.identified = raw.length;
-  prisma.deduped = raw.length; // gatherRaw already dedupes
-
-  const substrate: LegalCase[] = raw.map((r) => ({ ...a2ajToCase(r), corpusTier: "substrate" }));
-  await upsert(substrate);
-
+  prisma.identified = substrate.length;
+  prisma.deduped = substrate.length;
   const core: LegalCase[] = [];
   for (const c of substrate) {
     prisma.screened++;
-    // Flagship check first: seed citations in enrichment.ts are always promoted to core
-    // regardless of inclusion filter (they were curated by hand; the search-API result
-    // may lack full text, which would cause the text-based filter to false-negative).
     const enr = enrichment[c.citation];
     if (enr) {
       core.push({ ...c, ...enr, corpusTier: "core", enrichmentLevel: "deep",
@@ -65,11 +57,19 @@ export async function ingest() {
       const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
       labeled = await labelCase(text);
     } catch {
-      continue; // no LLM models configured → leave in substrate, do not promote
+      continue; // no LLM models configured → leave in substrate
     }
     core.push({ ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta });
     prisma.included++;
   }
+  return { core, prisma };
+}
+
+export async function ingest() {
+  const raw = await gatherRaw();
+  const substrate: LegalCase[] = raw.map((r) => ({ ...a2ajToCase(r), corpusTier: "substrate" }));
+  await upsert(substrate);
+  const { core, prisma } = await promoteSubstrate(substrate);
   await upsert(core);
   await fs.writeFile("scripts/.cache/prisma.json", JSON.stringify(prisma, null, 2));
   console.log(`✅ substrate ${substrate.length} · core ${core.length} · excluded ${substrate.length - core.length}`);
