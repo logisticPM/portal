@@ -30,31 +30,36 @@ export function slugCitation(citation: string): string {
   return citation.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-// Max bytes for a single chunk's text field. DynamoDB allows 400 KB per item;
-// we leave ample headroom for keys/metadata (~50 KB) and UTF-8 expansion.
-const MAX_CHUNK_BYTES = 262144; // 256 KB
+// Retrieval-sized chunking. TARGET keeps each chunk embeddable as one meaningful
+// vector (~500 tokens); the 256 KB MAX is the absolute DynamoDB-item backstop for a
+// pathological single sentence. No overlap → concatenating a case's chunks still
+// reproduces the source (the fidelity property include.ts + getCase rely on).
+export const TARGET_CHUNK_BYTES = 2048;   // ~500 tokens, retrieval-sized
+const MAX_CHUNK_BYTES = 262144;           // 256 KB hard backstop
 
-// Split a paragraph that exceeds MAX_CHUNK_BYTES on sentence boundaries, then
-// hard-split by byte budget as a last resort (avoids ValidationException).
+// Split a paragraph to ≤ TARGET on sentence boundaries; a single sentence over the
+// 256 KB hard cap is char-split as a last resort (avoids ValidationException).
 function splitLarge(para: string): string[] {
-  if (Buffer.byteLength(para, "utf8") <= MAX_CHUNK_BYTES) return [para];
-  // Try sentence boundary first
+  if (Buffer.byteLength(para, "utf8") <= TARGET_CHUNK_BYTES) return [para];
   const sentences = para.split(/(?<=[.!?])\s+/);
   const parts: string[] = [];
   let current = "";
   for (const s of sentences) {
     const candidate = current ? `${current} ${s}` : s;
-    if (Buffer.byteLength(candidate, "utf8") > MAX_CHUNK_BYTES) {
+    if (Buffer.byteLength(candidate, "utf8") > TARGET_CHUNK_BYTES) {
       if (current) { parts.push(current); current = ""; }
-      // Single sentence too large: hard-split by character budget
-      let remaining = s;
-      while (Buffer.byteLength(remaining, "utf8") > MAX_CHUNK_BYTES) {
-        // Approximate: UTF-8 worst case 4 bytes/char; use 60K chars as safe step
+      if (Buffer.byteLength(s, "utf8") > MAX_CHUNK_BYTES) {
+        // single sentence over the hard cap: char-split (UTF-8 worst case 4 B/char)
+        let remaining = s;
         const step = Math.floor(MAX_CHUNK_BYTES / 4);
-        parts.push(remaining.slice(0, step));
-        remaining = remaining.slice(step);
+        while (Buffer.byteLength(remaining, "utf8") > MAX_CHUNK_BYTES) {
+          parts.push(remaining.slice(0, step));
+          remaining = remaining.slice(step);
+        }
+        current = remaining;
+      } else {
+        current = s; // a long-ish sentence (over target, under cap) becomes its own chunk
       }
-      current = remaining;
     } else {
       current = candidate;
     }
