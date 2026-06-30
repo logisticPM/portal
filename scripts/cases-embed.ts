@@ -11,7 +11,7 @@ import { packF32 } from "../src/lib/cases/search/pack";
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
 // PURE decision: does this CHUNK item need (re)embedding under the active embedder?
-export function needsEmbed(item: { vec?: unknown; embedderId?: string }, activeId: string): boolean {
+export function needsEmbed(item: { vec?: unknown; embedderId?: string; [k: string]: unknown }, activeId: string): boolean {
   return !item.vec || item.embedderId !== activeId;
 }
 
