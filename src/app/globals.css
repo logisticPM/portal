@@ -2,8 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Palette as "R G B" channels so Tailwind's rgb(var(--x) / <alpha>) works.
+   Light defaults live on :root; .dark (toggled on <html>) overrides them.
+   --bg and --amber are the two the theme menu lets the user override. */
 :root {
   color-scheme: light;
+  --bg: 239 231 213; /* #EFE7D5 parchment */
+  --panel: 251 247 239; /* #FBF7EF */
+  --ink: 43 38 32; /* #2B2620 */
+  --ink2: 107 98 84; /* #6B6254 */
+  --ink3: 153 142 123; /* #998E7B */
+  --line: 224 213 192; /* #E0D5C0 */
+  --amber: 160 106 18; /* #A06A12 accent */
+  --cedar: 76 106 64; /* #4C6A40 */
+  --rust: 166 69 43; /* #A6452B */
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: 34 30 24; /* #221E18 warm charcoal */
+  --panel: 44 40 32; /* #2C2820 lifted */
+  --ink: 239 231 213; /* #EFE7D5 warm off-white */
+  --ink2: 197 187 168; /* #C5BBA8 */
+  --ink3: 142 132 114; /* #8E8472 */
+  --line: 58 53 43; /* #3A352B */
+  --amber: 217 154 58; /* #D99A3A brightened for dark */
+  --cedar: 127 160 106; /* #7FA06A */
+  --rust: 201 105 74; /* #C9694A */
 }
 
 html,
@@ -15,9 +40,9 @@ body {
 body {
   @apply bg-bg text-ink font-sans;
   min-height: 100vh;
-  /* warm editorial atmosphere: soft amber glow at the top + faint paper grain */
+  /* warm editorial atmosphere: soft accent glow at the top + faint paper grain */
   background-image:
-    radial-gradient(1100px 480px at 50% -12%, rgba(160, 106, 18, 0.08), transparent 70%),
+    radial-gradient(1100px 480px at 50% -12%, rgb(var(--amber) / 0.08), transparent 70%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
   background-repeat: no-repeat, repeat;
   background-attachment: fixed, fixed;
