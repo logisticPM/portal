@@ -5,6 +5,9 @@ import { ddbDoc } from "../dynamo/client";
 import { caseKeys, caseToItems, itemToCase, reassembleCase } from "../dynamo/cases-table";
 import { filterCases, searchCases, buildFacets, buildActivation, buildGraph } from "./query";
 import type { CaseRepo, LegalCase } from "./types";
+import { getSearchIndex } from "./search/build-index";
+import { hybridRank } from "./search/hybrid";
+import { getEmbedder } from "./search/embedder";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
@@ -55,6 +58,27 @@ export const dynamoCaseRepo: CaseRepo = {
   },
   async searchCases(query, filter) {
     return searchCases(await scanAll(), query, filter);
+  },
+  // Brute-force hybrid retrieval: BM25 + dense cosine fused by RRF(k=60), aggregated
+  // to the case by max. Ranks over the whole indexed haystack, then applies the
+  // post-filter (core-only by default, like browse). Degrades to BM25-only when no
+  // vectors exist or the active embedder ≠ the one that wrote them (logged).
+  async hybridSearch(query, filter) {
+    const idx = await getSearchIndex();
+    const embedder = getEmbedder();
+    let queryVec = null as Float32Array | null;
+    if (idx.embedderId && idx.embedderId === embedder.id) {
+      queryVec = (await embedder.embed([query]))[0];
+    } else if (idx.embedderId) {
+      console.warn(`[hybrid] embedder mismatch active=${embedder.id} stored=${idx.embedderId} → BM25-only`);
+    } else {
+      console.warn(`[hybrid] no stored vectors → BM25-only`);
+    }
+    const ranked = hybridRank(idx.units, query, queryVec);
+    const ordered = ranked
+      .map((r) => idx.cases.get(r.caseId))
+      .filter((c): c is LegalCase => !!c);
+    return filterCases(ordered, filter); // Array.filter preserves rank order
   },
   async listFacets(filter) {
     return buildFacets(filterCases(await scanAll(), filter));

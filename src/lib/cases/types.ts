@@ -103,6 +103,7 @@ export interface CaseRepo {
   listCases(filter?: CaseFilter): Promise<LegalCase[]>;
   getCase(id: string): Promise<LegalCase | null>;
   searchCases(query: string, filter?: CaseFilter): Promise<LegalCase[]>;
+  hybridSearch(query: string, filter?: CaseFilter): Promise<LegalCase[]>;
   listFacets(filter?: CaseFilter): Promise<Facets>;
   getActivationSummary(): Promise<ActivationSummary>;
   getCitationGraph(id: string): Promise<CitationGraph>;
