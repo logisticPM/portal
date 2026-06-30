@@ -27,6 +27,9 @@ export default async function HomePage() {
   const session = getSession();
   if (!session) redirect("/");
 
+  // Institute lands directly on the RAP Index (the commitments dashboard).
+  if (session.kind === "indigenomics") redirect("/commitments");
+
   // ---- Company ----
   if (session.kind === "company" && session.partyId) {
     const [company, coverage] = await Promise.all([
@@ -85,6 +88,7 @@ export default async function HomePage() {
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <LinkCard href="/analytics" title="RAP analysis →" desc="The Index: coverage, by flow, by tier, integrity signals." />
+        <LinkCard href="/commitments" title="Commitments dashboard →" desc="RAP commitments by sector, size & type, tracked over time." />
         <LinkCard href="/verify" title="Verification queue →" desc="Review pending supplier certification claims." />
       </div>
     </Shell>

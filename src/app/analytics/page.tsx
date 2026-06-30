@@ -1,5 +1,6 @@
 import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
+import { InstituteNav } from "@/components/InstituteNav";
 import type { IdentityTier } from "@/lib/repo/types";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-8">
+      <InstituteNav active="/analytics" />
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">
           Indigenomics · RAP analysis

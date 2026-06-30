@@ -53,6 +53,8 @@ export default $config({
     const dataPortal = new sst.aws.Dynamo("DataPortal", singleTableShape);
     // RAP Impact Survey (Organization / SurveyResponse)
     const rapSurvey = new sst.aws.Dynamo("RapSurvey", singleTableShape);
+    // RAP commitments index (Commitment) — the commitments dashboard
+    const commitments = new sst.aws.Dynamo("Commitments", singleTableShape);
 
     // Horizon 2: OCAP "export my records" → S3 object + short-lived signed URL.
     // Provisioned now (empty buckets are free) so the export route can link to
@@ -62,14 +64,16 @@ export default $config({
     new sst.aws.Nextjs("Web", {
       // Grants the Lambda execution role least-privilege access to exactly these
       // resources (the two tables + their GSIs, and the export bucket).
-      link: [dataPortal, rapSurvey, exports],
+      link: [dataPortal, rapSurvey, commitments, exports],
       environment: {
         REPO_IMPL: "dynamo",
         // The app resolves table names from these env vars (client.ts:21 +
-        // survey-table.ts:15), not from the SST Resource object — so we feed
-        // the SST-managed names through, and the data layer is unchanged.
+        // survey-table.ts:15 + commitments-table.ts), not from the SST Resource
+        // object — so we feed the SST-managed names through, and the data layer
+        // is unchanged.
         DYNAMO_TABLE: dataPortal.name,
         SURVEY_TABLE: rapSurvey.name,
+        COMMITMENTS_TABLE: commitments.name,
         // NOTE: AWS_REGION is a reserved Lambda env var, auto-set by the runtime
         // to the function's region (us-east-1) — do not set it here. The
         // client.ts fallback only matters for local runs.
