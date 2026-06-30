@@ -12,6 +12,12 @@ export const mockCaseRepo: CaseRepo = {
   async searchCases(query, filter) {
     return searchCases(caseFixtures, query, filter);
   },
+  // Fixtures have no vectors; the mock answers hybridSearch with the same keyword
+  // path as searchCases. INTENTIONALLY NOT equal to dynamo's hybrid result — this
+  // method is excluded from the dynamo ≡ mock golden checks (spec §8).
+  async hybridSearch(query, filter) {
+    return searchCases(caseFixtures, query, filter);
+  },
   async listFacets(filter) {
     return buildFacets(filterCases(caseFixtures, filter));
   },

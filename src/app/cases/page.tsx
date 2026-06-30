@@ -16,7 +16,7 @@ export default async function CasesPage({
     themes: searchParams.theme ? [searchParams.theme] : undefined,
     level: searchParams.level,
   };
-  const cases = q ? await casesRepo.searchCases(q, filter) : await casesRepo.listCases(filter);
+  const cases = q ? await casesRepo.hybridSearch(q, filter) : await casesRepo.listCases(filter);
   const facets = await casesRepo.listFacets();
 
   return (
