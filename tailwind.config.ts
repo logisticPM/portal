@@ -2,19 +2,22 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       colors: {
-        // Warm editorial "ledger" palette — light, paper-toned, earthy accents.
-        bg: "#EFE7D5", // parchment desk
-        panel: "#FBF7EF", // bright paper card (lighter than bg → cards lift)
-        ink: "#2B2620", // warm near-black text
-        ink2: "#6B6254", // secondary
-        ink3: "#998E7B", // muted
-        line: "#E0D5C0", // warm hairline
-        amber: "#A06A12", // deepened for contrast on light
-        cedar: "#4C6A40",
-        rust: "#A6452B",
+        // Palette is driven by CSS variables (see globals.css) so it can be
+        // re-themed at runtime (light/dark + a user-chosen bg + accent).
+        // Vars hold "R G B" channels so Tailwind's /opacity modifiers still work.
+        bg: "rgb(var(--bg) / <alpha-value>)", // page surface (user-editable)
+        panel: "rgb(var(--panel) / <alpha-value>)", // lifted card surface
+        ink: "rgb(var(--ink) / <alpha-value>)", // primary text
+        ink2: "rgb(var(--ink2) / <alpha-value>)", // secondary
+        ink3: "rgb(var(--ink3) / <alpha-value>)", // muted
+        line: "rgb(var(--line) / <alpha-value>)", // hairline
+        amber: "rgb(var(--amber) / <alpha-value>)", // accent (user-editable)
+        cedar: "rgb(var(--cedar) / <alpha-value>)",
+        rust: "rgb(var(--rust) / <alpha-value>)",
       },
       fontFamily: {
         serif: ["var(--font-display)", "Fraunces", "Georgia", "serif"],
