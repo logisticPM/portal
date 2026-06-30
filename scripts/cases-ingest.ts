@@ -4,7 +4,7 @@
 import "./fetch-polyfill"; // must be first: patches global.fetch before any live-network modules load
 import { BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
-import { toCaseItem } from "../src/lib/dynamo/cases-table";
+import { caseToItems } from "../src/lib/dynamo/cases-table";
 import { a2ajToCase, type A2ajRecord } from "../src/lib/cases/ingest/a2aj";
 import { dedupeByCitation } from "../src/lib/cases/ingest/dedup";
 import { harvestQuery, fetchCitation } from "../src/lib/cases/ingest/harvest";
@@ -31,7 +31,7 @@ async function gatherRaw(): Promise<A2ajRecord[]> {
 }
 
 async function upsert(cases: LegalCase[]) {
-  const items = cases.map((c) => ({ PutRequest: { Item: toCaseItem(c) } }));
+  const items = cases.flatMap((c) => caseToItems(c).map((Item) => ({ PutRequest: { Item } })));
   for (let i = 0; i < items.length; i += 25)
     await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [TABLE]: items.slice(i, i + 25) } }));
 }

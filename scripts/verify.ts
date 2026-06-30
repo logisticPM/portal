@@ -21,6 +21,7 @@ import { dynamoSurveyRepo } from "../src/lib/survey/repo.dynamo";
 import { seedSurvey } from "../src/lib/survey/seed";
 import { mockCaseRepo } from "../src/lib/cases/repo.mock";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
+import { caseToItems } from "../src/lib/dynamo/cases-table";
 import { seedCases } from "./seed-cases";
 
 let pass = 0;
@@ -152,13 +153,14 @@ async function main() {
     eq(sortIds(await mockCaseRepo.searchCases("Tsilhqot'in")), sortIds(await dynamoCaseRepo.searchCases("Tsilhqot'in"))));
 
   // ---- Cases Phase 2-A: tier + unclassified flow ----
-  const { toCaseItem } = await import("../src/lib/dynamo/cases-table");
-  const subItem = toCaseItem({
+  const subCase = {
     ...(await mockCaseRepo.getCase("haida-2004"))!,
-    id: "verify-substrate", citation: "9999 SCC 9", corpusTier: "substrate",
-    themes: [], outcome: { outcomeType: "unclassified", winType: "unclassified", whoWon: "", holding: "" },
-  });
-  await ddbDoc.send(new (await import("@aws-sdk/lib-dynamodb")).PutCommand({ TableName: "LegalCases", Item: subItem }));
+    id: "verify-substrate", citation: "9999 SCC 9", corpusTier: "substrate" as const,
+    themes: [] as any[], outcome: { outcomeType: "unclassified" as const, winType: "unclassified" as const, whoWon: "", holding: "" },
+  };
+  const subItems = caseToItems(subCase).map((Item) => ({ PutRequest: { Item } }));
+  for (let i = 0; i < subItems.length; i += 25)
+    await ddbDoc.send(new BatchWriteCommand({ RequestItems: { LegalCases: subItems.slice(i, i + 25) } }));
   const coreList = await dynamoCaseRepo.listCases();                    // default core-only
   const subList = await dynamoCaseRepo.listCases({ tier: "substrate" });
   check("cases: listCases excludes substrate", coreList.every((c) => c.corpusTier === "core"));
