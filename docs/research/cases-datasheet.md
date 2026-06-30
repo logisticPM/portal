@@ -6,8 +6,8 @@ _Generated 2026-06-30 · rubric 2026-06-28.1_
 Indigenous economic-justice case law made searchable + analytically actionable (Focus Area 2).
 
 ## Composition
-- Core (curated, labeled): **4** · Substrate (full-text, RAG): **0**
-- By theme (core): {"duty_to_consult":2,"resource_revenue":1,"land_rights":2,"self_determination":1}
+- Core (curated, labeled): **6** · Substrate (full-text, RAG): **3483**
+- By theme (core): {"duty_to_consult":3,"resource_revenue":1,"land_rights":3,"self_determination":2}
 - Core cases flagged needs-review (LLM disagreement): **0**
 
 ## Collection process
