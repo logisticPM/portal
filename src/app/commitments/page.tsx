@@ -3,6 +3,7 @@
 // (institute) landing. Server component reading commitmentsRepo; filters via searchParams.
 import { commitmentsRepo } from "@/lib/commitments";
 import type { CommitmentStatus, CommitmentType, OrgSize, Sector } from "@/lib/commitments";
+import { InstituteNav } from "@/components/InstituteNav";
 
 export const dynamic = "force-dynamic";
 
@@ -91,29 +92,9 @@ export default async function CommitmentsPage({
     return s ? `/commitments?${s}` : "/commitments";
   };
 
-  const tabs = [
-    { href: "/commitments", label: "RAP Index" },
-    { href: "/analytics", label: "Coverage analysis" },
-    { href: "/verify", label: "Verification" },
-  ];
-
   return (
     <div className="space-y-8">
-      {/* institute sub-nav */}
-      <nav className="flex flex-wrap items-center gap-1 border-b border-line pb-3">
-        <span className="text-amber text-xs uppercase tracking-widest mr-3">Indigenomics</span>
-        {tabs.map((t) => (
-          <a
-            key={t.href}
-            href={t.href}
-            className={`text-sm rounded px-3 py-1 ${
-              t.href === "/commitments" ? "bg-amber/10 text-amber" : "text-ink2 hover:text-ink"
-            }`}
-          >
-            {t.label}
-          </a>
-        ))}
-      </nav>
+      <InstituteNav active="/commitments" />
 
       <div>
         <h1 className="font-serif text-3xl">

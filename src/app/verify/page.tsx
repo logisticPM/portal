@@ -1,5 +1,6 @@
 import { repo } from "@/lib/repo";
 import { resolveVerificationAction } from "@/lib/repo/actions";
+import { InstituteNav } from "@/components/InstituteNav";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,7 @@ export default async function VerifyPage() {
   const pending = await repo.listPendingVerifications();
   return (
     <div className="max-w-2xl space-y-6">
+      <InstituteNav active="/verify" />
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · verification</div>
         <h1 className="font-serif text-2xl">Pending certification claims</h1>
