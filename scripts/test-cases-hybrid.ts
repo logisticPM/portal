@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { rrf, dot, metaText, hybridRank, type RetrievalUnit } from "../src/lib/cases/search/hybrid";
+import { assembleUnits } from "../src/lib/cases/search/build-index";
+import { StubEmbedder } from "../src/lib/cases/search/embedder";
 
 // --- RRF(k=60): id in both lists at rank 0 scores 2/60 and wins ---
 const fused = rrf([[{ id: "a" }, { id: "b" }, { id: "c" }], [{ id: "a" }, { id: "c" }, { id: "b" }]], 60);
@@ -25,4 +27,30 @@ const units: RetrievalUnit[] = [
 const bm25Only = hybridRank(units, "consultation duty", null);
 assert.equal(bm25Only[0].caseId, "caseA", "BM25-only finds caseA");
 
-console.log("✅ hybrid (rrf/dot/meta/bm25-only) tests passed");
+// --- assembleUnits: one meta unit per case + one chunk unit per chunk ---
+const units2 = assembleUnits(
+  [{ id: "caseA", meta: "Haida Nation consultation" }],
+  [
+    { caseId: "caseA", idx: 1, text: "the Crown has a duty to consult", vec: undefined },
+    { caseId: "caseA", idx: 2, text: "honour of the Crown engaged", vec: undefined },
+  ],
+);
+assert.equal(units2.length, 3, "1 meta + 2 chunk units");
+assert.equal(units2[0].unitId, "caseA#meta");
+assert.equal(units2[1].unitId, "caseA#chunk#1");
+
+// --- stub end-to-end: embed unit texts + query, dense path exercised (async → IIFE) ---
+(async () => {
+  const emb = new StubEmbedder(64);
+  const docs = [
+    { unitId: "caseA#chunk#1", caseId: "caseA", text: "duty to consult Aboriginal peoples" },
+    { unitId: "caseB#chunk#1", caseId: "caseB", text: "commercial fishing quota allocation" },
+  ];
+  const withVecs = await Promise.all(
+    docs.map(async (d) => ({ ...d, vec: (await emb.embed([d.text]))[0] })),
+  );
+  const [qVec] = await emb.embed(["duty to consult"]);
+  const ranked2 = hybridRank(withVecs, "duty to consult", qVec);
+  assert.equal(ranked2[0].caseId, "caseA", "stub dense+bm25 ranks caseA first");
+  console.log("✅ hybrid + index-assembly tests passed");
+})().catch((e) => { console.error("❌ test failed:", e); process.exit(1); });
