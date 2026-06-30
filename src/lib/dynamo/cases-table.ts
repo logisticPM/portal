@@ -14,16 +14,43 @@ export const gsi1Theme = (t: Theme) => `THEME#${t}`;
 export const gsi2WinType = (w: WinType) => `WINTYPE#${w}`;
 export const gsiSk = (year: number, id: string) => `YEAR#${year}#CASE#${id}`;
 
-export function toCaseItem(c: LegalCase) {
-  return {
+export const chunkSk = (n: number) => `CHUNK#${String(n).padStart(4, "0")}`;
+
+// A case → a PROFILE item (data WITHOUT chunks + chunkCount) + one item per chunk.
+// Keeps every item well under DynamoDB's 400 KB limit (spec §2).
+export function caseToItems(c: LegalCase): Record<string, any>[] {
+  const { chunks, ...rest } = c;
+  const profile = {
     ...caseKeys.profile(c.id),
     et: "Case" as CaseEntityType,
     GSI1PK: gsi1Theme(c.themes[0] ?? "land_rights"),
     GSI1SK: gsiSk(c.year, c.id),
     GSI2PK: gsi2WinType(c.outcome.winType),
     GSI2SK: gsiSk(c.year, c.id),
-    data: c, // store the full domain object; small + read-whole access pattern
+    data: rest,                       // LegalCase MINUS chunks
+    chunkCount: chunks?.length ?? 0,
   };
+  const chunkItems = (chunks ?? []).map((ch, i) => ({
+    PK: `CASE#${c.id}`,
+    SK: chunkSk(i + 1),
+    et: "CaseChunk" as const,
+    paragraph: ch.paragraph,
+    text: ch.text,
+  }));
+  return [profile, ...chunkItems];
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Reassemble a full LegalCase from its PROFILE item + CHUNK items (sorted by SK).
+// Injects chunks into the profile data before calling itemToCase so that the field
+// ordering produced by itemToCase matches the fixture order (chunks between summary
+// and casesCited), preserving JSON.stringify equality against the in-memory mock.
+export function reassembleCase(profileItem: any, chunkItems: any[]): LegalCase {
+  const sorted = [...chunkItems].sort((a, b) => String(a.SK).localeCompare(String(b.SK)));
+  const chunks = sorted.map((it: any) => ({ paragraph: it.paragraph, text: it.text }));
+  if (!chunks.length) return itemToCase(profileItem);
+  const syntheticItem = { ...profileItem, data: { ...profileItem.data, chunks } };
+  return itemToCase(syntheticItem);
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

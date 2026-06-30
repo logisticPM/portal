@@ -1,6 +1,6 @@
 # Datasheet — Indigenomics Economic Justice Legal Cases Corpus
 
-_Generated 2026-06-29 · rubric 2026-06-28.1_
+_Generated 2026-06-30 · rubric 2026-06-28.1_
 
 ## Motivation
 Indigenous economic-justice case law made searchable + analytically actionable (Focus Area 2).

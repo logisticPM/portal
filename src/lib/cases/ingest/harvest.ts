@@ -48,7 +48,11 @@ export async function harvestQuery(query: string, from: string, to: string, year
 }
 
 export async function fetchCitation(citation: string): Promise<A2ajRecord | null> {
-  return cached(`fetch_${citation}`, () => fetchA2aj(citation));
+  return cached(`fetch_${citation}`, async () => {
+    const r = await fetchA2aj(citation);
+    await sleep(SLEEP_MS);
+    return r;
+  });
 }
 
 // Depth-1 forward snowball: pull the cases that cite each kept case.

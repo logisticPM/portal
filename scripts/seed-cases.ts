@@ -4,13 +4,13 @@
 // fixtures already encode the merged result.
 import { BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
-import { toCaseItem } from "../src/lib/dynamo/cases-table";
+import { caseToItems } from "../src/lib/dynamo/cases-table";
 import { caseFixtures } from "../src/lib/cases/fixtures";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
 export async function seedCases() {
-  const items = caseFixtures.map((c) => ({ PutRequest: { Item: toCaseItem(c) } }));
+  const items = caseFixtures.flatMap((c) => caseToItems(c).map((Item) => ({ PutRequest: { Item } })));
   for (let i = 0; i < items.length; i += 25) {
     await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [TABLE]: items.slice(i, i + 25) } }));
   }

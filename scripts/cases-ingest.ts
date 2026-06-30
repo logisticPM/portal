@@ -4,7 +4,7 @@
 import "./fetch-polyfill"; // must be first: patches global.fetch before any live-network modules load
 import { BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
-import { toCaseItem } from "../src/lib/dynamo/cases-table";
+import { caseToItems } from "../src/lib/dynamo/cases-table";
 import { a2ajToCase, type A2ajRecord } from "../src/lib/cases/ingest/a2aj";
 import { dedupeByCitation } from "../src/lib/cases/ingest/dedup";
 import { harvestQuery, fetchCitation } from "../src/lib/cases/ingest/harvest";
@@ -31,45 +31,59 @@ async function gatherRaw(): Promise<A2ajRecord[]> {
 }
 
 async function upsert(cases: LegalCase[]) {
-  const items = cases.map((c) => ({ PutRequest: { Item: toCaseItem(c) } }));
+  const items = cases.flatMap((c) => caseToItems(c).map((Item) => ({ PutRequest: { Item } })));
   for (let i = 0; i < items.length; i += 25)
     await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [TABLE]: items.slice(i, i + 25) } }));
 }
 
-export async function ingest() {
-  const raw = await gatherRaw();
+// Decide promotion for a single case. Returns the promoted core case, or null if the
+// case should stay in substrate. Used by both promoteSubstrate and cases-fetch-fulltext.
+// NOTE: does NOT compute PRISMA tally — the caller (promoteSubstrate) owns tallying.
+export async function promoteOne(c: LegalCase): Promise<LegalCase | null> {
+  const enr = enrichment[c.citation];
+  if (enr) {
+    return { ...c, ...enr, corpusTier: "core", enrichmentLevel: "deep",
+      labelMeta: { method: "curated", confidence: "high", needsReview: false } };
+  }
+  if (!includeCandidate(c).include) return null;
+  try {
+    const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
+    const labeled = await labelCase(text);
+    return { ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta };
+  } catch {
+    return null; // no LLM models configured → leave in substrate
+  }
+}
+
+export async function promoteSubstrate(substrate: LegalCase[]): Promise<{ core: LegalCase[]; prisma: ReturnType<typeof emptyPrisma> }> {
   const prisma = emptyPrisma();
-  prisma.identified = raw.length;
-  prisma.deduped = raw.length; // gatherRaw already dedupes
-
-  const substrate: LegalCase[] = raw.map((r) => ({ ...a2ajToCase(r), corpusTier: "substrate" }));
-  await upsert(substrate);
-
+  prisma.identified = substrate.length;
+  prisma.deduped = substrate.length;
   const core: LegalCase[] = [];
   for (const c of substrate) {
     prisma.screened++;
-    // Flagship check first: seed citations in enrichment.ts are always promoted to core
-    // regardless of inclusion filter (they were curated by hand; the search-API result
-    // may lack full text, which would cause the text-based filter to false-negative).
-    const enr = enrichment[c.citation];
-    if (enr) {
-      core.push({ ...c, ...enr, corpusTier: "core", enrichmentLevel: "deep",
-        labelMeta: { method: "curated", confidence: "high", needsReview: false } });
-      prisma.included++;
+    // Check enrichment first (curated flagship → always include, no PRISMA exclude)
+    if (enrichment[c.citation]) {
+      const promoted = await promoteOne(c);
+      if (promoted) { core.push(promoted); prisma.included++; }
       continue;
     }
+    // Check inclusion filter so we can tally the exclude reason
     const verdict = includeCandidate(c);
     if (!verdict.include) { tallyExclude(prisma, verdict.reason ?? "unknown"); continue; }
-    let labeled;
-    try {
-      const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
-      labeled = await labelCase(text);
-    } catch {
-      continue; // no LLM models configured → leave in substrate, do not promote
-    }
-    core.push({ ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta });
-    prisma.included++;
+    // Passes filter → attempt label (promoteOne handles the try/catch)
+    const promoted = await promoteOne(c);
+    if (promoted) { core.push(promoted); prisma.included++; }
+    // if promoteOne returns null here it means labelCase threw → stays substrate (no tally)
   }
+  return { core, prisma };
+}
+
+export async function ingest() {
+  const raw = await gatherRaw();
+  const substrate: LegalCase[] = raw.map((r) => ({ ...a2ajToCase(r), corpusTier: "substrate" }));
+  await upsert(substrate);
+  const { core, prisma } = await promoteSubstrate(substrate);
   await upsert(core);
   await fs.writeFile("scripts/.cache/prisma.json", JSON.stringify(prisma, null, 2));
   console.log(`✅ substrate ${substrate.length} · core ${core.length} · excluded ${substrate.length - core.length}`);
