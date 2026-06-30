@@ -195,7 +195,126 @@ git commit -m "refactor(cases): extract promoteSubstrate() for reuse by cases:pr
 
 ---
 
-## Task 4: Fetch-fulltext + promote scripts
+## ⚠️ REVISION (2026-06-29): storage model B (per-chunk items) — supersedes Tasks 4–5 below
+
+The original Tasks 4–5 stored full text **inline** in one item → `ValidationException: Item size has exceeded the maximum allowed size` (DynamoDB 400 KB). Per `docs/specs/2026-06-28-fulltext-fetch-design.md` (revised) and `docs/research/2026-06-29-large-document-storage-chunking.md`, full text is now stored via **vertical partitioning**: a PROFILE item (case minus chunks + `chunkCount`) + one CHUNK item per paragraph. **Tasks 1–3 stand unchanged.** Execute Tasks **4B–8B** instead of 4–5. (The uncommitted `cases-fetch-fulltext.ts` / `cases-promote.ts` / `package.json` from the interrupted Task 4 will be rewritten under 4B–7B; do not commit their inline-storage versions.)
+
+### Task 4B: Vertical-partition marshalling in `cases-table.ts` + test
+
+**Files:** Modify `src/lib/dynamo/cases-table.ts`; Test `scripts/test-cases-table.ts` (replace its body).
+
+- [ ] **Step 1: Replace the round-trip test `scripts/test-cases-table.ts`** with:
+```ts
+import assert from "node:assert/strict";
+import { caseToItems, reassembleCase, caseKeys, chunkSk } from "../src/lib/dynamo/cases-table";
+import { caseFixtures } from "../src/lib/cases/fixtures";
+
+for (const c of caseFixtures) {
+  const items = caseToItems(c);
+  const profile = items.find((it) => it.SK === "PROFILE");
+  const chunks = items.filter((it) => String(it.SK).startsWith("CHUNK#"));
+  assert.ok(profile, `${c.id} has a PROFILE item`);
+  assert.equal(profile!.PK, `CASE#${c.id}`);
+  assert.equal(profile!.et, "Case");
+  assert.equal(profile!.data.chunks, undefined, "profile data omits chunks");
+  assert.equal(profile!.chunkCount, c.chunks?.length ?? 0, "chunkCount matches");
+  assert.equal(chunks.length, c.chunks?.length ?? 0, "one item per chunk");
+  // round-trip: reassemble equals original
+  const round = reassembleCase(profile, chunks);
+  assert.deepEqual(round, c, `round-trip preserves ${c.id}`);
+}
+assert.equal(chunkSk(1), "CHUNK#0001");
+assert.deepEqual(caseKeys.profile("x"), { PK: "CASE#x", SK: "PROFILE" });
+console.log("✅ cases-table tests passed");
+```
+
+- [ ] **Step 2: Run → fail** (`npx tsx scripts/test-cases-table.ts` → `caseToItems`/`reassembleCase`/`chunkSk` not exported).
+
+- [ ] **Step 3: Edit `src/lib/dynamo/cases-table.ts`** — add `chunkSk`, `caseToItems`, `reassembleCase`; keep `GSI1/GSI2/caseKeys/gsi1Theme/gsi2WinType/gsiSk/itemToCase` (itemToCase now naturally returns a chunk-less case since the PROFILE `data` has no chunks). Replace the single-item `toCaseItem` export with `caseToItems`:
+```ts
+export const chunkSk = (n: number) => `CHUNK#${String(n).padStart(4, "0")}`;
+
+// A case → a PROFILE item (data WITHOUT chunks + chunkCount) + one item per chunk.
+// Keeps every item well under DynamoDB's 400 KB limit (spec §2).
+export function caseToItems(c: LegalCase): Record<string, any>[] {
+  const { chunks, ...rest } = c;
+  const profile = {
+    ...caseKeys.profile(c.id),
+    et: "Case" as CaseEntityType,
+    GSI1PK: gsi1Theme(c.themes[0] ?? "land_rights"),
+    GSI1SK: gsiSk(c.year, c.id),
+    GSI2PK: gsi2WinType(c.outcome.winType),
+    GSI2SK: gsiSk(c.year, c.id),
+    data: rest,                       // LegalCase MINUS chunks
+    chunkCount: chunks?.length ?? 0,
+  };
+  const chunkItems = (chunks ?? []).map((ch, i) => ({
+    PK: `CASE#${c.id}`,
+    SK: chunkSk(i + 1),
+    et: "CaseChunk" as const,
+    paragraph: ch.paragraph,
+    text: ch.text,
+  }));
+  return [profile, ...chunkItems];
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Reassemble a full LegalCase from its PROFILE item + CHUNK items (sorted by SK).
+export function reassembleCase(profileItem: any, chunkItems: any[]): LegalCase {
+  const base = itemToCase(profileItem); // chunk-less case from data
+  const sorted = [...chunkItems].sort((a, b) => String(a.SK).localeCompare(String(b.SK)));
+  const chunks = sorted.map((it) => ({ paragraph: it.paragraph, text: it.text }));
+  return chunks.length ? { ...base, chunks } : base;
+}
+```
+Keep `itemToCase` as-is. (Note: `itemToCase`'s `data` no longer contains `chunks`, so it returns a chunk-less case — exactly what list/scan paths want. `reassembleCase` adds chunks back. For an index-level case with no chunks, `reassembleCase` returns the chunk-less case unchanged — matching the fixture which has `chunks: undefined`.)
+
+> **Fixture caveat:** the round-trip `deepEqual` requires that a fixture with `chunks: undefined` reassembles to `chunks: undefined` (not `[]`). The `chunks.length ? ... : base` guard ensures that. A fixture WITH chunks reassembles to the same chunk array.
+
+- [ ] **Step 4: Run test + typecheck** → `✅ cases-table tests passed`, exit 0.
+- [ ] **Step 5: Commit** `src/lib/dynamo/cases-table.ts` + `scripts/test-cases-table.ts` — `feat(cases): vertical-partition storage (PROFILE + CHUNK# items) marshalling`.
+
+### Task 5B: repo.dynamo — reassembling reads + multi-item writes
+
+**Files:** Modify `src/lib/cases/repo.dynamo.ts`.
+
+- [ ] **Step 1:** Update `repo.dynamo.ts`:
+  - Import `QueryCommand` (+ existing `GetCommand`, `ScanCommand`) and `caseKeys`, `reassembleCase`, `itemToCase` from `../dynamo/cases-table`.
+  - `getCase(id)`: GetItem PROFILE; if absent return null; Query `PK = CASE#<id> AND begins_with(SK,"CHUNK#")`; `return reassembleCase(profile, chunkItems)`.
+  - `scanAll()`: keep, but **filter `it.et === "Case"`** (PROFILE items only; CHUNK items have `et==="CaseChunk"` → skipped) and map with `itemToCase` (chunk-less — correct for list/facets/activation/search/graph/export).
+  - Add an exported helper used by write scripts (DRY): `export function caseWriteRequests(c: LegalCase) { return caseToItems(c).map((Item) => ({ PutRequest: { Item } })); }` — OR keep writes in scripts using `caseToItems` directly. (Pick one; if helper, import `caseToItems`.)
+- [ ] **Step 2:** `npm run typecheck` → exit 0.
+- [ ] **Step 3:** Commit `src/lib/cases/repo.dynamo.ts` — `feat(cases): getCase reassembles chunks from CHUNK# items; scan profile-only`.
+
+### Task 6B: Update all write sites to multi-item
+
+**Files:** Modify `scripts/seed-cases.ts`, `scripts/cases-ingest.ts`, `scripts/verify.ts`.
+
+- [ ] **Step 1:** Everywhere that builds a DynamoDB write from a case via the old `toCaseItem(c)` (returns one item), switch to `caseToItems(c)` (returns many) and flatten into `PutRequest`s. Specifically:
+  - `seed-cases.ts`: `caseFixtures.flatMap((c) => caseToItems(c).map((Item) => ({ PutRequest: { Item } })))`, then BatchWrite in slices of 25.
+  - `cases-ingest.ts` `upsert(cases)`: `cases.flatMap((c) => caseToItems(c).map((Item) => ({ PutRequest: { Item } })))`, BatchWrite in 25s.
+  - `verify.ts` tier check: replace `toCaseItem(...)` + single `PutCommand` with `caseToItems(...)` writes (the substrate test case has no chunks → just a PROFILE item). The dynamo≡mock golden checks call `dynamoCaseRepo.getCase(...)` which now reassembles — must still equal mock. (Fixtures with chunks reassemble identically per Task 4B.)
+- [ ] **Step 2:** `npm run ddb:up && npm run verify` → **all green** (dynamo≡mock holds via reassembly). `npm run typecheck` → exit 0.
+- [ ] **Step 3:** Commit the three files — `refactor(cases): write PROFILE+CHUNK items at all case write sites`.
+
+### Task 7B: Fused fetch→filter→store + promote (multi-item)
+
+**Files:** Rewrite `scripts/cases-fetch-fulltext.ts`; update `scripts/cases-promote.ts`; `package.json` scripts (from the old Task 4 Step 3, unchanged).
+
+- [ ] **Step 1: Rewrite `scripts/cases-fetch-fulltext.ts`** — fused pipeline (spec §3): read substrate PROFILEs lacking full text; per case `fetchCitation` → `applyFullText` (in-mem chunks) → `includeCandidate`; if include, promote in-memory (enrichment for flagship, else `labelCase` in try/catch — on throw, keep as substrate); write `caseToItems(updated)` (PROFILE+CHUNK), flush every 100; idempotent + resumable (skip `fullTextAvailable` records); accumulate a PRISMA tally and write it. Use the shared `includeCandidate`/`enrichment`/`labelCase` (import them) — do NOT duplicate `promoteSubstrate`; for the per-case promote decision, reuse a small extracted helper `promoteOne(c)` exported from `cases-ingest.ts` (refactor `promoteSubstrate` to call `promoteOne` per case so logic is shared). 
+- [ ] **Step 2: Refactor `cases-ingest.ts`** to export `promoteOne(c: LegalCase): Promise<LegalCase | null>` (null = stays substrate) and have `promoteSubstrate` loop calling it (keeps PRISMA in the loop). `cases-fetch-fulltext` calls `promoteOne`.
+- [ ] **Step 3: Update `cases-promote.ts`** to write via `caseToItems`; note it reassembles chunks per case (`getCase`) to filter on full text when run standalone.
+- [ ] **Step 4:** `npm run typecheck` → exit 0. Commit the scripts + package.json — `feat(cases): fused fetch→filter→store with per-chunk items + cases:promote`.
+
+### Task 8B: Live run + regression + datasheet
+
+- [ ] **Step 1:** `npm run ddb:up && npm run cases:create`. Reset the partially-stored records: the prior run left ~120 inline-format records; run `npm run cases:seed` is not enough. Instead, the fused `cases:fetch-fulltext` overwrites each PROFILE (and writes CHUNK items) idempotently — run it; it will rewrite all substrate under the new model. **Run `npm run cases:fetch-fulltext` with a 600000ms timeout, re-running until the start line shows 0 remaining** (resumable; ~30–40 min total across re-runs). Watch for **NO `ValidationException`** (the whole point).
+- [ ] **Step 2:** Confirm via tsx one-liner: substrate count, `fullTextAvailable` count (should be the large majority), a sample `getCase` returns reassembled `chunks.length > 0`. Report core count + PRISMA (`no_indigenous_signal` should drop sharply from ~3291).
+- [ ] **Step 3:** `npm run verify` → green. `npm run cases:datasheet` → regenerate; commit refreshed `docs/research/cases-datasheet.md` — `docs(cases): refresh datasheet after full-text fetch (model B)`.
+
+---
+
+## Task 4 (SUPERSEDED by 4B–7B — do not implement): Fetch-fulltext + promote scripts
 
 **Files:**
 - Create: `scripts/cases-fetch-fulltext.ts`

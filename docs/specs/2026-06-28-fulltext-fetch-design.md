@@ -1,72 +1,73 @@
 # Phase 2-B.1: Substrate Full-Text Fetch — Design Spec
 
-**Status:** Approved direction (pending spec review) · extends the `cases` domain
-**Date:** 2026-06-28
+**Status:** Approved (revised to storage-model B after the 400KB finding) · extends the `cases` domain
+**Date:** 2026-06-28 (revised 2026-06-29)
 **Audience:** Data group
-**Purpose:** Upgrade the A2AJ substrate from **metadata-only** to **full-text**, fixing the Phase 2-A finding that `/search` returns metadata + snippet but not `unofficial_text_en`. This unblocks accurate inclusion filtering and is the data foundation for vector search + RAG (Phase 2-B.2/2-B.3, out of scope here).
+**Purpose:** Upgrade the A2AJ substrate from **metadata-only** to **full-text**, fixing the Phase 2-A finding that `/search` returns no `unofficial_text_en`. Full text is stored via **vertical partitioning** (one DynamoDB item per chunk) — not inline — because a full judgment inline exceeds DynamoDB's **400 KB item limit**.
 
-> **Background:** Phase 2-A's `cases:ingest` harvested ~3485 substrate records via A2AJ `/search`, which returns no full text. So `chunks` are empty and `fullTextAvailable:false`, and the text-based inclusion filter excluded ~94% (`no_indigenous_signal`) because it saw near-empty text. Only `/fetch` returns `unofficial_text_en`. This spec adds a fetch pass.
+> **Why the revision (the 400KB finding + research):** The first attempt stored the whole `LegalCase` (incl. all chunks = full judgment) inline in one item's `data` attribute; large judgments tripped `ValidationException: Item size has exceeded the maximum allowed size` (flush crashed after ~120 small records). Research (`docs/research/2026-06-29-large-document-storage-chunking.md`) — AWS "best practices for storing large items" + the legal-IR literature — converges on **per-chunk items (vertical partitioning)**: it's an AWS-endorsed remedy, the chunk is the natural RAG retrieval unit, and truncation is rejected (it would drop the ratio/holding which sits mid/end of a judgment, AND — since `include.ts` concatenates all chunk text — could flip inclusion decisions and corrupt PRISMA).
 
 ---
 
 ## 1. Scope
 
-**Goal:** for every substrate record lacking full text, fetch `unofficial_text_en` via A2AJ `/fetch` (by citation), chunk it, and update the record (`chunks`, `fullTextAvailable:true`). Then re-run core promotion so the inclusion filter operates on real text.
+**Goal:** fetch `unofficial_text_en` for substrate records lacking full text, **store it as per-chunk DynamoDB items** (vertical partitioning), and decide core promotion **in-memory at fetch time** (when full text is in hand) — so the inclusion filter sees real text without an expensive reassembly pass.
 
 **In scope:**
-- A pure `applyFullText(case, fetchedText)` → updated `LegalCase` (chunks populated, `fullTextAvailable:true`). Unit-tested.
-- A `cases:fetch-fulltext` script: iterate substrate records where `fullTextAvailable === false`, `/fetch` each (cached, **rate-limited**, resumable), apply, upsert. **Idempotent** — records already full-text are skipped.
-- Politeness: add a small sleep to `fetchCitation` in `harvest.ts` (it currently has none) so the ~3485-fetch pass doesn't hammer the open API.
-- Re-run core promotion (existing `cases:ingest` promotion logic) on the now-full-text substrate; PRISMA counts become accurate (the ~94% false-exclusion resolves).
+- **Storage model change (`cases-table.ts`):** a case is stored as a **PROFILE item** (`SK=PROFILE`, the `LegalCase` minus `chunks`, plus `chunkCount`) **+ N CHUNK items** (`SK=CHUNK#0001…`, each `{paragraph, text}`). New `caseToItems(c) → items[]` and `reassembleCase(profile, chunks) → LegalCase`. Each item stays well under 400 KB.
+- **Read model (`repo.dynamo.ts`):** `getCase(id)` = GetItem PROFILE + Query `begins_with(SK, "CHUNK#")` → reassemble. `scanAll`/list/facets/activation/export/search/graph read **PROFILE items only** (chunks omitted — those paths don't need chunk text). `searchCases` scores on citation/name/holding (chunk-text search is a 2-B.2 vector concern).
+- **Fused fetch→filter→store (`cases-fetch-fulltext`):** for each substrate record without full text: `/fetch` → `applyFullText` (chunks in memory) → run `includeCandidate` on the in-memory full text → write PROFILE+CHUNK items; if it passes inclusion, promote in the same pass (enrichment for flagship, else dual-LLM label if `LABEL_MODELS` set, else stays substrate). Rate-limited, cached, **resumable**, idempotent.
+- Rewrite the ~120 already-stored records under the new model.
 
-**Out of scope (Phase 2-B.2 / 2-B.3):** embeddings, vector index (OpenSearch/pgvector/brute-force), hybrid BM25+vector search, RAG Q&A, Bedrock. Also out: re-harvesting / changing the substrate membership (we fetch text for the existing ~3485, we don't add cases).
+**Out of scope (2-B.2/2-B.3):** embeddings, vector index, hybrid/semantic search, RAG, S3 full-text archival (option C — composes with B later), Bedrock. Not changing substrate membership.
 
-**Definition of done:** `npm run cases:fetch-fulltext` (DynamoDB Local up) populates full text for the substrate (resumable across runs); a substrate record that had `fullTextAvailable:false` now has `chunks.length > 0` and `fullTextAvailable:true`; `npm run verify` stays green; the pure `applyFullText` unit test passes; `npm run typecheck` exit 0.
-
----
-
-## 2. Strategy (decided: fetch all)
-
-Fetch full text for **all** ~3485 substrate records (Approach A). They are the topical query-harvest candidate set, so they merit full text; name-only screening would miss landmark cases whose names carry no Indigenous term (*Sparrow*, *Calder*, *Daniels*), and the snippet isn't stored. Non-Indigenous noise (e.g. corporate "fiduciary duty" cases pulled by non-Indigenous-specific queries) is filtered out at **core promotion** by the inclusion filter operating on real text — it stays in substrate but is excluded from core. Bounded (3485, not snowball-explosive), cached, resumable → a one-time ~20–30 min pass, seconds on re-run.
+**Definition of done:** `cases:fetch-fulltext` (DynamoDB Local up) stores per-chunk items with **no 400KB ValidationException**, resumable; a substrate case now reassembles via `getCase` with `chunks.length > 0` and `fullTextAvailable:true`; core promotion happens in the same pass (PRISMA `no_indigenous_signal` drops sharply vs the prior ~3291); `npm run verify` green (dynamo≡mock holds — `getCase` reassembles chunks identical to the mock's inline chunks); the `caseToItems`/`reassembleCase`/`applyFullText` unit tests pass; `npm run typecheck` exit 0.
 
 ---
 
-## 3. Design
+## 2. Storage model (vertical partitioning, AWS-endorsed)
 
 ```
-substrate records (fullTextAvailable=false)
-      │  (for each, idempotent)
-      ▼
-[FETCH]  fetchCitation(citation)  → A2ajRecord (now with unofficial_text_en)   [cached, rate-limited]
-      │
-      ▼
-[APPLY]  applyFullText(case, text) → { ...case, chunks: chunkText(text), fullTextAvailable: true }   [PURE]
-      │
-      ▼
-[UPSERT] PutCommand by CASE#id   [idempotent]
-      │
-      ▼
-[PROMOTE] re-run existing core promotion (include filter + enrichment/label) on full-text substrate
+Case "2014-scc-44":
+  PK=CASE#2014-scc-44  SK=PROFILE      et=Case      data={...LegalCase without chunks...} chunkCount=137
+  PK=CASE#2014-scc-44  SK=CHUNK#0001   et=CaseChunk paragraph="para-1" text="..."
+  PK=CASE#2014-scc-44  SK=CHUNK#0002   et=CaseChunk paragraph="para-2" text="..."
+  ...
 ```
+- **PROFILE** holds the full domain object minus `chunks` (metadata, outcome, economic, summary, provenance, citation graph, corpusTier, labelMeta) + `chunkCount`. Small — never near 400 KB.
+- **CHUNK#nnnn** items (zero-padded for lexical sort) each hold one paragraph — tiny.
+- **Reassemble** (`getCase`): GetItem PROFILE, Query `CASE#<id>` `begins_with(SK,"CHUNK#")` (returns chunks sorted by SK), set `data.chunks = [...]`.
+- **List/facets/activation/export/search/graph**: PROFILE items only (Scan filters `et==="Case"`), chunks omitted — none of these need chunk text. This keeps those reads as cheap as before.
+- **GSI**: PROFILE keeps the existing GSI1/GSI2 (theme/winType). CHUNK items carry no GSI attrs (not indexed).
 
-- **`applyFullText` (pure, `src/lib/cases/ingest/fulltext.ts`):** `(c: LegalCase, text: string) => LegalCase`. If `text` is empty, returns the case unchanged with `fullTextAvailable:false` (record stays a metadata stub — some A2AJ `/fetch` may also return no text). Otherwise sets `chunks = chunkText(text)` and `fullTextAvailable:true`. No mutation of the input.
-- **`cases:fetch-fulltext` (`scripts/cases-fetch-fulltext.ts`):** scan substrate; for each with `fullTextAvailable===false`, `fetchCitation(c.citation)` → `applyFullText` → collect → batch upsert. Logs progress every N. Resumable: already-full-text records are skipped, and `fetchCitation` is disk-cached, so re-runs continue where they stopped.
-- **Rate-limit:** add `await sleep(SLEEP_MS)` (≈150 ms) after a live fetch in `fetchCitation` (only on cache miss). Keeps the open API happy across 3485 calls.
-- **Promotion re-run:** reuse `cases:ingest`'s promotion (no code change needed beyond running it after the fetch pass), or expose a `cases:promote` that runs only the include+label+upsert-core step over current substrate. **Decision:** add a thin `cases:promote` script that runs only the promotion loop over the table's current substrate (so we don't re-harvest). Reuses the exact include/enrichment/label logic from `cases-ingest.ts` — factor that loop into an exported `promoteSubstrate()` so both `cases:ingest` and `cases:promote` call it (DRY).
+## 3. Fused fetch → filter → store pipeline (`cases:fetch-fulltext`)
 
----
+Filtering happens **in-memory at fetch time**, avoiding any reassembly-for-filtering pass over thousands of cases:
 
-## 4. Testing
-- **Unit (`scripts/test-cases-fulltext.ts`, tsx):** `applyFullText` — (a) with text → chunks populated + `fullTextAvailable:true`, input not mutated; (b) empty text → unchanged, `fullTextAvailable:false`. Pure, offline.
-- **Live:** `cases:fetch-fulltext` exercised manually against DynamoDB Local (resumable). Not in the unit suite.
-- **Regression:** `npm run verify` must stay green (the fetch/promote scripts don't change the seam or existing checks).
+```
+for each substrate PROFILE with fullTextAvailable=false:
+   rec = fetchCitation(citation)            # cached, rate-limited
+   c   = applyFullText(profileCase, rec.unofficial_text_en)   # chunks in memory (PURE)
+   if includeCandidate(c).include:          # filter sees REAL full text now
+        promote c (enrichment | dual-LLM label | stays substrate if no keys)  # reuse promoteSubstrate logic per-case
+   write caseToItems(c)  → PROFILE + CHUNK items   (batched ≤25, flush every N, resumable)
+```
+- `applyFullText` is unchanged (pure, populates in-memory `chunks`).
+- Inclusion + promotion reuse the existing `includeCandidate` / enrichment / `labelCase` logic (factored so the fetch pass and `cases:promote` share it).
+- `cases:promote` (standalone re-promotion) still exists but now must **reassemble chunks per case** to filter — used only for re-runs without re-fetch; the fused pass is the primary path.
+
+## 4. Components & testing
+- `cases-table.ts`: `caseToItems(c)`, `reassembleCase(profileItem, chunkItems)`, keep `caseKeys` (+ `chunkSk(n)`). Drop/replace the single-item `toCaseItem`/`itemToCase` with the multi-item pair; update all callers (`repo.dynamo`, `seed-cases`, `cases-ingest`, scripts, `verify`).
+- `repo.dynamo.ts`: `getCase` reassembles; `upsert` writes multi-items per case; `scanAll` returns PROFILE-only cases (chunks omitted).
+- **Tests:** `caseToItems`/`reassembleCase` round-trip (a case with chunks → items → reassembled equals original) — unit; `applyFullText` unit (already done). `verify` dynamo≡mock still holds because `getCase` reassembles chunks identical to mock fixtures' inline chunks.
+- Live `cases:fetch-fulltext` exercised manually (resumable).
 
 ## 5. Mechanics & constraints
-- Idempotent upsert by `CASE#id`; skip records already `fullTextAvailable`.
-- Disk cache (`scripts/.cache/a2aj/`) already gitignored; `fetch_*` entries reused.
-- Server-side only; no new env/keys (A2AJ is keyless).
-- Contract-first preserved: `CaseRepo`/pages unchanged. `cases:fetch-fulltext` and `cases:promote` are data-layer scripts.
-- `fetch-polyfill` (Windows undici workaround) imported first, as in `cases-ingest.ts`.
+- Idempotent: PROFILE upsert + CHUNK upserts by deterministic SK; re-fetch skips records already `fullTextAvailable`. **Stale-chunk note:** if a case is re-fetched with fewer chunks than before, delete orphaned `CHUNK#` items above the new `chunkCount` (or write a `chunkCount` and ignore extras on read). MVP: on (re)write, delete existing CHUNK# items for that case first, then write the new set (simple + correct).
+- Non-atomic across items (BatchWrite ≤25, no cross-item txn for >100) → batch + resumable; partial writes are self-healing on re-run.
+- Rate-limited `fetchCitation` (Task done in the prior plan). Disk cache reused.
+- Contract-first: `CaseRepo`/pages unchanged (the seam is stable; only the dynamo impl + marshalling change).
 
 ## 6. Open questions
-- **[Open]** Whether to prune substrate to the Indigenous-signal subset after fetch (for a cleaner RAG index later) — deferred to 2-B.2 (the vector-index design decides what to index). 2-B.1 keeps all substrate, just adds full text.
+- **[Open]** S3 full-text archival (option C) for verbatim fidelity + RAG source store — deferred to 2-B.2 (composes with B: chunk items for filter/retrieval-unit in DynamoDB, full object in S3).
+- **[Open]** Whether `searchCases` should ever search chunk text (needs reassembly or a search index) — deferred to 2-B.2 (vector/hybrid search).
