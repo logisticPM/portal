@@ -27,6 +27,9 @@ export default async function HomePage() {
   const session = getSession();
   if (!session) redirect("/");
 
+  // Institute lands directly on the RAP Index (the commitments dashboard).
+  if (session.kind === "indigenomics") redirect("/commitments");
+
   // ---- Company ----
   if (session.kind === "company" && session.partyId) {
     const [company, coverage] = await Promise.all([
