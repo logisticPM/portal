@@ -22,6 +22,9 @@ import { seedSurvey } from "../src/lib/survey/seed";
 import { mockCaseRepo } from "../src/lib/cases/repo.mock";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { seedCases } from "./seed-cases";
+import { mockCommitmentsRepo } from "../src/lib/commitments/repo.mock";
+import { dynamoCommitmentsRepo } from "../src/lib/commitments/repo.dynamo";
+import { seedCommitments } from "./seed-commitments";
 
 let pass = 0;
 let fail = 0;
@@ -61,6 +64,9 @@ async function freshSeed() {
   await createSingleTable("LegalCases");
   await resetTable("LegalCases");
   await (async () => { process.env.CASES_TABLE = "LegalCases"; await seedCases(); })();
+  await createSingleTable("Commitments");
+  await resetTable("Commitments");
+  await (async () => { process.env.COMMITMENTS_TABLE = "Commitments"; await seedCommitments(); })();
 }
 
 async function main() {
@@ -165,6 +171,20 @@ async function main() {
   check("cases: tier:substrate returns substrate", subList.some((c) => c.id === "verify-substrate"));
   check("cases: substrate round-trips unclassified",
     (await dynamoCaseRepo.getCase("verify-substrate"))?.outcome.winType === "unclassified");
+
+  // ---- Commitments: dynamo ≡ mock ----
+  console.log("\n# 5. commitments (dynamo ≡ mock)");
+  const mc = await mockCommitmentsRepo.listCommitments();
+  const dc = await dynamoCommitmentsRepo.listCommitments();
+  check("commitments: list count mock≡dynamo", mc.length === dc.length, `${mc.length}/${dc.length}`);
+  check("commitments: list mock≡dynamo (full round-trip)", eq(mc, dc));
+  check("commitments: getSummary mock≡dynamo",
+    eq(await mockCommitmentsRepo.getSummary(), await dynamoCommitmentsRepo.getSummary()));
+  check("commitments: filter by sector mock≡dynamo",
+    eq(await mockCommitmentsRepo.getSummary({ sector: "finance" }),
+       await dynamoCommitmentsRepo.getSummary({ sector: "finance" })));
+  const dsum = await dynamoCommitmentsRepo.getSummary();
+  check("commitments: summary has over-time periods", dsum.overTime.length >= 2, `${dsum.overTime.length} periods`);
 
   // leave a clean, seeded state for demoing
   await freshSeed();
