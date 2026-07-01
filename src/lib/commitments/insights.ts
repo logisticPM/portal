@@ -45,7 +45,9 @@ export interface RiskReport {
 export function computeRisk(items: Commitment[], currentYear: number): RiskReport {
   const flags: RiskFlag[] = [];
   for (const c of items) {
-    if (c.status === "confirmed") continue;
+    // confirmed = delivered; reported = claimed complete (awaiting confirmation) —
+    // neither is "behind", so only committed / in_progress / stalled can be flagged.
+    if (c.status === "confirmed" || c.status === "reported") continue;
     const stalled = c.status === "stalled" ? " · stalled" : "";
     if (c.targetYear < currentYear) {
       flags.push({

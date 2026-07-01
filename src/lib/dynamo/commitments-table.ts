@@ -51,5 +51,6 @@ export function itemToCommitment(it: any): Commitment {
       progressPct: h.progressPct,
     })),
     createdAt: d.createdAt,
+    ...(d.source !== undefined ? { source: { label: d.source.label, url: d.source.url } } : {}),
   };
 }
