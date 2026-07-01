@@ -6,6 +6,7 @@ import {
   orgScorecard,
   computeRisk,
   confirmationIntegrity,
+  getOrgProfile,
 } from "@/lib/commitments";
 import type { CommitmentStatus, RapType } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
@@ -23,6 +24,15 @@ const STATUS_PILL: Record<CommitmentStatus, string> = {
   stalled: "text-rust border-rust/40 bg-rust/10",
 };
 
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-3">
+      <dt className="text-ink3 w-28 shrink-0">{label}</dt>
+      <dd className="text-ink2">{value}</dd>
+    </div>
+  );
+}
+
 export default async function OrgScorecardPage({ params }: { params: { id: string } }) {
   const items = await commitmentsRepo.listCommitments();
   const currentYear = new Date().getFullYear();
@@ -33,6 +43,7 @@ export default async function OrgScorecardPage({ params }: { params: { id: strin
   const integ = confirmationIntegrity(commitments);
   const risk = computeRisk(commitments, currentYear);
   const flagged = new Set(risk.flags.map((f) => f.commitment.id));
+  const profile = getOrgProfile(org.orgName);
 
   // benchmark vs the org's primary sector (across the whole network)
   const sector = org.sectors[0];
@@ -59,6 +70,31 @@ export default async function OrgScorecardPage({ params }: { params: { id: strin
         <h1 className="mt-2 font-serif text-3xl">{org.orgName}</h1>
         <p className="text-ink2 text-sm mt-1 capitalize">{org.sectors.map(label).join(" · ")}</p>
       </div>
+
+      {/* about — public reference info (Wikipedia-style) */}
+      {profile && (
+        <section className="bg-panel rounded border border-line shadow-card p-5">
+          <div className="text-ink3 text-xs uppercase tracking-widest mb-3">About</div>
+          <p className="text-ink2 text-sm mb-4">{profile.about}</p>
+          <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+            {profile.legalName && <InfoRow label="Legal name" value={profile.legalName} />}
+            <InfoRow label="Headquarters" value={profile.headquarters} />
+            <InfoRow label="Founded" value={profile.founded} />
+            <InfoRow label="Industry" value={profile.industry} />
+            {profile.employees && <InfoRow label="Employees" value={profile.employees} />}
+            {profile.ticker && <InfoRow label="Listing" value={profile.ticker} />}
+          </dl>
+          <a
+            href={profile.website}
+            target="_blank"
+            rel="noreferrer"
+            className="text-amber hover:underline text-sm mt-3 inline-block"
+          >
+            {profile.website.replace(/^https?:\/\//, "")} ↗
+          </a>
+          <p className="text-ink3 text-[11px] mt-2">Public reference information.</p>
+        </section>
+      )}
 
       {/* stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -113,22 +149,24 @@ export default async function OrgScorecardPage({ params }: { params: { id: strin
         )}
       </section>
 
-      {/* maturity mix */}
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="text-ink3 text-xs uppercase tracking-widest mb-3">RAP maturity mix</div>
-        <div className="flex flex-wrap gap-2 text-sm">
-          {tierCounts.map(({ r, n }) => (
-            <span
-              key={r}
-              className={`rounded-full border px-3 py-1 capitalize ${
-                n ? "border-amber/40 text-amber bg-amber/10" : "border-line text-ink3 opacity-50"
-              }`}
-            >
-              {r} · {n}
-            </span>
-          ))}
-        </div>
-      </section>
+      {/* maturity mix (only when the data actually has RAP tiers) */}
+      {tierCounts.some((t) => t.n > 0) && (
+        <section className="bg-panel rounded border border-line shadow-card p-5">
+          <div className="text-ink3 text-xs uppercase tracking-widest mb-3">RAP maturity mix</div>
+          <div className="flex flex-wrap gap-2 text-sm">
+            {tierCounts.map(({ r, n }) => (
+              <span
+                key={r}
+                className={`rounded-full border px-3 py-1 capitalize ${
+                  n ? "border-amber/40 text-amber bg-amber/10" : "border-line text-ink3 opacity-50"
+                }`}
+              >
+                {r} · {n}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* commitments list */}
       <section className="bg-panel rounded border border-line shadow-card p-5">
