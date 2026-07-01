@@ -179,7 +179,10 @@ export default async function CommitmentsPage({
           <span className="text-ink3 text-base">— commitments by sector, size & type</span>
         </h1>
         <p className="text-ink2 text-sm mt-1">
-          Reconciliation commitments across the network, and how they progress over time.
+          Reconciliation commitments across the network, and how they progress over time — distinct
+          from{" "}
+          <a href="/analytics" className="text-amber hover:underline">Spend Coverage</a>, which tracks
+          confirmed dollars.
         </p>
       </div>
 
