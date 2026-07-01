@@ -2,6 +2,7 @@
 // Pure functions, parameterized by `currentYear` (kept out of buildSummary so the
 // golden mock≡dynamo summary stays time-independent). The dashboard calls these.
 import type { Commitment, CommitmentSummary } from "./types";
+import { momentumBoard } from "./momentum";
 
 const labelize = (s: string) => s.replace(/_/g, " ");
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -110,6 +111,13 @@ export function buildInsights(
   if (integ.claimed) {
     out.push(
       `Of ${integ.claimed} claimed outcomes, ${integ.confirmationRate}% are supplier-confirmed — ${integ.selfReported} remain self-reported and unverified.`,
+    );
+  }
+
+  const mb = momentumBoard(items);
+  if (mb.offPaceCount) {
+    out.push(
+      `At current velocity, ${mb.onPaceCount} commitments are on pace to hit their target and ${mb.offPaceCount} are projected to fall short.`,
     );
   }
 

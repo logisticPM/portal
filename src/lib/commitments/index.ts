@@ -9,6 +9,8 @@ export { computeRisk, buildInsights, confirmationIntegrity } from "./insights";
 export type { RiskFlag, RiskReport, Integrity } from "./insights";
 export { rollupOrgs, orgScorecard, slugifyOrg } from "./orgs";
 export type { OrgRollup } from "./orgs";
+export { commitmentMomentum, momentumBoard } from "./momentum";
+export type { Momentum, MomentumBoard } from "./momentum";
 
 export type {
   Commitment,

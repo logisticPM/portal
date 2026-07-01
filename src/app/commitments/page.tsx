@@ -1,7 +1,7 @@
 // RAP Index dashboard (client idea #2): commitments by sector, organization size,
 // and commitment type, with progress tracking over time. The Indigenomics
 // (institute) landing. Server component reading commitmentsRepo; filters via searchParams.
-import { commitmentsRepo, computeRisk, buildInsights, confirmationIntegrity } from "@/lib/commitments";
+import { commitmentsRepo, computeRisk, buildInsights, confirmationIntegrity, momentumBoard } from "@/lib/commitments";
 import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
 
@@ -38,6 +38,60 @@ const STATUS_PILL: Record<CommitmentStatus, string> = {
 };
 
 type Stat = { count: number; avgProgress: number } | undefined;
+
+// Hand-drawn SVG line chart (server-rendered, theme-aware via CSS vars) for the
+// average-progress trend across reporting periods.
+function TrendChart({ points }: { points: { label: string; value: number }[] }) {
+  const W = 640;
+  const H = 200;
+  const padL = 30;
+  const padR = 12;
+  const padT = 16;
+  const padB = 24;
+  const iw = W - padL - padR;
+  const ih = H - padT - padB;
+  const n = points.length;
+  const x = (i: number) => padL + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw);
+  const y = (v: number) => padT + ih - (Math.max(0, Math.min(100, v)) / 100) * ih;
+
+  const linePath = points.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.value)}`).join(" ");
+  const areaPath = `${linePath} L${x(n - 1)},${y(0)} L${x(0)},${y(0)} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Average progress trend">
+      {[0, 25, 50, 75, 100].map((g) => (
+        <g key={g}>
+          <line
+            x1={padL} x2={W - padR} y1={y(g)} y2={y(g)}
+            stroke="rgb(var(--line))" strokeWidth={1} vectorEffect="non-scaling-stroke"
+          />
+          <text x={padL - 6} y={y(g) + 3} textAnchor="end" fontSize={10} fill="rgb(var(--ink3))">
+            {g}
+          </text>
+        </g>
+      ))}
+      {n > 1 && <path d={areaPath} fill="rgb(var(--amber) / 0.12)" />}
+      {n > 1 && (
+        <path
+          d={linePath}
+          fill="none" stroke="rgb(var(--amber))" strokeWidth={2}
+          strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {points.map((p, i) => (
+        <g key={p.label}>
+          <circle cx={x(i)} cy={y(p.value)} r={3.5} fill="rgb(var(--amber))" />
+          <text x={x(i)} y={y(p.value) - 8} textAnchor="middle" fontSize={10} fill="rgb(var(--ink2))">
+            {p.value}%
+          </text>
+          <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="rgb(var(--ink3))">
+            {p.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
 
 function GroupSection({
   title,
@@ -87,6 +141,8 @@ export default async function CommitmentsPage({
   const insights = buildInsights(summary, list, currentYear);
   const risk = computeRisk(list, currentYear);
   const integ = confirmationIntegrity(list);
+  const momentum = momentumBoard(list);
+  const trend = summary.overTime.map((p) => ({ label: p.period, value: p.avgProgress }));
   const maxCell = Math.max(
     1,
     ...SECTORS.flatMap((s) => TYPES.map((t) => summary.matrix[s]?.[t] ?? 0)),
@@ -241,6 +297,65 @@ export default async function CommitmentsPage({
           })}
           {summary.overTime.length === 0 && <p className="text-ink3 text-sm">No history.</p>}
         </div>
+      </section>
+
+      {/* momentum & projection — velocity from history, extrapolated to target */}
+      <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+          <div className="text-ink3 text-xs uppercase tracking-widest">Momentum &amp; projection</div>
+          <div className="flex gap-4 text-xs">
+            <span className="text-cedar">{momentum.onPaceCount} on pace</span>
+            <span className="text-rust">{momentum.offPaceCount} projected to fall short</span>
+          </div>
+        </div>
+
+        <div className="text-ink3 text-xs mb-1">Average progress across reporting periods</div>
+        {trend.length > 1 ? (
+          <TrendChart points={trend} />
+        ) : (
+          <p className="text-ink3 text-sm">Not enough history to plot a trend.</p>
+        )}
+
+        <div className="grid sm:grid-cols-2 gap-6 mt-4">
+          <div>
+            <div className="text-ink3 text-xs uppercase tracking-widest mb-2">Gaining momentum</div>
+            {momentum.gainers.length === 0 ? (
+              <p className="text-ink3 text-sm">No recent movers.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {momentum.gainers.map((m) => (
+                  <div key={m.commitment.id} className="flex items-center gap-2 text-sm">
+                    <span className="text-cedar tabular-nums w-10 shrink-0">+{m.delta}</span>
+                    <span className="flex-1 min-w-0 truncate">{m.commitment.title}</span>
+                    <span className="text-ink3 text-xs shrink-0">{m.commitment.progressPct}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="text-ink3 text-xs uppercase tracking-widest mb-2">Projected to fall short</div>
+            {momentum.offPace.length === 0 ? (
+              <p className="text-ink3 text-sm">All on pace to hit target. 🎉</p>
+            ) : (
+              <div className="space-y-1.5">
+                {momentum.offPace.map((m) => (
+                  <div key={m.commitment.id} className="flex items-center gap-2 text-sm">
+                    <span className="text-rust tabular-nums w-14 shrink-0">−{m.shortfall}pt</span>
+                    <span className="flex-1 min-w-0 truncate">{m.commitment.title}</span>
+                    <span className="text-ink3 text-xs shrink-0 whitespace-nowrap">
+                      ~{m.projected}% by {m.commitment.targetYear}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <p className="text-ink3 text-[11px] mt-3">
+          Projection = current progress + average velocity × years to target. Linear estimate;
+          confirmed commitments count as on pace.
+        </p>
       </section>
 
       {/* deadline & delivery risk */}
