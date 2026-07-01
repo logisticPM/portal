@@ -19,7 +19,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Toronto, Ontario, Canada",
     founded: "1864 (Halifax, NS)",
     industry: "Banking & financial services",
-    employees: "~95,000",
+    employees: "~98,000",
     ticker: "TSX / NYSE: RY",
     website: "https://www.rbc.com",
     about:
@@ -30,7 +30,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Montreal, Quebec, Canada (operating HQ Toronto)",
     founded: "1817",
     industry: "Banking & financial services",
-    employees: "~55,000",
+    employees: "~47,000",
     ticker: "TSX / NYSE: BMO",
     website: "https://www.bmo.com",
     about:
@@ -41,7 +41,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Toronto, Ontario, Canada",
     founded: "1832 (Halifax, NS)",
     industry: "Banking & financial services",
-    employees: "~90,000",
+    employees: "~88,000",
     ticker: "TSX / NYSE: BNS",
     website: "https://www.scotiabank.com",
     about:
@@ -52,7 +52,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Toronto, Ontario, Canada",
     founded: "1955 (merger of Bank of Toronto 1855 & Dominion Bank 1869)",
     industry: "Banking & financial services",
-    employees: "~95,000",
+    employees: "~100,000",
     ticker: "TSX / NYSE: TD",
     website: "https://www.td.com",
     about:
@@ -62,7 +62,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Calgary, Alberta, Canada",
     founded: "2009",
     industry: "Oil & gas (integrated)",
-    employees: "~6,000",
+    employees: "~8,000",
     ticker: "TSX / NYSE: CVE",
     website: "https://www.cenovus.com",
     about:
@@ -72,7 +72,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Calgary, Alberta, Canada",
     founded: "1919",
     industry: "Oil & gas (integrated)",
-    employees: "~16,000",
+    employees: "~15,000",
     ticker: "TSX / NYSE: SU",
     website: "https://www.suncor.com",
     about:
@@ -82,7 +82,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Toronto, Ontario, Canada",
     founded: "1906 (reorganized 1999)",
     industry: "Electricity transmission & distribution",
-    employees: "~9,500",
+    employees: "~9,100",
     ticker: "TSX: H",
     website: "https://www.hydroone.com",
     about:
@@ -92,7 +92,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     headquarters: "Vancouver, British Columbia, Canada",
     founded: "1913 (current form 2001)",
     industry: "Mining & metals",
-    employees: "~11,000",
+    employees: "~7,500",
     ticker: "TSX / NYSE: TECK",
     website: "https://www.teck.com",
     about:
@@ -102,8 +102,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     legalName: "Vale Canada Limited (formerly Inco)",
     headquarters: "Toronto, Ontario, Canada",
     founded: "1902 (as Inco)",
-    industry: "Mining (nickel)",
-    employees: "~6,000 (Canada)",
+    industry: "Mining (nickel & base metals)",
     ticker: "part of Vale S.A. (NYSE: VALE)",
     website: "https://www.vale.com/canada",
     about:
