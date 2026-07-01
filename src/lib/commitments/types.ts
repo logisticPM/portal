@@ -76,6 +76,8 @@ export interface CommitmentSummary {
   bySector: Record<string, GroupStat>;
   bySize: Record<string, GroupStat>;
   byType: Record<string, GroupStat>;
+  byRapType: Record<string, GroupStat>; // by RAP maturity (reflect/innovate/stretch/elevate)
+  matrix: Record<string, Record<string, number>>; // sector → type → count (heatmap)
   overTime: PeriodStat[]; // progress tracking over time
 }
 
