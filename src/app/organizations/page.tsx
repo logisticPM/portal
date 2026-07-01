@@ -20,7 +20,7 @@ export default async function OrganizationsPage() {
       <div>
         <h1 className="font-serif text-3xl">
           Organizations{" "}
-          <span className="text-ink3 text-base">— RAP scorecards across the network</span>
+          <span className="text-ink3 text-base">· RAP scorecards across the network</span>
         </h1>
         <p className="text-ink2 text-sm mt-1">
           Every participating organization, ranked by average commitment progress. Institute view.

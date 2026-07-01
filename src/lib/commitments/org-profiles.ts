@@ -96,7 +96,7 @@ export const orgProfiles: Record<string, OrgProfile> = {
     ticker: "TSX / NYSE: TECK",
     website: "https://www.teck.com",
     about:
-      "One of Canada's largest diversified miners — copper and zinc — after divesting its steelmaking-coal business in 2024.",
+      "One of Canada's largest diversified miners (copper and zinc) after divesting its steelmaking-coal business in 2024.",
   },
   "Vale Canada": {
     legalName: "Vale Canada Limited (formerly Inco)",

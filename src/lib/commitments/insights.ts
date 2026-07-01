@@ -85,7 +85,7 @@ export function buildInsights(
   const out: string[] = [];
 
   out.push(
-    `${summary.total} commitments across ${summary.orgCount} organizations, averaging ${summary.avgProgress}% progress — ${summary.confirmedPct}% already confirmed.`,
+    `${summary.total} commitments across ${summary.orgCount} organizations, averaging ${summary.avgProgress}% progress. ${summary.confirmedPct}% already confirmed.`,
   );
 
   const types = Object.entries(summary.byType).filter(([, g]) => g.count > 0);
@@ -103,7 +103,7 @@ export function buildInsights(
     const worst = tiers.reduce((a, b) => (b[1].avgProgress < a[1].avgProgress ? b : a));
     if (best[0] !== worst[0]) {
       out.push(
-        `${cap(best[0])}-tier RAPs average ${best[1].avgProgress}% progress vs ${worst[1].avgProgress}% for ${worst[0]}-tier — maturity tracks with delivery.`,
+        `${cap(best[0])}-tier RAPs average ${best[1].avgProgress}% progress vs ${worst[1].avgProgress}% for ${worst[0]}-tier. Maturity tracks with delivery.`,
       );
     }
   }
@@ -111,7 +111,7 @@ export function buildInsights(
   const integ = confirmationIntegrity(items);
   if (integ.claimed) {
     out.push(
-      `Of ${integ.claimed} claimed outcomes, ${integ.confirmationRate}% are supplier-confirmed — ${integ.selfReported} remain self-reported and unverified.`,
+      `Of ${integ.claimed} claimed outcomes, ${integ.confirmationRate}% are supplier-confirmed. ${integ.selfReported} remain self-reported and unverified.`,
     );
   }
 
@@ -122,7 +122,7 @@ export function buildInsights(
     if (risk.atRiskCount) parts.push(`${risk.atRiskCount} due in ${currentYear} are behind pace`);
     out.push(`Needs attention: ${parts.join(", and ")}.`);
   } else {
-    out.push("No overdue or at-risk commitments — the network is on pace.");
+    out.push("No overdue or at-risk commitments. The network is on pace.");
   }
 
   return out;

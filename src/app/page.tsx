@@ -16,7 +16,7 @@ export default function Home() {
         </h1>
         <p className="text-ink2 text-lg">
           Companies report what they spend with Indigenous businesses. The named supplier{" "}
-          <strong>confirms</strong> each entry. The result is a sovereign, confirmed dataset — and
+          <strong>confirms</strong> each entry. The result is a sovereign, confirmed dataset, and
           the RAP Index built on it. Collecting data isn&apos;t the innovation; confirming it is.
         </p>
         <div className="flex flex-wrap gap-3 pt-1">
@@ -43,7 +43,7 @@ export default function Home() {
           },
           {
             t: "Coverage & the Index",
-            d: "See how much reported spend is actually confirmed — by flow type and by ownership tier.",
+            d: "See how much reported spend is actually confirmed, by flow type and by ownership tier.",
           },
           {
             t: "Owned by suppliers (OCAP)",
@@ -58,7 +58,7 @@ export default function Home() {
       </section>
 
       <p className="text-ink3 text-sm">
-        Three audiences, one confirmed dataset — company, Indigenous supplier, and Indigenomics (the
+        Three audiences, one confirmed dataset: company, Indigenous supplier, and Indigenomics (the
         institute). Demo on synthetic data · no real auth.
       </p>
     </div>
