@@ -6,9 +6,8 @@ import { getSession } from "@/lib/auth";
 import { signOut } from "@/lib/repo/actions";
 import { ThemeMenu } from "@/components/ThemeMenu";
 
-// Runs before paint to apply the stored theme (avoids a light→dark flash).
-// Mirrors applyTheme() in ThemeMenu.tsx.
-const NO_FLASH = `(function(){try{var t=JSON.parse(localStorage.getItem('portal-theme')||'null');if(!t)return;var m=t.mode==='dark'?'dark':'light';var r=document.documentElement;if(m==='dark')r.classList.add('dark');var c=t[m];if(!c)return;function h(x){if(!x)return null;x=x.replace('#','');if(x.length===3)x=x[0]+x[0]+x[1]+x[1]+x[2]+x[2];var n=parseInt(x,16);return ((n>>16)&255)+' '+((n>>8)&255)+' '+(n&255);}var bg=h(c.bg);if(bg)r.style.setProperty('--bg',bg);var a=h(c.accent);if(a)r.style.setProperty('--amber',a);}catch(e){}})();`;
+// Runs before paint to apply the stored mode (avoids a light→dark flash).
+const NO_FLASH = `(function(){try{var t=JSON.parse(localStorage.getItem('portal-theme')||'null');if(t&&t.mode==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 const display = Fraunces({
   subsets: ["latin"],
