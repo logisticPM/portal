@@ -149,6 +149,7 @@ export default async function CommitmentsPage({
     ...SECTORS.flatMap((s) => TYPES.map((t) => summary.matrix[s]?.[t] ?? 0)),
   );
   const maxTier = Math.max(1, ...RAP_TYPES.map((r) => summary.byRapType[r]?.count ?? 0));
+  const hasRapData = RAP_TYPES.some((r) => (summary.byRapType[r]?.count ?? 0) > 0);
 
   const qs = (next: { sector?: string; type?: string }) => {
     const p = new URLSearchParams();
@@ -376,7 +377,8 @@ export default async function CommitmentsPage({
         <GroupSection title="By organization size" keys={SIZES} map={summary.bySize} />
       </div>
 
-      {/* RAP maturity — 4 tiers side by side */}
+      {/* RAP maturity — 4 tiers side by side (only when the data has tiers) */}
+      {hasRapData && (
       <section className="bg-panel rounded border border-line shadow-card p-5">
         <div className="text-ink3 text-xs uppercase tracking-widest mb-4">
           By RAP maturity{" "}
@@ -400,6 +402,7 @@ export default async function CommitmentsPage({
           })}
         </div>
       </section>
+      )}
 
       {/* sector × type heatmap */}
       <section className="bg-panel rounded border border-line shadow-card p-5">
@@ -483,6 +486,20 @@ export default async function CommitmentsPage({
                   {c.orgName} · <span className="capitalize">{label(c.sector)}</span> ·{" "}
                   <span className="capitalize">{c.orgSize}</span> ·{" "}
                   <span className="capitalize">{label(c.type)}</span> · target {c.targetYear}
+                  {c.source && (
+                    <>
+                      {" · "}
+                      <a
+                        href={c.source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-amber hover:underline"
+                        title={c.source.label}
+                      >
+                        source ↗
+                      </a>
+                    </>
+                  )}
                 </div>
               </div>
               <span className="font-serif w-12 text-right tabular-nums">{c.progressPct}%</span>
@@ -496,6 +513,12 @@ export default async function CommitmentsPage({
           {list.length === 0 && <p className="text-ink3 py-2">No commitments match.</p>}
         </div>
       </section>
+
+      <p className="text-ink3 text-[11px]">
+        Seeded from Canadian companies&apos; own public reconciliation / ESG reports (see each
+        &ldquo;source&rdquo; link). These are self-reported commitments — none are supplier-confirmed;
+        confirmation is the layer the portal adds. Not Indigenous data.
+      </p>
     </div>
   );
 }

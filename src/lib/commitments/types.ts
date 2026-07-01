@@ -48,6 +48,9 @@ export interface Commitment {
   progressPct: number; // current %
   history: ProgressPoint[]; // chronological progress over time
   createdAt: string;
+  // Provenance for externally-sourced commitments (e.g. a company's public
+  // ESG / reconciliation report). Present ⇒ self-reported, not portal-confirmed.
+  source?: { label: string; url: string };
 }
 
 export interface CommitmentFilter {
