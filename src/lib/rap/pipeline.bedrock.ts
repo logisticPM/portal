@@ -1,17 +1,17 @@
 // ===========================================================================
 // Real extraction pipeline — Claude on Bedrock (tool-use), with deterministic
-// validation. SCAFFOLD: structurally complete, but two integration points are
-// marked TODO (S3 document fetch + optional Textract OCR) and it requires
-// `npm i @aws-sdk/client-bedrock-runtime`. Gated behind EXTRACTION_IMPL=bedrock;
-// the mock is the default so dev/demo never loads this module.
-//
-// Flow: load doc text → Claude forced to call record_rap_extraction (grounded
-// JSON) → validateAndFlag (set flagged + collect issues) → derive classification
-// → ExtractionResult. The BDA path would replace the Claude call with a Bedrock
-// Data Automation blueprint invoke and map its output into the same shape.
+// validation. This is Option B (fully in-region, e.g. ca-central-1): async
+// Textract OCR (multi-page) → Claude forced to call record_rap_extraction
+// (grounded JSON with verbatim quotes) → validateAndFlag → ExtractionResult.
+// Gated behind EXTRACTION_IMPL=bedrock; the mock is the default so dev/demo
+// never loads this module. (Option A is pipeline.bda.ts — managed, US-region.)
 // ===========================================================================
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-import { DetectDocumentTextCommand, TextractClient } from "@aws-sdk/client-textract";
+import {
+  GetDocumentTextDetectionCommand,
+  StartDocumentTextDetectionCommand,
+  TextractClient,
+} from "@aws-sdk/client-textract";
 import { CLAUDE_TOOL, EXTRACTION_SYSTEM, EXTRACTION_TOOL_NAME } from "./extraction-schema";
 import { getDocumentBytes } from "./storage";
 import { validateAndFlag } from "./validate";
@@ -21,29 +21,51 @@ const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 // Set to the Claude-on-Bedrock model / inference-profile id for `region`
 // (ca-central-1 reaches Claude via the Canada/NA geo cross-region profile).
 const modelId = process.env.BEDROCK_MODEL_ID ?? "anthropic.claude-sonnet-4-6";
+const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
 
 const client = new BedrockRuntimeClient({ region });
 const textract = new TextractClient({ region });
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Fetch the raw document from S3 and return its text. Plain-text/.txt is decoded
-// directly; everything else is OCR'd with Textract DetectDocumentText.
-// NOTE: synchronous DetectDocumentText handles single-page docs and images. A
-// multi-page PDF needs the ASYNC StartDocumentTextDetection → poll flow (reads
-// the object from S3 by bucket/key). For multi-page extraction at scale, prefer
-// the BDA path, which ingests multi-page PDFs/Office docs natively. This sync
-// path is the simple single-page/image baseline.
+// Fetch document text. Plain-text is decoded directly; PDFs/images are OCR'd via
+// ASYNC Textract (StartDocumentTextDetection → poll → paginate), which handles
+// MULTI-PAGE PDFs (the sync DetectDocumentText path was single-page only).
+// Reads the object straight from S3 by bucket/key — no bytes round-trip.
 async function loadDocumentText(sourceS3Key: string, fileName: string): Promise<string> {
-  const bytes = await getDocumentBytes(sourceS3Key);
-
   if (/\.txt$/i.test(fileName)) {
-    return new TextDecoder().decode(bytes);
+    return new TextDecoder().decode(await getDocumentBytes(sourceS3Key));
   }
+  if (!uploadBucket) throw new Error("RAP_UPLOAD_BUCKET not set (needed for Textract S3 input)");
 
-  const res = await textract.send(new DetectDocumentTextCommand({ Document: { Bytes: bytes } }));
-  return (res.Blocks ?? [])
-    .filter((b: any) => b.BlockType === "LINE" && b.Text)
-    .map((b: any) => b.Text as string)
-    .join("\n");
+  const start = await textract.send(
+    new StartDocumentTextDetectionCommand({
+      DocumentLocation: { S3Object: { Bucket: uploadBucket, Name: sourceS3Key } },
+    }),
+  );
+  const jobId = start.JobId!;
+
+  // poll until the OCR job finishes (bounded ~5 min)
+  let status = "IN_PROGRESS";
+  for (let i = 0; i < 60 && status === "IN_PROGRESS"; i++) {
+    await sleep(5000);
+    const r = await textract.send(new GetDocumentTextDetectionCommand({ JobId: jobId }));
+    status = r.JobStatus ?? "IN_PROGRESS";
+    if (status === "FAILED") throw new Error(`Textract job failed: ${r.StatusMessage ?? "unknown"}`);
+  }
+  if (status !== "SUCCEEDED") throw new Error("Textract job did not complete within the poll window");
+
+  // collect LINE blocks across all result pages (NextToken pagination)
+  const lines: string[] = [];
+  let token: string | undefined;
+  do {
+    const page = await textract.send(new GetDocumentTextDetectionCommand({ JobId: jobId, NextToken: token }));
+    for (const b of page.Blocks ?? []) {
+      if (b.BlockType === "LINE" && b.Text) lines.push(b.Text);
+    }
+    token = page.NextToken;
+  } while (token);
+
+  return lines.join("\n");
 }
 
 // classification is derivable from the grounded core fields (one fewer API call);

@@ -26,7 +26,10 @@ export default $config({
       // are disposable.
       removal: input?.stage === "production" ? "retain" : "remove",
       home: "aws",
-      providers: { aws: { region: "us-east-1" } },
+      // Region is env-overridable so a Canada (ca-central-1) stack can be
+      // deployed for data residency without changing the team's us-east-1
+      // default (SST_AWS_REGION=ca-central-1 npx sst deploy --stage ca).
+      providers: { aws: { region: process.env.SST_AWS_REGION ?? "us-east-1" } },
     };
   },
   async run() {
@@ -139,9 +142,9 @@ export default $config({
         // pipeline. BEDROCK_REGION pins Bedrock/BDA to ca-central-1 for Canadian
         // data residency even though the app runs in us-east-1 — ideally the whole
         // stack moves to ca-central-1 (see SH_RAP8_AWS_Architecture).
-        EXTRACTION_IMPL: "mock",
-        BEDROCK_REGION: "ca-central-1",
-        REVIEW_MODE: "indigenomics",
+        EXTRACTION_IMPL: process.env.EXTRACTION_IMPL ?? "mock",
+        BEDROCK_REGION: process.env.BEDROCK_REGION ?? "ca-central-1",
+        REVIEW_MODE: process.env.REVIEW_MODE ?? "indigenomics",
         // BDA path: set to the custom-blueprint project ARN (field names must
         // match extraction-schema.ts) and, if your API version requires it, the
         // data-automation profile ARN. Output lands in the analytics bucket.

@@ -61,25 +61,32 @@ RAP_TABLE=<sst-generated-RapData-name> AWS_REGION=<region> REPO_IMPL=dynamo \
 
 ---
 
-## 4. Turn on real extraction
+## 4. Turn on real extraction — two engines behind `EXTRACTION_IMPL`
 
-### Option A — BDA (recommended; multi-page native)
+**Verified live (2026-07-01):** BDA extracted the 13-page Bank of Canada RAP correctly in 64s (22 commitments; `custom_output_status: MATCH`). Two findings baked into the code below: **`BDA_PROFILE_ARN` is REQUIRED** (`…/us.data-automation-v1`), and **BDA runtime is only in `us-east-1`** (control plane exists in `ca-central-1` but `InvokeDataAutomationAsync` there fails with "invalid ARN"). Claude *is* in `ca-central-1`, so the choice is quality/simplicity (A, US) vs data residency (B, Canada).
 
-1. **Create the blueprint** from `src/lib/rap/bda-blueprint.json` (Bedrock console → Data Automation → Blueprints → create, or the `CreateBlueprint` API). Keep the field names — `pipeline.bda.ts` maps from them.
-2. **Create a Data Automation project** using that blueprint; note its **project ARN**.
-3. **Set config** (as SST secrets or deploy-env vars — see step 5):
+### Option A — BDA (managed, multi-page native, **runs in `us-east-1`**)
+
+1. **Create the blueprint** from `src/lib/rap/bda-blueprint.json` **in `us-east-1`** (`aws bedrock-data-automation create-blueprint --type DOCUMENT --blueprint-stage LIVE --schema file://... --region us-east-1`). Keep the field names — `pipeline.bda.ts` maps from them.
+2. **Create a Data Automation project** referencing the blueprint (`create-data-automation-project` with `--standard-output-configuration` + `--custom-output-configuration`); note its **project ARN**.
+3. **Config:**
    - `EXTRACTION_IMPL=bda`
-   - `BDA_PROJECT_ARN=<arn>`
-   - `BDA_PROFILE_ARN=<arn>` *(only if your BDA API version requires it)*
-   - `BEDROCK_REGION=ca-central-1`
-4. **Redeploy:** `npx sst deploy --stage <stage>`.
+   - `BEDROCK_REGION=us-east-1`  ← **must be us-east-1**
+   - `BDA_PROJECT_ARN=<us-east-1 project ARN>`
+   - `BDA_PROFILE_ARN=arn:aws:bedrock:us-east-1:<acct>:data-automation-profile/us.data-automation-v1`  ← **required**
+   - keep the upload/output buckets in `us-east-1` (BDA reads/writes same-region S3).
+4. **Redeploy:** `SST_AWS_REGION=us-east-1 EXTRACTION_IMPL=bda BEDROCK_REGION=us-east-1 BDA_PROJECT_ARN=… npx sst deploy --stage <stage>`.
 
-> Verify the BDA result-JSON traversal (`readInferenceResult`) against your account's actual output, and fill in the `sectorFields` mapping once your blueprint defines those sub-fields.
+`pipeline.bda.ts` merges `inference_result` (values) + `explainability_info` (confidence + page) and flags below **0.5** (BDA confidence runs lower than Claude's). `sectorFields` mapping is still stubbed until the blueprint defines those sub-fields.
 
-### Option B — Bedrock fallback (Textract → Claude)
+### Option B — Claude on Bedrock (**fully in-country, e.g. `ca-central-1`**)
 
-- `EXTRACTION_IMPL=bedrock`, `BEDROCK_MODEL_ID=<Claude inference-profile id for the region>`, `BEDROCK_REGION=ca-central-1`.
-- Caveat: `loadDocumentText` uses **sync** Textract (single-page/image). Multi-page PDFs need the async `StartDocumentTextDetection` flow — so for multi-page, prefer Option A.
+Keeps all processing in Canada and grounds every field in a **verbatim quote**. Now handles **multi-page** via async Textract.
+
+- `EXTRACTION_IMPL=bedrock`, `BEDROCK_REGION=ca-central-1`, `BEDROCK_MODEL_ID=<Claude inference-profile id for that region>`, `RAP_UPLOAD_BUCKET` set.
+- Creds need `textract:StartDocumentTextDetection` + `textract:GetDocumentTextDetection` + `bedrock:InvokeModel`.
+- `loadDocumentText` uses **async** `StartDocumentTextDetection` → poll → paginate (multi-page); Claude tool-use returns grounded JSON validated with `requireQuote=true`.
+- **Redeploy:** `SST_AWS_REGION=ca-central-1 EXTRACTION_IMPL=bedrock BEDROCK_MODEL_ID=… npx sst deploy --stage <stage>`.
 
 ---
 

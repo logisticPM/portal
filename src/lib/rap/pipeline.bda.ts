@@ -31,63 +31,71 @@ import { RAP_SCHEMA_VERSION } from "./types";
 
 const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 const projectArn = process.env.BDA_PROJECT_ARN; // custom-blueprint project
-const profileArn = process.env.BDA_PROFILE_ARN; // required by newer BDA API
+// REQUIRED by the BDA runtime (verified live): the data-automation profile ARN,
+// e.g. arn:aws:bedrock:us-east-1:<acct>:data-automation-profile/us.data-automation-v1
+const profileArn = process.env.BDA_PROFILE_ARN;
 const outputBucket = process.env.BDA_OUTPUT_BUCKET ?? process.env.RAP_ANALYTICS_BUCKET;
+
+// BDA confidence runs on a LOWER scale than Claude's (observed ~0.5–0.8 for
+// solid extractions), so the bda path flags below this rather than the default 0.85.
+const BDA_CONFIDENCE_THRESHOLD = 0.5;
 
 const client = new BedrockDataAutomationRuntimeClient({ region });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // --- BDA → Grounded mapping ------------------------------------------------
-// BDA returns a confidence + location per field, not a verbatim quote, so quote
-// is null and grounding is confidence-based (validate runs with requireQuote=false).
-type BdaField = { value: any; confidence?: number; page?: number | null };
-const field = (raw: BdaField | undefined): Grounded<any> => ({
-  value: raw?.value ?? null,
-  quote: null,
-  page: raw?.page ?? null,
-  confidence: raw?.confidence ?? 0.5,
-  flagged: false, // set by validateAndFlag
-});
+// BDA gives clean values in `inference_result` and per-field {confidence,
+// geometry[].page} in `explainability_info[0]` — merge them. No verbatim quote
+// (grounding is confidence-based → validate runs requireQuote=false). Empty
+// string means "not found" → value null.
+const empty = (v: any) => v === "" || v == null;
 
-// `inf` is the blueprint's inference_result keyed by our field names; each value
-// may be a bare value or a {value, confidence, page} object depending on how the
-// blueprint/explainability is shaped — normalize both.
-function norm(v: any): BdaField {
-  if (v && typeof v === "object" && "value" in v) return v as BdaField;
-  return { value: v ?? null };
-}
-
-function mapCommitment(c: any): ExtractedCommitment {
+function grounded(value: any, ex: any): Grounded<any> {
   return {
-    pillarRaw: field(norm(c?.pillarRaw)),
-    pillarNormalized: (norm(c?.pillarNormalized).value ?? null) as Pillar | null,
-    action: field(norm(c?.action)),
-    deliverable: field(norm(c?.deliverable)),
-    timeline: field(norm(c?.timeline)),
-    owner: field(norm(c?.owner)),
-    metric: field(norm(c?.metric)),
-    commitmentType: field(norm(c?.commitmentType)) as Grounded<CommitmentType>,
+    value: empty(value) ? null : value,
+    quote: null,
+    page: ex?.geometry?.[0]?.page ?? null,
+    confidence: typeof ex?.confidence === "number" ? ex.confidence : 0.5,
+    flagged: false, // set by validateAndFlag
   };
 }
 
-function mapBdaToExtracted(inf: any): ExtractedRap {
+function mapCommitment(ir: any, ex: any): ExtractedCommitment {
+  ir = ir ?? {}; ex = ex ?? {};
   return {
-    orgName: field(norm(inf?.orgName)),
-    sector: field(norm(inf?.sector)) as Grounded<Sector>,
-    jurisdiction: field(norm(inf?.jurisdiction)) as Grounded<Jurisdiction>,
-    rapTitle: field(norm(inf?.rapTitle)),
-    publicationDate: field(norm(inf?.publicationDate)),
-    periodCovered: field(norm(inf?.periodCovered)),
-    frameworkRefs: field(norm(inf?.frameworkRefs)),
-    pillars: field(norm(inf?.pillars)),
-    governanceBody: field(norm(inf?.governanceBody)),
-    reviewCycle: field(norm(inf?.reviewCycle)),
-    rapType: field(norm(inf?.rapType)),
-    pairLevel: field(norm(inf?.pairLevel)),
-    endorsementStatus: field(norm(inf?.endorsementStatus)),
-    commitments: Array.isArray(inf?.commitments) ? inf.commitments.map(mapCommitment) : [],
-    sectorFields: {}, // populate from inf.sectorFields once the blueprint defines them
-    extras: Array.isArray(inf?.extras) ? inf.extras : [],
+    pillarRaw: grounded(ir.pillarRaw, ex.pillarRaw),
+    pillarNormalized: (empty(ir.pillarNormalized) ? null : ir.pillarNormalized) as Pillar | null,
+    action: grounded(ir.action, ex.action),
+    deliverable: grounded(ir.deliverable, ex.deliverable),
+    timeline: grounded(ir.timeline, ex.timeline),
+    owner: grounded(ir.owner, ex.owner),
+    metric: grounded(ir.metric, ex.metric),
+    commitmentType: grounded(ir.commitmentType, ex.commitmentType) as Grounded<CommitmentType>,
+  };
+}
+
+function mapBdaToExtracted(ir: any, ex: any): ExtractedRap {
+  ir = ir ?? {}; ex = ex ?? {};
+  const g = (k: string) => grounded(ir[k], ex[k]);
+  const irCommits = Array.isArray(ir.commitments) ? ir.commitments : [];
+  const exCommits = Array.isArray(ex.commitments) ? ex.commitments : [];
+  return {
+    orgName: g("orgName"),
+    sector: g("sector") as Grounded<Sector>,
+    jurisdiction: g("jurisdiction") as Grounded<Jurisdiction>,
+    rapTitle: g("rapTitle"),
+    publicationDate: g("publicationDate"),
+    periodCovered: g("periodCovered"),
+    frameworkRefs: g("frameworkRefs"),
+    pillars: g("pillars"),
+    governanceBody: g("governanceBody"),
+    reviewCycle: g("reviewCycle"),
+    rapType: g("rapType"),
+    pairLevel: g("pairLevel"),
+    endorsementStatus: g("endorsementStatus"),
+    commitments: irCommits.map((c: any, i: number) => mapCommitment(c, exCommits[i])),
+    sectorFields: {}, // populate from ir.sectorFields once the blueprint defines them
+    extras: Array.isArray(ir.extras) ? ir.extras : [],
   };
 }
 
@@ -100,24 +108,25 @@ function deriveClassification(e: ExtractedRap): RapClassification {
   };
 }
 
-// Pull the blueprint inference_result out of the BDA output. The status response
-// points to a job-metadata JSON; custom output lives in a per-segment file it
-// references. Tolerant of either layout — VERIFY against real output.
-async function readInferenceResult(jobOutputS3Uri: string): Promise<any> {
+// Read the BDA output. The status s3Uri is a job-metadata JSON; the blueprint
+// result (inference_result + explainability_info) lives in the per-segment
+// custom_output file it references. Structure verified against a real run.
+async function readBdaResult(jobOutputS3Uri: string): Promise<{ ir: any; ex: any }> {
   const meta = await getJsonByS3Uri<any>(jobOutputS3Uri);
-  if (meta?.inference_result) return meta.inference_result;
-  // follow the custom-output path referenced by the metadata
+  // real shape: output_metadata[0].segment_metadata[0].custom_output_path
   const seg = meta?.output_metadata?.[0]?.segment_metadata?.[0];
   const customPath = seg?.custom_output_path ?? seg?.custom_output?.s3_uri;
-  if (customPath) {
-    const custom = await getJsonByS3Uri<any>(customPath);
-    return custom?.inference_result ?? custom;
-  }
-  throw new Error("could not locate inference_result in BDA output metadata");
+  const custom = customPath ? await getJsonByS3Uri<any>(customPath) : meta;
+  const ir = custom?.inference_result;
+  if (!ir) throw new Error("could not locate inference_result in BDA output");
+  // explainability_info is a single-element list of {field: {confidence, geometry, value}}
+  const ex = Array.isArray(custom?.explainability_info) ? custom.explainability_info[0] : {};
+  return { ir, ex };
 }
 
 export async function runExtractionBda(input: { fileName: string; sourceS3Key: string }): Promise<ExtractionResult> {
   if (!projectArn) throw new Error("BDA_PROJECT_ARN not set");
+  if (!profileArn) throw new Error("BDA_PROFILE_ARN not set (required — e.g. …/us.data-automation-v1)");
   if (!outputBucket) throw new Error("BDA_OUTPUT_BUCKET / RAP_ANALYTICS_BUCKET not set");
   const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
   if (!uploadBucket) throw new Error("RAP_UPLOAD_BUCKET not set");
@@ -127,7 +136,7 @@ export async function runExtractionBda(input: { fileName: string; sourceS3Key: s
       inputConfiguration: { s3Uri: `s3://${uploadBucket}/${input.sourceS3Key}` },
       outputConfiguration: { s3Uri: `s3://${outputBucket}/bda-output/${input.sourceS3Key}` },
       dataAutomationConfiguration: { dataAutomationProjectArn: projectArn, stage: "LIVE" },
-      ...(profileArn ? { dataAutomationProfileArn: profileArn } : {}),
+      dataAutomationProfileArn: profileArn,
     } as any),
   );
   const invocationArn = (started as any).invocationArn as string;
@@ -148,10 +157,13 @@ export async function runExtractionBda(input: { fileName: string; sourceS3Key: s
   }
   if (!outputS3Uri) throw new Error("BDA job did not complete within the poll window");
 
-  const inference = await readInferenceResult(outputS3Uri);
-  const raw = mapBdaToExtracted(inference);
-  // BDA grounds by confidence, not a text quote → requireQuote=false
-  const { extracted, issues } = validateAndFlag(raw, { requireQuote: false });
+  const { ir, ex } = await readBdaResult(outputS3Uri);
+  const raw = mapBdaToExtracted(ir, ex);
+  // BDA grounds by confidence (no quote) and on a lower scale → requireQuote=false, lower threshold
+  const { extracted, issues } = validateAndFlag(raw, {
+    requireQuote: false,
+    threshold: BDA_CONFIDENCE_THRESHOLD,
+  });
 
   return {
     engine: "bda",
