@@ -29,6 +29,14 @@ const STATUS_BG: Record<CommitmentStatus, string> = {
   confirmed: "bg-cedar",
   stalled: "bg-rust",
 };
+// SVG fills for the status donut — mirror STATUS_BG using theme CSS vars.
+const STATUS_FILL: Record<CommitmentStatus, string> = {
+  committed: "rgb(var(--ink) / 0.25)",
+  in_progress: "rgb(var(--amber))",
+  reported: "rgb(var(--cedar) / 0.45)",
+  confirmed: "rgb(var(--cedar))",
+  stalled: "rgb(var(--rust))",
+};
 const STATUS_PILL: Record<CommitmentStatus, string> = {
   committed: "text-ink3 border-ink/15",
   in_progress: "text-amber border-amber/40 bg-amber/10",
@@ -38,6 +46,54 @@ const STATUS_PILL: Record<CommitmentStatus, string> = {
 };
 
 type Stat = { count: number; avgProgress: number } | undefined;
+
+// Hand-drawn donut (server-rendered, theme-aware). Each segment is a full circle
+// whose stroke-dasharray shows only its slice; offsets accumulate around the ring.
+function DonutChart({
+  segments,
+  total,
+}: {
+  segments: { label: string; value: number; color: string }[];
+  total: number;
+}) {
+  const size = 180;
+  const stroke = 26;
+  const r = (size - stroke) / 2;
+  const cx = size / 2;
+  const cy = size / 2;
+  const C = 2 * Math.PI * r;
+  let acc = 0; // cumulative fraction
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} className="w-40 h-40 shrink-0" role="img" aria-label="Status distribution">
+      <g transform={`rotate(-90 ${cx} ${cy})`}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgb(var(--ink) / 0.06)" strokeWidth={stroke} />
+        {segments
+          .filter((s) => s.value > 0)
+          .map((s) => {
+            const frac = total ? s.value / total : 0;
+            const dash = frac * C;
+            const seg = (
+              <circle
+                key={s.label}
+                cx={cx} cy={cy} r={r} fill="none"
+                stroke={s.color} strokeWidth={stroke}
+                strokeDasharray={`${dash} ${C - dash}`}
+                strokeDashoffset={-acc * C}
+              />
+            );
+            acc += frac;
+            return seg;
+          })}
+      </g>
+      <text x={cx} y={cy - 2} textAnchor="middle" fontSize={32} fill="rgb(var(--ink))" style={{ fontFamily: "var(--font-display)" }}>
+        {total}
+      </text>
+      <text x={cx} y={cy + 16} textAnchor="middle" fontSize={11} fill="rgb(var(--ink3))">
+        commitments
+      </text>
+    </svg>
+  );
+}
 
 function GroupSection({
   title,
@@ -87,6 +143,7 @@ export default async function CommitmentsPage({
   const insights = buildInsights(summary, list, currentYear);
   const risk = computeRisk(list, currentYear);
   const integ = confirmationIntegrity(list);
+  const statusCounts = STATUSES.map((s) => ({ status: s, count: list.filter((c) => c.status === s).length }));
   const maxCell = Math.max(
     1,
     ...SECTORS.flatMap((s) => TYPES.map((t) => summary.matrix[s]?.[t] ?? 0)),
@@ -161,6 +218,34 @@ export default async function CommitmentsPage({
           <div className="text-ink3 text-sm">confirmed</div>
         </div>
       </div>
+
+      {/* status snapshot — where every commitment stands right now */}
+      <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Status snapshot</div>
+        <div className="flex flex-wrap items-center gap-6">
+          <DonutChart
+            segments={statusCounts.map(({ status, count }) => ({
+              label: status,
+              value: count,
+              color: STATUS_FILL[status],
+            }))}
+            total={list.length}
+          />
+          <div className="flex-1 min-w-[200px] space-y-2">
+            {statusCounts.map(({ status, count }) => {
+              const pct = list.length ? Math.round((count / list.length) * 100) : 0;
+              return (
+                <div key={status} className={`flex items-center gap-3 text-sm ${count ? "" : "opacity-40"}`}>
+                  <span className={`inline-block h-3 w-3 rounded-sm ${STATUS_BG[status]}`} />
+                  <span className="capitalize flex-1">{label(status)}</span>
+                  <span className="tabular-nums text-ink2">{count}</span>
+                  <span className="tabular-nums text-ink3 w-10 text-right">{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {/* confirmation integrity — the report→confirm lens */}
       <section className="bg-panel rounded border border-line shadow-card p-5">
