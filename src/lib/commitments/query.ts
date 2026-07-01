@@ -33,6 +33,18 @@ function sortKeys<T extends object>(o: T): T {
   return Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b))) as T;
 }
 
+// sector → type → count, both levels key-sorted for deterministic JSON.
+function buildMatrix(items: Commitment[]): Record<string, Record<string, number>> {
+  const acc: Record<string, Record<string, number>> = {};
+  for (const c of items) {
+    const row = (acc[c.sector] ??= {});
+    row[c.type] = (row[c.type] ?? 0) + 1;
+  }
+  const out: Record<string, Record<string, number>> = {};
+  for (const [s, row] of Object.entries(acc)) out[s] = sortKeys(row);
+  return sortKeys(out);
+}
+
 function group(items: Commitment[], key: (c: Commitment) => string): Record<string, GroupStat> {
   const acc: Record<string, { count: number; sum: number }> = {};
   for (const c of items) {
@@ -81,6 +93,11 @@ export function buildSummary(items: Commitment[]): CommitmentSummary {
     bySector: group(items, (c) => c.sector),
     bySize: group(items, (c) => c.orgSize),
     byType: group(items, (c) => c.type),
+    byRapType: group(
+      items.filter((c) => !!c.rapType),
+      (c) => c.rapType as string,
+    ),
+    matrix: buildMatrix(items),
     overTime,
   };
 }

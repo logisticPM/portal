@@ -1,8 +1,8 @@
 // RAP Index dashboard (client idea #2): commitments by sector, organization size,
 // and commitment type, with progress tracking over time. The Indigenomics
 // (institute) landing. Server component reading commitmentsRepo; filters via searchParams.
-import { commitmentsRepo } from "@/lib/commitments";
-import type { CommitmentStatus, CommitmentType, OrgSize, Sector } from "@/lib/commitments";
+import { commitmentsRepo, computeRisk, buildInsights } from "@/lib/commitments";
+import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ const TYPES: CommitmentType[] = [
   "employment", "procurement", "cultural_learning", "governance", "relationships", "anti_racism",
 ];
 const SIZES: OrgSize[] = ["small", "medium", "large", "enterprise"];
+const RAP_TYPES: RapType[] = ["reflect", "innovate", "stretch", "elevate"];
 const STATUSES: CommitmentStatus[] = ["committed", "in_progress", "reported", "confirmed", "stalled"];
 
 const label = (s: string) => s.replace(/_/g, " ");
@@ -82,6 +83,15 @@ export default async function CommitmentsPage({
     commitmentsRepo.listCommitments(filter),
   ]);
 
+  const currentYear = new Date().getFullYear();
+  const insights = buildInsights(summary, list, currentYear);
+  const risk = computeRisk(list, currentYear);
+  const maxCell = Math.max(
+    1,
+    ...SECTORS.flatMap((s) => TYPES.map((t) => summary.matrix[s]?.[t] ?? 0)),
+  );
+  const maxTier = Math.max(1, ...RAP_TYPES.map((r) => summary.byRapType[r]?.count ?? 0));
+
   const qs = (next: { sector?: string; type?: string }) => {
     const p = new URLSearchParams();
     const sector = "sector" in next ? next.sector : searchParams.sector;
@@ -105,6 +115,22 @@ export default async function CommitmentsPage({
           Reconciliation commitments across the network, and how they progress over time.
         </p>
       </div>
+
+      {/* auto-generated narrative analysis */}
+      <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Key takeaways</div>
+        <ul className="space-y-2 text-sm">
+          {insights.map((line, i) => (
+            <li key={i} className="flex gap-2.5">
+              <span className="text-amber mt-0.5 shrink-0">›</span>
+              <span className="text-ink2">{line}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-ink3 text-[11px] mt-3">
+          Generated from the data below · reflects the current filter.
+        </p>
+      </section>
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -167,12 +193,122 @@ export default async function CommitmentsPage({
         </div>
       </section>
 
+      {/* deadline & delivery risk */}
+      <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+          <div className="text-ink3 text-xs uppercase tracking-widest">Deadline &amp; delivery risk</div>
+          <div className="flex gap-4 text-xs">
+            <span className="text-rust">{risk.overdueCount} overdue</span>
+            <span className="text-amber">{risk.atRiskCount} at risk</span>
+            <span className="text-cedar">{risk.onTrackCount} on track / done</span>
+          </div>
+        </div>
+        {risk.flags.length === 0 ? (
+          <p className="text-ink3 text-sm">Nothing overdue or behind pace. 🎉</p>
+        ) : (
+          <div className="divide-y divide-ink/10">
+            {risk.flags.map((f) => (
+              <div key={f.commitment.id} className="flex items-center gap-3 py-2 text-sm">
+                <span
+                  className={`w-16 shrink-0 text-xs rounded border px-2 py-0.5 text-center capitalize ${
+                    f.kind === "overdue"
+                      ? "text-rust border-rust/40 bg-rust/10"
+                      : "text-amber border-amber/40 bg-amber/10"
+                  }`}
+                >
+                  {label(f.kind)}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">{f.commitment.title}</div>
+                  <div className="text-ink3 text-xs">
+                    {f.commitment.orgName} · <span className="capitalize">{label(f.commitment.sector)}</span>
+                  </div>
+                </div>
+                <span className="text-ink3 text-xs whitespace-nowrap">{f.reason}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* breakdowns — aligned 3-up */}
       <div className="grid lg:grid-cols-3 gap-4">
         <GroupSection title="By sector" keys={SECTORS} map={summary.bySector} />
         <GroupSection title="By commitment type" keys={TYPES} map={summary.byType} />
         <GroupSection title="By organization size" keys={SIZES} map={summary.bySize} />
       </div>
+
+      {/* RAP maturity — 4 tiers side by side */}
+      <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="text-ink3 text-xs uppercase tracking-widest mb-4">
+          By RAP maturity{" "}
+          <span className="normal-case tracking-normal text-ink3">— reflect → innovate → stretch → elevate</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {RAP_TYPES.map((r) => {
+            const s = summary.byRapType[r];
+            const count = s?.count ?? 0;
+            return (
+              <div key={r} className={`rounded border border-line p-4 ${count ? "" : "opacity-40"}`}>
+                <div className="capitalize text-ink2 text-sm">{r}</div>
+                <div className="font-serif text-3xl mt-1">{count}</div>
+                <div className="text-ink3 text-xs">commitments</div>
+                <div className="h-2 rounded bg-ink/10 overflow-hidden mt-3">
+                  <div className="h-full bg-cedar" style={{ width: `${s?.avgProgress ?? 0}%` }} />
+                </div>
+                <div className="text-cedar text-xs mt-1 tabular-nums">{s?.avgProgress ?? 0}% avg progress</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* sector × type heatmap */}
+      <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="text-ink3 text-xs uppercase tracking-widest mb-4">
+          Sector × commitment type{" "}
+          <span className="normal-case tracking-normal text-ink3">— where commitments concentrate</span>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[560px]">
+            {/* header row */}
+            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: `120px repeat(${TYPES.length}, 1fr)` }}>
+              <div />
+              {TYPES.map((t) => (
+                <div key={t} className="text-ink3 text-[10px] uppercase tracking-wide text-center leading-tight capitalize">
+                  {label(t)}
+                </div>
+              ))}
+            </div>
+            {SECTORS.map((s) => (
+              <div
+                key={s}
+                className="grid gap-1 mb-1 items-center"
+                style={{ gridTemplateColumns: `120px repeat(${TYPES.length}, 1fr)` }}
+              >
+                <div className="text-ink2 text-xs capitalize pr-2">{label(s)}</div>
+                {TYPES.map((t) => {
+                  const n = summary.matrix[s]?.[t] ?? 0;
+                  const alpha = n ? (0.14 + 0.62 * (n / maxCell)).toFixed(3) : "0";
+                  return (
+                    <div
+                      key={t}
+                      className="h-9 rounded flex items-center justify-center text-xs tabular-nums"
+                      style={{
+                        backgroundColor: n ? `rgb(var(--amber) / ${alpha})` : "rgb(var(--ink) / 0.04)",
+                        color: n ? "rgb(var(--ink))" : "transparent",
+                      }}
+                      title={`${label(s)} · ${label(t)}: ${n}`}
+                    >
+                      {n || ""}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* filters + the commitments themselves */}
       <section className="bg-panel rounded border border-line shadow-card p-5 space-y-4">
