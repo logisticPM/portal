@@ -180,7 +180,7 @@ export default async function OrgScorecardPage({ params }: { params: { id: strin
                   {flagged.has(c.id) && <span className="text-rust text-xs ml-2">● at risk</span>}
                 </div>
                 <div className="text-ink3 text-xs capitalize">
-                  {label(c.sector)} · {label(c.type)} · {c.rapType ?? "—"} · target {c.targetYear}
+                  {label(c.sector)} · {label(c.type)} · {c.rapType ?? "n/a"} · target {c.targetYear}
                 </div>
               </div>
               <span className="font-serif w-12 text-right tabular-nums">{c.progressPct}%</span>

@@ -23,8 +23,8 @@ const body = Hanken_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Indigenomics Data Portal — Demo",
-  description: "Consent-based, verified economic data — demo on synthetic data",
+  title: "Indigenomics Data Portal · Demo",
+  description: "Consent-based, verified economic data · demo on synthetic data",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -9,7 +9,7 @@ export default function RegisterPage() {
       <div>
         <h1 className="font-serif text-3xl mb-1">Create an account</h1>
         <p className="text-ink3 text-sm">
-          demo · no password — pick your role; we&apos;ll set you up and take you to your portal.
+          demo · no password. Pick your role; we&apos;ll set you up and take you to your portal.
         </p>
       </div>
 
@@ -35,7 +35,7 @@ export default function RegisterPage() {
             className="w-full bg-bg border border-ink/15 rounded px-3 py-2"
           />
           <span className="block text-ink3 text-xs mt-1">
-            Required for a company or supplier. Indigenomics is a single institute — no name needed.
+            Required for a company or supplier. Indigenomics is a single institute; no name needed.
           </span>
         </label>
 

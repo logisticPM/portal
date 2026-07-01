@@ -16,13 +16,8 @@ export default function Home() {
         </h1>
         <p className="text-ink2 text-lg">
           Companies report what they spend with Indigenous businesses. The named supplier{" "}
-          <strong>confirms</strong> each entry. The result is a sovereign, confirmed dataset.
-          Collecting data isn&apos;t the innovation; confirming it is.
-        </p>
-        <p className="text-ink3">
-          New: the <a href="/rap" className="text-amber underline">RAP Index</a> — organizations upload
-          their Reconciliation Action Plans, AI extracts the commitments, and the dashboard tracks them
-          by sector, size, and progress over time.
+          <strong>confirms</strong> each entry. The result is a sovereign, confirmed dataset, and
+          the <a href="/rap" className="text-amber underline">RAP Index</a> built on it. Collecting data isn&apos;t the innovation; confirming it is.
         </p>
         <div className="flex flex-wrap gap-3 pt-1">
           <a
@@ -54,7 +49,7 @@ export default function Home() {
           },
           {
             t: "Coverage & the Index",
-            d: "See how much reported spend is actually confirmed — by flow type and by ownership tier.",
+            d: "See how much reported spend is actually confirmed, by flow type and by ownership tier.",
           },
           {
             t: "Owned by suppliers (OCAP)",
@@ -69,7 +64,7 @@ export default function Home() {
       </section>
 
       <p className="text-ink3 text-sm">
-        Three audiences, one confirmed dataset — company, Indigenous supplier, and Indigenomics (the
+        Three audiences, one confirmed dataset: company, Indigenous supplier, and Indigenomics (the
         institute). Demo on synthetic data · no real auth.
       </p>
     </div>

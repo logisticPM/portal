@@ -47,7 +47,7 @@ export default async function MyCommitmentsPage() {
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Company portal</div>
         <h1 className="font-serif text-3xl">My RAP commitments</h1>
         <p className="text-ink2 text-sm mt-1">
-          {party?.name ?? "Your organization"} — these feed the network{" "}
+          {party?.name ?? "Your organization"}. These feed the network{" "}
           <a href="/commitments" className="text-amber hover:underline">RAP Index</a>. Report your own
           progress; confirmation by suppliers/Nations is handled separately.
         </p>
@@ -114,7 +114,7 @@ export default async function MyCommitmentsPage() {
           Your commitments ({mine.length})
         </div>
         {mine.length === 0 ? (
-          <p className="text-ink3 text-sm">None yet — add your first above.</p>
+          <p className="text-ink3 text-sm">None yet. Add your first above.</p>
         ) : (
           <div className="divide-y divide-ink/10">
             {mine.map((c) => (

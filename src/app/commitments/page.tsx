@@ -95,6 +95,17 @@ function DonutChart({
   );
 }
 
+// Lead-in shown ABOVE a card (outside it): a heading + one plain-language line
+// explaining what the card below shows.
+function SectionLead({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-3">
+      <h2 className="font-serif text-xl">{title}</h2>
+      <p className="text-ink2 text-sm mt-0.5">{children}</p>
+    </div>
+  );
+}
+
 function GroupSection({
   title,
   keys,
@@ -177,10 +188,10 @@ export default async function CommitmentsPage({
       <div>
         <h1 className="font-serif text-3xl">
           The RAP Index{" "}
-          <span className="text-ink3 text-base">— commitments by sector, size & type</span>
+          <span className="text-ink3 text-base">· commitments by sector, size & type</span>
         </h1>
         <p className="text-ink2 text-sm mt-1">
-          Reconciliation commitments across the network, and how they progress over time — distinct
+          Reconciliation commitments across the network, and how they progress over time. Distinct
           from{" "}
           <a href="/analytics" className="text-amber hover:underline">Spend Coverage</a>, which tracks
           confirmed dollars.
@@ -188,8 +199,11 @@ export default async function CommitmentsPage({
       </div>
 
       {/* auto-generated narrative analysis */}
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Key takeaways</div>
+      <div>
+        <SectionLead title="Key takeaways">
+          Plain-language highlights, generated automatically from the data below. Start here.
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5">
         <ul className="space-y-2 text-sm">
           {insights.map((line, i) => (
             <li key={i} className="flex gap-2.5">
@@ -201,10 +215,16 @@ export default async function CommitmentsPage({
         <p className="text-ink3 text-[11px] mt-3">
           Generated from the data below · reflects the current filter.
         </p>
-      </section>
+        </section>
+      </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div>
+        <SectionLead title="At a glance">
+          The headline totals for the current view: commitments, organizations, average progress, and
+          the confirmed share.
+        </SectionLead>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-panel rounded border border-line shadow-card p-5">
           <div className="font-serif text-4xl text-amber">{summary.total}</div>
           <div className="text-ink3 text-sm">commitments</div>
@@ -221,11 +241,16 @@ export default async function CommitmentsPage({
           <div className="font-serif text-4xl text-cedar">{summary.confirmedPct}%</div>
           <div className="text-ink3 text-sm">confirmed</div>
         </div>
+        </div>
       </div>
 
       {/* status snapshot — where every commitment stands right now */}
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Status snapshot</div>
+      <div>
+        <SectionLead title="Status snapshot">
+          Where every commitment sits right now, from committed, through in-progress and reported, to
+          confirmed (or stalled).
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5">
         <div className="flex flex-wrap items-center gap-6">
           <DonutChart
             segments={statusCounts.map(({ status, count }) => ({
@@ -249,11 +274,16 @@ export default async function CommitmentsPage({
             })}
           </div>
         </div>
-      </section>
+        </section>
+      </div>
 
       {/* confirmation integrity — the report→confirm lens */}
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Confirmation integrity</div>
+      <div>
+        <SectionLead title="Confirmation integrity">
+          Of the outcomes organizations have claimed (reported or confirmed), how many are actually
+          supplier-confirmed, versus still self-reported and unverified.
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5">
         {integ.claimed === 0 ? (
           <p className="text-ink3 text-sm">No reported or confirmed outcomes yet.</p>
         ) : (
@@ -261,7 +291,7 @@ export default async function CommitmentsPage({
             <div className="flex items-center gap-3">
               <span className="font-serif text-3xl text-cedar">{integ.confirmationRate}%</span>
               <span className="text-ink2 text-sm">
-                of {integ.claimed} claimed outcomes are supplier-confirmed — the rest are self-reported
+                of {integ.claimed} claimed outcomes are supplier-confirmed. The rest are self-reported
                 and unverified.
               </span>
             </div>
@@ -289,12 +319,16 @@ export default async function CommitmentsPage({
             </div>
           </>
         )}
-      </section>
+        </section>
+      </div>
 
       {/* progress over time — the centerpiece: stacked status mix per period */}
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-          <div className="text-ink3 text-xs uppercase tracking-widest">Progress over time</div>
+      <div>
+        <SectionLead title="Progress over time">
+          How the mix of statuses and the average progress have shifted across reporting periods.
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="flex flex-wrap items-baseline justify-end gap-2 mb-3">
           <div className="flex flex-wrap gap-3 text-xs text-ink3">
             {STATUSES.map((s) => (
               <span key={s} className="inline-flex items-center gap-1 capitalize">
@@ -330,12 +364,16 @@ export default async function CommitmentsPage({
           })}
           {summary.overTime.length === 0 && <p className="text-ink3 text-sm">No history.</p>}
         </div>
-      </section>
+        </section>
+      </div>
 
       {/* deadline & delivery risk */}
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-          <div className="text-ink3 text-xs uppercase tracking-widest">Deadline &amp; delivery risk</div>
+      <div>
+        <SectionLead title="Deadline & delivery risk">
+          Commitments past their target year or behind pace. These need attention.
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="flex flex-wrap items-baseline justify-end gap-2 mb-3">
           <div className="flex gap-4 text-xs">
             <span className="text-rust">{risk.overdueCount} overdue</span>
             <span className="text-amber">{risk.atRiskCount} at risk</span>
@@ -368,22 +406,28 @@ export default async function CommitmentsPage({
             ))}
           </div>
         )}
-      </section>
+        </section>
+      </div>
 
       {/* breakdowns — aligned 3-up */}
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div>
+        <SectionLead title="Breakdowns">
+          Commitment counts and average progress by sector, commitment type, and organization size.
+        </SectionLead>
+        <div className="grid lg:grid-cols-3 gap-4">
         <GroupSection title="By sector" keys={SECTORS} map={summary.bySector} />
         <GroupSection title="By commitment type" keys={TYPES} map={summary.byType} />
         <GroupSection title="By organization size" keys={SIZES} map={summary.bySize} />
+        </div>
       </div>
 
       {/* RAP maturity — 4 tiers side by side (only when the data has tiers) */}
       {hasRapData && (
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="text-ink3 text-xs uppercase tracking-widest mb-4">
-          By RAP maturity{" "}
-          <span className="normal-case tracking-normal text-ink3">— reflect → innovate → stretch → elevate</span>
-        </div>
+      <div>
+        <SectionLead title="RAP maturity">
+          Commitments and average progress by RAP tier (reflect → innovate → stretch → elevate).
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {RAP_TYPES.map((r) => {
             const s = summary.byRapType[r];
@@ -401,15 +445,16 @@ export default async function CommitmentsPage({
             );
           })}
         </div>
-      </section>
+        </section>
+      </div>
       )}
 
       {/* sector × type heatmap */}
-      <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="text-ink3 text-xs uppercase tracking-widest mb-4">
-          Sector × commitment type{" "}
-          <span className="normal-case tracking-normal text-ink3">— where commitments concentrate</span>
-        </div>
+      <div>
+        <SectionLead title="Where commitments concentrate">
+          A sector × commitment-type grid. Darker cells mean more commitments in that combination.
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5">
         <div className="overflow-x-auto">
           <div className="min-w-[560px]">
             {/* header row */}
@@ -449,10 +494,15 @@ export default async function CommitmentsPage({
             ))}
           </div>
         </div>
-      </section>
+        </section>
+      </div>
 
       {/* filters + the commitments themselves */}
-      <section className="bg-panel rounded border border-line shadow-card p-5 space-y-4">
+      <div>
+        <SectionLead title="All commitments">
+          The full list behind the numbers above. Filter by sector or type, or export to CSV.
+        </SectionLead>
+        <section className="bg-panel rounded border border-line shadow-card p-5 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-ink3 text-xs uppercase tracking-widest mr-1">Filter</span>
           {SECTORS.map((s) => (
@@ -512,11 +562,12 @@ export default async function CommitmentsPage({
           ))}
           {list.length === 0 && <p className="text-ink3 py-2">No commitments match.</p>}
         </div>
-      </section>
+        </section>
+      </div>
 
       <p className="text-ink3 text-[11px]">
         Seeded from Canadian companies&apos; own public reconciliation / ESG reports (see each
-        &ldquo;source&rdquo; link). These are self-reported commitments — none are supplier-confirmed;
+        &ldquo;source&rdquo; link). These are self-reported commitments, not supplier-confirmed;
         confirmation is the layer the portal adds. Not Indigenous data.
       </p>
     </div>
