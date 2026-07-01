@@ -20,11 +20,18 @@ export default async function AnalyticsPage() {
       <InstituteNav active="/analytics" />
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">
-          Indigenomics · RAP analysis
+          Indigenomics · verification coverage
         </div>
         <h1 className="font-serif text-3xl">
-          The Index <span className="text-ink3 text-base">— a data view, not a rating</span>
+          Spend Coverage{" "}
+          <span className="text-ink3 text-base">— how much reported spend is confirmed</span>
         </h1>
+        <p className="text-ink2 text-sm mt-1">
+          Companies report dollars spent with Indigenous suppliers; the supplier confirms each entry.
+          This is the coverage of confirmed vs reported <em>spend</em> — distinct from the{" "}
+          <a href="/commitments" className="text-amber hover:underline">RAP Index</a>, which tracks RAP{" "}
+          <em>commitments</em>.
+        </p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
