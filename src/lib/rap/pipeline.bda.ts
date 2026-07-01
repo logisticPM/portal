@@ -21,7 +21,7 @@ import {
   InvokeDataAutomationAsyncCommand,
   BedrockDataAutomationRuntimeClient,
 } from "@aws-sdk/client-bedrock-data-automation-runtime";
-import { getJsonByS3Uri } from "./storage";
+import { getDocumentBytes, getJsonByS3Uri, putDocument } from "./storage";
 import { validateAndFlag } from "./validate";
 import type {
   CommitmentType, ExtractedCommitment, ExtractedRap, ExtractionResult, Grounded, Jurisdiction,
@@ -124,6 +124,113 @@ async function readBdaResult(jobOutputS3Uri: string): Promise<{ ir: any; ex: any
   return { ir, ex };
 }
 
+// BDA custom-blueprint extraction caps at ~20 pages per document (verified: a
+// 35-page RAP fails with "input document size is too large" even at 2.9 MB — it's
+// a PAGE limit, not file size). Longer docs are auto-split into ≤20-page chunks.
+const BDA_MAX_PAGES = 20;
+
+// Run ONE BDA job on an S3 input; return its inference_result + explainability.
+async function runBdaJob(inputS3Uri: string, outSuffix: string): Promise<{ ir: any; ex: any }> {
+  const started = await client.send(
+    new InvokeDataAutomationAsyncCommand({
+      inputConfiguration: { s3Uri: inputS3Uri },
+      outputConfiguration: { s3Uri: `s3://${outputBucket}/bda-output/${outSuffix}` },
+      dataAutomationConfiguration: { dataAutomationProjectArn: projectArn!, stage: "LIVE" },
+      dataAutomationProfileArn: profileArn!,
+    } as any),
+  );
+  const invocationArn = (started as any).invocationArn as string;
+  let outputS3Uri: string | undefined;
+  for (let i = 0; i < 90; i++) { // ~7.5 min per job (parallel across chunks)
+    await sleep(5000);
+    const st = await client.send(new GetDataAutomationStatusCommand({ invocationArn }));
+    const status = (st as any).status as string;
+    if (status === "Success") { outputS3Uri = (st as any).outputConfiguration?.s3Uri; break; }
+    if (status === "ServiceError" || status === "ClientError") {
+      throw new Error(`BDA job failed: ${status} — ${(st as any).errorMessage ?? "unknown"}`);
+    }
+  }
+  if (!outputS3Uri) throw new Error("BDA job did not complete within the poll window");
+  return readBdaResult(outputS3Uri);
+}
+
+// WORKAROUND for the ~20-page limit: split a long PDF into ≤20-page chunks
+// (uploaded to S3 under bda-chunks/) and return the S3 URIs to run BDA on. Short
+// PDFs / non-PDFs run on the original object unchanged.
+async function planBdaInputs(bytes: Uint8Array, sourceS3Key: string, uploadBucket: string): Promise<string[]> {
+  const isPdf = bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; // %PDF
+  const original = [`s3://${uploadBucket}/${sourceS3Key}`];
+  if (!isPdf) return original;
+
+  const { PDFDocument } = await import("pdf-lib");
+  const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  const total = src.getPageCount();
+  if (total <= BDA_MAX_PAGES) return original;
+
+  const uris: string[] = [];
+  for (let start = 0, idx = 0; start < total; start += BDA_MAX_PAGES, idx++) {
+    const end = Math.min(start + BDA_MAX_PAGES, total);
+    const sub = await PDFDocument.create();
+    const pages = await sub.copyPages(src, Array.from({ length: end - start }, (_, k) => start + k));
+    pages.forEach((p) => sub.addPage(p));
+    const out = await sub.save();
+    const key = `bda-chunks/${sourceS3Key}/part${idx}.pdf`;
+    await putDocument(key, out, "application/pdf");
+    uris.push(`s3://${uploadBucket}/${key}`);
+  }
+  return uris;
+}
+
+// Shift a chunk's grounded page numbers back to the ORIGINAL document's numbering.
+function offsetChunk(e: ExtractedRap, offset: number): ExtractedRap {
+  if (!offset) return e;
+  const off = (g: Grounded<any>): Grounded<any> => (g && g.page != null ? { ...g, page: g.page + offset } : g);
+  return {
+    ...e,
+    commitments: e.commitments.map((c) => ({
+      ...c,
+      pillarRaw: off(c.pillarRaw), action: off(c.action), deliverable: off(c.deliverable),
+      timeline: off(c.timeline), owner: off(c.owner), metric: off(c.metric), commitmentType: off(c.commitmentType),
+    })),
+    extras: (e.extras ?? []).map((x) => (x.page != null ? { ...x, page: x.page + offset } : x)),
+  };
+}
+
+// Merge per-chunk extractions: header fields = first chunk that found a value;
+// commitments + extras = union, de-duplicated across chunk boundaries.
+function mergeExtracted(parts: ExtractedRap[]): ExtractedRap {
+  const pick = (get: (e: ExtractedRap) => Grounded<any>): Grounded<any> => {
+    for (const p of parts) { const g = get(p); if (g && g.value != null && g.value !== "") return g; }
+    return get(parts[0]);
+  };
+  const seen = new Set<string>();
+  const commitments: ExtractedCommitment[] = [];
+  for (const p of parts) for (const c of p.commitments) {
+    const k = (c.action.value ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (k && seen.has(k)) continue;
+    if (k) seen.add(k);
+    commitments.push(c);
+  }
+  const exSeen = new Set<string>();
+  const extras: ExtractedRap["extras"] = [];
+  for (const p of parts) for (const x of p.extras ?? []) {
+    const k = `${x.label}|${x.value}`.toLowerCase();
+    if (exSeen.has(k)) continue;
+    exSeen.add(k);
+    extras.push(x);
+  }
+  return {
+    orgName: pick((e) => e.orgName), sector: pick((e) => e.sector) as Grounded<Sector>,
+    jurisdiction: pick((e) => e.jurisdiction) as Grounded<Jurisdiction>, rapTitle: pick((e) => e.rapTitle),
+    publicationDate: pick((e) => e.publicationDate), periodCovered: pick((e) => e.periodCovered),
+    frameworkRefs: pick((e) => e.frameworkRefs), pillars: pick((e) => e.pillars),
+    governanceBody: pick((e) => e.governanceBody), reviewCycle: pick((e) => e.reviewCycle),
+    rapType: pick((e) => e.rapType), pairLevel: pick((e) => e.pairLevel),
+    endorsementStatus: pick((e) => e.endorsementStatus),
+    commitments, sectorFields: parts[0].sectorFields ?? {}, extras,
+  };
+}
+
 export async function runExtractionBda(input: { fileName: string; sourceS3Key: string }): Promise<ExtractionResult> {
   if (!projectArn) throw new Error("BDA_PROJECT_ARN not set");
   if (!profileArn) throw new Error("BDA_PROFILE_ARN not set (required — e.g. …/us.data-automation-v1)");
@@ -131,34 +238,14 @@ export async function runExtractionBda(input: { fileName: string; sourceS3Key: s
   const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
   if (!uploadBucket) throw new Error("RAP_UPLOAD_BUCKET not set");
 
-  const started = await client.send(
-    new InvokeDataAutomationAsyncCommand({
-      inputConfiguration: { s3Uri: `s3://${uploadBucket}/${input.sourceS3Key}` },
-      outputConfiguration: { s3Uri: `s3://${outputBucket}/bda-output/${input.sourceS3Key}` },
-      dataAutomationConfiguration: { dataAutomationProjectArn: projectArn, stage: "LIVE" },
-      dataAutomationProfileArn: profileArn,
-    } as any),
-  );
-  const invocationArn = (started as any).invocationArn as string;
+  // Auto-chunk long PDFs (BDA's ~20-page limit), then run each chunk in PARALLEL
+  // (wall time ≈ one job, not the sum) and merge into a single extraction.
+  const bytes = await getDocumentBytes(input.sourceS3Key);
+  const inputs = await planBdaInputs(bytes, input.sourceS3Key, uploadBucket);
+  const results = await Promise.all(inputs.map((uri, i) => runBdaJob(uri, `${input.sourceS3Key}/part${i}`)));
+  const parts = results.map((r, i) => offsetChunk(mapBdaToExtracted(r.ir, r.ex), i * BDA_MAX_PAGES));
+  const raw = parts.length === 1 ? parts[0] : mergeExtracted(parts);
 
-  // poll until terminal (bounded ~5 min)
-  let outputS3Uri: string | undefined;
-  for (let i = 0; i < 60; i++) {
-    await sleep(5000);
-    const st = await client.send(new GetDataAutomationStatusCommand({ invocationArn }));
-    const status = (st as any).status as string;
-    if (status === "Success") {
-      outputS3Uri = (st as any).outputConfiguration?.s3Uri;
-      break;
-    }
-    if (status === "ServiceError" || status === "ClientError") {
-      throw new Error(`BDA job failed: ${status} — ${(st as any).errorMessage ?? "unknown"}`);
-    }
-  }
-  if (!outputS3Uri) throw new Error("BDA job did not complete within the poll window");
-
-  const { ir, ex } = await readBdaResult(outputS3Uri);
-  const raw = mapBdaToExtracted(ir, ex);
   // BDA grounds by confidence (no quote) and on a lower scale → requireQuote=false, lower threshold
   const { extracted, issues } = validateAndFlag(raw, {
     requireQuote: false,

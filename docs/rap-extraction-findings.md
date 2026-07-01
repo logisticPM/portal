@@ -85,3 +85,23 @@ Real BDA output from the Bank of Canada RAP:
 2. **Tell the client** the residency tradeoff honestly (§3): with BDA, RAP documents are processed in the US. If strict Canadian residency becomes a hard requirement, that's the trigger to invest in Option B.
 3. **Revisit B** with fix #1 (lighter commitment grounding) — it keeps the in-country data-at-rest posture *and* the superior verbatim-quote provenance, and is the smaller of the two engineering efforts.
 4. **Explore alternatives** if neither fits: a Canada-hosted or self-hosted model for true in-country inference; or Textract-Queries-only extraction (no LLM) for the structured subset.
+
+---
+
+## 7. BDA's ~20-page limit — and the chunking workaround (2026-07-01)
+
+**Finding.** BDA **custom-blueprint** extraction caps at **~20 pages per document**. The 35-page RBC RAP failed with `ClientError — The input document size is too large to process` **even after compressing 18 MB → 2.9 MB** — proving it's a *page-count* limit, not file size. The 17-page Bank of Canada RAP works; RBC needed trimming.
+
+**Why it matters for the client.** Many real RAPs and sustainability reports exceed 20 pages (RBC RAP = 35 pp; corporate ESG reports routinely 50–150 pp). Without a workaround, only short RAPs extract.
+
+**Workaround (implemented — `pipeline.bda.ts`).** Long PDFs are auto-handled:
+1. The worker reads the PDF and counts pages (`pdf-lib`).
+2. If > 20 pages, it **splits into ≤20-page chunks**, uploads them to S3 (`bda-chunks/…`), and runs a BDA job on **each chunk in parallel** (wall time ≈ one job, not the sum).
+3. Results are **merged** into one extraction: header fields (org/title/period/…) from the first chunk that found a value; commitments + extras are the **union**, de-duplicated across chunk boundaries; page numbers are **offset** back to the original document's numbering.
+4. The extraction worker's timeout was raised to 900 s and memory to 1536 MB (pdf-lib loads the PDF to split it).
+
+**Residual caveats.**
+- A commitment split across a chunk boundary could be captured twice (mitigated by action-text dedup) or truncated at the seam — rare, but possible.
+- Chunk PDFs + BDA outputs accumulate in S3 (`bda-chunks/`, `bda-output/`); add an S3 lifecycle rule to expire them.
+- Very long docs (100+ pp → 5+ chunks) may hit BDA **concurrency limits** and serialize; the 900 s timeout covers this, but a job queue would be more robust at scale.
+- Alternative for extreme lengths: BDA **standard output** (supports thousands of pages) for a first pass, then targeted custom extraction — larger effort, deferred.

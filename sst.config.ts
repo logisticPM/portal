@@ -146,8 +146,11 @@ export default $config({
     // so extraction runs outside the request; it updates the job when done.
     const rapExtract = new sst.aws.Function("RapExtract", {
       handler: "src/functions/rap-extract.handler",
-      timeout: "300 seconds",
-      memory: "1024 MB",
+      // Long timeout: chunks run in parallel (~one job's wall time), but BDA
+      // concurrency limits can serialize many chunks on very long docs.
+      timeout: "900 seconds",
+      memory: "1536 MB", // pdf-lib loads the whole PDF in memory to split it
+
       link: [rapData, rapUploads, rapAnalytics],
       permissions: bedrockPerms,
       environment: extractionEnv,
