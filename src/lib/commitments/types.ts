@@ -58,7 +58,14 @@ export interface CommitmentFilter {
   orgSize?: OrgSize;
   type?: CommitmentType;
   status?: CommitmentStatus;
+  orgId?: string; // a company's own commitments (portal-submitted)
 }
+
+// Fields a company edits on an existing commitment (self-report, capped at
+// "reported" in the UI — never "confirmed", which is the portal's layer).
+export type CommitmentPatch = Partial<
+  Pick<Commitment, "title" | "targetYear" | "status" | "progressPct" | "history">
+>;
 
 export interface GroupStat {
   count: number;
@@ -88,4 +95,8 @@ export interface CommitmentRepo {
   listCommitments(filter?: CommitmentFilter): Promise<Commitment[]>;
   getCommitment(id: string): Promise<Commitment | null>;
   getSummary(filter?: CommitmentFilter): Promise<CommitmentSummary>;
+  // writes (company self-submission)
+  createCommitment(c: Commitment): Promise<Commitment>;
+  updateCommitment(id: string, patch: CommitmentPatch): Promise<Commitment | null>;
+  deleteCommitment(id: string): Promise<void>;
 }

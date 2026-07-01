@@ -1,10 +1,10 @@
 // DynamoDB impl. getCommitment = GetCommand by key. Everything else Scans the
 // table and delegates to the SAME query.ts the mock uses → dynamo ≡ mock by design.
-import { GetCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand, GetCommand, PutCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../dynamo/client";
-import { commitmentKeys, itemToCommitment } from "../dynamo/commitments-table";
+import { commitmentKeys, itemToCommitment, toCommitmentItem } from "../dynamo/commitments-table";
 import { buildSummary, filterCommitments } from "./query";
-import type { Commitment, CommitmentRepo } from "./types";
+import type { Commitment, CommitmentPatch, CommitmentRepo } from "./types";
 
 const TABLE = process.env.COMMITMENTS_TABLE ?? "Commitments";
 
@@ -33,5 +33,21 @@ export const dynamoCommitmentsRepo: CommitmentRepo = {
   },
   async getSummary(filter) {
     return buildSummary(filterCommitments(await scanAll(), filter));
+  },
+  async createCommitment(c) {
+    await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toCommitmentItem(c) }));
+    return c;
+  },
+  async updateCommitment(id, patch: CommitmentPatch) {
+    const r = await ddbDoc.send(
+      new GetCommand({ TableName: TABLE, Key: commitmentKeys.profile(id) }),
+    );
+    if (!r.Item) return null;
+    const next = { ...itemToCommitment(r.Item), ...patch };
+    await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: toCommitmentItem(next) }));
+    return next;
+  },
+  async deleteCommitment(id) {
+    await ddbDoc.send(new DeleteCommand({ TableName: TABLE, Key: commitmentKeys.profile(id) }));
   },
 };

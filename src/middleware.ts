@@ -18,7 +18,7 @@ function isPublic(path: string): boolean {
 }
 
 // Which paths each persona may use (light guard; everything else is shared/read-only).
-const COMPANY_ONLY = ["/report", "/coverage"];
+const COMPANY_ONLY = ["/report", "/coverage", "/my-commitments"];
 const SUPPLIER_ONLY = ["/confirm", "/record", "/profile"];
 const INDIGENOMICS_ONLY = ["/verify", "/organizations"];
 
