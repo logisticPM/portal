@@ -12,6 +12,7 @@ function isPublic(path: string): boolean {
     path === "/register" || // anyone registers before they have an account
     path.startsWith("/s/") || // public verified-supplier showcase
     path === "/rap" || // public RAP Index dashboard (upload/review are gated below)
+    path === "/rap/explore" || // public exploratory dashboard (part of the RAP Index)
     path.startsWith("/api/") ||
     path.startsWith("/_next/") ||
     path === "/favicon.ico"

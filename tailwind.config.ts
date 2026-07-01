@@ -5,13 +5,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Warm editorial "ledger" palette — light, paper-toned, earthy accents.
-        bg: "#EFE7D5", // parchment desk
-        panel: "#FBF7EF", // bright paper card (lighter than bg → cards lift)
-        ink: "#2B2620", // warm near-black text
-        ink2: "#6B6254", // secondary
-        ink3: "#998E7B", // muted
-        line: "#E0D5C0", // warm hairline
+        // Clean, cool-neutral palette — light grey desk, white cards, earthy accents.
+        bg: "#ECF0F3", // soft cool-grey desk (was warm parchment; client refresh)
+        panel: "#FFFFFF", // white card (lifts clearly on the grey desk)
+        ink: "#232A2E", // near-black text (slightly cooled to match)
+        ink2: "#59606A", // secondary
+        ink3: "#6E7681", // muted — darkened for readability on the lighter bg
+        line: "#D8DEE6", // cool hairline
         amber: "#A06A12", // deepened for contrast on light
         cedar: "#4C6A40",
         rust: "#A6452B",
