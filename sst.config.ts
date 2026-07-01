@@ -110,53 +110,65 @@ export default $config({
     // touching the live table. Provisioned now so the path is one step away.
     const rapAnalytics = new sst.aws.Bucket("RapAnalytics");
 
+    // Shared extraction config for BOTH the Next server function and the async
+    // extraction worker. Scoped to "*" for the capstone; tighten to specific
+    // model/blueprint ARNs for production. AWS_REGION is a reserved Lambda env
+    // var (auto-set to the function's region) — do not set it here.
+    const extractionEnv = {
+      REPO_IMPL: "dynamo",
+      RAP_TABLE: rapData.name,
+      RAP_UPLOAD_BUCKET: rapUploads.name,
+      RAP_ANALYTICS_BUCKET: rapAnalytics.name,
+      BDA_OUTPUT_BUCKET: rapAnalytics.name,
+      // "mock" (default) / "bda" (multi-page native, primary) / "bedrock"
+      // (Textract→Claude, fallback). BEDROCK_REGION pins Bedrock/BDA.
+      EXTRACTION_IMPL: process.env.EXTRACTION_IMPL ?? "mock",
+      BEDROCK_REGION: process.env.BEDROCK_REGION ?? "ca-central-1",
+      REVIEW_MODE: process.env.REVIEW_MODE ?? "indigenomics",
+      BDA_PROJECT_ARN: process.env.BDA_PROJECT_ARN ?? "",
+      BDA_PROFILE_ARN: process.env.BDA_PROFILE_ARN ?? "",
+      BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID ?? "",
+    };
+    const bedrockPerms = [
+      { actions: ["bedrock:InvokeModel"], resources: ["*"] },
+      { actions: ["bedrock:InvokeDataAutomationAsync", "bedrock:GetDataAutomationStatus"], resources: ["*"] },
+      { actions: ["textract:AnalyzeDocument", "textract:StartDocumentTextDetection", "textract:GetDocumentTextDetection", "textract:DetectDocumentText"], resources: ["*"] },
+    ];
+
+    // Async extraction worker — long timeout (BDA takes ~60-80s, past the web
+    // request Lambda's ~20s limit). uploadRapAction invokes it fire-and-forget
+    // so extraction runs outside the request; it updates the job when done.
+    const rapExtract = new sst.aws.Function("RapExtract", {
+      handler: "src/functions/rap-extract.handler",
+      timeout: "300 seconds",
+      memory: "1024 MB",
+      link: [rapData, rapUploads, rapAnalytics],
+      permissions: bedrockPerms,
+      environment: extractionEnv,
+    });
+
     new sst.aws.Nextjs("Web", {
-      // Grants the Lambda execution role least-privilege access to exactly these
-      // resources (the tables + their GSIs, and the buckets).
+      // Least-privilege access to exactly these resources (tables + GSIs + buckets).
       link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics],
-      // Extraction pipeline calls Bedrock/Textract from the Next server function.
-      // These services aren't SST-linkable, so attach the IAM grant directly.
-      // Scoped to "*" for the capstone; tighten to specific model/blueprint ARNs
-      // for production. (Verify transform.server shape against installed SST.)
       transform: {
         server: {
+          // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
+          // permission to invoke the async extraction worker.
           permissions: [
-            { actions: ["bedrock:InvokeModel"], resources: ["*"] },
-            { actions: ["bedrock:InvokeDataAutomationAsync", "bedrock:GetDataAutomationStatus"], resources: ["*"] },
-            { actions: ["textract:AnalyzeDocument"], resources: ["*"] },
+            ...bedrockPerms,
+            { actions: ["lambda:InvokeFunction"], resources: [rapExtract.arn] },
           ],
         },
       },
       environment: {
-        REPO_IMPL: "dynamo",
-        // The app resolves table names from these env vars (client.ts:21 +
-        // survey-table.ts:15 + rap-table.ts), not from the SST Resource object —
-        // so we feed the SST-managed names through, and the data layer is unchanged.
+        ...extractionEnv,
+        // The app resolves table names from these env vars (client.ts + survey-
+        // table.ts + rap-table.ts), not the SST Resource object.
         DYNAMO_TABLE: dataPortal.name,
         SURVEY_TABLE: rapSurvey.name,
-        RAP_TABLE: rapData.name,
-        RAP_UPLOAD_BUCKET: rapUploads.name,
-        RAP_ANALYTICS_BUCKET: rapAnalytics.name,
-        // Extraction defaults to the in-process mock. Set "bda" (multi-page
-        // native, primary) or "bedrock" (Textract→Claude, fallback) for the real
-        // pipeline. BEDROCK_REGION pins Bedrock/BDA to ca-central-1 for Canadian
-        // data residency even though the app runs in us-east-1 — ideally the whole
-        // stack moves to ca-central-1 (see SH_RAP8_AWS_Architecture).
-        EXTRACTION_IMPL: process.env.EXTRACTION_IMPL ?? "mock",
-        BEDROCK_REGION: process.env.BEDROCK_REGION ?? "ca-central-1",
-        REVIEW_MODE: process.env.REVIEW_MODE ?? "indigenomics",
-        // BDA path: set to the custom-blueprint project ARN (field names must
-        // match extraction-schema.ts) and, if your API version requires it, the
-        // data-automation profile ARN. Output lands in the analytics bucket.
-        BDA_PROJECT_ARN: process.env.BDA_PROJECT_ARN ?? "",
-        BDA_PROFILE_ARN: process.env.BDA_PROFILE_ARN ?? "",
-        BDA_OUTPUT_BUCKET: rapAnalytics.name,
-        // Set after enabling Bedrock model access (Claude inference-profile id
-        // for BEDROCK_REGION); used by the bedrock fallback path.
-        BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID ?? "",
-        // NOTE: AWS_REGION is a reserved Lambda env var, auto-set by the runtime
-        // to the function's region (us-east-1) — do not set it here. The
-        // client.ts fallback only matters for local runs.
+        // Present → uploadRapAction hands extraction to the worker instead of
+        // running it inline (which would hit the request-Lambda timeout).
+        EXTRACTOR_FUNCTION_NAME: rapExtract.name,
       },
     });
   },

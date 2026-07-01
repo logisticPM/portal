@@ -3,37 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractionRepo, rapRepo } from "./index";
-import { runExtraction } from "./pipeline";
-import { buildCanonical, isClean, reviewIsOff, scrubForAutoPublish } from "./publish";
 import { computeRollup } from "./rollup";
+import { publishAndConfirm, stageExtraction } from "./stage-extraction";
 import { contentTypeFor, isUploadConfigured, putDocument, uploadKey } from "./storage";
-import type { ExtractedRap, ExtractionJob, Observation, ProgressStatus } from "./types";
+import type { Observation, ProgressStatus } from "./types";
 
 const uuid = () => globalThis.crypto.randomUUID();
-const slug = (s: string) =>
-  "org-" + s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 
-// Write the canonical graph for an approved extraction, then flip the job to
-// CONFIRMED. One org partition per org name (re-uploads append RAPs to it).
-// Numbers/dates are parsed in buildCanonical (code-side), never by the LLM.
-async function publishAndConfirm(job: ExtractionJob, extracted: ExtractedRap, reviewedBy: string) {
-  const now = new Date().toISOString();
-  const orgId = slug(extracted.orgName.value ?? job.id);
-  const rapId = uuid();
-
-  const { org, rap, commitments, observations, rollups } = buildCanonical(
-    extracted,
-    { orgId, rapId, commitId: () => uuid() },
-    { sourceS3Key: job.sourceS3Key, extractionId: job.id, now, reviewedBy },
+// Fire the async extraction worker (fire-and-forget). EXTRACTOR_FUNCTION_NAME is
+// set by sst.config on the deployed stacks; unset locally → the synchronous mock
+// path below runs instead.
+async function invokeExtractor(functionName: string, payload: { jobId: string; fileName: string; sourceS3Key: string }) {
+  const { LambdaClient, InvokeCommand } = await import("@aws-sdk/client-lambda");
+  await new LambdaClient({}).send(
+    new InvokeCommand({
+      FunctionName: functionName,
+      InvocationType: "Event",
+      Payload: new TextEncoder().encode(JSON.stringify(payload)),
+    }),
   );
-
-  await rapRepo.putOrganization(org);
-  await rapRepo.putRap(rap);
-  for (const c of commitments) await rapRepo.putCommitment(c);
-  for (const o of observations) await rapRepo.putObservation(o);
-  for (const r of rollups) await rapRepo.putRollup(r);
-
-  await extractionRepo.confirmJob(job.id, reviewedBy, extracted, rapId);
 }
 
 // FLOW: (optional login) → upload → AI extract → auto-publish if clean,
@@ -66,28 +54,25 @@ export async function uploadRapAction(formData: FormData) {
   }
 
   const job = await extractionRepo.createJob({ id: docId, fileName, sourceS3Key });
-  await extractionRepo.markExtracting(job.id);
 
-  // Decide the outcome inside the try; redirect AFTER it — redirect() throws
-  // NEXT_REDIRECT and must not be caught by the error handler.
-  let published = false;
-  try {
-    const result = await runExtraction({ fileName, sourceS3Key });
-    const staged = await extractionRepo.saveResult(job.id, result);
-
-    if (reviewIsOff()) {
-      // no human step: publish everything, but keep only grounded+validated fields
-      await publishAndConfirm(staged, scrubForAutoPublish(result.extracted), "system:auto");
-      published = true;
-    } else if (isClean(result)) {
-      await publishAndConfirm(staged, result.extracted, "system:auto");
-      published = true;
+  // ASYNC path (deployed): BDA takes ~60-80s — beyond the request Lambda's
+  // timeout — so hand extraction to a long-timeout worker and return to the
+  // review queue immediately (the job shows "extracting…", then updates).
+  const extractorFn = process.env.EXTRACTOR_FUNCTION_NAME;
+  if (extractorFn) {
+    try {
+      await invokeExtractor(extractorFn, { jobId: job.id, fileName, sourceS3Key });
+    } catch (e) {
+      await extractionRepo.markFailed(job.id, `extractor invoke failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-  } catch (e) {
-    await extractionRepo.markFailed(job.id, e instanceof Error ? e.message : String(e));
+    revalidatePath("/rap/review");
+    redirect("/rap/review");
   }
 
-  if (published) {
+  // SYNC path (local dev / mock — fast): run inline. redirect() throws
+  // NEXT_REDIRECT, so it runs AFTER stageExtraction (which never throws).
+  const outcome = await stageExtraction({ jobId: job.id, fileName, sourceS3Key });
+  if (outcome.status === "published") {
     revalidatePath("/rap");
     redirect("/rap"); // auto-published → dashboard
   }

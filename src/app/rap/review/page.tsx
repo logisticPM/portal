@@ -111,8 +111,10 @@ function ExtractedView({ e }: { e: ExtractedRap }) {
           <ul className="text-sm space-y-1">
             {e.extras.map((x, i) => (
               <li key={i}>
-                <span className="font-medium">{x.label}:</span> {x.value}
-                <span className="text-ink3"> — “{x.quote}” p.{x.page ?? "?"}</span>
+                <span className="font-medium">{x.label ? `${x.label}:` : ""}</span> {x.value}
+                {(x.quote || x.page != null) && (
+                  <span className="text-ink3"> — {x.quote ? `“${x.quote}”` : ""}{x.page != null ? ` p.${x.page}` : ""}</span>
+                )}
               </li>
             ))}
           </ul>
