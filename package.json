@@ -19,11 +19,20 @@
     "survey:seed": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 tsx scripts/seed-survey.ts",
     "survey:create:cloud": "cross-env AWS_REGION=us-east-1 DYNAMO_TABLE=RapSurvey tsx scripts/create-table.ts",
     "survey:seed:cloud": "cross-env AWS_REGION=us-east-1 tsx scripts/seed-survey.ts",
+    "rap:create": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 DYNAMO_TABLE=RapData tsx scripts/create-table.ts",
+    "rap:seed": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 REPO_IMPL=dynamo RAP_TABLE=RapData tsx scripts/seed-rap.ts",
+    "rap:create:cloud": "cross-env AWS_REGION=us-east-1 DYNAMO_TABLE=RapData tsx scripts/create-table.ts",
+    "rap:seed:cloud": "cross-env AWS_REGION=us-east-1 REPO_IMPL=dynamo RAP_TABLE=RapData tsx scripts/seed-rap.ts",
     "seed:sst": "sst shell -- tsx scripts/seed-sst.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1077.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1077.0",
     "@aws-sdk/client-dynamodb": "^3.620.0",
+    "@aws-sdk/client-s3": "^3.1077.0",
+    "@aws-sdk/client-textract": "^3.1077.0",
     "@aws-sdk/lib-dynamodb": "^3.620.0",
+    "@aws-sdk/s3-request-presigner": "^3.1077.0",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
