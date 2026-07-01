@@ -4,7 +4,6 @@ import { EVAL_QUERIES } from "../src/lib/cases/validate/eval-queries";
 import type { GoldQuery } from "../src/lib/cases/validate/retrieval";
 
 const LAYERS = new Set(["known_item", "conceptual", "topical"]);
-const FIXTURE_IDS = new Set(["tsilhqotin-2014", "haida-2004", "calder-1973", "fort-mckay-2020"]);
 
 // every query has a valid layer + unique qid
 const qids = new Set<string>();
@@ -21,15 +20,20 @@ assert.ok(EVAL_QUERIES.some((q) => q.layer === "topical"), "has topical");
   const text = await fs.readFile("docs/research/gold/cases-retrieval-gold.jsonl", "utf8");
   const gold = text.trim().split(/\n+/).filter(Boolean).map((l) => JSON.parse(l) as GoldQuery);
 
-  // every gold line parses, references a known fixture case, uses grades 0/1/2,
-  // and its qid exists in EVAL_QUERIES
+  // every gold line parses, its qid exists in EVAL_QUERIES, judgments are non-empty,
+  // each caseId is a non-empty slug, and grades are 0/1/2. (Gold references real
+  // corpus ids — slugified citations — not just the seed fixtures.)
+  const qseen = new Set<string>();
   for (const g of gold) {
     assert.ok(qids.has(g.qid), `gold qid not in EVAL_QUERIES: ${g.qid}`);
+    qseen.add(g.qid);
     assert.ok(g.judgments.length > 0, `gold ${g.qid} has no judgments`);
     for (const j of g.judgments) {
-      assert.ok(FIXTURE_IDS.has(j.caseId), `unknown fixture case: ${j.caseId}`);
+      assert.ok(typeof j.caseId === "string" && j.caseId.length > 0, `bad caseId in ${g.qid}`);
       assert.ok([0, 1, 2].includes(j.rel), `bad grade: ${j.rel}`);
     }
   }
-  console.log(`✅ eval-queries + fixture gold consistent (${EVAL_QUERIES.length} queries, ${gold.length} gold)`);
+  // every query is covered by the gold
+  for (const q of EVAL_QUERIES) assert.ok(qseen.has(q.qid), `no gold for query ${q.qid}`);
+  console.log(`✅ eval-queries + gold consistent (${EVAL_QUERIES.length} queries, ${gold.length} gold)`);
 })().catch((e) => { console.error("❌ test failed:", e); process.exit(1); });
