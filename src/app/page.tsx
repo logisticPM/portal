@@ -17,9 +17,15 @@ export default function Home() {
         <p className="text-ink2 text-lg">
           Companies report what they spend with Indigenous businesses. The named supplier{" "}
           <strong>confirms</strong> each entry. The result is a sovereign, confirmed dataset, and
-          the RAP Index built on it. Collecting data isn&apos;t the innovation; confirming it is.
+          the <a href="/rap" className="text-amber underline">RAP Index</a> built on it. Collecting data isn&apos;t the innovation; confirming it is.
         </p>
         <div className="flex flex-wrap gap-3 pt-1">
+          <a
+            href="/rap"
+            className="bg-amber/15 text-amber border border-amber/40 rounded px-5 py-2.5 hover:bg-amber/25"
+          >
+            Explore the RAP Index →
+          </a>
           <a
             href="/login"
             className="bg-cedar/20 text-cedar border border-cedar/40 rounded px-5 py-2.5 hover:bg-cedar/30"

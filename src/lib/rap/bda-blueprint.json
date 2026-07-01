@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Extracts structured fields from a Reconciliation Action Plan (RAP) document. Field names MUST match src/lib/rap/extraction-schema.ts so the BDA pipeline (pipeline.bda.ts) maps them into the canonical model. inferenceType 'explicit' = copy as written; 'inferred' = classify/normalize. BDA returns confidence per field automatically. NOTE: verify nested-object/list support and the exact result-JSON shape against your account before relying on this blueprint.",
+  "class": "Reconciliation Action Plan",
+  "type": "object",
+  "definitions": {
+    "Commitment": {
+      "type": "object",
+      "properties": {
+        "pillarRaw": { "type": "string", "inferenceType": "explicit", "instruction": "The pillar/theme heading this commitment sits under, in the document's own words (e.g. 'Opportunities', 'Economy')." },
+        "pillarNormalized": { "type": "string", "inferenceType": "inferred", "instruction": "Map pillarRaw to one of: relationships, respect, opportunities, governance, employment, community, environment, economy, education, other." },
+        "action": { "type": "string", "inferenceType": "explicit", "instruction": "The high-level commitment/action statement (the 'what')." },
+        "deliverable": { "type": "string", "inferenceType": "explicit", "instruction": "The concrete deliverable or step that achieves the action (the 'how')." },
+        "timeline": { "type": "string", "inferenceType": "explicit", "instruction": "The due date, quarter, or year for the deliverable, as written (the 'when')." },
+        "owner": { "type": "string", "inferenceType": "explicit", "instruction": "The role/position/team accountable for the commitment (the 'who'). Leave empty if not stated." },
+        "metric": { "type": "string", "inferenceType": "explicit", "instruction": "The target, KPI, or measurable figure, copied verbatim (e.g. '$100 million annually', '1.5%', '85 communities'). Do not compute." },
+        "commitmentType": { "type": "string", "inferenceType": "inferred", "instruction": "Classify as one of: procurement, employment, education_training, cultural_awareness, community_investment, governance, environmental, partnership, other." }
+      }
+    },
+    "Extra": {
+      "type": "object",
+      "properties": {
+        "label": { "type": "string", "inferenceType": "inferred", "instruction": "A short name for a meaningful field that does not fit any defined property." },
+        "value": { "type": "string", "inferenceType": "explicit", "instruction": "The value for that field, copied from the document." }
+      }
+    },
+    "PeriodCovered": {
+      "type": "object",
+      "properties": {
+        "start": { "type": "string", "inferenceType": "explicit", "instruction": "Start of the period the RAP covers (ISO date or year)." },
+        "end": { "type": "string", "inferenceType": "explicit", "instruction": "End of the period the RAP covers (ISO date or year)." }
+      }
+    }
+  },
+  "properties": {
+    "orgName": { "type": "string", "inferenceType": "explicit", "instruction": "The full legal name of the organization that published this RAP." },
+    "sector": { "type": "string", "inferenceType": "inferred", "instruction": "The organization's sector, one of: mining_extractive, finance_banking, telecom, energy, government, retail, transport, other." },
+    "jurisdiction": { "type": "string", "inferenceType": "inferred", "instruction": "Country/jurisdiction context: AU, CA, or other." },
+    "rapTitle": { "type": "string", "inferenceType": "explicit", "instruction": "The title of the RAP document (e.g. 'Pathways to Economic Prosperity')." },
+    "publicationDate": { "type": "string", "inferenceType": "explicit", "instruction": "The date the RAP was published, as an ISO date if determinable." },
+    "periodCovered": { "$ref": "#/definitions/PeriodCovered", "instruction": "The start and end of the period the RAP covers." },
+    "frameworkRefs": { "type": "array", "instruction": "Frameworks the RAP references; each item one of: undrip, trc_cta_92, ocap, pair, other.", "items": { "type": "string" } },
+    "pillars": { "type": "array", "instruction": "The document's top-level pillars/themes, normalized to: relationships, respect, opportunities, governance, employment, community, environment, economy, education, other.", "items": { "type": "string" } },
+    "governanceBody": { "type": "string", "inferenceType": "explicit", "instruction": "The body that governs/sponsors the RAP (e.g. a RAP Working Group, advisory council, or board sponsor)." },
+    "reviewCycle": { "type": "string", "inferenceType": "explicit", "instruction": "How often the RAP is reviewed/reported (e.g. annual, biennial, 3-year)." },
+    "rapType": { "type": "string", "inferenceType": "inferred", "instruction": "Australian RAP maturity tier if stated: reflect, innovate, stretch, or elevate. Leave empty for Canadian RAPs." },
+    "pairLevel": { "type": "string", "inferenceType": "inferred", "instruction": "CCIB PAIR accreditation level if stated: committed, bronze, silver, or gold." },
+    "endorsementStatus": { "type": "string", "inferenceType": "explicit", "instruction": "Whether the RAP is endorsed (Australia only), e.g. 'RA-endorsed' vs 'draft'." },
+    "commitments": { "type": "array", "instruction": "Every commitment in the RAP. Extract one entry per action/deliverable row.", "items": { "$ref": "#/definitions/Commitment" } },
+    "extras": { "type": "array", "instruction": "Meaningful fields present in the document that do not map to any property above. Do not force-fit; leave empty if none.", "items": { "$ref": "#/definitions/Extra" } }
+  }
+}
