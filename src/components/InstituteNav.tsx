@@ -2,6 +2,7 @@
 // each other. Pass the current route as `active`.
 const TABS = [
   { href: "/commitments", label: "RAP Index" },
+  { href: "/organizations", label: "Organizations" },
   { href: "/analytics", label: "Coverage analysis" },
   { href: "/verify", label: "Verification" },
 ];
