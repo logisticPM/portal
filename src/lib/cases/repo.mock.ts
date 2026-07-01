@@ -1,6 +1,6 @@
 import type { CaseRepo } from "./types";
 import { caseFixtures } from "./fixtures";
-import { filterCases, searchCases, buildFacets, buildActivation, buildGraph } from "./query";
+import { filterCases, searchCases, buildFacets, buildActivation, buildGraph, buildCorpusStats } from "./query";
 
 export const mockCaseRepo: CaseRepo = {
   async listCases(filter) {
@@ -23,6 +23,9 @@ export const mockCaseRepo: CaseRepo = {
   },
   async getActivationSummary() {
     return buildActivation(filterCases(caseFixtures, { tier: "core" }));
+  },
+  async getCorpusStats() {
+    return buildCorpusStats(caseFixtures);
   },
   async getCitationGraph(id) {
     return buildGraph(caseFixtures, id);
