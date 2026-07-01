@@ -57,6 +57,9 @@ export default $config({
     const dataPortal = new sst.aws.Dynamo("DataPortal", singleTableShape);
     // RAP Impact Survey (Organization / SurveyResponse)
     const rapSurvey = new sst.aws.Dynamo("RapSurvey", singleTableShape);
+    // RAP commitments index (Commitment) — the commitments dashboard (from main)
+    const commitments = new sst.aws.Dynamo("Commitments", singleTableShape);
+
     // RAP submission portal + Index (ExtractionJob / RapDocument / Commitment /
     // Observation). PITR + Streams enabled:
     //   • PITR    → required for DynamoDB's native point-in-time export to S3
@@ -158,7 +161,7 @@ export default $config({
 
     new sst.aws.Nextjs("Web", {
       // Least-privilege access to exactly these resources (tables + GSIs + buckets).
-      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics],
+      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments],
       transform: {
         server: {
           // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
@@ -172,9 +175,10 @@ export default $config({
       environment: {
         ...extractionEnv,
         // The app resolves table names from these env vars (client.ts + survey-
-        // table.ts + rap-table.ts), not the SST Resource object.
+        // table.ts + rap-table.ts + commitments-table.ts), not the SST Resource object.
         DYNAMO_TABLE: dataPortal.name,
         SURVEY_TABLE: rapSurvey.name,
+        COMMITMENTS_TABLE: commitments.name,
         // Present → uploadRapAction hands extraction to the worker instead of
         // running it inline (which would hit the request-Lambda timeout).
         EXTRACTOR_FUNCTION_NAME: rapExtract.name,

@@ -19,6 +19,14 @@ import { seedAll } from "../src/lib/seed/seed";
 import { mockSurveyRepo } from "../src/lib/survey/repo.mock";
 import { dynamoSurveyRepo } from "../src/lib/survey/repo.dynamo";
 import { seedSurvey } from "../src/lib/survey/seed";
+import { mockCaseRepo } from "../src/lib/cases/repo.mock";
+import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
+import { caseToItems } from "../src/lib/dynamo/cases-table";
+import { seedCases } from "./seed-cases";
+import { invalidateSearchIndex } from "../src/lib/cases/search/build-index";
+import { mockCommitmentsRepo } from "../src/lib/commitments/repo.mock";
+import { dynamoCommitmentsRepo } from "../src/lib/commitments/repo.dynamo";
+import { seedCommitments } from "./seed-commitments";
 
 let pass = 0;
 let fail = 0;
@@ -55,6 +63,12 @@ async function freshSeed() {
   await resetTable("RapSurvey");
   await seedAll();
   await seedSurvey();
+  await createSingleTable("LegalCases");
+  await resetTable("LegalCases");
+  await (async () => { process.env.CASES_TABLE = "LegalCases"; await seedCases(); })();
+  await createSingleTable("Commitments");
+  await resetTable("Commitments");
+  await (async () => { process.env.COMMITMENTS_TABLE = "Commitments"; await seedCommitments(); })();
 }
 
 async function main() {
@@ -131,6 +145,59 @@ async function main() {
   const [ms, ds] = [await mockSurveyRepo.listResponsesByYear("2025"), await dynamoSurveyRepo.listResponsesByYear("2025")];
   check("survey listResponsesByYear: mock ≡ dynamo", eq(ms.map((x) => x.orgId).sort(), ds.map((x) => x.orgId).sort()),
     `${ds.length} responses`);
+
+  // ---- Cases: dynamo ≡ mock on the seeded reads ----
+  console.log("\n# 4. cases (dynamo ≡ mock)");
+  const mList = await mockCaseRepo.listCases();
+  const dList = await dynamoCaseRepo.listCases();
+  check("cases: list count mock≡dynamo", mList.length === dList.length, `${mList.length}/${dList.length}`);
+  check("cases: list ids mock≡dynamo", eq(sortIds(mList), sortIds(dList)));
+  check("cases: getCase mock≡dynamo",
+    eq(await mockCaseRepo.getCase("haida-2004"), await dynamoCaseRepo.getCase("haida-2004")));
+  check("cases: activation mock≡dynamo",
+    eq(await mockCaseRepo.getActivationSummary(), await dynamoCaseRepo.getActivationSummary()));
+  check("cases: search mock≡dynamo",
+    eq(sortIds(await mockCaseRepo.searchCases("Tsilhqot'in")), sortIds(await dynamoCaseRepo.searchCases("Tsilhqot'in"))));
+
+  // ---- Cases Phase 2-A: tier + unclassified flow ----
+  const subCase = {
+    ...(await mockCaseRepo.getCase("haida-2004"))!,
+    id: "verify-substrate", citation: "9999 SCC 9", corpusTier: "substrate" as const,
+    themes: [] as any[], outcome: { outcomeType: "unclassified" as const, winType: "unclassified" as const, whoWon: "", holding: "" },
+  };
+  const subItems = caseToItems(subCase).map((Item) => ({ PutRequest: { Item } }));
+  for (let i = 0; i < subItems.length; i += 25)
+    await ddbDoc.send(new BatchWriteCommand({ RequestItems: { LegalCases: subItems.slice(i, i + 25) } }));
+  const coreList = await dynamoCaseRepo.listCases();                    // default core-only
+  const subList = await dynamoCaseRepo.listCases({ tier: "substrate" });
+  check("cases: listCases excludes substrate", coreList.every((c) => c.corpusTier === "core"));
+  check("cases: tier:substrate returns substrate", subList.some((c) => c.id === "verify-substrate"));
+  check("cases: substrate round-trips unclassified",
+    (await dynamoCaseRepo.getCase("verify-substrate"))?.outcome.winType === "unclassified");
+
+  // ---- 5. cases hybrid retrieval (BM25-only path; no vectors seeded) ----
+  console.log("\n# 5. cases hybrid retrieval");
+  invalidateSearchIndex(); // table changed since any prior index build
+  const hybridHits = await dynamoCaseRepo.hybridSearch("Haida");
+  check("cases: hybridSearch finds Haida (BM25-only)", hybridHits.some((c) => c.id === "haida-2004"),
+    `${hybridHits.length} hits`);
+  const mockHybrid = await mockCaseRepo.hybridSearch("Haida");
+  check("cases: mock hybridSearch (keyword fallback) finds Haida", mockHybrid.some((c) => c.id === "haida-2004"));
+  // hybridSearch is intentionally EXCLUDED from dynamo ≡ mock equality (mock has no vectors).
+
+  // ---- 6. commitments: dynamo ≡ mock ----
+  console.log("\n# 6. commitments (dynamo ≡ mock)");
+  const mc = await mockCommitmentsRepo.listCommitments();
+  const dc = await dynamoCommitmentsRepo.listCommitments();
+  check("commitments: list count mock≡dynamo", mc.length === dc.length, `${mc.length}/${dc.length}`);
+  check("commitments: list mock≡dynamo (full round-trip)", eq(mc, dc));
+  check("commitments: getSummary mock≡dynamo",
+    eq(await mockCommitmentsRepo.getSummary(), await dynamoCommitmentsRepo.getSummary()));
+  check("commitments: filter by sector mock≡dynamo",
+    eq(await mockCommitmentsRepo.getSummary({ sector: "finance" }),
+       await dynamoCommitmentsRepo.getSummary({ sector: "finance" })));
+  const dsum = await dynamoCommitmentsRepo.getSummary();
+  check("commitments: summary has over-time periods", dsum.overTime.length >= 2, `${dsum.overTime.length} periods`);
 
   // leave a clean, seeded state for demoing
   await freshSeed();

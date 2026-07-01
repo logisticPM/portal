@@ -20,11 +20,11 @@ function isPublic(path: string): boolean {
 }
 
 // Which paths each persona may use (light guard; everything else is shared/read-only).
-const COMPANY_ONLY = ["/report", "/coverage"];
+const COMPANY_ONLY = ["/report", "/coverage", "/my-commitments"];
 const SUPPLIER_ONLY = ["/confirm", "/record", "/profile"];
 // RAP submission + extraction QA are the curator's (Indigenomics) tools — the
 // public sees only the /rap dashboard. (Self-serve org upload is a later mode.)
-const INDIGENOMICS_ONLY = ["/verify", "/rap/upload", "/rap/review"];
+const INDIGENOMICS_ONLY = ["/verify", "/organizations", "/rap/upload", "/rap/review"];
 
 const hits = (path: string, prefixes: string[]) =>
   prefixes.some((p) => path === p || path.startsWith(p + "/"));

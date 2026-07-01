@@ -4,6 +4,10 @@ import "./globals.css";
 import { repo } from "@/lib/repo";
 import { getSession } from "@/lib/auth";
 import { signOut } from "@/lib/repo/actions";
+import { ThemeMenu } from "@/components/ThemeMenu";
+
+// Runs before paint to apply the stored mode (avoids a light→dark flash).
+const NO_FLASH = `(function(){try{var t=JSON.parse(localStorage.getItem('portal-theme')||'null');if(t&&t.mode==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -37,6 +41,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+      </head>
       <body className="min-h-screen">
         <header className="border-b border-line px-6 py-4 flex items-center justify-between">
           <a href="/" className="font-serif text-lg">
@@ -47,6 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <a href="/rap" className="text-ink2 hover:text-ink">
               RAP Index
             </a>
+            <ThemeMenu />
             {session && (
               <a href="/home" className="text-ink2 hover:text-ink">
                 Home

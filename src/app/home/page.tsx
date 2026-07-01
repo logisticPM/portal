@@ -27,6 +27,9 @@ export default async function HomePage() {
   const session = getSession();
   if (!session) redirect("/");
 
+  // Institute lands directly on the RAP Index (the commitments dashboard).
+  if (session.kind === "indigenomics") redirect("/commitments");
+
   // ---- Company ----
   if (session.kind === "company" && session.partyId) {
     const [company, coverage] = await Promise.all([
@@ -43,6 +46,7 @@ export default async function HomePage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <LinkCard href="/report" title="Report →" desc="Add itemized lines naming each supplier — your questionnaire." />
           <LinkCard href="/coverage" title="Coverage →" desc="Reported vs confirmed, by flow type." />
+          <LinkCard href="/my-commitments" title="My RAP commitments →" desc="Submit & track your RAP commitments — these feed the RAP Index." />
         </div>
       </Shell>
     );
@@ -86,7 +90,8 @@ export default async function HomePage() {
       <div className="grid sm:grid-cols-2 gap-4">
         <LinkCard href="/rap" title="RAP Index — submitted plans →" desc="Upload RAPs (AI extraction); commitments by sector, size & type; progress over time." />
         <LinkCard href="/rap/review" title="Extraction review queue →" desc="QA flagged AI extractions before they publish." />
-        <LinkCard href="/analytics" title="Confirmed-spend Index →" desc="Legacy report→confirm view: coverage by flow, by tier, integrity signals." />
+        <LinkCard href="/commitments" title="Commitments dashboard →" desc="RAP commitments by sector, size & type, tracked over time." />
+        <LinkCard href="/analytics" title="RAP analysis →" desc="The Index: coverage, by flow, by tier, integrity signals." />
         <LinkCard href="/verify" title="Verification queue →" desc="Review pending supplier certification claims." />
       </div>
     </Shell>

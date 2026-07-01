@@ -17,10 +17,14 @@ import { Resource } from "sst";
 async function main() {
   process.env.DYNAMO_TABLE = Resource.DataPortal.name;
   process.env.SURVEY_TABLE = Resource.RapSurvey.name;
+  // Commitments is added to sst.config.ts; the generated Resource type catches up
+  // after the next `sst deploy`/`sst dev`, so cast for the pre-deploy typecheck.
+  process.env.COMMITMENTS_TABLE = (Resource as Record<string, { name: string }>).Commitments.name;
   process.env.AWS_REGION = process.env.AWS_REGION ?? "us-east-1";
 
   const { seedAll } = await import("../src/lib/seed/seed");
   const { seedSurvey } = await import("../src/lib/survey/seed");
+  const { seedCommitments } = await import("./seed-commitments");
 
   const p = await seedAll();
   console.log(
@@ -31,6 +35,9 @@ async function main() {
   console.log(
     `✅ survey → ${process.env.SURVEY_TABLE}: ${s.organizations} organizations, ${s.responses} responses`,
   );
+
+  const cm = await seedCommitments();
+  console.log(`✅ commitments → ${process.env.COMMITMENTS_TABLE}: ${cm.commitments} commitments`);
 }
 
 main().catch((e) => {
