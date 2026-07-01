@@ -4,7 +4,7 @@
 // portal (DataPortal) and survey (RapSurvey) tables in the same process.
 // Selected via REPO_IMPL=dynamo.
 // ===========================================================================
-import { GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../dynamo/client";
 import {
   RAP_GSI1,
@@ -204,6 +204,34 @@ export const dynamoRapRepo: RapRepo = {
       }),
     );
     return ((res.Items ?? []) as Record<string, any>[]).map(itemToCommitment);
+  },
+
+  // cascade-delete a RAP's canonical graph (commitments + their rollups +
+  // observations, then the RAP header). Idempotent — no-op if nothing exists.
+  async deleteRapGraph(orgId, rapId) {
+    const cres = await ddbDoc.send(
+      new QueryCommand({
+        TableName: RAP_TABLE,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+        ExpressionAttributeValues: { ":pk": `RAP#${rapId}`, ":sk": "COMMIT#" },
+      }),
+    );
+    const commits = ((cres.Items ?? []) as Record<string, any>[]).map(itemToCommitment);
+    for (const c of commits) {
+      const ores = await ddbDoc.send(
+        new QueryCommand({
+          TableName: RAP_TABLE,
+          KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+          ExpressionAttributeValues: { ":pk": `COMMIT#${c.id}`, ":sk": "OBS#" },
+        }),
+      );
+      for (const o of (ores.Items ?? []) as Record<string, any>[]) {
+        await ddbDoc.send(new DeleteCommand({ TableName: RAP_TABLE, Key: { PK: o.PK, SK: o.SK } }));
+      }
+      await ddbDoc.send(new DeleteCommand({ TableName: RAP_TABLE, Key: keys.rollup(c.id) }));
+      await ddbDoc.send(new DeleteCommand({ TableName: RAP_TABLE, Key: keys.commitment(rapId, c.id) }));
+    }
+    await ddbDoc.send(new DeleteCommand({ TableName: RAP_TABLE, Key: keys.rap(orgId, rapId) }));
   },
 
   async putObservation(o) {

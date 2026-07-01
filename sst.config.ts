@@ -91,10 +91,16 @@ export default $config({
     // presigned URL (bypassing the Lambda 6 MB limit), so CORS must allow PUT.
     // allowOrigins "*" is fine for the capstone; tighten to the site URL for prod.
     // (Verify the cors shape against the installed SST version.)
+    // CORS restricts which browser ORIGINS may make the presigned PUT/GET. Set
+    // RAP_CORS_ORIGINS (comma-separated: the CloudFront URL + http://localhost:3000)
+    // at deploy; falls back to "*" for a first deploy (CloudFront URL not known
+    // yet) or local-only use. NOTE: this is browser-only defense-in-depth, not the
+    // access control — presigned URLs + Block-Public-Access are the real gate.
+    const corsOrigins = (process.env.RAP_CORS_ORIGINS ?? "*").split(",").map((o) => o.trim()).filter(Boolean);
     const rapUploads = new sst.aws.Bucket("RapUploads", {
       cors: {
         allowMethods: ["PUT", "GET"],
-        allowOrigins: ["*"],
+        allowOrigins: corsOrigins,
         allowHeaders: ["*"],
       },
     });

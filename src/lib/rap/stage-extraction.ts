@@ -16,12 +16,24 @@ const uuid = () => globalThis.crypto.randomUUID();
 const slug = (s: string) =>
   "org-" + s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 
+// DEDUP: a RAP's identity is its natural key — org + title + period. Re-publishing
+// the same document (same org/title/period) yields the SAME rapId, so the delete-
+// then-write below REPLACES the prior version instead of appending a duplicate.
+function stableRapId(orgId: string, title: string, periodStart: string, periodEnd: string): string {
+  const basis = `${title}|${periodStart}|${periodEnd}`.toLowerCase();
+  let h = 0;
+  for (let i = 0; i < basis.length; i++) h = (h * 31 + basis.charCodeAt(i)) >>> 0;
+  return `${orgId}-${h.toString(36)}`;
+}
+
 // Turn a reviewed/clean extraction into canonical entities (org + rap + commitments
-// + observations + rollups) and mark the job CONFIRMED.
+// + observations + rollups) and mark the job CONFIRMED. Re-publishing the same
+// document replaces the prior canonical graph (no duplicate double-counting).
 export async function publishAndConfirm(job: ExtractionJob, extracted: ExtractedRap, reviewedBy: string) {
   const now = new Date().toISOString();
   const orgId = slug(extracted.orgName.value ?? job.id);
-  const rapId = uuid();
+  const period = extracted.periodCovered.value as { start?: string; end?: string } | null;
+  const rapId = stableRapId(orgId, extracted.rapTitle.value ?? "", period?.start ?? "", period?.end ?? "");
 
   const { org, rap, commitments, observations, rollups } = buildCanonical(
     extracted,
@@ -30,6 +42,7 @@ export async function publishAndConfirm(job: ExtractionJob, extracted: Extracted
   );
 
   await rapRepo.putOrganization(org);
+  await rapRepo.deleteRapGraph(orgId, rapId); // dedup: drop any prior version of this exact RAP
   await rapRepo.putRap(rap);
   for (const c of commitments) await rapRepo.putCommitment(c);
   for (const o of observations) await rapRepo.putObservation(o);

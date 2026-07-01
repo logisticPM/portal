@@ -374,6 +374,11 @@ export interface RapRepo {
   listCommitmentsByRap(rapId: string): Promise<Commitment[]>;
   listCommitmentsBySector(sector: Sector): Promise<Commitment[]>; // GSI slice
 
+  // cascade-delete a RAP header + its commitments, rollups and observations.
+  // Used to make re-publishing the same document a clean REPLACE (dedup) rather
+  // than appending a duplicate RAP + duplicate commitments.
+  deleteRapGraph(orgId: string, rapId: string): Promise<void>;
+
   // append-only time-series; `between` powers progress-over-time
   putObservation(o: Observation): Promise<Observation>;
   listObservations(commitId: string, from?: string, to?: string): Promise<Observation[]>;

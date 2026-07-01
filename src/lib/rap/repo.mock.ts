@@ -178,6 +178,14 @@ export const mockRapRepo: RapRepo = {
     return store.commitments.filter((c) => c.sector === sector);
   },
 
+  async deleteRapGraph(_orgId, rapId) {
+    const doomed = new Set(store.commitments.filter((c) => c.rapId === rapId).map((c) => c.id));
+    store.commitments = store.commitments.filter((c) => c.rapId !== rapId);
+    store.rollups = store.rollups.filter((r) => !doomed.has(r.commitId));
+    store.observations = store.observations.filter((o) => !doomed.has(o.commitId));
+    store.raps = store.raps.filter((r) => r.id !== rapId);
+  },
+
   async putObservation(o) {
     const i = store.observations.findIndex(
       (x) => x.commitId === o.commitId && x.observedAt === o.observedAt,
