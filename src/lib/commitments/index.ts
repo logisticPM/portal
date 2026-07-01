@@ -5,8 +5,10 @@ import { dynamoCommitmentsRepo } from "./repo.dynamo";
 export const commitmentsRepo: CommitmentRepo =
   process.env.REPO_IMPL === "dynamo" ? dynamoCommitmentsRepo : mockCommitmentsRepo;
 
-export { computeRisk, buildInsights } from "./insights";
-export type { RiskFlag, RiskReport } from "./insights";
+export { computeRisk, buildInsights, confirmationIntegrity } from "./insights";
+export type { RiskFlag, RiskReport, Integrity } from "./insights";
+export { rollupOrgs, orgScorecard, slugifyOrg } from "./orgs";
+export type { OrgRollup } from "./orgs";
 
 export type {
   Commitment,

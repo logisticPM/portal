@@ -6,6 +6,27 @@ import type { Commitment, CommitmentSummary } from "./types";
 const labelize = (s: string) => s.replace(/_/g, " ");
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+export interface Integrity {
+  confirmed: number; // supplier-confirmed outcomes
+  selfReported: number; // reported by the org but not yet confirmed
+  claimed: number; // confirmed + selfReported
+  confirmationRate: number; // confirmed / claimed, %
+}
+
+// The report→confirm lens on commitments: of the outcomes an org has *claimed*
+// (reported or confirmed), what share is actually supplier-confirmed.
+export function confirmationIntegrity(items: Commitment[]): Integrity {
+  const confirmed = items.filter((c) => c.status === "confirmed").length;
+  const selfReported = items.filter((c) => c.status === "reported").length;
+  const claimed = confirmed + selfReported;
+  return {
+    confirmed,
+    selfReported,
+    claimed,
+    confirmationRate: claimed ? Math.round((confirmed / claimed) * 100) : 0,
+  };
+}
+
 export interface RiskFlag {
   commitment: Commitment;
   kind: "overdue" | "at_risk";
@@ -83,6 +104,13 @@ export function buildInsights(
         `${cap(best[0])}-tier RAPs average ${best[1].avgProgress}% progress vs ${worst[1].avgProgress}% for ${worst[0]}-tier — maturity tracks with delivery.`,
       );
     }
+  }
+
+  const integ = confirmationIntegrity(items);
+  if (integ.claimed) {
+    out.push(
+      `Of ${integ.claimed} claimed outcomes, ${integ.confirmationRate}% are supplier-confirmed — ${integ.selfReported} remain self-reported and unverified.`,
+    );
   }
 
   const risk = computeRisk(items, currentYear);

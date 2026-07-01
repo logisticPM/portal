@@ -1,7 +1,7 @@
 // RAP Index dashboard (client idea #2): commitments by sector, organization size,
 // and commitment type, with progress tracking over time. The Indigenomics
 // (institute) landing. Server component reading commitmentsRepo; filters via searchParams.
-import { commitmentsRepo, computeRisk, buildInsights } from "@/lib/commitments";
+import { commitmentsRepo, computeRisk, buildInsights, confirmationIntegrity } from "@/lib/commitments";
 import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
 
@@ -86,6 +86,7 @@ export default async function CommitmentsPage({
   const currentYear = new Date().getFullYear();
   const insights = buildInsights(summary, list, currentYear);
   const risk = computeRisk(list, currentYear);
+  const integ = confirmationIntegrity(list);
   const maxCell = Math.max(
     1,
     ...SECTORS.flatMap((s) => TYPES.map((t) => summary.matrix[s]?.[t] ?? 0)),
@@ -101,6 +102,15 @@ export default async function CommitmentsPage({
     const s = p.toString();
     return s ? `/commitments?${s}` : "/commitments";
   };
+
+  // CSV export honoring the current filter
+  const exportQs = (() => {
+    const p = new URLSearchParams();
+    if (searchParams.sector) p.set("sector", searchParams.sector);
+    if (searchParams.type) p.set("type", searchParams.type);
+    const s = p.toString();
+    return s ? `?${s}` : "";
+  })();
 
   return (
     <div className="space-y-8">
@@ -151,6 +161,46 @@ export default async function CommitmentsPage({
           <div className="text-ink3 text-sm">confirmed</div>
         </div>
       </div>
+
+      {/* confirmation integrity — the report→confirm lens */}
+      <section className="bg-panel rounded border border-line shadow-card p-5">
+        <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Confirmation integrity</div>
+        {integ.claimed === 0 ? (
+          <p className="text-ink3 text-sm">No reported or confirmed outcomes yet.</p>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <span className="font-serif text-3xl text-cedar">{integ.confirmationRate}%</span>
+              <span className="text-ink2 text-sm">
+                of {integ.claimed} claimed outcomes are supplier-confirmed — the rest are self-reported
+                and unverified.
+              </span>
+            </div>
+            <div className="mt-3 h-3 rounded bg-ink/10 overflow-hidden flex">
+              <div
+                className="h-full bg-cedar"
+                style={{ width: `${(integ.confirmed / integ.claimed) * 100}%` }}
+                title={`Confirmed: ${integ.confirmed}`}
+              />
+              <div
+                className="h-full bg-amber/50"
+                style={{ width: `${(integ.selfReported / integ.claimed) * 100}%` }}
+                title={`Self-reported: ${integ.selfReported}`}
+              />
+            </div>
+            <div className="mt-2 flex gap-4 text-xs text-ink3">
+              <span>
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-cedar mr-1" />
+                {integ.confirmed} confirmed
+              </span>
+              <span>
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber/50 mr-1" />
+                {integ.selfReported} self-reported (unverified)
+              </span>
+            </div>
+          </>
+        )}
+      </section>
 
       {/* progress over time — the centerpiece: stacked status mix per period */}
       <section className="bg-panel rounded border border-line shadow-card p-5">
@@ -328,6 +378,12 @@ export default async function CommitmentsPage({
           {(searchParams.sector || searchParams.type) && (
             <a href="/commitments" className="text-ink3 underline text-xs ml-1">clear</a>
           )}
+          <a
+            href={`/api/commitments/export${exportQs}`}
+            className="ml-auto rounded border border-line px-3 py-1 text-xs text-ink2 hover:text-ink hover:border-ink/30"
+          >
+            ↓ Export CSV
+          </a>
         </div>
 
         <div className="divide-y divide-ink/10">
