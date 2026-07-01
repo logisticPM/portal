@@ -6,12 +6,13 @@
 // Gated behind EXTRACTION_IMPL=bedrock; the mock is the default so dev/demo
 // never loads this module. (Option A is pipeline.bda.ts — managed, US-region.)
 // ===========================================================================
-import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime";
 import {
   GetDocumentTextDetectionCommand,
   StartDocumentTextDetectionCommand,
   TextractClient,
 } from "@aws-sdk/client-textract";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { CLAUDE_TOOL, EXTRACTION_SYSTEM, EXTRACTION_TOOL_NAME } from "./extraction-schema";
 import { getDocumentBytes } from "./storage";
 import { validateAndFlag } from "./validate";
@@ -22,8 +23,19 @@ const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 // (ca-central-1 reaches Claude via the Canada/NA geo cross-region profile).
 const modelId = process.env.BEDROCK_MODEL_ID ?? "anthropic.claude-sonnet-4-6";
 const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
+// Output cap. NOTE (see docs/rap-extraction-findings.md): on this model the
+// per-subfield grounded schema is very output-heavy and a many-commitment RAP
+// can exhaust this before the JSON completes (detected below). Raising it much
+// higher makes the generation long enough that the connection drops.
+const MAX_OUTPUT_TOKENS = 16000;
 
-const client = new BedrockRuntimeClient({ region });
+// Use an http/1.1 handler with a long request timeout. A large extraction (many
+// pages + a big grounded tool response) is a slow non-streaming generation; the
+// default http2 handler drops it with "http2 request did not get a response".
+const client = new BedrockRuntimeClient({
+  region,
+  requestHandler: new NodeHttpHandler({ requestTimeout: 300_000, connectionTimeout: 10_000 }),
+});
 const textract = new TextractClient({ region });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -84,7 +96,7 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
 
   const body = {
     anthropic_version: "bedrock-2023-05-31",
-    max_tokens: 8192,
+    max_tokens: MAX_OUTPUT_TOKENS,
     system: EXTRACTION_SYSTEM,
     tools: [CLAUDE_TOOL],
     tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME }, // force the schema
@@ -96,17 +108,41 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
     ],
   };
 
+  // STREAM the response. A big grounded extraction is a long generation, and a
+  // non-streaming InvokeModel gets its socket closed mid-generation ("socket hang
+  // up"). Streaming keeps the connection alive and delivers the forced tool_use
+  // input as incremental input_json_delta chunks, which we reassemble + parse.
   const res = await client.send(
-    new InvokeModelCommand({ modelId, contentType: "application/json", body: JSON.stringify(body) }),
+    new InvokeModelWithResponseStreamCommand({ modelId, contentType: "application/json", body: JSON.stringify(body) }),
   );
-  const payload = JSON.parse(new TextDecoder().decode(res.body));
 
-  // pull the forced tool_use block; its `input` is the ExtractedRap-shaped object
-  const toolUse = (payload.content ?? []).find(
-    (b: any) => b.type === "tool_use" && b.name === EXTRACTION_TOOL_NAME,
-  );
-  if (!toolUse) throw new Error("Bedrock response contained no record_rap_extraction tool_use block");
-  const raw = toolUse.input as ExtractedRap;
+  let toolJson = "";
+  let stopReason = "";
+  for await (const event of res.body ?? []) {
+    const bytes = event.chunk?.bytes;
+    if (!bytes) continue;
+    const evt = JSON.parse(new TextDecoder().decode(bytes));
+    if (evt.type === "message_delta" && evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+    if (evt.type === "content_block_delta" && evt.delta?.type === "input_json_delta") {
+      toolJson += evt.delta.partial_json ?? "";
+    }
+  }
+  if (!toolJson) throw new Error("Bedrock stream contained no record_rap_extraction tool input");
+  if (stopReason === "max_tokens") {
+    // Truncated: the grounded schema exhausted the output budget before finishing.
+    // Known limitation for many-commitment RAPs — see docs/rap-extraction-findings.md.
+    throw new Error(
+      "Claude extraction truncated at max_tokens — this RAP has too many commitments for the per-subfield grounded schema in a single call (see docs/rap-extraction-findings.md).",
+    );
+  }
+  let raw: ExtractedRap;
+  try {
+    raw = JSON.parse(toolJson) as ExtractedRap;
+  } catch (e) {
+    const m = /position (\d+)/.exec(String(e));
+    const p = m ? parseInt(m[1], 10) : 0;
+    throw new Error(`tool JSON parse failed (len ${toolJson.length}) near: …${toolJson.slice(Math.max(0, p - 60), p + 60)}…`);
+  }
 
   // deterministic gate: Claude returns verbatim quotes → require them
   const { extracted, issues } = validateAndFlag(raw, { requireQuote: true });
