@@ -14,7 +14,7 @@ export default async function LoginPage() {
       <div>
         <h1 className="font-serif text-3xl mb-1">Sign in</h1>
         <p className="text-ink3 text-sm">
-          demo · no password — pick an account and we&apos;ll take you to the right portal.
+          demo · no password. Pick an account and we&apos;ll take you to the right portal.
         </p>
       </div>
 
@@ -41,7 +41,7 @@ export default async function LoginPage() {
               ))}
             </optgroup>
             <optgroup label="Institute">
-              <option value="indigenomics">Indigenomics — the Index + verification</option>
+              <option value="indigenomics">Indigenomics · the Index + verification</option>
             </optgroup>
           </select>
         </label>
@@ -56,7 +56,7 @@ export default async function LoginPage() {
         <a href="/register" className="text-cedar underline">
           create an account
         </a>{" "}
-        — company, supplier, or Indigenomics.
+        as a company, supplier, or Indigenomics.
       </p>
     </div>
   );

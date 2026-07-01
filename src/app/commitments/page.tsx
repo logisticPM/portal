@@ -188,10 +188,10 @@ export default async function CommitmentsPage({
       <div>
         <h1 className="font-serif text-3xl">
           The RAP Index{" "}
-          <span className="text-ink3 text-base">— commitments by sector, size & type</span>
+          <span className="text-ink3 text-base">· commitments by sector, size & type</span>
         </h1>
         <p className="text-ink2 text-sm mt-1">
-          Reconciliation commitments across the network, and how they progress over time — distinct
+          Reconciliation commitments across the network, and how they progress over time. Distinct
           from{" "}
           <a href="/analytics" className="text-amber hover:underline">Spend Coverage</a>, which tracks
           confirmed dollars.
@@ -201,7 +201,7 @@ export default async function CommitmentsPage({
       {/* auto-generated narrative analysis */}
       <div>
         <SectionLead title="Key takeaways">
-          Plain-language highlights, generated automatically from the data below — start here.
+          Plain-language highlights, generated automatically from the data below. Start here.
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5">
         <ul className="space-y-2 text-sm">
@@ -221,7 +221,7 @@ export default async function CommitmentsPage({
       {/* KPI strip */}
       <div>
         <SectionLead title="At a glance">
-          The headline totals for the current view — commitments, organizations, average progress, and
+          The headline totals for the current view: commitments, organizations, average progress, and
           the confirmed share.
         </SectionLead>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -247,7 +247,7 @@ export default async function CommitmentsPage({
       {/* status snapshot — where every commitment stands right now */}
       <div>
         <SectionLead title="Status snapshot">
-          Where every commitment sits right now — from committed, through in-progress and reported, to
+          Where every commitment sits right now, from committed, through in-progress and reported, to
           confirmed (or stalled).
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5">
@@ -281,7 +281,7 @@ export default async function CommitmentsPage({
       <div>
         <SectionLead title="Confirmation integrity">
           Of the outcomes organizations have claimed (reported or confirmed), how many are actually
-          supplier-confirmed — versus still self-reported and unverified.
+          supplier-confirmed, versus still self-reported and unverified.
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5">
         {integ.claimed === 0 ? (
@@ -291,7 +291,7 @@ export default async function CommitmentsPage({
             <div className="flex items-center gap-3">
               <span className="font-serif text-3xl text-cedar">{integ.confirmationRate}%</span>
               <span className="text-ink2 text-sm">
-                of {integ.claimed} claimed outcomes are supplier-confirmed — the rest are self-reported
+                of {integ.claimed} claimed outcomes are supplier-confirmed. The rest are self-reported
                 and unverified.
               </span>
             </div>
@@ -370,7 +370,7 @@ export default async function CommitmentsPage({
       {/* deadline & delivery risk */}
       <div>
         <SectionLead title="Deadline & delivery risk">
-          Commitments past their target year or behind pace — the ones that need attention.
+          Commitments past their target year or behind pace. These need attention.
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5">
         <div className="flex flex-wrap items-baseline justify-end gap-2 mb-3">
@@ -452,7 +452,7 @@ export default async function CommitmentsPage({
       {/* sector × type heatmap */}
       <div>
         <SectionLead title="Where commitments concentrate">
-          A sector × commitment-type grid — darker cells mean more commitments in that combination.
+          A sector × commitment-type grid. Darker cells mean more commitments in that combination.
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5">
         <div className="overflow-x-auto">
@@ -500,7 +500,7 @@ export default async function CommitmentsPage({
       {/* filters + the commitments themselves */}
       <div>
         <SectionLead title="All commitments">
-          The full list behind the numbers above — filter by sector or type, or export to CSV.
+          The full list behind the numbers above. Filter by sector or type, or export to CSV.
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5 space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -567,7 +567,7 @@ export default async function CommitmentsPage({
 
       <p className="text-ink3 text-[11px]">
         Seeded from Canadian companies&apos; own public reconciliation / ESG reports (see each
-        &ldquo;source&rdquo; link). These are self-reported commitments — none are supplier-confirmed;
+        &ldquo;source&rdquo; link). These are self-reported commitments, not supplier-confirmed;
         confirmation is the layer the portal adds. Not Indigenous data.
       </p>
     </div>

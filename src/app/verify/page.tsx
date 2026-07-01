@@ -12,7 +12,7 @@ export default async function VerifyPage() {
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · verification</div>
         <h1 className="font-serif text-2xl">Pending certification claims</h1>
-        <p className="text-ink2 text-sm">Confirm each claim against the issuer (CCIB directory / ISC IBD / the Nation). We verify the link — we don&apos;t re-certify. Identity authority stays with Nations / CCIB.</p>
+        <p className="text-ink2 text-sm">Confirm each claim against the issuer (CCIB directory / ISC IBD / the Nation). We verify the link; we don&apos;t re-certify. Identity authority stays with Nations / CCIB.</p>
       </div>
       {pending.length === 0 ? (
         <p className="text-ink3">Nothing pending.</p>
