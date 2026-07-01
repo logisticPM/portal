@@ -2,7 +2,7 @@
 // two impls are identical by construction (the verify.ts golden test).
 import { caseFixtures } from "./fixtures";
 import type {
-  LegalCase, CaseFilter, Facets, ActivationSummary, CitationGraph,
+  LegalCase, CaseFilter, Facets, ActivationSummary, CitationGraph, CorpusStats,
   Theme, CourtLevel, WinType, RealizationStatus,
 } from "./types";
 
@@ -10,7 +10,7 @@ export { caseFixtures }; // convenience re-export for tests
 
 export function filterCases(cases: LegalCase[], f?: CaseFilter): LegalCase[] {
   return cases.filter((c) =>
-    (f?.tier ? c.corpusTier === f.tier : c.corpusTier === "core") &&  // default: core-only
+    (f?.tier === "all" ? true : f?.tier ? c.corpusTier === f.tier : c.corpusTier === "core") &&  // default: core-only
     (!f?.themes?.length || f.themes.some((t) => c.themes.includes(t))) &&
     (!f?.level || c.level === f.level) &&
     (!f?.winType || c.outcome.winType === f.winType) &&
@@ -88,6 +88,20 @@ export function buildActivation(cases: LegalCase[]): ActivationSummary {
     valueRealization: sortKeys(valueRealization),
     landmarkCases,
   };
+}
+
+export function buildCorpusStats(cases: LegalCase[]): CorpusStats {
+  const byLevel: Partial<Record<CourtLevel, number>> = {};
+  const byDecade: Record<string, number> = {};
+  let core = 0, substrate = 0, fullText = 0;
+  for (const c of cases) {
+    if (c.corpusTier === "core") core++; else substrate++;
+    if (c.fullTextAvailable) fullText++;
+    byLevel[c.level] = (byLevel[c.level] ?? 0) + 1;
+    const d = `${Math.floor(c.year / 10) * 10}s`;
+    byDecade[d] = (byDecade[d] ?? 0) + 1;
+  }
+  return { total: cases.length, core, substrate, fullText, byLevel: sortKeys(byLevel), byDecade: sortKeys(byDecade) };
 }
 
 export function buildGraph(cases: LegalCase[], id: string): CitationGraph {

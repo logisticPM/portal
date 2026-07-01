@@ -81,7 +81,7 @@ export interface LegalCase {
 export interface CaseFilter {
   themes?: Theme[]; level?: CourtLevel; winType?: WinType;
   nation?: string; yearFrom?: number; yearTo?: number;
-  tier?: CorpusTier;
+  tier?: CorpusTier | "all";
 }
 export interface Facets {
   byTheme: Partial<Record<Theme, number>>;
@@ -96,6 +96,11 @@ export interface ActivationSummary {
   valueRealization: Partial<Record<RealizationStatus, number>>;
   landmarkCases: { id: string; styleOfCause: string; citingCount: number }[];
 }
+export interface CorpusStats {
+  total: number; core: number; substrate: number; fullText: number;
+  byLevel: Partial<Record<CourtLevel, number>>;
+  byDecade: Record<string, number>;
+}
 export interface CitationGraph { cited: LegalCase[]; citing: LegalCase[]; }
 export interface CaseExportBundle { cases: LegalCase[]; asOf: string; }
 
@@ -106,6 +111,7 @@ export interface CaseRepo {
   hybridSearch(query: string, filter?: CaseFilter): Promise<LegalCase[]>;
   listFacets(filter?: CaseFilter): Promise<Facets>;
   getActivationSummary(): Promise<ActivationSummary>;
+  getCorpusStats(): Promise<CorpusStats>;
   getCitationGraph(id: string): Promise<CitationGraph>;
   exportCases(filter?: CaseFilter): Promise<CaseExportBundle>;
 }
