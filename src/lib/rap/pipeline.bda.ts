@@ -93,7 +93,10 @@ function mapBdaToExtracted(ir: any, ex: any): ExtractedRap {
     rapType: g("rapType"),
     pairLevel: g("pairLevel"),
     endorsementStatus: g("endorsementStatus"),
-    commitments: irCommits.map((c: any, i: number) => mapCommitment(c, exCommits[i])),
+    // drop empty-action artifacts (BDA sometimes returns blank commitment objects)
+    commitments: irCommits
+      .map((c: any, i: number) => mapCommitment(c, exCommits[i]))
+      .filter((c: ExtractedCommitment) => !empty(c.action.value)),
     sectorFields: {}, // populate from ir.sectorFields once the blueprint defines them
     extras: Array.isArray(ir.extras) ? ir.extras : [],
   };
@@ -207,8 +210,8 @@ function mergeExtracted(parts: ExtractedRap[]): ExtractedRap {
   const commitments: ExtractedCommitment[] = [];
   for (const p of parts) for (const c of p.commitments) {
     const k = (c.action.value ?? "").toLowerCase().replace(/\s+/g, " ").trim();
-    if (k && seen.has(k)) continue;
-    if (k) seen.add(k);
+    if (!k || seen.has(k)) continue; // drop empty-action artifacts + exact duplicates
+    seen.add(k);
     commitments.push(c);
   }
   const exSeen = new Set<string>();
