@@ -20,15 +20,15 @@
 
 .dark {
   color-scheme: dark;
-  --bg: 34 30 24; /* #221E18 warm charcoal */
-  --panel: 44 40 32; /* #2C2820 lifted */
-  --ink: 239 231 213; /* #EFE7D5 warm off-white */
-  --ink2: 197 187 168; /* #C5BBA8 */
-  --ink3: 142 132 114; /* #8E8472 */
-  --line: 58 53 43; /* #3A352B */
-  --amber: 217 154 58; /* #D99A3A brightened for dark */
-  --cedar: 127 160 106; /* #7FA06A */
-  --rust: 201 105 74; /* #C9694A */
+  --bg: 24 22 19; /* #181613 deep warm near-black */
+  --panel: 32 29 25; /* #201D19 subtly lifted card */
+  --ink: 242 236 224; /* #F2ECE0 warm off-white */
+  --ink2: 199 189 171; /* #C7BDAB */
+  --ink3: 143 132 114; /* #8F8472 muted */
+  --line: 58 52 44; /* #3A342C hairline */
+  --amber: 226 168 74; /* #E2A84A warm gold, pops on dark */
+  --cedar: 143 178 118; /* #8FB276 */
+  --rust: 210 120 90; /* #D2785A */
 }
 
 html,
