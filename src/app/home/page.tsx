@@ -46,6 +46,7 @@ export default async function HomePage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <LinkCard href="/report" title="Report →" desc="Add itemized lines naming each supplier — your questionnaire." />
           <LinkCard href="/coverage" title="Coverage →" desc="Reported vs confirmed, by flow type." />
+          <LinkCard href="/my-commitments" title="My RAP commitments →" desc="Submit & track your RAP commitments — these feed the RAP Index." />
         </div>
       </Shell>
     );

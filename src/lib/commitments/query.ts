@@ -23,7 +23,8 @@ export function filterCommitments(items: Commitment[], f?: CommitmentFilter): Co
       (!f?.sector || c.sector === f.sector) &&
       (!f?.orgSize || c.orgSize === f.orgSize) &&
       (!f?.type || c.type === f.type) &&
-      (!f?.status || c.status === f.status),
+      (!f?.status || c.status === f.status) &&
+      (!f?.orgId || c.orgId === f.orgId),
   );
 }
 
