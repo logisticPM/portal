@@ -1,34 +1,35 @@
 import Link from "next/link";
 import { casesRepo } from "@/lib/cases";
+import { StatCard, Bar } from "../ui";
 
-function Bar({ label, n, max }: { label: string; n: number; max: number }) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <div className="w-40 shrink-0 text-ink2">{label}</div>
-      <div className="h-4 flex-1 rounded bg-ink/10 overflow-hidden">
-        <div className="h-4 rounded bg-amber" style={{ width: `${max ? (n / max) * 100 : 0}%` }} />
-      </div>
-      <div className="w-8 text-right text-ink3">{n}</div>
-    </div>
-  );
-}
+const cad = (n: number) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(n);
 
 export default async function ActivationPage() {
   const s = await casesRepo.getActivationSummary();
   const themes = Object.entries(s.byTheme);
   const maxTheme = Math.max(1, ...themes.map(([, n]) => n));
   const real = s.valueRealization;
+  const ev = s.economicValue;
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="font-serif text-2xl">Activation Dashboard</h1>
-      <p className="mt-1 text-sm text-ink3">Turning Indigenous legal wins into economic intelligence.</p>
+      <h1 className="font-serif text-2xl">Activation dashboard</h1>
+      <p className="mt-1 text-sm text-ink3">Turning Indigenous legal wins into economic intelligence (curated core cases).</p>
 
       <div className="mt-4 grid grid-cols-3 gap-3">
-        <div className="bg-panel rounded border border-line shadow-card p-3"><div className="font-serif text-2xl">{s.totalCases}</div><div className="text-xs text-ink3">cases</div></div>
-        <div className="bg-panel rounded border border-line shadow-card p-3"><div className="font-serif text-2xl">{(real.realized ?? 0)}</div><div className="text-xs text-ink3">value realized</div></div>
-        <div className="bg-panel rounded border border-line shadow-card p-3"><div className="font-serif text-2xl">{(real.negotiating ?? 0)}</div><div className="text-xs text-ink3">negotiating</div></div>
+        <StatCard label="curated cases" value={s.totalCases} />
+        <StatCard label="value realized" value={real.realized ?? 0} />
+        <StatCard label="negotiating" value={real.negotiating ?? 0} />
       </div>
+
+      <section className="mt-6">
+        <h2 className="font-serif text-lg">Economic value <span className="text-xs font-sans font-normal text-ink3">(recorded across core cases)</span></h2>
+        <div className="mt-2 grid grid-cols-3 gap-3">
+          <StatCard label="settlements" value={cad(ev.settlement)} />
+          <StatCard label="resource revenue" value={cad(ev.resourceRevenue)} />
+          <StatCard label="equity stake %" value={ev.equity} />
+        </div>
+      </section>
 
       <section className="mt-6">
         <h2 className="font-serif text-lg">By theme</h2>
@@ -41,7 +42,7 @@ export default async function ActivationPage() {
         <h2 className="font-serif text-lg">Value-realization funnel</h2>
         <div className="mt-2 flex gap-3 text-sm">
           {(["declared", "negotiating", "realized", "stalled"] as const).map((k) => (
-            <div key={k} className="bg-panel rounded border border-line px-3 py-2">
+            <div key={k} className="rounded border border-line bg-panel px-3 py-2">
               <div className="font-serif text-lg">{real[k] ?? 0}</div><div className="text-xs text-ink3">{k}</div>
             </div>
           ))}

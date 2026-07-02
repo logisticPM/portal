@@ -158,6 +158,7 @@ async function main() {
     eq(await mockCaseRepo.getActivationSummary(), await dynamoCaseRepo.getActivationSummary()));
   check("cases: search mock≡dynamo",
     eq(sortIds(await mockCaseRepo.searchCases("Tsilhqot'in")), sortIds(await dynamoCaseRepo.searchCases("Tsilhqot'in"))));
+  check("cases: getCorpusStats mock≡dynamo", eq(await mockCaseRepo.getCorpusStats(), await dynamoCaseRepo.getCorpusStats()));
 
   // ---- Cases Phase 2-A: tier + unclassified flow ----
   const subCase = {
@@ -172,6 +173,9 @@ async function main() {
   const subList = await dynamoCaseRepo.listCases({ tier: "substrate" });
   check("cases: listCases excludes substrate", coreList.every((c) => c.corpusTier === "core"));
   check("cases: tier:substrate returns substrate", subList.some((c) => c.id === "verify-substrate"));
+  const allTier = await dynamoCaseRepo.listCases({ tier: "all" });
+  check("cases: tier:all returns both tiers",
+    allTier.some((c) => c.corpusTier === "core") && allTier.some((c) => c.corpusTier === "substrate"));
   check("cases: substrate round-trips unclassified",
     (await dynamoCaseRepo.getCase("verify-substrate"))?.outcome.winType === "unclassified");
 

@@ -3,7 +3,7 @@
 import { GetCommand, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../dynamo/client";
 import { caseKeys, caseToItems, itemToCase, reassembleCase } from "../dynamo/cases-table";
-import { filterCases, searchCases, buildFacets, buildActivation, buildGraph } from "./query";
+import { filterCases, searchCases, buildFacets, buildActivation, buildGraph, buildCorpusStats } from "./query";
 import type { CaseRepo, LegalCase } from "./types";
 import { getSearchIndex } from "./search/build-index";
 import { hybridRank } from "./search/hybrid";
@@ -85,6 +85,9 @@ export const dynamoCaseRepo: CaseRepo = {
   },
   async getActivationSummary() {
     return buildActivation(filterCases(await scanAll(), { tier: "core" }));
+  },
+  async getCorpusStats() {
+    return buildCorpusStats(await scanAll());
   },
   async getCitationGraph(id) {
     return buildGraph(await scanAll(), id);
