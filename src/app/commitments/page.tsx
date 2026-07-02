@@ -1,6 +1,7 @@
 // RAP Index dashboard (client idea #2): commitments by sector, organization size,
 // and commitment type, with progress tracking over time. The Indigenomics
 // (institute) landing. Server component reading commitmentsRepo; filters via searchParams.
+import Link from "next/link";
 import { commitmentsRepo, computeRisk, buildInsights, confirmationIntegrity } from "@/lib/commitments";
 import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
@@ -534,7 +535,7 @@ export default async function CommitmentsPage({
               ↓ Export CSV
             </a>
             {hasFilter && (
-              <a href="/commitments" className="text-ink3 underline text-xs">clear all</a>
+              <Link href="/commitments" scroll={false} className="text-ink3 underline text-xs">clear all</Link>
             )}
           </div>
 
@@ -542,15 +543,16 @@ export default async function CommitmentsPage({
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Sector</span>
             {SECTORS.map((s) => (
-              <a
+              <Link
                 key={s}
+                scroll={false}
                 href={qs({ sector: searchParams.sector === s ? undefined : s })}
                 className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
                   searchParams.sector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
                 {label(s)}
-              </a>
+              </Link>
             ))}
           </div>
 
@@ -558,15 +560,16 @@ export default async function CommitmentsPage({
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Type</span>
             {TYPES.map((t) => (
-              <a
+              <Link
                 key={t}
+                scroll={false}
                 href={qs({ type: searchParams.type === t ? undefined : t })}
                 className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
                   searchParams.type === t ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
                 {label(t)}
-              </a>
+              </Link>
             ))}
           </div>
 
@@ -574,15 +577,16 @@ export default async function CommitmentsPage({
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Due year</span>
             {YEARS.map((y) => (
-              <a
+              <Link
                 key={y}
+                scroll={false}
                 href={qs({ year: searchParams.year === String(y) ? undefined : String(y) })}
                 className={`rounded-full border px-2.5 py-0.5 tabular-nums hover:border-amber/50 ${
                   searchParams.year === String(y) ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
                 {y}
-              </a>
+              </Link>
             ))}
           </div>
         </div>
