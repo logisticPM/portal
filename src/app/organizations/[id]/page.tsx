@@ -76,8 +76,9 @@ export default async function OrgScorecardPage({
           .filter(Boolean)
           .some((s) => String(s).toLowerCase().includes(q))),
   );
-  const typeFacets = TYPES.filter((t) => commitments.some((c) => c.type === t));
-  const yearFacets = [...new Set(commitments.map((c) => c.targetYear))].sort((a, b) => a - b);
+  // show ALL types + all network years as filter options (unmatched → empty list)
+  const typeFacets = TYPES;
+  const yearFacets = [...new Set(items.map((c) => c.targetYear))].sort((a, b) => a - b);
   const hasListFilter = !!(searchParams.type || searchParams.year || searchParams.q);
   const listQs = (next: { type?: string; year?: string; q?: string }) => {
     const p = new URLSearchParams();
