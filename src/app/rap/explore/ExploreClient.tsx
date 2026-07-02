@@ -117,7 +117,7 @@ export function ExploreClient({ facts }: { facts: Fact[] }) {
         <Select label="Group by" value={primary} onChange={(v) => setPrimary(v as Dimension)}
           options={DIMENSIONS.map((d) => ({ value: d.key, label: d.label }))} />
         <Select label={view === "contribution" ? "Then (unused)" : "Against"} value={secondary}
-          onChange={(v) => setSecondary(v as Dimension)}
+          onChange={(v) => setSecondary(v as Dimension)} disabled={view === "contribution"}
           options={DIMENSIONS.map((d) => ({ value: d.key, label: d.label }))} />
         <Select label="Measure" value={measure} onChange={(v) => setMeasure(v as Measure)}
           options={MEASURES.map((m) => ({ value: m.key, label: m.label }))} />
@@ -301,14 +301,14 @@ function Kpi({ big, sub, accent }: { big: string; sub: string; accent: string })
   );
 }
 
-function Select({ label, value, onChange, options }: {
-  label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
+function Select({ label, value, onChange, options, disabled = false }: {
+  label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; disabled?: boolean;
 }) {
   return (
-    <label className="text-sm">
+    <label className={`text-sm ${disabled ? "opacity-50" : ""}`}>
       <div className="text-ink3 text-xs uppercase tracking-widest mb-1">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="px-3 py-2 rounded border border-line bg-bg">
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
+        className="px-3 py-2 rounded border border-line bg-bg disabled:cursor-not-allowed">
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </label>
