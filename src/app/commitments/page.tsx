@@ -6,6 +6,7 @@ import { commitmentsRepo, computeRisk, buildInsights, confirmationIntegrity } fr
 import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "./CommitmentSearch";
+import { PageJump } from "./PageJump";
 
 export const dynamic = "force-dynamic";
 
@@ -144,7 +145,7 @@ function GroupSection({
 export default async function CommitmentsPage({
   searchParams,
 }: {
-  searchParams: { sector?: Sector; type?: CommitmentType; year?: string; q?: string };
+  searchParams: { sector?: Sector; type?: CommitmentType; year?: string; q?: string; page?: string };
 }) {
   const yearNum = searchParams.year ? Number(searchParams.year) : undefined;
   const filter = {
@@ -160,6 +161,12 @@ export default async function CommitmentsPage({
   ]);
   const YEARS = [...new Set(allForFacets.map((c) => c.targetYear))].sort((a, b) => a - b);
 
+  // pagination for the list (10 per page)
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const page = Math.min(totalPages, Math.max(1, Number(searchParams.page) || 1));
+  const pageItems = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const currentYear = new Date().getFullYear();
   const insights = buildInsights(summary, list, currentYear);
   const risk = computeRisk(list, currentYear);
@@ -173,16 +180,19 @@ export default async function CommitmentsPage({
   const hasRapData = RAP_TYPES.some((r) => (summary.byRapType[r]?.count ?? 0) > 0);
 
   // Build a /commitments URL, toggling one facet while preserving the others.
-  const qs = (next: { sector?: string; type?: string; year?: string; q?: string }) => {
+  const qs = (next: { sector?: string; type?: string; year?: string; q?: string; page?: string }) => {
     const p = new URLSearchParams();
     const sector = "sector" in next ? next.sector : searchParams.sector;
     const type = "type" in next ? next.type : searchParams.type;
     const year = "year" in next ? next.year : searchParams.year;
     const q = "q" in next ? next.q : searchParams.q;
+    // page is preserved only for paginate links; any filter change omits it (resets to 1)
+    const pg = "page" in next ? next.page : undefined;
     if (sector) p.set("sector", sector);
     if (type) p.set("type", type);
     if (year) p.set("year", year);
     if (q) p.set("q", q);
+    if (pg && pg !== "1") p.set("page", pg);
     const s = p.toString();
     return s ? `/commitments?${s}` : "/commitments";
   };
@@ -580,7 +590,7 @@ export default async function CommitmentsPage({
         </div>
 
         <div className="divide-y divide-ink/10">
-          {list.map((c) => (
+          {pageItems.map((c) => (
             <details key={c.id} className="group">
               <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-3 py-2 text-sm">
                 <span className="text-ink3 text-xs shrink-0 transition-transform group-open:rotate-90">›</span>
@@ -631,6 +641,44 @@ export default async function CommitmentsPage({
           ))}
           {list.length === 0 && <p className="text-ink3 py-2">No commitments match.</p>}
         </div>
+
+        {/* pagination */}
+        {list.length > PAGE_SIZE && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+            <span className="text-ink3">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, list.length)} of {list.length}
+            </span>
+            <div className="flex items-center gap-1 ml-auto">
+              {page > 1 ? (
+                <Link href={qs({ page: String(page - 1) })} scroll={false} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">
+                  ‹ Prev
+                </Link>
+              ) : (
+                <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">‹ Prev</span>
+              )}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                <Link
+                  key={n}
+                  href={qs({ page: String(n) })}
+                  scroll={false}
+                  className={`rounded border px-2.5 py-1 tabular-nums ${
+                    n === page ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2 hover:text-ink hover:border-ink/30"
+                  }`}
+                >
+                  {n}
+                </Link>
+              ))}
+              {page < totalPages ? (
+                <Link href={qs({ page: String(page + 1) })} scroll={false} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">
+                  Next ›
+                </Link>
+              ) : (
+                <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">Next ›</span>
+              )}
+              <PageJump totalPages={totalPages} />
+            </div>
+          </div>
+        )}
         </section>
       </div>
 

@@ -24,6 +24,7 @@ export function CommitmentSearch({ basePath = "/commitments" }: { basePath?: str
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       const p = new URLSearchParams(params.toString());
+      p.delete("page"); // new search → back to page 1
       if (next.trim()) p.set("q", next.trim());
       else p.delete("q");
       const s = p.toString();
