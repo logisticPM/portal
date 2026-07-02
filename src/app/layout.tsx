@@ -50,7 +50,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             Indigenomics <span className="text-amber italic">Data Portal</span>
           </a>
           <div className="flex items-center gap-4 text-xs">
-            <span className="uppercase tracking-[0.18em] text-ink3">demo · synthetic data</span>
+            <span className="uppercase tracking-[0.18em] text-ink3">demo · {process.env.NEXT_PUBLIC_DATA_LABEL ?? "synthetic data"}</span>
+            <a href="/rap" className="text-ink2 hover:text-ink">
+              RAP Index
+            </a>
             <ThemeMenu />
             {session && (
               <a href="/home" className="text-ink2 hover:text-ink">

@@ -81,15 +81,17 @@ export default async function HomePage() {
     repo.listPendingVerifications(),
   ]);
   return (
-    <Shell eyebrow="Indigenomics" title="The RAP Index">
+    <Shell eyebrow="Indigenomics" title="Indigenomics dashboard">
       <div className="grid sm:grid-cols-3 gap-4">
         <Stat value={`${idx.confirmedPct}%`} label="of reported $ confirmed (network-wide)" />
         <Stat value={money(idx.totalConfirmed)} label="confirmed Indigenous economic activity" />
         <Stat value={String(pending.length)} label="certification claims pending review" />
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
-        <LinkCard href="/analytics" title="RAP analysis →" desc="The Index: coverage, by flow, by tier, integrity signals." />
+        <LinkCard href="/rap" title="RAP Index — submitted plans →" desc="Upload RAPs (AI extraction); commitments by sector, size & type; progress over time." />
+        <LinkCard href="/rap/review" title="Extraction review queue →" desc="QA flagged AI extractions before they publish." />
         <LinkCard href="/commitments" title="Commitments dashboard →" desc="RAP commitments by sector, size & type, tracked over time." />
+        <LinkCard href="/analytics" title="RAP analysis →" desc="The Index: coverage, by flow, by tier, integrity signals." />
         <LinkCard href="/verify" title="Verification queue →" desc="Review pending supplier certification claims." />
       </div>
     </Shell>
