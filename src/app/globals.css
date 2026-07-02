@@ -31,6 +31,16 @@
   --rust: 210 120 90; /* #D2785A */
 }
 
+/* Accessible (colorblind-safe) mode: keep the paper neutrals, but swap the three
+   semantic accents to an Okabe-Ito palette so confirmed vs stalled (green vs red
+   today) become blue vs vermillion — distinguishable under red-green colorblindness. */
+.cb {
+  color-scheme: light;
+  --amber: 230 159 0; /* #E69F00 orange — in-progress / primary */
+  --cedar: 0 114 178; /* #0072B2 blue — confirmed / positive */
+  --rust: 213 94 0; /* #D55E00 vermillion — stalled / negative */
+}
+
 html,
 body {
   padding: 0;

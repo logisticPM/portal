@@ -6,8 +6,8 @@ import { getSession } from "@/lib/auth";
 import { signOut } from "@/lib/repo/actions";
 import { ThemeMenu } from "@/components/ThemeMenu";
 
-// Runs before paint to apply the stored mode (avoids a light→dark flash).
-const NO_FLASH = `(function(){try{var t=JSON.parse(localStorage.getItem('portal-theme')||'null');if(t&&t.mode==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
+// Runs before paint to apply the stored mode (avoids a flash of the wrong theme).
+const NO_FLASH = `(function(){try{var t=JSON.parse(localStorage.getItem('portal-theme')||'null');var m=t&&t.mode;var e=document.documentElement;if(m==='dark')e.classList.add('dark');else if(m==='cb')e.classList.add('cb');}catch(e){}})();`;
 
 const display = Fraunces({
   subsets: ["latin"],
