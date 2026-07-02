@@ -28,8 +28,11 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const sector = (searchParams.get("sector") as Sector | null) ?? undefined;
   const type = (searchParams.get("type") as CommitmentType | null) ?? undefined;
+  const yearNum = Number(searchParams.get("year"));
+  const targetYear = Number.isFinite(yearNum) && yearNum > 0 ? yearNum : undefined;
+  const q = searchParams.get("q") ?? undefined;
 
-  const list = await commitmentsRepo.listCommitments({ sector, type });
+  const list = await commitmentsRepo.listCommitments({ sector, type, targetYear, q });
   const rows = list.map((c) =>
     [c.id, c.orgName, c.sector, c.orgSize, c.type, c.title, c.targetYear, c.rapType ?? "", c.status, c.progressPct]
       .map(esc)
