@@ -548,30 +548,32 @@ export default async function CommitmentsPage({
                 </span>
               </summary>
 
-              <div className="pl-6 pr-1 pb-3 pt-1 space-y-3 text-sm">
-                <div>
-                  <div className="text-ink3 text-xs uppercase tracking-widest mb-2">Progress history</div>
-                  <div className="space-y-1.5">
-                    {c.history.map((h, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <span className="w-12 shrink-0 text-ink2 tabular-nums">{h.period}</span>
-                        <div className="h-2 flex-1 rounded bg-ink/10 overflow-hidden">
-                          <div className={`h-full ${STATUS_BG[h.status]}`} style={{ width: `${h.progressPct}%` }} />
-                        </div>
-                        <span className="w-10 text-right tabular-nums text-ink3">{h.progressPct}%</span>
-                        <span className="w-24 text-right capitalize text-ink3">{label(h.status)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {c.source && (
-                  <div className="text-ink3 text-xs">
-                    Source:{" "}
-                    <a href={c.source.url} target="_blank" rel="noreferrer" className="text-amber hover:underline">
-                      {c.source.label} ↗
-                    </a>
-                  </div>
+              <div className="pl-6 pr-1 pb-4 pt-1 space-y-3 text-sm">
+                {(c.detail || c.targetText) && (
+                  <p className="text-ink2">
+                    {c.detail}
+                    {c.targetText ? <> · target <span className="text-ink">{c.targetText}</span></> : null}
+                    {" · due "}{c.targetYear}
+                  </p>
                 )}
+
+                {/* single progress bar */}
+                <div className="flex items-center gap-3">
+                  <div className="h-2 flex-1 rounded bg-ink/10 overflow-hidden">
+                    <div className={`h-full ${STATUS_BG[c.status]}`} style={{ width: `${c.progressPct}%` }} />
+                  </div>
+                  <span className="text-xs text-ink3 w-28 text-right capitalize">{label(c.status)} · {c.progressPct}%</span>
+                </div>
+
+                {/* provenance + source */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="rounded-full border border-line text-ink3 px-2 py-0.5">Self-reported</span>
+                  {c.source && (
+                    <a href={c.source.url} target="_blank" rel="noreferrer" className="text-amber hover:underline">
+                      Source: {c.source.label} ↗
+                    </a>
+                  )}
+                </div>
               </div>
             </details>
           ))}

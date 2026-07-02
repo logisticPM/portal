@@ -51,6 +51,9 @@ export interface Commitment {
   // Provenance for externally-sourced commitments (e.g. a company's public
   // ESG / reconciliation report). Present ⇒ self-reported, not portal-confirmed.
   source?: { label: string; url: string };
+  // Longer description + concrete target, shown when a row is expanded.
+  detail?: string;
+  targetText?: string;
 }
 
 export interface CommitmentFilter {
