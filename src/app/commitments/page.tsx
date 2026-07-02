@@ -5,6 +5,7 @@ import Link from "next/link";
 import { commitmentsRepo, computeRisk, buildInsights, confirmationIntegrity } from "@/lib/commitments";
 import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
+import { CommitmentSearch } from "./CommitmentSearch";
 
 export const dynamic = "force-dynamic";
 
@@ -514,20 +515,7 @@ export default async function CommitmentsPage({
         <div className="space-y-3">
           {/* search + export */}
           <div className="flex flex-wrap items-center gap-2">
-            <form action="/commitments" method="get" className="flex items-center gap-2 flex-1 min-w-[220px]">
-              {searchParams.sector && <input type="hidden" name="sector" value={searchParams.sector} />}
-              {searchParams.type && <input type="hidden" name="type" value={searchParams.type} />}
-              {searchParams.year && <input type="hidden" name="year" value={searchParams.year} />}
-              <input
-                name="q"
-                defaultValue={searchParams.q ?? ""}
-                placeholder="Search commitments, organizations…"
-                className="flex-1 min-w-[180px] rounded border border-line bg-bg/40 px-3 py-1.5 text-sm"
-              />
-              <button className="rounded border border-line px-3 py-1.5 text-sm text-ink2 hover:text-ink hover:border-ink/30">
-                Search
-              </button>
-            </form>
+            <CommitmentSearch />
             <a
               href={`/api/commitments/export${exportQs}`}
               className="rounded border border-line px-3 py-1.5 text-xs text-ink2 hover:text-ink hover:border-ink/30"
