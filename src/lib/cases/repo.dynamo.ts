@@ -8,6 +8,7 @@ import type { CaseRepo, LegalCase } from "./types";
 import { getSearchIndex } from "./search/build-index";
 import { hybridRank } from "./search/hybrid";
 import { getEmbedder } from "./search/embedder";
+import { routeQuery } from "./search/route";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
@@ -67,7 +68,10 @@ export const dynamoCaseRepo: CaseRepo = {
     const idx = await getSearchIndex();
     const embedder = getEmbedder();
     let queryVec = null as Float32Array | null;
-    if (idx.embedderId === embedder.id && idx.vdim === embedder.dim) {
+    const route = routeQuery(query, idx);
+    if (!route.useDense) {
+      // known-item lookup (citation / case name): BM25-only, skip the embed call.
+    } else if (idx.embedderId === embedder.id && idx.vdim === embedder.dim) {
       queryVec = (await embedder.embed([query]))[0];
     } else if (idx.embedderId) {
       console.warn(`[hybrid] embedder/dim mismatch active=${embedder.id}/${embedder.dim} stored=${idx.embedderId}/${idx.vdim} → BM25-only`);
