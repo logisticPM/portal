@@ -7,6 +7,6 @@ export const casesRepo: CaseRepo =
 
 export type {
   LegalCase, CaseRepo, CaseFilter, Facets, ActivationSummary,
-  CitationGraph, CaseExportBundle, Theme, CourtLevel, WinType, RealizationStatus,
+  CitationGraph, CaseExportBundle, Theme, CourtLevel, WinType, CorpusTier, RealizationStatus,
   CaseChunk,
 } from "./types";
