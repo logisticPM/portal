@@ -1,11 +1,7 @@
+import assert from "node:assert/strict";
 import { routeQuery } from "../src/lib/cases/search/route";
 import type { SearchIndex } from "../src/lib/cases/search/build-index";
 import type { LegalCase } from "../src/lib/cases/types";
-
-function eq(actual: unknown, expected: unknown, msg: string): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected))
-    throw new Error(`FAIL ${msg}: got ${JSON.stringify(actual)} want ${JSON.stringify(expected)}`);
-}
 
 // Minimal index: routeQuery only reads index.cases (styleOfCause) for name matching.
 function fixtureIndex(): SearchIndex {
@@ -21,10 +17,34 @@ function fixtureIndex(): SearchIndex {
   const idx = fixtureIndex();
 
   // --- citations route to BM25-only ---
-  eq(routeQuery("2014 SCC 44", idx), { useDense: false, reason: "citation" }, "neutral citation");
-  eq(routeQuery("2004 scc 73", idx), { useDense: false, reason: "citation" }, "lowercase neutral citation");
-  eq(routeQuery("[1990] 1 SCR 1075", idx), { useDense: false, reason: "citation" }, "SCR reporter");
-  eq(routeQuery("2004-scc-73", idx), { useDense: false, reason: "citation" }, "slug id");
+  assert.deepEqual(routeQuery("2014 SCC 44", idx), { useDense: false, reason: "citation" }, "neutral citation");
+  assert.deepEqual(routeQuery("2004 scc 73", idx), { useDense: false, reason: "citation" }, "lowercase neutral citation");
+  assert.deepEqual(routeQuery("[1990] 1 SCR 1075", idx), { useDense: false, reason: "citation" }, "SCR reporter");
+  assert.deepEqual(routeQuery("2004-scc-73", idx), { useDense: false, reason: "citation" }, "slug id");
 
-  console.log("✅ route: citation detection");
+  // --- corpus-grounded case-name matching routes to BM25-only ---
+  assert.equal(routeQuery("Sparrow", idx).useDense, false, "surname matches styleOfCause");
+  assert.equal(routeQuery("Sparrow", idx).reason, "case_name", "surname reason is case_name");
+  assert.equal(routeQuery("Delgamuukw", idx).useDense, false, "single-party name matches styleOfCause");
+  assert.equal(routeQuery("Mikisew Cree", idx).useDense, false, "multi-token prefix matches styleOfCause");
+
+  // --- topical / conceptual queries stay dense ---
+  assert.deepEqual(routeQuery("duty to consult", idx), { useDense: true, reason: "semantic" }, "topical phrase");
+  assert.deepEqual(
+    routeQuery("When must government consult Indigenous groups before a pipeline?", idx),
+    { useDense: true, reason: "semantic" },
+    "natural-language question",
+  );
+
+  // --- guards: long query containing a surname is a question, not a known-item lookup ---
+  assert.equal(
+    routeQuery("what did the court decide about fishing rights in the Sparrow appeal case", idx).useDense,
+    true,
+    "long query with embedded surname is not a name lookup (>5 tokens)",
+  );
+
+  // --- guards: all-generic-token query is not a case-name lookup ---
+  assert.equal(routeQuery("Canada", idx).useDense, true, "generic-only query is not a case-name lookup");
+
+  console.log("✅ route: citation + case-name");
 })().catch((e) => { console.error(e); process.exit(1); });
