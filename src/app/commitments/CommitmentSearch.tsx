@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export function CommitmentSearch() {
+export function CommitmentSearch({ basePath = "/commitments" }: { basePath?: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const [value, setValue] = useState(params.get("q") ?? "");
@@ -27,7 +27,7 @@ export function CommitmentSearch() {
       if (next.trim()) p.set("q", next.trim());
       else p.delete("q");
       const s = p.toString();
-      router.replace(s ? `/commitments?${s}` : "/commitments", { scroll: false });
+      router.replace(s ? `${basePath}?${s}` : basePath, { scroll: false });
     }, 250);
   }
 
