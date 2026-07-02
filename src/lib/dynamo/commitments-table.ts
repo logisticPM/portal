@@ -52,5 +52,7 @@ export function itemToCommitment(it: any): Commitment {
     })),
     createdAt: d.createdAt,
     ...(d.source !== undefined ? { source: { label: d.source.label, url: d.source.url } } : {}),
+    ...(d.detail !== undefined ? { detail: d.detail } : {}),
+    ...(d.targetText !== undefined ? { targetText: d.targetText } : {}),
   };
 }
