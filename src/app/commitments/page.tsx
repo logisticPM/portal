@@ -142,13 +142,21 @@ function GroupSection({
 export default async function CommitmentsPage({
   searchParams,
 }: {
-  searchParams: { sector?: Sector; type?: CommitmentType };
+  searchParams: { sector?: Sector; type?: CommitmentType; year?: string; q?: string };
 }) {
-  const filter = { sector: searchParams.sector, type: searchParams.type };
-  const [summary, list] = await Promise.all([
+  const yearNum = searchParams.year ? Number(searchParams.year) : undefined;
+  const filter = {
+    sector: searchParams.sector,
+    type: searchParams.type,
+    targetYear: Number.isFinite(yearNum) ? yearNum : undefined,
+    q: searchParams.q,
+  };
+  const [summary, list, allForFacets] = await Promise.all([
     commitmentsRepo.getSummary(filter),
     commitmentsRepo.listCommitments(filter),
+    commitmentsRepo.listCommitments(), // unfiltered — to populate the year chips
   ]);
+  const YEARS = [...new Set(allForFacets.map((c) => c.targetYear))].sort((a, b) => a - b);
 
   const currentYear = new Date().getFullYear();
   const insights = buildInsights(summary, list, currentYear);
@@ -162,24 +170,23 @@ export default async function CommitmentsPage({
   const maxTier = Math.max(1, ...RAP_TYPES.map((r) => summary.byRapType[r]?.count ?? 0));
   const hasRapData = RAP_TYPES.some((r) => (summary.byRapType[r]?.count ?? 0) > 0);
 
-  const qs = (next: { sector?: string; type?: string }) => {
+  // Build a /commitments URL, toggling one facet while preserving the others.
+  const qs = (next: { sector?: string; type?: string; year?: string; q?: string }) => {
     const p = new URLSearchParams();
     const sector = "sector" in next ? next.sector : searchParams.sector;
     const type = "type" in next ? next.type : searchParams.type;
+    const year = "year" in next ? next.year : searchParams.year;
+    const q = "q" in next ? next.q : searchParams.q;
     if (sector) p.set("sector", sector);
     if (type) p.set("type", type);
+    if (year) p.set("year", year);
+    if (q) p.set("q", q);
     const s = p.toString();
     return s ? `/commitments?${s}` : "/commitments";
   };
 
-  // CSV export honoring the current filter
-  const exportQs = (() => {
-    const p = new URLSearchParams();
-    if (searchParams.sector) p.set("sector", searchParams.sector);
-    if (searchParams.type) p.set("type", searchParams.type);
-    const s = p.toString();
-    return s ? `?${s}` : "";
-  })();
+  const hasFilter = !!(searchParams.sector || searchParams.type || searchParams.year || searchParams.q);
+  const exportQs = qs({}).replace("/commitments", ""); // "" or "?..."
 
   return (
     <div className="space-y-8">
@@ -503,28 +510,81 @@ export default async function CommitmentsPage({
           The full list behind the numbers above. Filter by sector or type, or export to CSV.
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5 space-y-4">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-ink3 text-xs uppercase tracking-widest mr-1">Filter</span>
-          {SECTORS.map((s) => (
+        <div className="space-y-3">
+          {/* search + export */}
+          <div className="flex flex-wrap items-center gap-2">
+            <form action="/commitments" method="get" className="flex items-center gap-2 flex-1 min-w-[220px]">
+              {searchParams.sector && <input type="hidden" name="sector" value={searchParams.sector} />}
+              {searchParams.type && <input type="hidden" name="type" value={searchParams.type} />}
+              {searchParams.year && <input type="hidden" name="year" value={searchParams.year} />}
+              <input
+                name="q"
+                defaultValue={searchParams.q ?? ""}
+                placeholder="Search commitments, organizations…"
+                className="flex-1 min-w-[180px] rounded border border-line bg-bg/40 px-3 py-1.5 text-sm"
+              />
+              <button className="rounded border border-line px-3 py-1.5 text-sm text-ink2 hover:text-ink hover:border-ink/30">
+                Search
+              </button>
+            </form>
             <a
-              key={s}
-              href={qs({ sector: searchParams.sector === s ? undefined : s })}
-              className={`rounded-full border px-3 py-1 capitalize text-xs hover:border-amber/50 ${
-                searchParams.sector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
-              }`}
+              href={`/api/commitments/export${exportQs}`}
+              className="rounded border border-line px-3 py-1.5 text-xs text-ink2 hover:text-ink hover:border-ink/30"
             >
-              {label(s)}
+              ↓ Export CSV
             </a>
-          ))}
-          {(searchParams.sector || searchParams.type) && (
-            <a href="/commitments" className="text-ink3 underline text-xs ml-1">clear</a>
-          )}
-          <a
-            href={`/api/commitments/export${exportQs}`}
-            className="ml-auto rounded border border-line px-3 py-1 text-xs text-ink2 hover:text-ink hover:border-ink/30"
-          >
-            ↓ Export CSV
-          </a>
+            {hasFilter && (
+              <a href="/commitments" className="text-ink3 underline text-xs">clear all</a>
+            )}
+          </div>
+
+          {/* sector */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Sector</span>
+            {SECTORS.map((s) => (
+              <a
+                key={s}
+                href={qs({ sector: searchParams.sector === s ? undefined : s })}
+                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                  searchParams.sector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
+                }`}
+              >
+                {label(s)}
+              </a>
+            ))}
+          </div>
+
+          {/* commitment type */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Type</span>
+            {TYPES.map((t) => (
+              <a
+                key={t}
+                href={qs({ type: searchParams.type === t ? undefined : t })}
+                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                  searchParams.type === t ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
+                }`}
+              >
+                {label(t)}
+              </a>
+            ))}
+          </div>
+
+          {/* due year */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Due year</span>
+            {YEARS.map((y) => (
+              <a
+                key={y}
+                href={qs({ year: searchParams.year === String(y) ? undefined : String(y) })}
+                className={`rounded-full border px-2.5 py-0.5 tabular-nums hover:border-amber/50 ${
+                  searchParams.year === String(y) ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
+                }`}
+              >
+                {y}
+              </a>
+            ))}
+          </div>
         </div>
 
         <div className="divide-y divide-ink/10">

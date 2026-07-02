@@ -62,6 +62,8 @@ export interface CommitmentFilter {
   type?: CommitmentType;
   status?: CommitmentStatus;
   orgId?: string; // a company's own commitments (portal-submitted)
+  targetYear?: number; // due year
+  q?: string; // free-text search over title / org / detail / target
 }
 
 // Fields a company edits on an existing commitment (self-report, capped at

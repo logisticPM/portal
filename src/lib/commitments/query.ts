@@ -18,13 +18,19 @@ export const STATUSES: CommitmentStatus[] = [
 ];
 
 export function filterCommitments(items: Commitment[], f?: CommitmentFilter): Commitment[] {
+  const q = f?.q?.trim().toLowerCase();
   return items.filter(
     (c) =>
       (!f?.sector || c.sector === f.sector) &&
       (!f?.orgSize || c.orgSize === f.orgSize) &&
       (!f?.type || c.type === f.type) &&
       (!f?.status || c.status === f.status) &&
-      (!f?.orgId || c.orgId === f.orgId),
+      (!f?.orgId || c.orgId === f.orgId) &&
+      (!f?.targetYear || c.targetYear === f.targetYear) &&
+      (!q ||
+        [c.title, c.orgName, c.detail, c.targetText, c.sector, c.type]
+          .filter(Boolean)
+          .some((s) => String(s).toLowerCase().includes(q))),
   );
 }
 
