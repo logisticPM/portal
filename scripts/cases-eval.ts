@@ -8,6 +8,7 @@ import { promises as fs } from "node:fs";
 import { getSearchIndex } from "../src/lib/cases/search/build-index";
 import { getEmbedder, type Embedder } from "../src/lib/cases/search/embedder";
 import { hybridRank, type RetrievalUnit } from "../src/lib/cases/search/hybrid";
+import { routeQuery } from "../src/lib/cases/search/route";
 import { scoreQuery, aggregate, poolCandidates, type GoldQuery, type Aggregate } from "../src/lib/cases/validate/retrieval";
 import { EVAL_QUERIES } from "../src/lib/cases/validate/eval-queries";
 
@@ -42,21 +43,31 @@ async function scoreMode(): Promise<void> {
   if (!gold) { console.log(`ℹ️  no gold at ${GOLD} — retrieval UNVALIDATED.`); return; }
   const idx = await getSearchIndex();
   const embedder = getEmbedder();
-  const bm25Scores = [], hybridScores = [];
+  const bm25Scores = [], hybridScores = [], routedScores = [];
   let denseAny = false;
+  const misroutes: string[] = [];
   for (const g of gold) {
     const { bm25, hybrid, denseOn } = await rankBoth(idx.units, g.query, embedder, idx.embedderId, idx.vdim);
     denseAny = denseAny || denseOn;
     bm25Scores.push(scoreQuery(g, bm25));
     hybridScores.push(scoreQuery(g, hybrid));
+    // Routed: the classifier decides per query which ranked list to use.
+    const route = routeQuery(g.query, idx);
+    routedScores.push(scoreQuery(g, route.useDense ? hybrid : bm25));
+    // Classifier check: known-item should route to BM25 (useDense=false); others to hybrid.
+    const expectedDense = g.layer !== "known_item";
+    if (route.useDense !== expectedDense)
+      misroutes.push(`${g.qid} (${g.layer}) → ${route.reason}/useDense=${route.useDense}`);
   }
-  const b = aggregate(bm25Scores), h = aggregate(hybridScores);
+  const b = aggregate(bm25Scores), h = aggregate(hybridScores), rt = aggregate(routedScores);
   console.log(`gold=${gold.length} queries · embedder=${idx.embedderId ?? "(none)"} · dense=${denseAny ? "ON" : "SKIPPED (no matching vectors)"}`);
   console.log(`BM25   overall: ${fmt(b.overall)}`);
   console.log(`Hybrid overall: ${fmt(h.overall)}`);
-  console.log(`Δ nDCG@10 = ${(h.overall.ndcg10 - b.overall.ndcg10).toFixed(3)} (hybrid − bm25)`);
+  console.log(`Routed overall: ${fmt(rt.overall)}`);
+  console.log(`Δ nDCG@10  hybrid−bm25 = ${(h.overall.ndcg10 - b.overall.ndcg10).toFixed(3)} · routed−bm25 = ${(rt.overall.ndcg10 - b.overall.ndcg10).toFixed(3)} · routed−hybrid = ${(rt.overall.ndcg10 - h.overall.ndcg10).toFixed(3)}`);
   for (const layer of Object.keys(h.byLayer))
-    console.log(`  [${layer}] BM25 ${fmt(b.byLayer[layer])} | Hybrid ${fmt(h.byLayer[layer])}`);
+    console.log(`  [${layer}] BM25 ${fmt(b.byLayer[layer])} | Hybrid ${fmt(h.byLayer[layer])} | Routed ${fmt(rt.byLayer[layer])}`);
+  console.log(`classifier: ${gold.length - misroutes.length}/${gold.length} correctly routed${misroutes.length ? " · misroutes: " + misroutes.join(", ") : ""}`);
 }
 
 async function poolMode(): Promise<void> {
