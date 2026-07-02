@@ -529,36 +529,51 @@ export default async function CommitmentsPage({
 
         <div className="divide-y divide-ink/10">
           {list.map((c) => (
-            <div key={c.id} className="flex items-center gap-3 py-2 text-sm">
-              <div className="flex-1 min-w-0">
-                <div className="truncate">{c.title}</div>
-                <div className="text-ink3 text-xs">
-                  {c.orgName} · <span className="capitalize">{label(c.sector)}</span> ·{" "}
-                  <span className="capitalize">{c.orgSize}</span> ·{" "}
-                  <span className="capitalize">{label(c.type)}</span> · target {c.targetYear}
-                  {c.source && (
-                    <>
-                      {" · "}
-                      <a
-                        href={c.source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-amber hover:underline"
-                        title={c.source.label}
-                      >
-                        source ↗
-                      </a>
-                    </>
-                  )}
+            <details key={c.id} className="group">
+              <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-3 py-2 text-sm">
+                <span className="text-ink3 text-xs shrink-0 transition-transform group-open:rotate-90">›</span>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">{c.title}</div>
+                  <div className="text-ink3 text-xs">
+                    {c.orgName} · <span className="capitalize">{label(c.sector)}</span> ·{" "}
+                    <span className="capitalize">{c.orgSize}</span> ·{" "}
+                    <span className="capitalize">{label(c.type)}</span> · target {c.targetYear}
+                  </div>
                 </div>
+                <span className="font-serif w-12 text-right tabular-nums">{c.progressPct}%</span>
+                <span
+                  className={`text-xs rounded border px-2 py-0.5 capitalize w-24 text-center ${STATUS_PILL[c.status]}`}
+                >
+                  {label(c.status)}
+                </span>
+              </summary>
+
+              <div className="pl-6 pr-1 pb-3 pt-1 space-y-3 text-sm">
+                <div>
+                  <div className="text-ink3 text-xs uppercase tracking-widest mb-2">Progress history</div>
+                  <div className="space-y-1.5">
+                    {c.history.map((h, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="w-12 shrink-0 text-ink2 tabular-nums">{h.period}</span>
+                        <div className="h-2 flex-1 rounded bg-ink/10 overflow-hidden">
+                          <div className={`h-full ${STATUS_BG[h.status]}`} style={{ width: `${h.progressPct}%` }} />
+                        </div>
+                        <span className="w-10 text-right tabular-nums text-ink3">{h.progressPct}%</span>
+                        <span className="w-24 text-right capitalize text-ink3">{label(h.status)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {c.source && (
+                  <div className="text-ink3 text-xs">
+                    Source:{" "}
+                    <a href={c.source.url} target="_blank" rel="noreferrer" className="text-amber hover:underline">
+                      {c.source.label} ↗
+                    </a>
+                  </div>
+                )}
               </div>
-              <span className="font-serif w-12 text-right tabular-nums">{c.progressPct}%</span>
-              <span
-                className={`text-xs rounded border px-2 py-0.5 capitalize w-24 text-center ${STATUS_PILL[c.status]}`}
-              >
-                {label(c.status)}
-              </span>
-            </div>
+            </details>
           ))}
           {list.length === 0 && <p className="text-ink3 py-2">No commitments match.</p>}
         </div>
