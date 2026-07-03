@@ -17,7 +17,7 @@ const PAGE_SIZE = 20;
 export default async function OrganizationsPage({
   searchParams,
 }: {
-  searchParams: { sector?: Sector; q?: string; page?: string };
+  searchParams: { sector?: Sector; q?: string; page?: string; sort?: string; dir?: string };
 }) {
   const items = await commitmentsRepo.listCommitments();
   const currentYear = new Date().getFullYear();
@@ -33,21 +33,59 @@ export default async function OrganizationsPage({
         o.sectors.some((s) => s.toLowerCase().includes(q))),
   );
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // sortable columns. `primary` = the direction of the FIRST click; a 2nd click
+  // reverses; a 3rd returns to default order (rollup: avg progress desc).
+  const COLS = [
+    { key: "org", label: "Organization", primary: "asc", align: "", val: (o: (typeof orgs)[number]) => o.orgName.toLowerCase() },
+    { key: "sector", label: "Sector", primary: "asc", align: "", val: (o: (typeof orgs)[number]) => o.sectors.join(",") },
+    { key: "commitments", label: "Commitments", primary: "desc", align: "text-right", val: (o: (typeof orgs)[number]) => o.total },
+    { key: "avg", label: "Avg progress", primary: "desc", align: "", val: (o: (typeof orgs)[number]) => o.avgProgress },
+    { key: "confirmed", label: "Confirmed", primary: "desc", align: "text-right", val: (o: (typeof orgs)[number]) => o.confirmedPct },
+    { key: "risk", label: "Risk", primary: "desc", align: "text-right", val: (o: (typeof orgs)[number]) => o.overdueCount * 100 + o.atRiskCount },
+  ] as const;
+
+  const sortCol = COLS.find((c) => c.key === searchParams.sort);
+  const dir = searchParams.dir === "asc" || searchParams.dir === "desc" ? searchParams.dir : undefined;
+  let sorted = filtered;
+  if (sortCol && dir) {
+    const mul = dir === "asc" ? 1 : -1;
+    sorted = [...filtered].sort((a, b) => {
+      const av = sortCol.val(a);
+      const bv = sortCol.val(b);
+      if (av < bv) return -1 * mul;
+      if (av > bv) return 1 * mul;
+      return a.orgName.localeCompare(b.orgName);
+    });
+  }
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const page = Math.min(totalPages, Math.max(1, Number(searchParams.page) || 1));
-  const pageOrgs = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageOrgs = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const hasFilter = !!(searchParams.sector || searchParams.q);
-  const qs = (next: { sector?: string; page?: string }) => {
+  const qs = (next: { sector?: string; page?: string; sort?: string; dir?: string }) => {
     const p = new URLSearchParams();
     const sector = "sector" in next ? next.sector : searchParams.sector;
-    const pg = "page" in next ? next.page : undefined;
+    const pg = "page" in next ? next.page : searchParams.page;
+    const sort = "sort" in next ? next.sort : searchParams.sort;
+    const d = "dir" in next ? next.dir : searchParams.dir;
     if (sector) p.set("sector", sector);
     if (searchParams.q) p.set("q", searchParams.q);
+    if (sort) p.set("sort", sort);
+    if (d) p.set("dir", d);
     if (pg && pg !== "1") p.set("page", pg);
     const s = p.toString();
     return s ? `/organizations?${s}` : "/organizations";
   };
+
+  // 3-state cycle for a header click: none → primary → reverse → none
+  const nextSort = (key: string, primary: string) => {
+    if (searchParams.sort !== key) return { sort: key, dir: primary, page: undefined };
+    if (searchParams.dir === primary) return { sort: key, dir: primary === "asc" ? "desc" : "asc", page: undefined };
+    return { sort: undefined, dir: undefined, page: undefined };
+  };
+  const arrow = (key: string) =>
+    searchParams.sort === key ? (searchParams.dir === "asc" ? " ↑" : " ↓") : "";
 
   return (
     <div className="space-y-8">
@@ -93,12 +131,20 @@ export default async function OrganizationsPage({
             <thead>
               <tr className="text-ink3 text-xs uppercase tracking-widest text-left border-b border-line">
                 <th className="py-2 pr-3 font-medium w-8">#</th>
-                <th className="py-2 px-3 font-medium">Organization</th>
-                <th className="py-2 px-3 font-medium">Sector</th>
-                <th className="py-2 px-3 font-medium text-right">Commitments</th>
-                <th className="py-2 px-3 font-medium">Avg progress</th>
-                <th className="py-2 px-3 font-medium text-right">Confirmed</th>
-                <th className="py-2 pl-3 font-medium text-right">Risk</th>
+                {COLS.map((c) => (
+                  <th key={c.key} className={`py-2 px-3 font-medium ${c.align}`}>
+                    <Link
+                      href={qs(nextSort(c.key, c.primary))}
+                      scroll={false}
+                      className={`inline-flex items-center gap-0.5 hover:text-ink ${
+                        searchParams.sort === c.key ? "text-amber" : ""
+                      }`}
+                    >
+                      {c.label}
+                      <span className="tabular-nums">{arrow(c.key)}</span>
+                    </Link>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink/10">
