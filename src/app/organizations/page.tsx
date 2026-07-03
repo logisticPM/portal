@@ -1,7 +1,7 @@
 // Institute-only leaderboard of all organizations' RAP commitments. Searchable,
 // filterable by sector, paginated (20/page + go-to). Companies/suppliers only
 // ever see their own data via /report and /confirm; guarded in middleware.
-import Link from "next/link";
+import { ScrollLink } from "@/components/ScrollLink";
 import { commitmentsRepo, rollupOrgs } from "@/lib/commitments";
 import type { Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
@@ -112,35 +112,35 @@ export default async function OrganizationsPage({
           <div className="flex flex-wrap items-center gap-2">
             <CommitmentSearch basePath="/organizations" />
             {hasFilter && (
-              <Link href="/organizations" scroll={false} className="text-ink3 underline text-xs">clear all</Link>
+              <ScrollLink href="/organizations" className="text-ink3 underline text-xs">clear all</ScrollLink>
             )}
           </div>
           <FilterRow label="Sector">
             {sectorFacets.map((s) => (
-              <Link
+              <ScrollLink
                 key={s}
-                scroll={false}
+               
                 href={qs({ sector: searchParams.sector === s ? undefined : s, page: undefined })}
                 className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
                   searchParams.sector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
                 {label(s)}
-              </Link>
+              </ScrollLink>
             ))}
           </FilterRow>
           <FilterRow label="Name">
             {LETTERS.map((L) => (
-              <Link
+              <ScrollLink
                 key={L}
-                scroll={false}
+               
                 href={qs({ letter: letter === L ? undefined : L, page: undefined })}
                 className={`rounded border w-6 text-center py-0.5 tabular-nums hover:border-amber/50 ${
                   letter === L ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
                 {L}
-              </Link>
+              </ScrollLink>
             ))}
           </FilterRow>
         </div>
@@ -161,16 +161,16 @@ export default async function OrganizationsPage({
                 <th className="py-2 pr-3 font-medium w-8">#</th>
                 {COLS.map((c) => (
                   <th key={c.key} className={`py-2 px-3 font-medium ${c.align}`}>
-                    <Link
+                    <ScrollLink
                       href={qs(nextSort(c.key, c.primary))}
-                      scroll={false}
+                     
                       className={`inline-flex items-center gap-0.5 hover:text-ink ${
                         searchParams.sort === c.key ? "text-amber" : ""
                       }`}
                     >
                       {c.label}
                       <span className="tabular-nums">{arrow(c.key)}</span>
-                    </Link>
+                    </ScrollLink>
                   </th>
                 ))}
               </tr>
@@ -220,24 +220,24 @@ export default async function OrganizationsPage({
             </span>
             <div className="flex items-center gap-1 ml-auto">
               {page > 1 ? (
-                <Link href={qs({ page: String(page - 1) })} scroll={false} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">‹ Prev</Link>
+                <ScrollLink href={qs({ page: String(page - 1) })} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">‹ Prev</ScrollLink>
               ) : (
                 <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">‹ Prev</span>
               )}
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <Link
+                <ScrollLink
                   key={n}
                   href={qs({ page: String(n) })}
-                  scroll={false}
+                 
                   className={`rounded border px-2.5 py-1 tabular-nums ${
                     n === page ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2 hover:text-ink hover:border-ink/30"
                   }`}
                 >
                   {n}
-                </Link>
+                </ScrollLink>
               ))}
               {page < totalPages ? (
-                <Link href={qs({ page: String(page + 1) })} scroll={false} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">Next ›</Link>
+                <ScrollLink href={qs({ page: String(page + 1) })} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">Next ›</ScrollLink>
               ) : (
                 <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">Next ›</span>
               )}
