@@ -541,6 +541,41 @@ export const orgProfiles: Record<string, OrgProfile> = {
     industry: "Energy infrastructure (pipelines)", employees: "~7,000", ticker: "TSX / NYSE: TRP", website: "https://www.tcenergy.com",
     about: "A major North American energy infrastructure company operating natural gas and liquids pipelines and power generation, including the Coastal GasLink project.",
   },
+  Stantec: {
+    legalName: "Stantec Inc.", headquarters: "Edmonton, Alberta, Canada", founded: "1954",
+    industry: "Engineering & design consulting", employees: "~32,000", ticker: "TSX / NYSE: STN", website: "https://www.stantec.com",
+    about: "A global engineering, architecture and environmental-consulting firm headquartered in Edmonton.",
+  },
+  WSP: {
+    legalName: "WSP Global Inc.", headquarters: "Montreal, Quebec, Canada", founded: "1959",
+    industry: "Engineering & professional services", employees: "~73,000", ticker: "TSX: WSP", website: "https://www.wsp.com",
+    about: "One of the world's largest professional-services and engineering firms, headquartered in Montreal.",
+  },
+  ATCO: {
+    legalName: "ATCO Ltd.", headquarters: "Calgary, Alberta, Canada", founded: "1947",
+    industry: "Utilities & infrastructure", employees: "~6,000", ticker: "TSX: ACO.X", website: "https://www.atco.com",
+    about: "A Calgary-based diversified holding company with operations in utilities, energy infrastructure, logistics and structures.",
+  },
+  "Pembina Pipeline": {
+    legalName: "Pembina Pipeline Corporation", headquarters: "Calgary, Alberta, Canada", founded: "1954",
+    industry: "Energy infrastructure (pipelines)", employees: "~3,000", ticker: "TSX / NYSE: PPL", website: "https://www.pembina.com",
+    about: "A Calgary-based energy transportation and midstream company serving North America's energy industry.",
+  },
+  "Nova Scotia Power": {
+    legalName: "Nova Scotia Power Inc. (Emera)", headquarters: "Halifax, Nova Scotia, Canada", founded: "1919",
+    industry: "Electric utility", employees: "~1,900", website: "https://www.nspower.ca",
+    about: "Nova Scotia's primary electric utility, a subsidiary of Emera, serving about 550,000 customers.",
+  },
+  "Meridian Credit Union": {
+    headquarters: "St. Catharines / Toronto, Ontario, Canada", founded: "2005",
+    industry: "Credit union (financial services)", employees: "~2,000", website: "https://www.meridiancu.ca",
+    about: "Ontario's largest credit union, offering personal, business and wealth services to members across the province.",
+  },
+  "Red River College Polytechnic": {
+    legalName: "Red River College Polytechnic (RRC Polytech)", headquarters: "Winnipeg, Manitoba, Canada", founded: "1938",
+    industry: "Polytechnic (post-secondary)", employees: "~2,500 staff · ~21,000 students", website: "https://www.rrc.ca",
+    about: "Manitoba's largest institute of applied learning and research, based in Winnipeg.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {
