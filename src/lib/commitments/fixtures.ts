@@ -987,4 +987,46 @@ export const commitmentFixtures: Commitment[] = [
     detail: "RRC Polytech signed CICan's Indigenous Education Protocol, waives application fees for Indigenous learners, and embedded Truth and Reconciliation actions into its 2025-2028 collective agreement.",
     targetText: "Indigenous Education Protocol",
   }),
+
+  // ── Batch 11: northern telecom, BC health, Crown pipeline, northern retail, nuclear ──
+  mk({
+    id: "cm-northwestel-rel", orgName: "Northwestel", sector: "telecom", orgSize: "large", type: "relationships",
+    title: "Transfer in-community fibre ownership to 13 Yukon First Nation development corporations", targetYear: 2026,
+    history: [h("2022", "committed", 40), h("2025", "in_progress", 60)],
+    source: { label: "Northwestel · Reconciliation (Our Path Forward)", url: "https://www.nwtel.ca/ourpathforward" },
+    detail: "Under 'Our Shared Pathways' (2022), 13 Yukon First Nation development corporations took ownership of Yukon's in-community fibre infrastructure, with Northwestel paying for 20 years of use; the model is expanding to NWT and Nunavut, alongside Indigenous procurement tracking and hiring.",
+    targetText: "Indigenous fibre ownership + procurement",
+  }),
+  mk({
+    id: "cm-fraserhealth-gov", orgName: "Fraser Health", sector: "health", orgSize: "enterprise", type: "governance",
+    title: "Deliver culturally safe care under the Fraser Partnership Accord", targetYear: 2026,
+    history: [h("2024", "in_progress", 45), h("2025", "in_progress", 60)],
+    source: { label: "Fraser Health · Indigenous Health", url: "https://www.fraserhealth.ca/health-topics-a-to-z/indigenous-health" },
+    detail: "Fraser Health's Fraser Partnership Accord (renewed 2020 and 2024 with the First Nations Health Authority, Fraser Salish Regional Caucus and Métis Nation BC) created an Indigenous Health Collaborative Council to govern culturally safe, racism-free care.",
+    targetText: "Fraser Partnership Accord",
+  }),
+  mk({
+    id: "cm-transmountain-proc", orgName: "Trans Mountain Corporation", sector: "energy", orgSize: "enterprise", type: "procurement",
+    title: "Deliver Indigenous procurement, training & employment under Mutual Benefit Agreements", targetYear: 2024,
+    history: [h("2020", "committed", 50), h("2022", "reported", 90), h("2024", "reported", 100)],
+    source: { label: "Trans Mountain · Indigenous Inclusion", url: "https://www.transmountain.com/indigenous-inclusion" },
+    detail: "Trans Mountain signed 69 Mutual Benefit Agreements with 81 Indigenous groups (over $650M) and adopted Indigenous Procurement, Training and Employment Policies; by 2022 it had awarded $6B+ in contracts to Indigenous-led ventures, with ~3,100 Indigenous workers (about 10% of the workforce).",
+    targetText: "$6B+ Indigenous contracts",
+  }),
+  mk({
+    id: "cm-northwest-rel", orgName: "The North West Company", sector: "retail", orgSize: "large", type: "relationships",
+    title: "Advance 'Our Promise to Indigenous Peoples' across northern communities", targetYear: 2026,
+    history: [h("2024", "committed", 35), h("2025", "in_progress", 50)],
+    source: { label: "The North West Company · Our Promise to Indigenous Peoples", url: "https://www.northwest.ca/sustainability/our-promise-to-indigenous-peoples" },
+    detail: "The North West Company, a leading retailer to northern and Indigenous communities, sets out 'Our Promise to Indigenous Peoples' committing to respectful relationships, local employment and community support.",
+    targetText: "Our Promise to Indigenous Peoples",
+  }),
+  mk({
+    id: "cm-brucepower-proc", orgName: "Bruce Power", sector: "energy", orgSize: "large", type: "procurement",
+    title: "Prioritize Indigenous suppliers via an Indigenous Procurement Policy (CCAB PAR Gold)", targetYear: 2025,
+    history: [h("2023", "reported", 90), h("2025", "reported", 100)],
+    source: { label: "Bruce Power · Indigenous Procurement Policy", url: "https://www.brucepower.com/become-a-supplier/indigenous-procurement-policy/" },
+    detail: "Bruce Power holds CCAB PAR Gold (fourth consecutive), applies an Indigenous modifier favouring Indigenous-owned businesses in its procurement, leads an Indigenous Relations Supplier Network, and formed the Gamzook'aamin aakoziwin partnership with the Saugeen Ojibway Nation.",
+    targetText: "Indigenous Procurement Policy + PAR Gold",
+  }),
 ];
