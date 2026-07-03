@@ -73,3 +73,30 @@ A lightweight query classifier (regex for neutral citations like `\d{4}\s+SCC\s+
 ## Provenance / caveats
 - Vectors: Titan v2 in `us-east-1`, full corpus, one credentialed run (2026-07-02). Cost was a few $.
 - Judgments remain **Claude-as-judge**, `rel-v1`, re-pooled with dense — consistency signal, not licensed-expert ground truth. The known-item discipline (no topical-neighbour additions) is the load-bearing methodological choice; revisiting it would change the known-item delta.
+
+## Query routing (T5 confirmation, 2026-07-03 — real dense, `cases:eval:bedrock`)
+
+The routing recommended above was implemented (spec `2026-07-02-query-routing-design.md`,
+merged PR #91: `routeQuery` — citation regex + corpus-grounded case-name match →
+BM25-only; everything else → hybrid) and measured with real Titan v2 dense on the same
+expanded gold:
+
+| layer | metric | BM25 | Hybrid (uniform) | **Routed** |
+|---|---|---|---|---|
+| **overall** | nDCG@10 | 0.534 | 0.578 | **0.612** |
+| | recall@10 | 0.526 | 0.521 | **0.557** |
+| | MRR | 0.690 | 0.789 | **0.838** |
+| known_item | nDCG@10 | 0.594 | 0.492 | **0.594** |
+| | MRR | 0.597 | 0.449 | **0.597** |
+| conceptual | nDCG@10 | 0.470 | 0.620 | **0.620** |
+| | MRR | 0.681 | 1.000 | **1.000** |
+| topical | nDCG@10 | 0.539 | 0.621 | **0.621** |
+
+- **Every success criterion met exactly:** known-item fully recovers to the BM25 line
+  (the −0.102 hybrid regression is erased), conceptual/topical keep their full hybrid
+  lift, overall beats uniform hybrid by +0.034 nDCG@10 (and +0.077 over BM25).
+- **Classifier: 18/18 correctly routed** (6 known-item → BM25, 12 conceptual·topical
+  → hybrid), with dense ON — matching the offline stub-run classification exactly
+  (routing is deterministic and embedding-independent, as designed).
+- Routed is now the portal's live search behavior (`hybridSearch` seam) wherever a
+  query-time embedder is configured; without one it degrades to BM25-only as before.
