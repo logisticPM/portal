@@ -461,6 +461,36 @@ export const orgProfiles: Record<string, OrgProfile> = {
     industry: "Engineering & project management", employees: "~37,000", ticker: "TSX: ATRL", website: "https://www.atkinsrealis.com",
     about: "A global engineering and project-management firm (rebranded from SNC-Lavalin in 2023) delivering infrastructure, nuclear and consulting services.",
   },
+  "Calgary Airport Authority": {
+    headquarters: "Calgary, Alberta, Canada", founded: "1990",
+    industry: "Airport operator (not-for-profit)", employees: "~300 (authority)", website: "https://www.yyc.com",
+    about: "The not-for-profit authority that operates Calgary International Airport (YYC) and Springbank Airport (YBW).",
+  },
+  "Air Canada": {
+    headquarters: "Saint-Laurent, Montreal, Quebec, Canada", founded: "1937 (privatized 1988)",
+    industry: "Airline", employees: "~40,000", ticker: "TSX: AC", website: "https://www.aircanada.com",
+    about: "Canada's largest airline and flag carrier, serving a global network from hubs in Toronto, Montreal and Vancouver.",
+  },
+  FortisBC: {
+    legalName: "FortisBC Holdings Inc.", headquarters: "Surrey, British Columbia, Canada", founded: "1988",
+    industry: "Energy utility (gas & electricity)", employees: "~2,600", website: "https://www.fortisbc.com",
+    about: "A British Columbia energy utility (subsidiary of Fortis Inc.) providing natural gas and electricity to much of the province.",
+  },
+  "Saskatchewan Health Authority": {
+    headquarters: "Saskatchewan, Canada (Regina / Saskatoon)", founded: "2017",
+    industry: "Provincial health authority", employees: "~44,000", website: "https://www.saskhealthauthority.ca",
+    about: "Saskatchewan's single provincial health authority and the province's largest employer, delivering health services province-wide.",
+  },
+  "Interior Health": {
+    headquarters: "Kelowna, British Columbia, Canada", founded: "2001",
+    industry: "Regional health authority", employees: "~24,000", website: "https://www.interiorhealth.ca",
+    about: "One of British Columbia's regional health authorities, serving the province's southern interior.",
+  },
+  "Intact Financial": {
+    legalName: "Intact Financial Corporation", headquarters: "Toronto, Ontario, Canada", founded: "2009 (roots to 1809)",
+    industry: "Property & casualty insurance", employees: "~28,000", ticker: "TSX: IFC", website: "https://www.intactfc.com",
+    about: "Canada's largest provider of property and casualty insurance, also operating in the US, UK and Ireland.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {
