@@ -39,12 +39,12 @@ export default async function OrganizationsPage({
   // sortable columns. `primary` = the direction of the FIRST click; a 2nd click
   // reverses; a 3rd returns to default order (rollup: avg progress desc).
   const COLS = [
-    { key: "org", label: "Organization", primary: "asc", align: "", val: (o: (typeof orgs)[number]) => o.orgName.toLowerCase() },
+    { key: "org", label: "Organization", primary: "asc", align: "text-center", val: (o: (typeof orgs)[number]) => o.orgName.toLowerCase() },
     { key: "sector", label: "Sector", primary: "asc", align: "", val: (o: (typeof orgs)[number]) => o.sectors.join(",") },
     { key: "commitments", label: "Commitments", primary: "desc", align: "text-center", val: (o: (typeof orgs)[number]) => o.total },
     { key: "avg", label: "Avg progress", primary: "desc", align: "", val: (o: (typeof orgs)[number]) => o.avgProgress },
     { key: "confirmed", label: "Confirmed", primary: "desc", align: "text-center", val: (o: (typeof orgs)[number]) => o.confirmedPct },
-    { key: "risk", label: "Risk", primary: "desc", align: "text-right", val: (o: (typeof orgs)[number]) => o.overdueCount * 100 + o.atRiskCount },
+    { key: "risk", label: "Risk", primary: "desc", align: "text-center", val: (o: (typeof orgs)[number]) => o.overdueCount * 100 + o.atRiskCount },
   ] as const;
 
   const sortCol = COLS.find((c) => c.key === searchParams.sort);
@@ -195,7 +195,7 @@ export default async function OrganizationsPage({
                     </div>
                   </td>
                   <td className="py-2 px-3 text-center tabular-nums text-cedar">{o.confirmedPct}%</td>
-                  <td className="py-2 pl-3 text-right whitespace-nowrap text-xs">
+                  <td className="py-2 pl-3 text-center whitespace-nowrap text-xs">
                     {o.overdueCount > 0 && <span className="text-rust">{o.overdueCount} overdue</span>}
                     {o.overdueCount > 0 && o.atRiskCount > 0 && <span className="text-ink3"> · </span>}
                     {o.atRiskCount > 0 && <span className="text-amber">{o.atRiskCount} at risk</span>}
