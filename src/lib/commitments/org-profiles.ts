@@ -526,6 +526,21 @@ export const orgProfiles: Record<string, OrgProfile> = {
     industry: "Public research university", employees: "~9,000 staff · ~30,000 students", website: "https://umanitoba.ca",
     about: "Western Canada's first university (est. 1877) and Manitoba's largest, a research-intensive institution in Winnipeg.",
   },
+  Syncrude: {
+    legalName: "Syncrude Canada Ltd.", headquarters: "Fort McMurray, Alberta, Canada", founded: "1964",
+    industry: "Oil sands (energy)", employees: "~5,000", website: "https://www.syncrude.ca",
+    about: "One of the world's largest oil sands producers, operated in the Athabasca region and a long-standing leader in Aboriginal employment and procurement.",
+  },
+  "Diavik Diamond Mine (Rio Tinto)": {
+    legalName: "Diavik Diamond Mines (2012) Inc. (Rio Tinto)", headquarters: "Lac de Gras, Northwest Territories, Canada", founded: "2003",
+    industry: "Diamond mining", employees: "~1,100", website: "https://www.riotinto.com/en/operations/canada/diavik",
+    about: "Canada's largest diamond mine, operated by Rio Tinto in the NWT under Participation Agreements with five northern Aboriginal groups.",
+  },
+  "TC Energy": {
+    legalName: "TC Energy Corporation", headquarters: "Calgary, Alberta, Canada", founded: "1951",
+    industry: "Energy infrastructure (pipelines)", employees: "~7,000", ticker: "TSX / NYSE: TRP", website: "https://www.tcenergy.com",
+    about: "A major North American energy infrastructure company operating natural gas and liquids pipelines and power generation, including the Coastal GasLink project.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {
