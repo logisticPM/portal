@@ -62,7 +62,13 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
 
       <ul className="mt-3 divide-y divide-line">
         {cases.map((c) => <CaseListItem key={c.id} c={c} q={q} />)}
-        {cases.length === 0 && <li className="py-3 text-ink3">No cases match.</li>}
+        {cases.length === 0 && (
+          <li className="py-3 text-ink3">
+            {q
+              ? "No cases match."
+              : "No cases in this view yet — the corpus may not be loaded in this environment. See Methodology for corpus status."}
+          </li>
+        )}
       </ul>
     </div>
   );
