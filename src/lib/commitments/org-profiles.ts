@@ -388,6 +388,44 @@ export const orgProfiles: Record<string, OrgProfile> = {
     employees: "~25,000", website: "https://www.vch.ca",
     about: "A British Columbia regional health authority serving Vancouver and the coastal region.",
   },
+
+  // ── Batch 5 ──
+  CAE: {
+    legalName: "CAE Inc.", headquarters: "Montreal, Quebec, Canada", founded: "1947",
+    industry: "Aerospace (simulation & training)", employees: "~13,000", ticker: "TSX / NYSE: CAE",
+    website: "https://www.cae.com",
+    about: "A global leader in flight simulation and aviation/defence training, based in Montreal.",
+  },
+  "Maple Leaf Foods": {
+    legalName: "Maple Leaf Foods Inc.", headquarters: "Mississauga, Ontario, Canada", founded: "1927",
+    industry: "Food processing", employees: "~13,000", ticker: "TSX: MFI", website: "https://www.mapleleaffoods.com",
+    about: "One of Canada's largest prepared-meats and plant-protein food companies.",
+  },
+  Sobeys: {
+    legalName: "Sobeys Inc. (Empire Company)", headquarters: "Stellarton, Nova Scotia, Canada", founded: "1907",
+    industry: "Retail (grocery)", employees: "~123,000", website: "https://www.sobeys.com",
+    about: "One of Canada's two national grocery retailers, a subsidiary of Empire Company.",
+  },
+  "Federated Co-operatives": {
+    legalName: "Federated Co-operatives Limited (FCL)", headquarters: "Saskatoon, Saskatchewan, Canada", founded: "1928",
+    industry: "Retail & wholesale (co-operative)", employees: "~3,500", website: "https://www.fcl.crs",
+    about: "The wholesaler and administrator for the Co-operative Retailing System across Western Canada.",
+  },
+  "Port of Vancouver (Vancouver Fraser Port Authority)": {
+    legalName: "Vancouver Fraser Port Authority", headquarters: "Vancouver, British Columbia, Canada", founded: "2008",
+    industry: "Port authority (federal)", employees: "~500", website: "https://www.portvancouver.com",
+    about: "The federal authority for the Port of Vancouver, Canada's largest port.",
+  },
+  "CBC/Radio-Canada": {
+    legalName: "Canadian Broadcasting Corporation", headquarters: "Ottawa, Ontario, Canada", founded: "1936",
+    industry: "Media & broadcasting (federal Crown)", employees: "~7,000", website: "https://cbc.radio-canada.ca",
+    about: "Canada's national public broadcaster, a federal Crown corporation.",
+  },
+  BCLC: {
+    legalName: "British Columbia Lottery Corporation", headquarters: "Kamloops, British Columbia, Canada", founded: "1985",
+    industry: "Gaming (provincial Crown)", employees: "~1,000", website: "https://www.bclc.com",
+    about: "British Columbia's provincial Crown gaming corporation.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {

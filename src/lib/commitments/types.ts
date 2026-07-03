@@ -15,7 +15,10 @@ export type Sector =
   | "transport"
   | "telecom"
   | "forestry"
-  | "construction";
+  | "construction"
+  | "aerospace"
+  | "agriculture"
+  | "media";
 
 export type OrgSize = "small" | "medium" | "large" | "enterprise"; // bucketed from employee count
 
