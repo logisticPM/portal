@@ -7,6 +7,7 @@ import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from 
 import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "./CommitmentSearch";
 import { PageJump } from "./PageJump";
+import { FilterRow } from "@/components/FilterRow";
 
 export const dynamic = "force-dynamic";
 
@@ -473,8 +474,7 @@ export default async function CommitmentsPage({
           </div>
 
           {/* sector filter */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-16 shrink-0">Sector</span>
+          <FilterRow label="Sector">
             {riskSectorFacets.map((s) => (
               <Link
                 key={s}
@@ -487,11 +487,10 @@ export default async function CommitmentsPage({
                 {label(s)}
               </Link>
             ))}
-          </div>
+          </FilterRow>
 
           {/* status filter tabs */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-16 shrink-0">Status</span>
+          <FilterRow label="Status">
             {RISK_TABS.map((t) => (
               <Link
                 key={t.id}
@@ -509,7 +508,7 @@ export default async function CommitmentsPage({
                 clear
               </Link>
             )}
-          </div>
+          </FilterRow>
 
           {riskPageItems.length === 0 ? (
             <p className="text-ink3 text-sm">Nothing here.</p>
@@ -678,8 +677,7 @@ export default async function CommitmentsPage({
           </div>
 
           {/* sector */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Sector</span>
+          <FilterRow label="Sector">
             {SECTORS.map((s) => (
               <Link
                 key={s}
@@ -692,11 +690,10 @@ export default async function CommitmentsPage({
                 {label(s)}
               </Link>
             ))}
-          </div>
+          </FilterRow>
 
           {/* commitment type */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Type</span>
+          <FilterRow label="Type">
             {TYPES.map((t) => (
               <Link
                 key={t}
@@ -709,11 +706,10 @@ export default async function CommitmentsPage({
                 {label(t)}
               </Link>
             ))}
-          </div>
+          </FilterRow>
 
           {/* due year */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Due year</span>
+          <FilterRow label="Due year">
             {YEARS.map((y) => (
               <Link
                 key={y}
@@ -726,7 +722,7 @@ export default async function CommitmentsPage({
                 {y}
               </Link>
             ))}
-          </div>
+          </FilterRow>
         </div>
 
         <div className="divide-y divide-ink/10">
