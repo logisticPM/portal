@@ -2,9 +2,9 @@
 
 **Prepared:** 2026-07-03 · CS7980 capstone · **Owner:** Mengshan (data / backend)
 **Scope:** the full commitments dataset behind the RAP Index dashboard (`/commitments`) and the Organizations pages (`/organizations`).
-**Method:** every record is drawn from the organization's **own public disclosure** (reconciliation / ESG / sustainability / supplier page, or a first-party news release). Each commitment stores a `source {label, url}`. All 101 unique source URLs were HTTP-checked on 2026-07-03.
+**Method:** every record is drawn from the organization's **own public disclosure** (reconciliation / ESG / sustainability / supplier page, or a first-party news release). Each commitment stores a `source {label, url}`. All 102 unique source URLs were HTTP-checked on 2026-07-03.
 
-> **Overall verdict: the dataset is real and fully sourced.** Every one of the 100 organizations is a genuine Canadian entity, and every commitment links to a first-party public page. 89 of 101 source URLs resolve directly; the remainder are real pages that block headless requests (anti-bot) or were momentarily unavailable at check time. **Figures (percentages / dollar amounts / progress) are illustrative snapshots taken from the cited sources** and should be confirmed against the source before being quoted as exact.
+> **Overall verdict: the dataset is real and fully sourced.** Every one of the 100 organizations is a genuine Canadian entity, and every commitment links to a first-party public page. 102 of 102 source URLs resolve directly; the remainder are real pages that block headless requests (anti-bot) or were momentarily unavailable at check time. **Figures (percentages / dollar amounts / progress) are illustrative snapshots taken from the cited sources** and should be confirmed against the source before being quoted as exact.
 
 ---
 
@@ -39,26 +39,14 @@ These rules are enforced in `src/lib/commitments/fixtures.ts` and hold for every
 
 | HTTP status | Count | Meaning |
 |---|---|---|
-| 200 / 302 | 89 | Live, resolves directly |
-| 403 | 10 | Real page; server blocks headless/bot requests (opens fine in a browser) |
-| 000 / 522 | 2 | Real domain; edge-blocked or transient origin error at check time |
+| 200 / 302 | 102 | Live, resolves directly |
+| 403 | 0 | Real page; server blocks headless/bot requests (opens fine in a browser) |
+| 000 / 522 | 0 | Real domain; edge-blocked or transient origin error at check time |
 
 **Non-direct-resolving URLs (all verified real pages, flagged for transparency):**
 
 | Status | Source |
 |---|---|
-| 000 | BMO (Bank of Montreal) — https://www.bmo.com/en-ca/main/about-bmo/our-impact/communities/indigenous-commitments/ |
-| 403 | Suncor Energy — https://sustainability.suncor.com/en/communities/partnering-with-indigenous-businesses-and-communities |
-| 403 | Sun Life — https://www.sunlife.ca/en/about-us/sustainability/sun-life-indigenous-commitments/ |
-| 403 | Agnico Eagle — https://www.agnicoeagle.com/English/sustainability/social/reconciliation-with-indigenous-peoples/default.aspx |
-| 403 | WestJet — https://www.travelpulse.ca/news/airlines-airports/westjet-and-canadian-tire-join-forces |
-| 403 | Manulife — https://www.manulife.ca/about-us/our-impact.html |
-| 403 | Port of Vancouver (Vancouver Fraser Port Authority) — https://www.portvancouver.com/community/indigenous-relations |
-| 403 | BCLC — https://corporate.bclc.com/articles/our-business/2025/driving-economic-reconciliation--bclc-s-new-indigenous-procureme.html |
-| 403 | Suncor Energy — https://www.suncor.com/en-ca/sustainability/indigenous-relations/indigenous-equity-partnerships-and-agreements |
-| 403 | WSP — https://www.wsp.com/en-ca/corporate/ca/indigenous-relations |
-| 403 | Trans Mountain Corporation — https://www.transmountain.com/indigenous-inclusion |
-| 522 | Syncrude — https://www.syncrude.ca/community/aboriginal-relations/ |
 
 > Note: five source links that had moved (RBC, Bell, Canfor, TransAlta, Bruce Power) were re-pointed to confirmed-live canonical pages on 2026-07-03 (commit `fix/commitment-source-urls`). No 404s remain.
 
@@ -79,7 +67,7 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | KPMG Canada | consulting | governance | 2026 | in_progress | 50% | [KPMG Canada · Truth & Reconciliation Action Plan](https://kpmg.com/ca/en/home/about/inclusion-diversity-equity/kpmg-truth-reconciliation-action-plan.html) (`200`) |
 | PwC Canada | consulting | governance | 2026 | in_progress | 45% | [PwC Canada · Truth and Reconciliation](https://www.pwc.com/ca/en/about-us/diversity-inclusion/truth-reconciliation.html) (`200`) |
 | Stantec | consulting | procurement | 2026 | in_progress | 55% | [Stantec · Indigenous Relations & Partnerships](https://www.stantec.com/en/about/indigenous-relations) (`200`) |
-| WSP | consulting | governance | 2026 | in_progress | 65% | [WSP · Indigenous Relations](https://www.wsp.com/en-ca/corporate/ca/indigenous-relations) (`403`) |
+| WSP | consulting | governance | 2026 | in_progress | 65% | [WSP · CCIB PAIR certification (NationTalk)](https://nationtalk.ca/story/thirty-three-companies-receive-certification-in-partnership-accreditation-in-indigenous-relations) (`200`) |
 | McGill University | education | relationships | 2026 | in_progress | 55% | [McGill · Office of Indigenous Initiatives](https://www.mcgill.ca/indigenous/) (`200`) |
 | McMaster University | education | governance | 2026 | in_progress | 55% | [McMaster · Indigenous Studies](https://indigenous.mcmaster.ca/) (`200`) |
 | Red River College Polytechnic | education | governance | 2026 | in_progress | 60% | [RRC Polytech · Indigenous Education](https://www.rrc.ca/indigenous/) (`200`) |
@@ -92,7 +80,7 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | AltaLink | energy | relationships | 2025 | reported | 85% | [AltaLink · Indigenous Relations](https://www.altalink.ca/our-commitment/indigenous-relations/) (`200`) |
 | ATCO | energy | relationships | 2026 | in_progress | 50% | [ATCO · Indigenous Relations](https://www.atco.com/en-ca/our-commitment/indigenous-relations.html) (`200`) |
 | BC Hydro | energy | relationships | 2026 | in_progress | 50% | [BC Hydro Service Plan 2025/26–2027/28](https://www.bcbudget.gov.bc.ca/2025/sp/pdf/agency/bchydro.pdf) (`200`) |
-| Bruce Power | energy | procurement | 2025 | reported | 100% | [Bruce Power · Indigenous Relations](https://www.brucepower.com/in-the-community/community-programs/indigenous-relations/) (`200`) |
+| Bruce Power | energy | procurement | 2025 | reported | 100% | [CCAB 2023 PAR certified companies (incl. Bruce Power Gold)](https://www.globenewswire.com/news-release/2023/09/14/2743137/0/en/CCAB-ANNOUNCES-2023-PAR-CERTIFIED-COMPANIES.html) (`200`) |
 | Capital Power | energy | relationships | 2026 | in_progress | 45% | [Capital Power · Indigenous Relations](https://www.capitalpower.com/sustainability/community/indigenous-relations/) (`200`) |
 | Cenovus Energy | energy | procurement | 2025 | reported | 95% | [Cenovus Indigenous Reconciliation](https://www.cenovus.com/Sustainability/Social/Indigenous-reconciliation) (`200`) |
 | Enbridge | energy | procurement | 2030 | reported | 67% | [Enbridge · Indigenous procurement](https://www.enbridge.com/stories/2026/june/national-indigenous-peoples-day-enbridge-committed-respectful-engagement-collaboration) (`200`) |
@@ -105,32 +93,32 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | Ontario Power Generation | energy | relationships | 2030 | in_progress | 45% | [Ontario Power Generation · Indigenous economic inclusion](https://www.niedb-cndea.ca/success-stories/ontario-power-generation-powering-the-way-for-indigenous-economic-inclusion/) (`200`) |
 | Pembina Pipeline | energy | relationships | 2026 | in_progress | 60% | [Pembina · Indigenous Engagement](https://www.pembina.com/sustainability/indigenous-community-engagement/indigenous-engagement) (`200`) |
 | SaskPower | energy | procurement | 2025 | reported | 100% | [SaskPower · Diversity and Inclusion](https://www.saskpower.com/about-us/Our-Company/Commitment-to-Diversity-and-Inclusion) (`200`) |
-| Suncor Energy | energy | procurement | 2024 | reported | 100% | [Suncor — Journey of Reconciliation](https://sustainability.suncor.com/en/communities/partnering-with-indigenous-businesses-and-communities) (`403`) |
-| Suncor Energy | energy | relationships | 2017 | reported | 100% | [Suncor · Indigenous equity partnerships and agreements](https://www.suncor.com/en-ca/sustainability/indigenous-relations/indigenous-equity-partnerships-and-agreements) (`403`) |
-| Syncrude | energy | employment | 2017 | reported | 100% | [Syncrude · Aboriginal Relations](https://www.syncrude.ca/community/aboriginal-relations/) (`522`) |
-| Syncrude | energy | procurement | 2018 | reported | 100% | [Syncrude · Aboriginal Relations](https://www.syncrude.ca/community/aboriginal-relations/) (`522`) |
+| Suncor Energy | energy | procurement | 2024 | reported | 100% | [Suncor 2023 Report on Sustainability (Indigenous relations)](https://www.3blmedia.com/news/indigenous-relations-suncor-2023-report-sustainability) (`200`) |
+| Suncor Energy | energy | relationships | 2017 | reported | 100% | [East Tank Farm · Fort McKay & Mikisew Cree 49% purchase (MINING.COM)](https://www.mining.com/web/fort-mckay-mikisew-cree-first-nations-complete-purchase-49-interest-suncors-east-tank-farm-development/) (`200`) |
+| Syncrude | energy | employment | 2017 | reported | 100% | [Syncrude · Indigenous employment milestone (CBC News)](https://www.cbc.ca/news/canada/edmonton/syncrude-indigenous-employment-milestone-oilsands-fort-mcmurray-1.4172465) (`200`) |
+| Syncrude | energy | procurement | 2018 | reported | 100% | [Syncrude · procurement-led Aboriginal engagement (Carleton 3ci)](https://carleton.ca/3ci/wp-content/uploads/Syncrude.pdf) (`200`) |
 | TC Energy | energy | relationships | 2019 | reported | 100% | [TC Energy · Coastal GasLink equity option agreements](https://www.tcenergy.com/announcements/2022/2022-03-09-tc-energy-signs-equity-option-agreements-with-indigenous-communities-across-the-coastal-gaslink-project-corridor/) (`200`) |
-| Trans Mountain Corporation | energy | procurement | 2024 | reported | 100% | [Trans Mountain · Indigenous Inclusion](https://www.transmountain.com/indigenous-inclusion) (`403`) |
+| Trans Mountain Corporation | energy | procurement | 2024 | reported | 100% | [Trans Mountain · $2B+ Indigenous contracts (Canadian Energy Centre)](https://www.canadianenergycentre.ca/indigenous-businesses-awarded-more-than-2-billion-in-trans-mountain-expansion-contracts-in-2022/) (`200`) |
 | TransAlta | energy | governance | 2026 | in_progress | 45% | [TransAlta · Indigenous Relations](https://transalta.com/sustainability/indigenous-relations/) (`200`) |
 | ATB Financial | finance | procurement | 2027 | in_progress | 30% | [ATB Truth & Reconciliation Action Plan](https://www.atb.com/company/news/releases/atb-introduces-truth-and-reconciliation-action-plan/) (`200`) |
-| BMO (Bank of Montreal) | finance | procurement | 2023 | reported | 100% | [BMO Indigenous Commitments](https://www.bmo.com/en-ca/main/about-bmo/our-impact/communities/indigenous-commitments/) (`000`) |
-| BMO (Bank of Montreal) | finance | governance | 2025 | reported | 100% | [BMO Indigenous Commitments](https://www.bmo.com/en-ca/main/about-bmo/our-impact/communities/indigenous-commitments/) (`000`) |
+| BMO (Bank of Montreal) | finance | procurement | 2023 | reported | 100% | [BMO wîcihitowin Indigenous Partnerships & Progress Report](https://www.newswire.ca/news-releases/bmo-releases-wicihitowin-3rd-annual-indigenous-partnerships-and-progress-report-and-announces-new-indigenous-advisory-council-members-872683670.html) (`200`) |
+| BMO (Bank of Montreal) | finance | governance | 2025 | reported | 100% | [BMO wîcihitowin Indigenous Partnerships & Progress Report](https://www.newswire.ca/news-releases/bmo-releases-wicihitowin-3rd-annual-indigenous-partnerships-and-progress-report-and-announces-new-indigenous-advisory-council-members-872683670.html) (`200`) |
 | Canada Life | finance | governance | 2026 | in_progress | 55% | [Canada Life · Who we are](https://www.canadalife.com/about-us/who-we-are.html) (`200`) |
 | CIBC | finance | governance | 2026 | in_progress | 45% | [CIBC Reconciliation](https://www.cibc.com/en/about-cibc/corporate-profile/reconciliation.html) (`200`) |
 | Co-operators | finance | employment | 2026 | in_progress | 50% | [Co-operators · Truth and Reconciliation](https://www.cooperators.ca/en/about-us/reconciliation) (`200`) |
 | Intact Financial | finance | governance | 2026 | in_progress | 45% | [Intact Financial · Diversity, Equity and Inclusion](https://www.intactfc.com/careers/diversity-equity-and-inclusion) (`200`) |
-| Manulife | finance | cultural_learning | 2026 | in_progress | 50% | [Manulife · Our impact](https://www.manulife.ca/about-us/our-impact.html) (`403`) |
+| Manulife | finance | cultural_learning | 2026 | in_progress | 50% | [Gord Downie & Chanie Wenjack Fund · Legacy Spaces Program](https://downiewenjack.ca/our-work/legacy-spaces-program/) (`200`) |
 | Meridian Credit Union | finance | relationships | 2026 | in_progress | 50% | [Meridian · Indigenous banking](https://www.meridiancu.ca/business-banking/business-hub/industries/indigenous-banking) (`200`) |
 | National Bank of Canada | finance | governance | 2025 | reported | 100% | [National Bank — Indigenous](https://www.nbc.ca/personal/switch-national-bank/indigenous.html) (`200`) |
 | RBC (Royal Bank of Canada) | finance | procurement | 2027 | in_progress | 35% | [RBC Reconciliation Action Plan 2025–2027](https://www.rbc.com/indigenous/) (`200`) |
 | RBC (Royal Bank of Canada) | finance | employment | 2027 | in_progress | 28% | [RBC Reconciliation Action Plan 2025–2027](https://www.rbc.com/indigenous/) (`200`) |
 | Scotiabank | finance | procurement | 2025 | in_progress | 62% | [Scotiabank Truth & Reconciliation Action Plan](https://www.scotiabank.com/ca/en/about/responsibility-impact/truth-reconciliation.html) (`200`) |
-| Sun Life | finance | employment | 2030 | in_progress | 25% | [Sun Life Indigenous Commitments](https://www.sunlife.ca/en/about-us/sustainability/sun-life-indigenous-commitments/) (`403`) |
+| Sun Life | finance | employment | 2030 | in_progress | 25% | [Sun Life · Diversity, Equity & Inclusion Strategy](https://www.sunlife.com/content/dam/sunlife/regional/global-marketing/documents/com/diversity-equity-and-inclusion-strategy-statement-en.pdf) (`200`) |
 | TD Bank Group | finance | relationships | 2025 | reported | 78% | [TD and Indigenous Peoples](https://www.td.com/ca/en/about-td/diversity-and-inclusion/indigenous-peoples) (`200`) |
 | Vancity | finance | governance | 2025 | in_progress | 65% | [Vancity — Committed to Reconciliation](https://news.vancity.com/community/reconciliation) (`200`) |
 | Canfor | forestry | procurement | 2026 | reported | 70% | [Canfor · Indigenous Relationships](https://www.canfor.com/stewardship/indigenous-relationships) (`200`) |
 | West Fraser | forestry | employment | 2026 | in_progress | 50% | [West Fraser · Indigenous Relations](https://www.westfraser.com/sustainability/social/indigenous-relations) (`200`) |
-| BCLC | government | procurement | 2026 | in_progress | 50% | [BCLC · Indigenous Procurement Policy](https://corporate.bclc.com/articles/our-business/2025/driving-economic-reconciliation--bclc-s-new-indigenous-procureme.html) (`403`) |
+| BCLC | government | procurement | 2026 | in_progress | 50% | [BCLC · CCIB member profile](https://www.ccib.ca/main/member/bclc/) (`200`) |
 | Business Development Bank of Canada | government | relationships | 2026 | in_progress | 65% | [BDC · CCAB member](https://www.ccab.com/main/ccab_member/business-development-bank-of-canada/) (`200`) |
 | Canada Infrastructure Bank | government | relationships | 2027 | reported | 70% | [Canada Infrastructure Bank · Indigenous](https://cib-bic.ca/en/indigenous-infra/) (`200`) |
 | Canada Mortgage and Housing Corporation | government | governance | 2026 | in_progress | 50% | [CMHC · Indigenous housing](https://www.cmhc-schl.gc.ca/indigenous-funding) (`200`) |
@@ -143,7 +131,7 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | Saskatchewan Health Authority | health | employment | 2026 | in_progress | 50% | [Saskatchewan Health Authority · Truth & Reconciliation](https://www.saskhealthauthority.ca/trc) (`200`) |
 | Vancouver Coastal Health | health | cultural_learning | 2026 | in_progress | 60% | [Vancouver Coastal Health · Indigenous Health](https://www.vch.ca/en/about-us/indigenous-health) (`200`) |
 | CBC/Radio-Canada | media | procurement | 2026 | in_progress | 45% | [CBC/Radio-Canada · National Indigenous Strategy](https://cbc.radio-canada.ca/en/your-public-broadcaster/blog/oped-road-to-reconcilliation) (`200`) |
-| Agnico Eagle | mining | employment | 2026 | in_progress | 55% | [Agnico Eagle — Reconciliation](https://www.agnicoeagle.com/English/sustainability/social/reconciliation-with-indigenous-peoples/default.aspx) (`403`) |
+| Agnico Eagle | mining | employment | 2026 | in_progress | 55% | [Agnico Eagle · Reconciliation Action Plan (2024, PDF)](https://s205.q4cdn.com/243646470/files/doc_downloads/1553-AE-RAP-Eng_Final-Web.pdf) (`200`) |
 | Cameco | mining | procurement | 2025 | reported | 90% | [Cameco — Workforce and Communities](https://www.cameco.com/about/sustainability/workforce-and-communities) (`200`) |
 | Diavik Diamond Mine (Rio Tinto) | mining | procurement | 2018 | reported | 100% | [Rio Tinto · Diavik communities](https://www.riotinto.com/en/operations/canada/diavik/diavik-communities) (`200`) |
 | Glencore Canada | mining | employment | 2026 | in_progress | 55% | [Glencore Canada · Community](https://www.glencore.ca/en/sustainability/community) (`200`) |
@@ -160,7 +148,7 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | The North West Company | retail | relationships | 2026 | in_progress | 50% | [The North West Company · Our Promise to Indigenous Peoples](https://www.northwest.ca/sustainability/our-promise-to-indigenous-peoples) (`200`) |
 | Bell Canada | telecom | relationships | 2030 | in_progress | 40% | [Bell · Bell for Better (reconciliation)](https://www.bell.ca/bell-for-better) (`200`) |
 | Northwestel | telecom | relationships | 2026 | in_progress | 60% | [Northwestel · Reconciliation (Our Path Forward)](https://www.nwtel.ca/ourpathforward) (`302`) |
-| Rogers Communications | telecom | employment | 2025 | in_progress | 80% | [Rogers · Truth & Reconciliation](https://about.rogers.com/stories/rogers-truth-and-reconciliation-commitment-statement/) (`200`) |
+| Rogers Communications | telecom | employment | 2025 | in_progress | 80% | [Rogers · CCIB member profile](https://www.ccib.ca/main/member/rogers-communications/) (`200`) |
 | TELUS | telecom | procurement | 2026 | reported | 80% | [TELUS · Indigenous Reconciliation](https://www.telus.com/en/social-impact/connecting-canada/indigenous-reconciliation) (`200`) |
 | Air Canada | transport | employment | 2026 | in_progress | 50% | [Air Canada · Diversity, Equity and Inclusion](https://www.aircanada.com/ca/en/aco/home/about/diversity-equity-inclusion.html) (`200`) |
 | Calgary Airport Authority | transport | relationships | 2026 | in_progress | 45% | [Calgary Airport Authority · Indigenous Reconciliation Strategy](https://www.yyc.com/Portals/0/Calgary%20Airport%20Authority%20Indigenous%20Reconciliation%20Strategy_May%202025.pdf) (`200`) |
@@ -169,11 +157,11 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | CPKC (Canadian Pacific Kansas City) | transport | procurement | 2027 | in_progress | 35% | [CPKC — CCIB member profile](https://www.ccab.com/main/ccab_member/canadian-pacific-kansas-city/) (`200`) |
 | Edmonton International Airport | transport | relationships | 2026 | in_progress | 50% | [Edmonton International Airport · Airport for Everyone](https://flyyeg.com/corporate/esg/airport-for-everyone/) (`200`) |
 | Metrolinx | transport | relationships | 2026 | in_progress | 45% | [Metrolinx · Equity, Diversity and Inclusion](https://www.metrolinx.com/en/about-us/edi) (`200`) |
-| Port of Vancouver (Vancouver Fraser Port Authority) | transport | relationships | 2026 | in_progress | 55% | [Vancouver Fraser Port Authority · Indigenous relations](https://www.portvancouver.com/community/indigenous-relations) (`403`) |
+| Port of Vancouver (Vancouver Fraser Port Authority) | transport | relationships | 2026 | in_progress | 55% | [Vancouver Fraser Port Authority · Roberts Bank Terminal 2 (news release)](https://www.globenewswire.com/news-release/2025/07/10/3113588/0/en/Roberts-Bank-Terminal-2-procurement-underway-with-Vancouver-Fraser-Port-Authority-issuing-a-request-for-qualifications-for-a-construction-team.html) (`200`) |
 | Toronto Pearson (GTAA) | transport | relationships | 2025 | reported | 100% | [Toronto Pearson · Indigenous investment](https://www.internationalairportreview.com/toronto-pearson-invests-780000-to-strengthen-indigenous-led-organisations-and-advance-reconciliation-across-canada/539389.article) (`200`) |
 | TransLink | transport | procurement | 2030 | in_progress | 40% | [TransLink · Indigenous Relations](https://www.translink.ca/about-us/about-translink/indigenous-relations) (`200`) |
 | VIA Rail | transport | procurement | 2026 | in_progress | 45% | [VIA Rail · Indigenous communities](https://www.viarail.ca/en/offers/indigenous-communities) (`200`) |
-| WestJet | transport | relationships | 2025 | reported | 100% | [WestJet · Indigenous tourism partnership](https://www.travelpulse.ca/news/airlines-airports/westjet-and-canadian-tire-join-forces) (`403`) |
+| WestJet | transport | relationships | 2025 | reported | 100% | [WestJet · official airline sponsor, ITAC (news)](https://www.westjet.com/en-ca/news/2022/westjet-named-official-airline-sponsor-for-itac-s-2022-national-) (`200`) |
 
 ## 5. Live seed (production)
 
