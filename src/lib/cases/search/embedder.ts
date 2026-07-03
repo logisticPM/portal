@@ -48,8 +48,23 @@ class BedrockEmbedder implements Embedder {
   readonly id: string;
   private clientP: Promise<{ send: (c: unknown) => Promise<{ body: Uint8Array }>; Cmd: new (a: unknown) => unknown }> | null = null;
 
-  constructor(readonly model: string, readonly dim: number, readonly region: string) {
+  constructor(readonly model: string, readonly dim: number, readonly region: string, readonly concurrency = 16) {
     this.id = `bedrock:${model}`;
+  }
+
+  // Bounded-concurrency map that preserves index order. `limit` workers each pull
+  // the next unclaimed index until the queue drains, capping in-flight Bedrock
+  // calls so we stay under the account's requests-per-minute quota. `i = next++`
+  // is atomic (no await between read and increment) so indices never collide.
+  private async mapPool<T>(items: T[], limit: number, fn: (item: T, i: number) => Promise<void>): Promise<void> {
+    let next = 0;
+    const worker = async () => {
+      while (next < items.length) {
+        const i = next++;
+        await fn(items[i], i);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
   }
 
   private async lazyClient() {
@@ -95,15 +110,17 @@ class BedrockEmbedder implements Embedder {
       return out;
     }
     // Titan Text Embeddings V2 (default) — one text per call, native normalize.
-    const out: Float32Array[] = [];
-    for (const t of texts) {
+    // Serial network round-trips dominate runtime, so fan out through a bounded
+    // worker pool (~2h → ~10min for a full-corpus run) while preserving order.
+    const out = new Array<Float32Array>(texts.length);
+    await this.mapPool(texts, this.concurrency, async (t, i) => {
       if (!t.trim()) {
-        out.push(new Float32Array(this.dim)); // empty chunk → zero vector (skip)
-        continue;
+        out[i] = new Float32Array(this.dim); // empty chunk → zero vector (skip)
+        return;
       }
       const json = await this.invoke({ inputText: t, dimensions: this.dim, normalize: true });
-      out.push(l2normalize(Float32Array.from(json.embedding as number[])));
-    }
+      out[i] = l2normalize(Float32Array.from(json.embedding as number[]));
+    });
     return out;
   }
 }
@@ -115,7 +132,8 @@ export function getEmbedder(): Embedder {
   if (provider === "bedrock") {
     const model = (process.env.EMBED_MODEL ?? "amazon.titan-embed-text-v2:0").trim();
     const region = (process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-1").trim();
-    return new BedrockEmbedder(model, dim, region);
+    const concurrency = Math.max(1, Number(process.env.EMBED_CONCURRENCY ?? "16") || 16);
+    return new BedrockEmbedder(model, dim, region, concurrency);
   }
   throw new Error(`Unknown EMBED_PROVIDER "${provider}" (use "stub" or "bedrock").`);
 }
