@@ -576,6 +576,31 @@ export const orgProfiles: Record<string, OrgProfile> = {
     industry: "Polytechnic (post-secondary)", employees: "~2,500 staff · ~21,000 students", website: "https://www.rrc.ca",
     about: "Manitoba's largest institute of applied learning and research, based in Winnipeg.",
   },
+  Northwestel: {
+    legalName: "Northwestel Inc.", headquarters: "Whitehorse, Yukon, Canada", founded: "1979",
+    industry: "Telecommunications", employees: "~500", website: "https://www.nwtel.ca",
+    about: "The primary telecommunications provider across Canada's North (Yukon, NWT, Nunavut and northern BC), a Bell Canada subsidiary.",
+  },
+  "Fraser Health": {
+    legalName: "Fraser Health Authority", headquarters: "Surrey, British Columbia, Canada", founded: "2001",
+    industry: "Regional health authority", employees: "~45,000", website: "https://www.fraserhealth.ca",
+    about: "One of British Columbia's largest regional health authorities, serving the fast-growing Fraser Valley and eastern Metro Vancouver.",
+  },
+  "Trans Mountain Corporation": {
+    headquarters: "Calgary, Alberta, Canada", founded: "2018 (pipeline in service 1953)",
+    industry: "Energy infrastructure (pipeline · federal Crown)", employees: "~1,000", website: "https://www.transmountain.com",
+    about: "The federal Crown corporation that owns and operates the Trans Mountain pipeline system, whose expansion entered service in 2024.",
+  },
+  "The North West Company": {
+    legalName: "The North West Company Inc.", headquarters: "Winnipeg, Manitoba, Canada", founded: "1987 (roots to 1668)",
+    industry: "Retail (northern & remote communities)", employees: "~7,000", ticker: "TSX: NWC", website: "https://www.northwest.ca",
+    about: "A retailer of food and everyday products to underserved northern, rural and Indigenous communities across Canada, Alaska and the Pacific.",
+  },
+  "Bruce Power": {
+    legalName: "Bruce Power L.P.", headquarters: "Tiverton, Ontario, Canada", founded: "2001",
+    industry: "Nuclear power generation", employees: "~4,200", website: "https://www.brucepower.com",
+    about: "Operator of the Bruce Nuclear Generating Station in Ontario, one of the world's largest operating nuclear facilities, supplying about 30% of Ontario's electricity.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {
