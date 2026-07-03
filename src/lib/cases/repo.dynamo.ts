@@ -16,7 +16,12 @@ async function scanAll(): Promise<LegalCase[]> {
   const out: LegalCase[] = [];
   let start: Record<string, any> | undefined;
   do {
-    const r = await ddbDoc.send(new ScanCommand({ TableName: TABLE, ExclusiveStartKey: start }));
+    // Scan GSI1, not the base table: only Case profiles are projected into GSI1
+    // (chunk items lack GSI1PK/SK), so this reads the ~3.5k small profiles instead of
+    // the full ~43k-item table with ~160MB of chunk vectors we would only discard.
+    // Turns a ~3-minute list/stats page into a few seconds. (GSI1 projection is ALL,
+    // so `data` — which itemToCase reads — is present.)
+    const r = await ddbDoc.send(new ScanCommand({ TableName: TABLE, IndexName: "GSI1", ExclusiveStartKey: start }));
     for (const it of r.Items ?? []) if (it.et === "Case") out.push(itemToCase(it));
     start = r.LastEvaluatedKey;
   } while (start);

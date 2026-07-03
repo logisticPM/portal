@@ -12,7 +12,13 @@ export type Sector =
   | "health"
   | "government"
   | "education"
-  | "transport";
+  | "transport"
+  | "telecom"
+  | "forestry"
+  | "construction"
+  | "aerospace"
+  | "agriculture"
+  | "media";
 
 export type OrgSize = "small" | "medium" | "large" | "enterprise"; // bucketed from employee count
 
@@ -51,6 +57,9 @@ export interface Commitment {
   // Provenance for externally-sourced commitments (e.g. a company's public
   // ESG / reconciliation report). Present ⇒ self-reported, not portal-confirmed.
   source?: { label: string; url: string };
+  // Longer description + concrete target, shown when a row is expanded.
+  detail?: string;
+  targetText?: string;
 }
 
 export interface CommitmentFilter {
@@ -59,6 +68,8 @@ export interface CommitmentFilter {
   type?: CommitmentType;
   status?: CommitmentStatus;
   orgId?: string; // a company's own commitments (portal-submitted)
+  targetYear?: number; // due year
+  q?: string; // free-text search over title / org / detail / target
 }
 
 // Fields a company edits on an existing commitment (self-report, capped at
