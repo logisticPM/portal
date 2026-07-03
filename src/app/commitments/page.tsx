@@ -148,7 +148,7 @@ export default async function CommitmentsPage({
 }: {
   searchParams: {
     sector?: Sector; type?: CommitmentType; year?: string; q?: string; page?: string;
-    rfilter?: string; rpage?: string;
+    rfilter?: string; rpage?: string; rsector?: string; rq?: string;
   };
 }) {
   const yearNum = searchParams.year ? Number(searchParams.year) : undefined;
@@ -200,13 +200,15 @@ export default async function CommitmentsPage({
     // carry the deadline-risk view across main-filter changes
     if (searchParams.rfilter) p.set("rfilter", searchParams.rfilter);
     if (searchParams.rpage && searchParams.rpage !== "1") p.set("rpage", searchParams.rpage);
+    if (searchParams.rsector) p.set("rsector", searchParams.rsector);
+    if (searchParams.rq) p.set("rq", searchParams.rq);
     const s = p.toString();
     return s ? `/commitments?${s}` : "/commitments";
   };
 
   // deadline-risk section: its own filter (rfilter) + pagination (rpage), while
   // preserving the main list's filters/page.
-  const rqs = (next: { rfilter?: string; rpage?: string }) => {
+  const rqs = (next: { rfilter?: string; rpage?: string; rsector?: string; rq?: string }) => {
     const p = new URLSearchParams();
     if (searchParams.sector) p.set("sector", searchParams.sector);
     if (searchParams.type) p.set("type", searchParams.type);
@@ -215,8 +217,12 @@ export default async function CommitmentsPage({
     if (searchParams.page && searchParams.page !== "1") p.set("page", searchParams.page);
     const rf = "rfilter" in next ? next.rfilter : searchParams.rfilter;
     const rp = "rpage" in next ? next.rpage : searchParams.rpage;
+    const rsec = "rsector" in next ? next.rsector : searchParams.rsector;
+    const rqv = "rq" in next ? next.rq : searchParams.rq;
     if (rf) p.set("rfilter", rf);
     if (rp && rp !== "1") p.set("rpage", rp);
+    if (rsec) p.set("rsector", rsec);
+    if (rqv) p.set("rq", rqv);
     const s = p.toString();
     return s ? `/commitments?${s}` : "/commitments";
   };
@@ -228,7 +234,18 @@ export default async function CommitmentsPage({
     return { commitment: c, kind: f?.kind ?? "on_track", reason: f?.reason ?? `${label(c.status)} · ${c.progressPct}%` };
   });
   const rfilter = searchParams.rfilter;
-  const riskFiltered = rfilter ? riskRows.filter((r) => r.kind === rfilter) : riskRows;
+  const rsector = searchParams.rsector;
+  const rqText = (searchParams.rq ?? "").trim().toLowerCase();
+  const riskSectorFacets = [...new Set(riskRows.map((r) => r.commitment.sector))].sort();
+  const riskFiltered = riskRows.filter(
+    (r) =>
+      (!rfilter || r.kind === rfilter) &&
+      (!rsector || r.commitment.sector === rsector) &&
+      (!rqText ||
+        [r.commitment.title, r.commitment.orgName, r.commitment.detail, r.commitment.targetText]
+          .filter(Boolean)
+          .some((s) => String(s).toLowerCase().includes(rqText))),
+  );
   const R_SIZE = 10;
   const rTotalPages = Math.max(1, Math.ceil(riskFiltered.length / R_SIZE));
   const rpage = Math.min(rTotalPages, Math.max(1, Number(searchParams.rpage) || 1));
@@ -439,9 +456,41 @@ export default async function CommitmentsPage({
           Every commitment classified as overdue, at risk, or on track. Filter and page through them.
         </SectionLead>
         <section className="bg-panel rounded border border-line shadow-card p-5 space-y-3">
-          {/* filter tabs */}
+          {/* search + clear */}
+          <div className="flex flex-wrap items-center gap-2">
+            <CommitmentSearch
+              basePath="/commitments"
+              param="rq"
+              resetParam="rpage"
+              placeholder="Search these commitments…"
+            />
+            {(rfilter || rsector || rqText) && (
+              <Link href={rqs({ rfilter: undefined, rsector: undefined, rq: undefined, rpage: undefined })} scroll={false} className="text-ink3 underline text-xs">
+                clear
+              </Link>
+            )}
+          </div>
+
+          {/* sector filter */}
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest mr-1">Filter</span>
+            <span className="text-ink3 uppercase tracking-widest w-16 shrink-0">Sector</span>
+            {riskSectorFacets.map((s) => (
+              <Link
+                key={s}
+                scroll={false}
+                href={rqs({ rsector: rsector === s ? undefined : s, rpage: undefined })}
+                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                  rsector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
+                }`}
+              >
+                {label(s)}
+              </Link>
+            ))}
+          </div>
+
+          {/* status filter tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-ink3 uppercase tracking-widest w-16 shrink-0">Status</span>
             {RISK_TABS.map((t) => (
               <Link
                 key={t.id}
