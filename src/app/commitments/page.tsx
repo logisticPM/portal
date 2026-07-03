@@ -11,6 +11,16 @@ import { FilterRow } from "@/components/FilterRow";
 
 export const dynamic = "force-dynamic";
 
+// Windowed page numbers: show at most `size` pages, sliding to keep the current
+// page centred, so long lists don't dump every page button (e.g. 1..11).
+function pageWindow(current: number, total: number, size = 5): number[] {
+  if (total <= size) return Array.from({ length: total }, (_, i) => i + 1);
+  const half = Math.floor(size / 2);
+  const end = Math.min(total, Math.max(current + half, size));
+  const start = Math.max(1, end - size + 1);
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+}
+
 // Fixed, meaningful orderings (NOT alphabetical) so the dashboard reads cleanly.
 const SECTORS: Sector[] = [
   "finance", "mining", "energy", "consulting", "retail",
@@ -544,7 +554,7 @@ export default async function CommitmentsPage({
                 ) : (
                   <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">‹ Prev</span>
                 )}
-                {Array.from({ length: rTotalPages }, (_, i) => i + 1).map((n) => (
+                {pageWindow(rpage, rTotalPages).map((n) => (
                   <Link
                     key={n}
                     href={rqs({ rpage: String(n) })}
@@ -793,7 +803,7 @@ export default async function CommitmentsPage({
               ) : (
                 <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">‹ Prev</span>
               )}
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+              {pageWindow(page, totalPages).map((n) => (
                 <Link
                   key={n}
                   href={qs({ page: String(n) })}
