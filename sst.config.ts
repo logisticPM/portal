@@ -169,6 +169,18 @@ export default $config({
           permissions: [
             ...bedrockPerms,
             { actions: ["lambda:InvokeFunction"], resources: [rapExtract.arn] },
+            // Legal-cases corpus table. NOT SST-managed: it is created + seeded by
+            // the cases:*:cloud pipeline (scripts/create-table.ts, cases-ingest.ts,
+            // cases-fetch-fulltext.ts, cases-embed.ts) under the literal name
+            // "LegalCases", so it can't go in `link:` — wire read access by ARN.
+            // The web app only ever reads cases (GSI1 scan / GetItem / chunk Query).
+            {
+              actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"],
+              resources: [
+                "arn:aws:dynamodb:us-east-1:*:table/LegalCases",
+                "arn:aws:dynamodb:us-east-1:*:table/LegalCases/index/*",
+              ],
+            },
           ],
         },
       },
@@ -179,6 +191,11 @@ export default $config({
         DYNAMO_TABLE: dataPortal.name,
         SURVEY_TABLE: rapSurvey.name,
         COMMITMENTS_TABLE: commitments.name,
+        // Legal-cases corpus: literal table name (created/seeded out-of-band by the
+        // cases:*:cloud pipeline — see the IAM grant in transform.server above).
+        // Matches the app default (client code falls back to "LegalCases"), but
+        // explicit is better than implicit for a prod dependency.
+        CASES_TABLE: "LegalCases",
         // Present → uploadRapAction hands extraction to the worker instead of
         // running it inline (which would hit the request-Lambda timeout).
         EXTRACTOR_FUNCTION_NAME: rapExtract.name,
