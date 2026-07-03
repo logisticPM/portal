@@ -41,6 +41,10 @@ export function buildInverted(docs: { id: string; tokens: string[] }[]): Inverte
 
 // Identical math to Bm25.search: idf = log(1+(N-df+0.5)/(df+0.5)); per-doc score
 // accumulated in deduped first-appearance query-term order (float-order parity).
+// DO NOT reorder/parallelize the term loop or restructure the accumulator — the
+// per-doc sum must accumulate in this exact order to stay bit-identical to bm25.ts
+// (float addition is non-associative; a reorder can pass small fixtures yet drift
+// on the real corpus, silently invalidating published eval numbers).
 export function scoreInverted(idx: InvertedIndex, queryTokens: string[], k1 = 1.2, b = 0.75): { id: string; score: number }[] {
   if (!queryTokens.length) return [];
   const q = [...new Set(queryTokens)].filter((t) => idx.terms.has(t));
