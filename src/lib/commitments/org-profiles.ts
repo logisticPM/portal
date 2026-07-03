@@ -119,6 +119,275 @@ export const orgProfiles: Record<string, OrgProfile> = {
     about:
       "Canada's largest railway, spanning Canada and mid-America from the Atlantic and Pacific coasts to the Gulf of Mexico.",
   },
+  // ── Finance ──
+  "Sun Life": {
+    legalName: "Sun Life Financial Inc.", headquarters: "Toronto, Ontario, Canada", founded: "1865",
+    industry: "Insurance & wealth management", employees: "~30,000", ticker: "TSX / NYSE: SLF",
+    website: "https://www.sunlife.com",
+    about: "A leading international financial services and insurance organization based in Canada.",
+  },
+  CIBC: {
+    legalName: "Canadian Imperial Bank of Commerce", headquarters: "Toronto, Ontario, Canada",
+    founded: "1961 (merger of Commerce 1867 & Imperial 1875)", industry: "Banking & financial services",
+    employees: "~48,000", ticker: "TSX / NYSE: CM", website: "https://www.cibc.com",
+    about: "One of Canada's Big Five banks, formed by the 1961 merger of the Canadian Bank of Commerce and Imperial Bank.",
+  },
+  "National Bank of Canada": {
+    headquarters: "Montreal, Quebec, Canada", founded: "1859", industry: "Banking & financial services",
+    employees: "~30,000", ticker: "TSX: NA", website: "https://www.nbc.ca",
+    about: "Canada's sixth-largest bank, with its strongest presence in Quebec.",
+  },
+  "ATB Financial": {
+    legalName: "Alberta Treasury Branches", headquarters: "Edmonton, Alberta, Canada", founded: "1938",
+    industry: "Banking (provincial Crown)", employees: "~5,000", website: "https://www.atb.com",
+    about: "Alberta's provincial Crown financial institution, serving Albertans since 1938.",
+  },
+  Vancity: {
+    legalName: "Vancouver City Savings Credit Union", headquarters: "Vancouver, British Columbia, Canada",
+    founded: "1946", industry: "Banking (credit union)", employees: "~2,700", website: "https://www.vancity.com",
+    about: "Canada's largest community credit union by membership, focused on values-based banking.",
+  },
+  "Canada Life": {
+    legalName: "The Canada Life Assurance Company", headquarters: "Winnipeg, Manitoba, Canada", founded: "1847",
+    industry: "Insurance & wealth", employees: "~13,000", website: "https://www.canadalife.com",
+    about: "Canada's first domestic life insurer (1847), now part of Great-West Lifeco.",
+  },
+  Manulife: {
+    legalName: "Manulife Financial Corporation", headquarters: "Toronto, Ontario, Canada", founded: "1887",
+    industry: "Insurance & wealth", employees: "~38,000", ticker: "TSX / NYSE: MFC", website: "https://www.manulife.com",
+    about: "Canada's largest insurer and a global wealth and insurance provider (John Hancock in the U.S.).",
+  },
+  "Co-operators": {
+    legalName: "The Co-operators Group Limited", headquarters: "Guelph, Ontario, Canada", founded: "1945",
+    industry: "Insurance & financial services (co-operative)", employees: "~6,000", website: "https://www.cooperators.ca",
+    about: "A leading Canadian co-operative providing insurance and financial services.",
+  },
+
+  // ── Energy / utilities ──
+  Enbridge: {
+    legalName: "Enbridge Inc.", headquarters: "Calgary, Alberta, Canada", founded: "1949",
+    industry: "Energy infrastructure (pipelines & utilities)", employees: "~14,000", ticker: "TSX / NYSE: ENB",
+    website: "https://www.enbridge.com",
+    about: "A North American energy infrastructure company moving oil, natural gas and renewables.",
+  },
+  "Imperial Oil": {
+    legalName: "Imperial Oil Limited", headquarters: "Calgary, Alberta, Canada", founded: "1880",
+    industry: "Oil & gas (integrated)", employees: "~5,000", ticker: "TSX / NYSE: IMO", website: "https://www.imperialoil.ca",
+    about: "One of Canada's largest integrated oil companies, majority-owned by ExxonMobil.",
+  },
+  "BC Hydro": {
+    legalName: "British Columbia Hydro and Power Authority", headquarters: "Vancouver, British Columbia, Canada",
+    founded: "1961", industry: "Electric utility (provincial Crown)", employees: "~7,000", website: "https://www.bchydro.com",
+    about: "British Columbia's provincial Crown electric utility.",
+  },
+  "Hydro-Québec": {
+    headquarters: "Montreal, Quebec, Canada", founded: "1944", industry: "Electric utility (provincial Crown)",
+    employees: "~22,000", website: "https://www.hydroquebec.com",
+    about: "Quebec's provincial Crown hydroelectric utility, one of the largest producers in North America.",
+  },
+  "Manitoba Hydro": {
+    headquarters: "Winnipeg, Manitoba, Canada", founded: "1961", industry: "Electric & gas utility (provincial Crown)",
+    employees: "~5,000", website: "https://www.hydro.mb.ca",
+    about: "Manitoba's provincial Crown electricity and natural-gas utility.",
+  },
+  SaskPower: {
+    legalName: "Saskatchewan Power Corporation", headquarters: "Regina, Saskatchewan, Canada", founded: "1929",
+    industry: "Electric utility (provincial Crown)", employees: "~3,300", website: "https://www.saskpower.com",
+    about: "Saskatchewan's principal provincial Crown electric utility.",
+  },
+  "Ontario Power Generation": {
+    legalName: "Ontario Power Generation Inc.", headquarters: "Toronto, Ontario, Canada", founded: "1999",
+    industry: "Electricity generation (provincial Crown)", employees: "~10,000", website: "https://www.opg.com",
+    about: "Ontario's provincial Crown electricity generator (nuclear and hydroelectric).",
+  },
+
+  // ── Mining ──
+  Nutrien: {
+    legalName: "Nutrien Ltd.", headquarters: "Saskatoon, Saskatchewan, Canada", founded: "2018 (PotashCorp–Agrium merger)",
+    industry: "Agriculture & mining (crop inputs, potash)", employees: "~24,000", ticker: "TSX / NYSE: NTR",
+    website: "https://www.nutrien.com",
+    about: "The world's largest provider of crop inputs and the largest potash producer.",
+  },
+  Cameco: {
+    legalName: "Cameco Corporation", headquarters: "Saskatoon, Saskatchewan, Canada", founded: "1988",
+    industry: "Mining (uranium)", employees: "~4,000", ticker: "TSX: CCO / NYSE: CCJ", website: "https://www.cameco.com",
+    about: "One of the world's largest uranium producers, based in Saskatchewan.",
+  },
+  "Agnico Eagle": {
+    legalName: "Agnico Eagle Mines Limited", headquarters: "Toronto, Ontario, Canada", founded: "1957",
+    industry: "Mining (gold)", employees: "~20,000", ticker: "TSX / NYSE: AEM", website: "https://www.agnicoeagle.com",
+    about: "One of the world's largest gold producers, with operations in Canada, Australia, Finland and Mexico.",
+  },
+  "Glencore Canada": {
+    legalName: "Glencore Canada Corporation", headquarters: "Toronto, Ontario, Canada", founded: "1928 (as Falconbridge)",
+    industry: "Mining & metals", employees: "~9,000 (Canada)", website: "https://www.glencore.ca",
+    about: "The Canadian arm of global miner Glencore, operating nickel, copper and zinc assets.",
+  },
+  Newmont: {
+    legalName: "Newmont Corporation", headquarters: "Denver, USA (Canadian operations)", founded: "1921",
+    industry: "Mining (gold)", ticker: "NYSE: NEM / TSX: NGT", website: "https://www.newmont.com",
+    about: "The world's largest gold producer, with Canadian operations including Éléonore and Porcupine.",
+  },
+  "Iron Ore Company of Canada": {
+    legalName: "Iron Ore Company of Canada (IOC)", headquarters: "Montreal, Quebec, Canada", founded: "1949",
+    industry: "Mining (iron ore)", employees: "~2,600", website: "https://www.ironore.ca",
+    about: "A leading Canadian iron ore producer in Labrador, majority-owned by Rio Tinto.",
+  },
+
+  // ── Telecom ──
+  TELUS: {
+    legalName: "TELUS Corporation", headquarters: "Vancouver, British Columbia, Canada", founded: "1990",
+    industry: "Telecommunications", employees: "~100,000 (incl. TELUS Digital)", ticker: "TSX: T / NYSE: TU",
+    website: "https://www.telus.com",
+    about: "One of Canada's largest telecommunications companies; first Canadian tech company to publish a reconciliation action plan.",
+  },
+  "Bell Canada": {
+    legalName: "Bell Canada (BCE Inc.)", headquarters: "Montreal (Verdun), Quebec, Canada", founded: "1880",
+    industry: "Telecommunications & media", employees: "~40,000", ticker: "TSX / NYSE: BCE", website: "https://www.bell.ca",
+    about: "Canada's largest telecommunications company, part of BCE Inc.",
+  },
+  "Rogers Communications": {
+    legalName: "Rogers Communications Inc.", headquarters: "Toronto, Ontario, Canada", founded: "1960",
+    industry: "Telecommunications & media", employees: "~25,000", ticker: "TSX / NYSE: RCI", website: "https://www.rogers.com",
+    about: "A major Canadian telecom and media company spanning wireless, cable, and sports & media.",
+  },
+
+  // ── Transport ──
+  "CPKC (Canadian Pacific Kansas City)": {
+    legalName: "Canadian Pacific Kansas City Limited", headquarters: "Calgary, Alberta, Canada",
+    founded: "1881 (CPKC formed 2023)", industry: "Freight rail transport", employees: "~20,000",
+    ticker: "TSX / NYSE: CP", website: "https://www.cpkcr.com",
+    about: "The first single-line railway connecting Canada, the U.S. and Mexico, formed by the 2023 CP–KCS merger.",
+  },
+  WestJet: {
+    legalName: "WestJet Airlines Ltd.", headquarters: "Calgary, Alberta, Canada", founded: "1996",
+    industry: "Aviation (airline)", employees: "~14,000", website: "https://www.westjet.com",
+    about: "Canada's second-largest airline, based in Calgary.",
+  },
+  "VIA Rail": {
+    legalName: "VIA Rail Canada Inc.", headquarters: "Montreal, Quebec, Canada", founded: "1977",
+    industry: "Passenger rail (federal Crown)", employees: "~3,000", website: "https://www.viarail.ca",
+    about: "Canada's national passenger rail service, a federal Crown corporation.",
+  },
+  "Toronto Pearson (GTAA)": {
+    legalName: "Greater Toronto Airports Authority", headquarters: "Mississauga, Ontario, Canada", founded: "1996",
+    industry: "Airport operations", employees: "~1,800 (GTAA)", website: "https://www.torontopearson.com",
+    about: "Operator of Toronto Pearson International Airport, Canada's largest airport.",
+  },
+
+  // ── Retail ──
+  "Loblaw Companies": {
+    legalName: "Loblaw Companies Limited", headquarters: "Brampton, Ontario, Canada", founded: "1919",
+    industry: "Retail (grocery & pharmacy)", employees: "~220,000", ticker: "TSX: L", website: "https://www.loblaw.ca",
+    about: "Canada's largest food and pharmacy retailer.",
+  },
+  "IKEA Canada": {
+    legalName: "IKEA Canada Limited Partnership", headquarters: "Burlington, Ontario, Canada", founded: "1976 (Canada)",
+    industry: "Retail (home furnishings)", employees: "~7,000", website: "https://www.ikea.com/ca/en/",
+    about: "The Canadian arm of the global home-furnishings retailer.",
+  },
+
+  // ── Forestry ──
+  Canfor: {
+    legalName: "Canfor Corporation", headquarters: "Vancouver, British Columbia, Canada", founded: "1938",
+    industry: "Forestry & forest products", employees: "~7,000", ticker: "TSX: CFP", website: "https://www.canfor.com",
+    about: "One of the world's largest producers of sustainable lumber and pulp, based in BC.",
+  },
+  "West Fraser": {
+    legalName: "West Fraser Timber Co. Ltd.", headquarters: "Vancouver, British Columbia, Canada", founded: "1955",
+    industry: "Forestry & forest products", employees: "~11,000", ticker: "TSX / NYSE: WFG", website: "https://www.westfraser.com",
+    about: "One of the world's largest lumber producers, based in Canada.",
+  },
+
+  // ── Construction ──
+  Aecon: {
+    legalName: "Aecon Group Inc.", headquarters: "Toronto, Ontario, Canada", founded: "1877",
+    industry: "Construction & infrastructure", employees: "~12,000", ticker: "TSX: ARE", website: "https://www.aecon.com",
+    about: "One of Canada's largest construction and infrastructure development companies.",
+  },
+  EllisDon: {
+    legalName: "EllisDon Corporation", headquarters: "London, Ontario, Canada", founded: "1951",
+    industry: "Construction & building services", employees: "~4,000", website: "https://www.ellisdon.com",
+    about: "An employee-owned Canadian construction and building services company.",
+  },
+  "Graham Construction": {
+    legalName: "Graham Group Ltd.", headquarters: "Calgary, Alberta, Canada", founded: "1926",
+    industry: "Construction", employees: "~2,000", website: "https://www.grahambuilds.com",
+    about: "An employee-owned Canadian construction solutions provider.",
+  },
+  "PCL Construction": {
+    legalName: "PCL Constructors Inc.", headquarters: "Edmonton, Alberta, Canada", founded: "1906",
+    industry: "Construction", employees: "~4,500", website: "https://www.pcl.com",
+    about: "One of North America's largest, employee-owned construction companies.",
+  },
+
+  // ── Consulting / professional services ──
+  "Deloitte Canada": {
+    headquarters: "Toronto, Ontario, Canada", founded: "1858 (Deloitte global)",
+    industry: "Professional services (audit & consulting)", employees: "~15,000 (Canada)", website: "https://www.deloitte.com/ca",
+    about: "One of Canada's largest professional services firms; published corporate Canada's first Reconciliation Action Plan.",
+  },
+  "PwC Canada": {
+    legalName: "PricewaterhouseCoopers LLP (Canada)", headquarters: "Toronto, Ontario, Canada", founded: "1907 (Canada)",
+    industry: "Professional services (audit & advisory)", employees: "~9,000 (Canada)", website: "https://www.pwc.com/ca",
+    about: "One of Canada's large professional services firms (assurance, tax, consulting).",
+  },
+  "KPMG Canada": {
+    headquarters: "Toronto, Ontario, Canada", founded: "1869", industry: "Professional services (audit & advisory)",
+    employees: "~10,000 (Canada)", website: "https://kpmg.com/ca",
+    about: "One of Canada's large professional services firms (audit, tax, advisory).",
+  },
+
+  // ── Government / crown ──
+  "Canada Post": {
+    legalName: "Canada Post Corporation", headquarters: "Ottawa, Ontario, Canada", founded: "1867 (Crown corp 1981)",
+    industry: "Postal & logistics (federal Crown)", employees: "~55,000", website: "https://www.canadapost.ca",
+    about: "Canada's national postal service, a federal Crown corporation.",
+  },
+  "Business Development Bank of Canada": {
+    legalName: "Business Development Bank of Canada (BDC)", headquarters: "Montreal, Quebec, Canada", founded: "1944",
+    industry: "Banking (federal Crown, business financing)", employees: "~3,000", website: "https://www.bdc.ca",
+    about: "Canada's bank for entrepreneurs, a federal Crown corporation financing and advising businesses.",
+  },
+  "Export Development Canada": {
+    legalName: "Export Development Canada (EDC)", headquarters: "Ottawa, Ontario, Canada", founded: "1944",
+    industry: "Trade finance (federal Crown)", employees: "~2,500", website: "https://www.edc.ca",
+    about: "Canada's export credit agency, a federal Crown corporation supporting exporters.",
+  },
+  "Canada Infrastructure Bank": {
+    headquarters: "Toronto, Ontario, Canada", founded: "2017", industry: "Infrastructure investment (federal Crown)",
+    employees: "~150", website: "https://cib-bic.ca",
+    about: "A federal Crown corporation investing in revenue-generating infrastructure, including Indigenous projects.",
+  },
+
+  // ── Education ──
+  "University of British Columbia": {
+    headquarters: "Vancouver, British Columbia, Canada", founded: "1908", industry: "Higher education",
+    employees: "~17,000", website: "https://www.ubc.ca",
+    about: "A leading global public research university with campuses in Vancouver and the Okanagan.",
+  },
+  "University of Alberta": {
+    headquarters: "Edmonton, Alberta, Canada", founded: "1908", industry: "Higher education",
+    employees: "~15,000", website: "https://www.ualberta.ca",
+    about: "A leading Canadian public research university in Edmonton.",
+  },
+  "University of Toronto": {
+    headquarters: "Toronto, Ontario, Canada", founded: "1827", industry: "Higher education",
+    employees: "~25,000", website: "https://www.utoronto.ca",
+    about: "Canada's largest university and a leading global research institution.",
+  },
+
+  // ── Health ──
+  "Alberta Health Services": {
+    headquarters: "Edmonton, Alberta, Canada", founded: "2008", industry: "Health care (provincial)",
+    employees: "~100,000", website: "https://www.albertahealthservices.ca",
+    about: "Canada's first and largest province-wide health system, delivering care across Alberta.",
+  },
+  "Vancouver Coastal Health": {
+    headquarters: "Vancouver, British Columbia, Canada", founded: "2001", industry: "Health care (regional authority)",
+    employees: "~25,000", website: "https://www.vch.ca",
+    about: "A British Columbia regional health authority serving Vancouver and the coastal region.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {
