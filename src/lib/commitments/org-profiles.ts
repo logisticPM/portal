@@ -426,6 +426,41 @@ export const orgProfiles: Record<string, OrgProfile> = {
     industry: "Gaming (provincial Crown)", employees: "~1,000", website: "https://www.bclc.com",
     about: "British Columbia's provincial Crown gaming corporation.",
   },
+  TransLink: {
+    legalName: "South Coast British Columbia Transportation Authority", headquarters: "New Westminster, British Columbia, Canada", founded: "1998",
+    industry: "Public transit authority", employees: "~8,000 (enterprise)", website: "https://www.translink.ca",
+    about: "Metro Vancouver's regional transportation authority, operating buses, SkyTrain, SeaBus and West Coast Express.",
+  },
+  Metrolinx: {
+    headquarters: "Toronto, Ontario, Canada", founded: "2006",
+    industry: "Public transit agency (provincial Crown)", employees: "~4,500", website: "https://www.metrolinx.com",
+    about: "Ontario Crown agency managing and integrating road and transit networks across the Greater Toronto and Hamilton Area (GO Transit, UP Express, PRESTO).",
+  },
+  "McGill University": {
+    headquarters: "Montreal, Quebec, Canada", founded: "1821",
+    industry: "Public research university", employees: "~13,000 staff · ~40,000 students", website: "https://www.mcgill.ca",
+    about: "One of Canada's oldest and most prominent research universities, consistently ranked among the country's top institutions.",
+  },
+  "Western University": {
+    legalName: "University of Western Ontario", headquarters: "London, Ontario, Canada", founded: "1878",
+    industry: "Public research university", employees: "~5,000 staff · ~40,000 students", website: "https://www.uwo.ca",
+    about: "A major public research university in southwestern Ontario, known for its medical, business (Ivey) and health-sciences programs.",
+  },
+  "McMaster University": {
+    headquarters: "Hamilton, Ontario, Canada", founded: "1887",
+    industry: "Public research university", employees: "~6,000 staff · ~38,000 students", website: "https://www.mcmaster.ca",
+    about: "A research-intensive university in Hamilton, Ontario, recognized for its health sciences, engineering and problem-based learning model.",
+  },
+  AltaLink: {
+    legalName: "AltaLink, L.P.", headquarters: "Calgary, Alberta, Canada", founded: "2002",
+    industry: "Electricity transmission", employees: "~900", website: "https://www.altalink.ca",
+    about: "Alberta's largest regulated electricity transmission company, owned by Berkshire Hathaway Energy, serving most of the province's population.",
+  },
+  "AtkinsRéalis": {
+    legalName: "AtkinsRéalis Group Inc. (formerly SNC-Lavalin)", headquarters: "Montreal, Quebec, Canada", founded: "1911",
+    industry: "Engineering & project management", employees: "~37,000", ticker: "TSX: ATRL", website: "https://www.atkinsrealis.com",
+    about: "A global engineering and project-management firm (rebranded from SNC-Lavalin in 2023) delivering infrastructure, nuclear and consulting services.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {
