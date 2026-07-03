@@ -93,3 +93,15 @@ new ScanCommand({ TableName: TABLE, IndexName: "GSI1", ExclusiveStartKey: start 
   **seconds**, not minutes.
 - The three cases pages render in seconds.
 - `dynamo ≡ mock` golden green; `npm run typecheck` clean.
+
+## Result (measured 2026-07-02, full local corpus of 43,443 items)
+
+| path | before (base-table scan) | after (GSI1 scan) |
+|---|---|---|
+| `getCorpusStats` (scanAll, 3,489 profiles) | ~180,000 ms | **530 ms** |
+| `/cases` render | ~180 s (timed out) | **2.2 s** |
+| `/cases/activation` render | ~180 s | **1.4 s** |
+| `/cases/methodology` render | ~180 s | **0.8 s** |
+
+Parity test: GSI1 profile set == base-table `Case` set (3489 == 3489). `npm run verify`
+35/0 (`dynamo ≡ mock` intact). Typecheck clean. Committed on `feat/legal-cases-readpath`.
