@@ -146,7 +146,10 @@ function GroupSection({
 export default async function CommitmentsPage({
   searchParams,
 }: {
-  searchParams: { sector?: Sector; type?: CommitmentType; year?: string; q?: string; page?: string };
+  searchParams: {
+    sector?: Sector; type?: CommitmentType; year?: string; q?: string; page?: string;
+    rfilter?: string; rpage?: string;
+  };
 }) {
   const yearNum = searchParams.year ? Number(searchParams.year) : undefined;
   const filter = {
@@ -194,9 +197,52 @@ export default async function CommitmentsPage({
     if (year) p.set("year", year);
     if (q) p.set("q", q);
     if (pg && pg !== "1") p.set("page", pg);
+    // carry the deadline-risk view across main-filter changes
+    if (searchParams.rfilter) p.set("rfilter", searchParams.rfilter);
+    if (searchParams.rpage && searchParams.rpage !== "1") p.set("rpage", searchParams.rpage);
     const s = p.toString();
     return s ? `/commitments?${s}` : "/commitments";
   };
+
+  // deadline-risk section: its own filter (rfilter) + pagination (rpage), while
+  // preserving the main list's filters/page.
+  const rqs = (next: { rfilter?: string; rpage?: string }) => {
+    const p = new URLSearchParams();
+    if (searchParams.sector) p.set("sector", searchParams.sector);
+    if (searchParams.type) p.set("type", searchParams.type);
+    if (searchParams.year) p.set("year", searchParams.year);
+    if (searchParams.q) p.set("q", searchParams.q);
+    if (searchParams.page && searchParams.page !== "1") p.set("page", searchParams.page);
+    const rf = "rfilter" in next ? next.rfilter : searchParams.rfilter;
+    const rp = "rpage" in next ? next.rpage : searchParams.rpage;
+    if (rf) p.set("rfilter", rf);
+    if (rp && rp !== "1") p.set("rpage", rp);
+    const s = p.toString();
+    return s ? `/commitments?${s}` : "/commitments";
+  };
+
+  // classify every commitment for the risk table (overdue / at_risk / on_track)
+  const flagById = new Map(risk.flags.map((f) => [f.commitment.id, f]));
+  const riskRows = list.map((c) => {
+    const f = flagById.get(c.id);
+    return { commitment: c, kind: f?.kind ?? "on_track", reason: f?.reason ?? `${label(c.status)} · ${c.progressPct}%` };
+  });
+  const rfilter = searchParams.rfilter;
+  const riskFiltered = rfilter ? riskRows.filter((r) => r.kind === rfilter) : riskRows;
+  const R_SIZE = 10;
+  const rTotalPages = Math.max(1, Math.ceil(riskFiltered.length / R_SIZE));
+  const rpage = Math.min(rTotalPages, Math.max(1, Number(searchParams.rpage) || 1));
+  const riskPageItems = riskFiltered.slice((rpage - 1) * R_SIZE, rpage * R_SIZE);
+  const RISK_BADGE: Record<string, string> = {
+    overdue: "text-rust border-rust/40 bg-rust/10",
+    at_risk: "text-amber border-amber/40 bg-amber/10",
+    on_track: "text-cedar border-cedar/40 bg-cedar/10",
+  };
+  const RISK_TABS: { id: string; label: string; n: number }[] = [
+    { id: "overdue", label: "Overdue", n: risk.overdueCount },
+    { id: "at_risk", label: "At risk", n: risk.atRiskCount },
+    { id: "on_track", label: "On track", n: risk.onTrackCount },
+  ];
 
   const hasFilter = !!(searchParams.sector || searchParams.type || searchParams.year || searchParams.q);
   const exportQs = qs({}).replace("/commitments", ""); // "" or "?..."
@@ -390,42 +436,85 @@ export default async function CommitmentsPage({
       {/* deadline & delivery risk */}
       <div>
         <SectionLead title="Deadline & delivery risk">
-          Commitments past their target year or behind pace. These need attention.
+          Every commitment classified as overdue, at risk, or on track. Filter and page through them.
         </SectionLead>
-        <section className="bg-panel rounded border border-line shadow-card p-5">
-        <div className="flex flex-wrap items-baseline justify-end gap-2 mb-3">
-          <div className="flex gap-4 text-xs">
-            <span className="text-rust">{risk.overdueCount} overdue</span>
-            <span className="text-amber">{risk.atRiskCount} at risk</span>
-            <span className="text-cedar">{risk.onTrackCount} on track / done</span>
-          </div>
-        </div>
-        {risk.flags.length === 0 ? (
-          <p className="text-ink3 text-sm">Nothing overdue or behind pace. 🎉</p>
-        ) : (
-          <div className="divide-y divide-ink/10">
-            {risk.flags.map((f) => (
-              <div key={f.commitment.id} className="flex items-center gap-3 py-2 text-sm">
-                <span
-                  className={`w-16 shrink-0 text-xs rounded border px-2 py-0.5 text-center capitalize ${
-                    f.kind === "overdue"
-                      ? "text-rust border-rust/40 bg-rust/10"
-                      : "text-amber border-amber/40 bg-amber/10"
-                  }`}
-                >
-                  {label(f.kind)}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <div className="truncate">{f.commitment.title}</div>
-                  <div className="text-ink3 text-xs">
-                    {f.commitment.orgName} · <span className="capitalize">{label(f.commitment.sector)}</span>
-                  </div>
-                </div>
-                <span className="text-ink3 text-xs whitespace-nowrap">{f.reason}</span>
-              </div>
+        <section className="bg-panel rounded border border-line shadow-card p-5 space-y-3">
+          {/* filter tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-ink3 uppercase tracking-widest mr-1">Filter</span>
+            {RISK_TABS.map((t) => (
+              <Link
+                key={t.id}
+                scroll={false}
+                href={rqs({ rfilter: rfilter === t.id ? undefined : t.id, rpage: undefined })}
+                className={`rounded-full border px-2.5 py-0.5 ${
+                  rfilter === t.id ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2 hover:border-amber/50"
+                }`}
+              >
+                {t.label} · {t.n}
+              </Link>
             ))}
+            {rfilter && (
+              <Link href={rqs({ rfilter: undefined, rpage: undefined })} scroll={false} className="text-ink3 underline">
+                clear
+              </Link>
+            )}
           </div>
-        )}
+
+          {riskPageItems.length === 0 ? (
+            <p className="text-ink3 text-sm">Nothing here.</p>
+          ) : (
+            <div className="divide-y divide-ink/10">
+              {riskPageItems.map((r) => (
+                <div key={r.commitment.id} className="flex items-center gap-3 py-2 text-sm">
+                  <span className={`w-16 shrink-0 text-xs rounded border px-2 py-0.5 text-center capitalize ${RISK_BADGE[r.kind]}`}>
+                    {label(r.kind)}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{r.commitment.title}</div>
+                    <div className="text-ink3 text-xs">
+                      {r.commitment.orgName} · <span className="capitalize">{label(r.commitment.sector)}</span>
+                    </div>
+                  </div>
+                  <span className="text-ink3 text-xs whitespace-nowrap">{r.reason}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* pagination */}
+          {riskFiltered.length > R_SIZE && (
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+              <span className="text-ink3">
+                {(rpage - 1) * R_SIZE + 1}–{Math.min(rpage * R_SIZE, riskFiltered.length)} of {riskFiltered.length}
+              </span>
+              <div className="flex items-center gap-1 ml-auto">
+                {rpage > 1 ? (
+                  <Link href={rqs({ rpage: String(rpage - 1) })} scroll={false} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">‹ Prev</Link>
+                ) : (
+                  <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">‹ Prev</span>
+                )}
+                {Array.from({ length: rTotalPages }, (_, i) => i + 1).map((n) => (
+                  <Link
+                    key={n}
+                    href={rqs({ rpage: String(n) })}
+                    scroll={false}
+                    className={`rounded border px-2.5 py-1 tabular-nums ${
+                      n === rpage ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2 hover:text-ink hover:border-ink/30"
+                    }`}
+                  >
+                    {n}
+                  </Link>
+                ))}
+                {rpage < rTotalPages ? (
+                  <Link href={rqs({ rpage: String(rpage + 1) })} scroll={false} className="rounded border border-line px-2 py-1 text-ink2 hover:text-ink hover:border-ink/30">Next ›</Link>
+                ) : (
+                  <span className="rounded border border-line px-2 py-1 text-ink3 opacity-40">Next ›</span>
+                )}
+                <PageJump totalPages={rTotalPages} basePath="/commitments" param="rpage" />
+              </div>
+            </div>
+          )}
         </section>
       </div>
 
