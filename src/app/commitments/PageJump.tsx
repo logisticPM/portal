@@ -5,7 +5,15 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export function PageJump({ totalPages, basePath = "/commitments" }: { totalPages: number; basePath?: string }) {
+export function PageJump({
+  totalPages,
+  basePath = "/commitments",
+  param = "page",
+}: {
+  totalPages: number;
+  basePath?: string;
+  param?: string;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const [v, setV] = useState("");
@@ -13,8 +21,8 @@ export function PageJump({ totalPages, basePath = "/commitments" }: { totalPages
   function go() {
     const n = Math.min(totalPages, Math.max(1, Math.floor(Number(v)) || 1));
     const p = new URLSearchParams(params.toString());
-    if (n > 1) p.set("page", String(n));
-    else p.delete("page");
+    if (n > 1) p.set(param, String(n));
+    else p.delete(param);
     const s = p.toString();
     router.replace(s ? `${basePath}?${s}` : basePath, { scroll: false });
     setV("");
