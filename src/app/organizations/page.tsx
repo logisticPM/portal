@@ -7,6 +7,7 @@ import type { Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
 import { PageJump } from "@/app/commitments/PageJump";
+import { FilterRow } from "@/components/FilterRow";
 
 export const dynamic = "force-dynamic";
 
@@ -71,8 +72,7 @@ export default async function OrganizationsPage({
               <Link href="/organizations" scroll={false} className="text-ink3 underline text-xs">clear all</Link>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Sector</span>
+          <FilterRow label="Sector">
             {sectorFacets.map((s) => (
               <Link
                 key={s}
@@ -85,7 +85,7 @@ export default async function OrganizationsPage({
                 {label(s)}
               </Link>
             ))}
-          </div>
+          </FilterRow>
         </div>
 
         <div className="overflow-x-auto">

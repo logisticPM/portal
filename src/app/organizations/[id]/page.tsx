@@ -12,6 +12,7 @@ import {
 import type { CommitmentStatus, CommitmentType, RapType } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
+import { FilterRow } from "@/components/FilterRow";
 
 export const dynamic = "force-dynamic";
 
@@ -229,8 +230,7 @@ export default async function OrgScorecardPage({
           </div>
 
           {/* type */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Type</span>
+          <FilterRow label="Type">
             {typeFacets.map((t) => (
               <Link
                 key={t}
@@ -243,11 +243,10 @@ export default async function OrgScorecardPage({
                 {label(t)}
               </Link>
             ))}
-          </div>
+          </FilterRow>
 
           {/* due year */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-ink3 uppercase tracking-widest w-20 shrink-0">Due year</span>
+          <FilterRow label="Due year">
             {yearFacets.map((y) => (
               <Link
                 key={y}
@@ -260,7 +259,7 @@ export default async function OrgScorecardPage({
                 {y}
               </Link>
             ))}
-          </div>
+          </FilterRow>
         </div>
 
         <div className="divide-y divide-ink/10">
