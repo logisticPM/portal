@@ -621,4 +621,46 @@ export const commitmentFixtures: Commitment[] = [
     detail: "PCL commits to full and fair Indigenous participation in the projects it constructs, building long-term community relationships.",
     targetText: "full & fair participation",
   }),
+
+  // ── Batch 4: telecom, crown financial agencies, utilities ──
+  mk({
+    id: "cm-telus-proc", orgName: "TELUS", sector: "telecom", orgSize: "enterprise", type: "procurement",
+    title: "Invest 7.5% via the Pollinator Fund in Indigenous-owned companies by 2026", targetYear: 2026,
+    history: [h("2023", "in_progress", 60), h("2024", "reported", 80)],
+    source: { label: "TELUS · Indigenous Reconciliation", url: "https://www.telus.com/en/social-impact/connecting-canada/indigenous-reconciliation" },
+    detail: "First Canadian tech company to publish a reconciliation action plan (2021); Silver CCIB PAIR; 20,000+ team members completed Indigenous cultural-awareness training; targeting 7.5% of Pollinator Fund invested in Indigenous-owned companies by 2026.",
+    targetText: "7.5% of Pollinator Fund by 2026",
+  }),
+  mk({
+    id: "cm-bdc-rel", orgName: "Business Development Bank of Canada", sector: "government", orgSize: "enterprise", type: "relationships",
+    title: "Grow Indigenous entrepreneur financing (Indigenous Growth Fund with NACCA)", targetYear: 2026,
+    history: [h("2024", "in_progress", 55), h("2025", "in_progress", 65)],
+    source: { label: "BDC · CCAB member", url: "https://www.ccab.com/main/ccab_member/business-development-bank-of-canada/" },
+    detail: "BDC co-created the $150M Indigenous Growth Fund with NACCA and offers Indigenous Entrepreneur Loans to expand capital for Indigenous business owners.",
+    targetText: "$150M Indigenous Growth Fund",
+  }),
+  mk({
+    id: "cm-edc-rel", orgName: "Export Development Canada", sector: "government", orgSize: "enterprise", type: "relationships",
+    title: "Support Indigenous-owned businesses to grow and export internationally", targetYear: 2026,
+    history: [h("2024", "committed", 40), h("2025", "in_progress", 50)],
+    source: { label: "EDC · Indigenous business", url: "https://www.edc.ca/en/campaign/indigenous-business.html" },
+    detail: "EDC supports Indigenous-owned and -led businesses to grow and succeed in international trade.",
+    targetText: "support Indigenous exporters",
+  }),
+  mk({
+    id: "cm-cib-rel", orgName: "Canada Infrastructure Bank", sector: "government", orgSize: "enterprise", type: "relationships",
+    title: "Invest at least $3B benefiting Indigenous communities (surpassed $1B in Indigenous equity)", targetYear: 2027,
+    history: [h("2024", "in_progress", 55), h("2025", "reported", 70)],
+    source: { label: "Canada Infrastructure Bank · Indigenous", url: "https://cib-bic.ca/en/indigenous-infra/" },
+    detail: "The CIB targets at least $3B in projects benefiting Indigenous communities and has surpassed $1B in funding for Indigenous projects, including a $1B Indigenous equity loan program.",
+    targetText: "at least $3B benefiting Indigenous communities",
+  }),
+  mk({
+    id: "cm-opg-rel", orgName: "Ontario Power Generation", sector: "energy", orgSize: "enterprise", type: "relationships",
+    title: "Create $1B of economic impact for Indigenous communities over 10 years", targetYear: 2030,
+    history: [h("2024", "committed", 30), h("2025", "in_progress", 45)],
+    source: { label: "Ontario Power Generation · Indigenous economic inclusion", url: "https://www.niedb-cndea.ca/success-stories/ontario-power-generation-powering-the-way-for-indigenous-economic-inclusion/" },
+    detail: "OPG committed to creating $1B of economic impact for Indigenous communities and businesses over 10 years through operations, projects and initiatives.",
+    targetText: "$1B economic impact over 10 years",
+  }),
 ];
