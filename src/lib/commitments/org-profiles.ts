@@ -491,6 +491,41 @@ export const orgProfiles: Record<string, OrgProfile> = {
     industry: "Property & casualty insurance", employees: "~28,000", ticker: "TSX: IFC", website: "https://www.intactfc.com",
     about: "Canada's largest provider of property and casualty insurance, also operating in the US, UK and Ireland.",
   },
+  "Capital Power": {
+    legalName: "Capital Power Corporation", headquarters: "Edmonton, Alberta, Canada", founded: "2009",
+    industry: "Power generation", employees: "~800", ticker: "TSX: CPX", website: "https://www.capitalpower.com",
+    about: "A North American power producer headquartered in Edmonton, operating a fleet of generation facilities across Canada and the US.",
+  },
+  TransAlta: {
+    legalName: "TransAlta Corporation", headquarters: "Calgary, Alberta, Canada", founded: "1911",
+    industry: "Power generation", employees: "~1,500", ticker: "TSX: TA / NYSE: TAC", website: "https://www.transalta.com",
+    about: "One of Canada's largest publicly traded power generators, with operations in Canada, the US and Australia.",
+  },
+  "Edmonton International Airport": {
+    headquarters: "Leduc County, Alberta, Canada", founded: "1960 (authority 1992)",
+    industry: "Airport operator (not-for-profit)", employees: "~250 (authority)", website: "https://flyyeg.com",
+    about: "The not-for-profit authority operating Edmonton International Airport (YEG), one of Canada's largest airports by land area.",
+  },
+  "Canada Mortgage and Housing Corporation": {
+    legalName: "Canada Mortgage and Housing Corporation (CMHC)", headquarters: "Ottawa, Ontario, Canada", founded: "1946",
+    industry: "Housing (federal Crown corporation)", employees: "~2,000", website: "https://www.cmhc-schl.gc.ca",
+    about: "Canada's national housing agency, a federal Crown corporation supporting housing affordability, finance and research.",
+  },
+  "Parks Canada": {
+    legalName: "Parks Canada Agency", headquarters: "Gatineau, Quebec, Canada", founded: "1911",
+    industry: "Federal agency (parks & heritage)", employees: "~5,000", website: "https://parks.canada.ca",
+    about: "The federal agency that protects and presents Canada's national parks, national historic sites and marine conservation areas.",
+  },
+  "University of Calgary": {
+    headquarters: "Calgary, Alberta, Canada", founded: "1966",
+    industry: "Public research university", employees: "~5,000 staff · ~35,000 students", website: "https://www.ucalgary.ca",
+    about: "A public research university in Calgary, Alberta, and one of Canada's leading comprehensive research institutions.",
+  },
+  "University of Manitoba": {
+    headquarters: "Winnipeg, Manitoba, Canada", founded: "1877",
+    industry: "Public research university", employees: "~9,000 staff · ~30,000 students", website: "https://umanitoba.ca",
+    about: "Western Canada's first university (est. 1877) and Manitoba's largest, a research-intensive institution in Winnipeg.",
+  },
 };
 
 export function getOrgProfile(orgName: string): OrgProfile | undefined {
