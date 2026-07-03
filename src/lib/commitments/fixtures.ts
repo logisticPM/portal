@@ -887,4 +887,46 @@ export const commitmentFixtures: Commitment[] = [
     detail: "The University of Manitoba's Truth and Reconciliation Framework: Time for Action (launched March 2025) guides its commitment to First Nations, Métis and Inuit students, faculty, staff and communities, alongside the Mastercard Foundation EleV program.",
     targetText: "Truth and Reconciliation Framework",
   }),
+
+  // ── Batch 9: landmark earlier commitments (2015–2019) + equity agreements ──
+  mk({
+    id: "cm-syncrude-emp", orgName: "Syncrude", sector: "energy", orgSize: "enterprise", type: "employment",
+    title: "Reach an Aboriginal workforce reflecting regional representation (~10%, met 2017)", targetYear: 2017,
+    history: [h("2015", "in_progress", 80), h("2017", "reported", 100)],
+    source: { label: "Syncrude · Aboriginal Relations", url: "https://www.syncrude.ca/community/aboriginal-relations/" },
+    detail: "Syncrude's goal for its Aboriginal workforce to reflect regional representation; in 2017 it reached its stated ~10% Aboriginal workforce, with 16%+ of 2016 new hires Indigenous.",
+    targetText: "~10% Aboriginal workforce (met 2017)",
+  }),
+  mk({
+    id: "cm-syncrude-proc", orgName: "Syncrude", sector: "energy", orgSize: "enterprise", type: "procurement",
+    title: "Sustain Aboriginal business procurement (over $1.8B cumulative since 1992)", targetYear: 2018,
+    history: [h("2016", "reported", 90), h("2018", "reported", 100)],
+    source: { label: "Syncrude · Aboriginal Relations", url: "https://www.syncrude.ca/community/aboriginal-relations/" },
+    detail: "Since setting a minimum $30M annual target in 1992, Syncrude has purchased over $1.8B cumulatively from Aboriginal-owned companies in the Wood Buffalo region, and holds Gold-level CCAB PAR.",
+    targetText: "$1.8B+ cumulative since 1992",
+  }),
+  mk({
+    id: "cm-diavik-proc", orgName: "Diavik Diamond Mine (Rio Tinto)", sector: "mining", orgSize: "large", type: "procurement",
+    title: "Direct ~32% of operations spend to northern (incl. Indigenous) businesses", targetYear: 2018,
+    history: [h("2016", "reported", 90), h("2018", "reported", 100)],
+    source: { label: "Rio Tinto · Diavik communities", url: "https://www.riotinto.com/en/operations/canada/diavik/diavik-communities" },
+    detail: "Under Participation Agreements with five Aboriginal groups, Diavik targeted ~32% of operations spend (38% construction) to northern businesses; by 2022 it had spent $3.6B with Northern Indigenous businesses and joint ventures.",
+    targetText: "~32% of operations spend",
+  }),
+  mk({
+    id: "cm-tcenergy-rel", orgName: "TC Energy", sector: "energy", orgSize: "enterprise", type: "relationships",
+    title: "Offer First Nations a 10% equity option in the Coastal GasLink pipeline", targetYear: 2019,
+    history: [h("2019", "committed", 40), h("2022", "reported", 100)],
+    source: { label: "TC Energy · Coastal GasLink equity option agreements", url: "https://www.tcenergy.com/announcements/2022/2022-03-09-tc-energy-signs-equity-option-agreements-with-indigenous-communities-across-the-coastal-gaslink-project-corridor/" },
+    detail: "Committed in 2019 and signed in March 2022, TC Energy's option agreements offer 16 First Nations communities along the corridor a 10% equity interest in the Coastal GasLink pipeline.",
+    targetText: "10% First Nations equity option",
+  }),
+  mk({
+    id: "cm-suncor-rel", orgName: "Suncor Energy", sector: "energy", orgSize: "enterprise", type: "relationships",
+    title: "Sell 49% of the East Tank Farm to Fort McKay & Mikisew Cree First Nations (~$503M)", targetYear: 2017,
+    history: [h("2016", "committed", 50), h("2017", "reported", 100)],
+    source: { label: "Suncor · Indigenous equity partnerships and agreements", url: "https://www.suncor.com/en-ca/sustainability/indigenous-relations/indigenous-equity-partnerships-and-agreements" },
+    detail: "In 2017, Fort McKay and Mikisew Cree First Nations acquired a 49% interest in Suncor's East Tank Farm Development (~$503M), then the largest business investment by a First Nation entity in Canadian history.",
+    targetText: "49% Indigenous equity (~$503M)",
+  }),
 ];

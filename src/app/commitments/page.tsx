@@ -163,9 +163,10 @@ export default async function CommitmentsPage({
     commitmentsRepo.getSummary(filter),
     commitmentsRepo.listCommitments(filter),
   ]);
-  // Always offer every year 2020–2030 as a due-year filter (whether or not any
-  // commitment currently targets it).
-  const YEARS = Array.from({ length: 2030 - 2020 + 1 }, (_, i) => 2020 + i);
+  // Always offer every year 2015–2030 as a due-year filter (whether or not any
+  // commitment currently targets it). Range starts at 2015 to cover landmark
+  // earlier commitments (e.g. equity agreements, older procurement targets).
+  const YEARS = Array.from({ length: 2030 - 2015 + 1 }, (_, i) => 2015 + i);
 
   // pagination for the list (10 per page)
   const PAGE_SIZE = 10;
