@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const SECTORS: Sector[] = [
   "finance", "mining", "energy", "consulting", "retail",
   "health", "government", "education", "transport",
-  "telecom", "forestry", "construction",
+  "telecom", "forestry", "construction", "aerospace", "agriculture", "media",
 ];
 const TYPES: CommitmentType[] = [
   "employment", "procurement", "cultural_learning", "governance", "relationships", "anti_racism",
