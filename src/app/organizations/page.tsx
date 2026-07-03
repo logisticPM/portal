@@ -38,9 +38,9 @@ export default async function OrganizationsPage({
   const COLS = [
     { key: "org", label: "Organization", primary: "asc", align: "", val: (o: (typeof orgs)[number]) => o.orgName.toLowerCase() },
     { key: "sector", label: "Sector", primary: "asc", align: "", val: (o: (typeof orgs)[number]) => o.sectors.join(",") },
-    { key: "commitments", label: "Commitments", primary: "desc", align: "text-right", val: (o: (typeof orgs)[number]) => o.total },
+    { key: "commitments", label: "Commitments", primary: "desc", align: "text-center", val: (o: (typeof orgs)[number]) => o.total },
     { key: "avg", label: "Avg progress", primary: "desc", align: "", val: (o: (typeof orgs)[number]) => o.avgProgress },
-    { key: "confirmed", label: "Confirmed", primary: "desc", align: "text-right", val: (o: (typeof orgs)[number]) => o.confirmedPct },
+    { key: "confirmed", label: "Confirmed", primary: "desc", align: "text-center", val: (o: (typeof orgs)[number]) => o.confirmedPct },
     { key: "risk", label: "Risk", primary: "desc", align: "text-right", val: (o: (typeof orgs)[number]) => o.overdueCount * 100 + o.atRiskCount },
   ] as const;
 
@@ -157,7 +157,7 @@ export default async function OrganizationsPage({
                     </a>
                   </td>
                   <td className="py-2 px-3 capitalize text-ink2">{o.sectors.map(label).join(", ")}</td>
-                  <td className="py-2 px-3 text-right tabular-nums text-ink2">{o.total}</td>
+                  <td className="py-2 px-3 text-center tabular-nums text-ink2">{o.total}</td>
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-24 rounded bg-ink/10 overflow-hidden">
@@ -166,7 +166,7 @@ export default async function OrganizationsPage({
                       <span className="tabular-nums text-ink2 w-9 text-right">{o.avgProgress}%</span>
                     </div>
                   </td>
-                  <td className="py-2 px-3 text-right tabular-nums text-cedar">{o.confirmedPct}%</td>
+                  <td className="py-2 px-3 text-center tabular-nums text-cedar">{o.confirmedPct}%</td>
                   <td className="py-2 pl-3 text-right whitespace-nowrap text-xs">
                     {o.overdueCount > 0 && <span className="text-rust">{o.overdueCount} overdue</span>}
                     {o.overdueCount > 0 && o.atRiskCount > 0 && <span className="text-ink3"> · </span>}
