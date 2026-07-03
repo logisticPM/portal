@@ -158,12 +158,13 @@ export default async function CommitmentsPage({
     targetYear: Number.isFinite(yearNum) ? yearNum : undefined,
     q: searchParams.q,
   };
-  const [summary, list, allForFacets] = await Promise.all([
+  const [summary, list] = await Promise.all([
     commitmentsRepo.getSummary(filter),
     commitmentsRepo.listCommitments(filter),
-    commitmentsRepo.listCommitments(), // unfiltered — to populate the year chips
   ]);
-  const YEARS = [...new Set(allForFacets.map((c) => c.targetYear))].sort((a, b) => a - b);
+  // Always offer every year 2020–2030 as a due-year filter (whether or not any
+  // commitment currently targets it).
+  const YEARS = Array.from({ length: 2030 - 2020 + 1 }, (_, i) => 2020 + i);
 
   // pagination for the list (10 per page)
   const PAGE_SIZE = 10;

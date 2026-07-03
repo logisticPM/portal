@@ -78,7 +78,7 @@ export default async function OrgScorecardPage({
   );
   // show ALL types + all network years as filter options (unmatched → empty list)
   const typeFacets = TYPES;
-  const yearFacets = [...new Set(items.map((c) => c.targetYear))].sort((a, b) => a - b);
+  const yearFacets = Array.from({ length: 2030 - 2020 + 1 }, (_, i) => 2020 + i);
   const hasListFilter = !!(searchParams.type || searchParams.year || searchParams.q);
   const listQs = (next: { type?: string; year?: string; q?: string }) => {
     const p = new URLSearchParams();
