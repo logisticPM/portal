@@ -90,3 +90,27 @@ set via LABEL_MODELS in tests).
 - Credentialed run: `cases:promote` promotes hundreds of cases to core with
   `labelMeta.method="dual_llm"`; PRISMA counts printed; activation page aggregates over
   the labeled core (local + cloud).
+
+## Result (credentialed run, 2026-07-03)
+
+- **Models:** `amazon.nova-lite-v1:0` + `us.meta.llama3-3-70b-instruct-v1:0`
+  (Amazon + Meta — two families; Claude family not enabled in this account).
+  Rubric `2026-06-28.1`, temperature 0, Converse API.
+- **Promotion:** `core 476 of 3483 substrate · excluded 3007`
+  (PRISMA: no_indigenous_signal 2906 · no_economic_theme 101) — identical counts on
+  the local and cloud tables (the cloud pass replayed the disk cache).
+- **Inter-model agreement (consistency, NOT accuracy):**
+  full **117** (25%) · partial **254** (53%) · none **105** (22%).
+  All partial/none carry `confidence:"low"` + `needsReview:true`; "none" cases are
+  promoted with an empty agreed-theme set, by design.
+- **Agreed-theme distribution over the labeled core:** land_rights 233 ·
+  duty_to_consult 202 · treaty 117 · fiduciary 65 · self_determination 42 ·
+  **resource_revenue 14** — reconfirming the thin economic/revenue-sharing coverage
+  signal first seen in retrieval eval (topical-005). Corpus supplementation remains
+  the fix, not labeling.
+- **Accuracy validation still pending:** these numbers describe model consistency.
+  κ/PABAK against a human/expert gold (`validate/metrics.ts` machinery) is the
+  outstanding step before any accuracy claim.
+- Production effect: prod `/cases` browse (core default) now lists the labeled
+  landmark set (Delgamuukw, Sparrow, Restoule, Southwind, Wewaykum, …) and
+  `/cases/activation` aggregates over the labeled core.
