@@ -17,17 +17,20 @@ const PAGE_SIZE = 20;
 export default async function OrganizationsPage({
   searchParams,
 }: {
-  searchParams: { sector?: Sector; q?: string; page?: string; sort?: string; dir?: string };
+  searchParams: { sector?: Sector; q?: string; page?: string; sort?: string; dir?: string; letter?: string };
 }) {
   const items = await commitmentsRepo.listCommitments();
   const currentYear = new Date().getFullYear();
   const orgs = rollupOrgs(items, currentYear);
 
   const sectorFacets = [...new Set(orgs.flatMap((o) => o.sectors))].sort();
+  const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const letter = searchParams.letter?.toUpperCase();
   const q = (searchParams.q ?? "").trim().toLowerCase();
   const filtered = orgs.filter(
     (o) =>
       (!searchParams.sector || o.sectors.includes(searchParams.sector)) &&
+      (!letter || o.orgName.trim().charAt(0).toUpperCase() === letter) &&
       (!q ||
         o.orgName.toLowerCase().includes(q) ||
         o.sectors.some((s) => s.toLowerCase().includes(q))),
@@ -62,17 +65,19 @@ export default async function OrganizationsPage({
   const page = Math.min(totalPages, Math.max(1, Number(searchParams.page) || 1));
   const pageOrgs = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const hasFilter = !!(searchParams.sector || searchParams.q);
-  const qs = (next: { sector?: string; page?: string; sort?: string; dir?: string }) => {
+  const hasFilter = !!(searchParams.sector || searchParams.q || searchParams.letter);
+  const qs = (next: { sector?: string; page?: string; sort?: string; dir?: string; letter?: string }) => {
     const p = new URLSearchParams();
     const sector = "sector" in next ? next.sector : searchParams.sector;
     const pg = "page" in next ? next.page : searchParams.page;
     const sort = "sort" in next ? next.sort : searchParams.sort;
     const d = "dir" in next ? next.dir : searchParams.dir;
+    const lt = "letter" in next ? next.letter : searchParams.letter;
     if (sector) p.set("sector", sector);
     if (searchParams.q) p.set("q", searchParams.q);
     if (sort) p.set("sort", sort);
     if (d) p.set("dir", d);
+    if (lt) p.set("letter", lt);
     if (pg && pg !== "1") p.set("page", pg);
     const s = p.toString();
     return s ? `/organizations?${s}` : "/organizations";
@@ -124,10 +129,33 @@ export default async function OrganizationsPage({
               </Link>
             ))}
           </FilterRow>
+          <FilterRow label="Name">
+            {LETTERS.map((L) => (
+              <Link
+                key={L}
+                scroll={false}
+                href={qs({ letter: letter === L ? undefined : L, page: undefined })}
+                className={`rounded border w-6 text-center py-0.5 tabular-nums hover:border-amber/50 ${
+                  letter === L ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
+                }`}
+              >
+                {L}
+              </Link>
+            ))}
+          </FilterRow>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-10" />
+              <col />
+              <col className="w-40" />
+              <col className="w-32" />
+              <col className="w-44" />
+              <col className="w-28" />
+              <col className="w-28" />
+            </colgroup>
             <thead>
               <tr className="text-ink3 text-xs uppercase tracking-widest text-left border-b border-line">
                 <th className="py-2 pr-3 font-medium w-8">#</th>
@@ -151,12 +179,12 @@ export default async function OrganizationsPage({
               {pageOrgs.map((o, i) => (
                 <tr key={o.key} className="hover:bg-ink/[0.03]">
                   <td className="py-2 pr-3 text-ink3 tabular-nums">{(page - 1) * PAGE_SIZE + i + 1}</td>
-                  <td className="py-2 px-3">
+                  <td className="py-2 px-3 truncate">
                     <a href={`/organizations/${o.key}`} className="hover:text-amber hover:underline">
                       {o.orgName}
                     </a>
                   </td>
-                  <td className="py-2 px-3 capitalize text-ink2">{o.sectors.map(label).join(", ")}</td>
+                  <td className="py-2 px-3 capitalize text-ink2 truncate">{o.sectors.map(label).join(", ")}</td>
                   <td className="py-2 px-3 text-center tabular-nums text-ink2">{o.total}</td>
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">
