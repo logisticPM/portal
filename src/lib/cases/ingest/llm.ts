@@ -1,6 +1,7 @@
 // Provider-agnostic LLM client for theme labeling. Two model families are configured
 // via env (server-side only). Responses cached by content hash so re-runs are free and
-// the labeler is offline-replayable. Never used in unit tests (live calls only).
+// the labeler is offline-replayable. `stub:` ids run a deterministic offline test stub
+// (never authoritative); real ids call Bedrock Converse (uniform across families).
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -20,9 +21,48 @@ export function configuredModels(): LlmModel[] {
 }
 
 async function callProvider(modelId: string, prompt: string): Promise<string> {
-  // Provider wiring lives here (Bedrock InvokeModel / OpenAI / etc.), keyed by modelId
-  // prefix. Kept thin and out of tests. Implementers fill the HTTP/SDK call.
-  throw new Error(`callProvider not configured for ${modelId}`);
+  if (modelId.startsWith("stub:")) return stubLabelResponse(modelId, prompt);
+  return converse(modelId, prompt);
+}
+
+// Deterministic TEST stub (no key, no network): sha256(id+prompt) picks a subset of
+// ALL_THEMES and returns it as a JSON array string. Semantically meaningless by
+// design (same ethos as the stub-hash-v1 embedder): it only makes labelCase runnable
+// end-to-end offline and tests stable. NEVER authoritative — real labels come from
+// the credentialed dual-LLM run.
+function stubLabelResponse(modelId: string, prompt: string): string {
+  const h = createHash("sha256").update(modelId + "\n" + prompt).digest();
+  const picked = ALL_THEMES.filter((_, i) => h[i % h.length] % 3 === 0);
+  return JSON.stringify(picked);
+}
+
+// Bedrock Converse API — uniform request/response across model families (Claude,
+// Nova, Llama, …), which is what LABEL_MODELS' two-different-families requirement
+// needs (no per-family body formats). Lazy import keeps the stub path offline.
+let bedrockP: Promise<{ send: (modelId: string, prompt: string) => Promise<string> }> | null = null;
+function bedrockConverse() {
+  if (!bedrockP) {
+    bedrockP = import("@aws-sdk/client-bedrock-runtime").then((m) => {
+      const region = (process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-1").trim();
+      const client = new m.BedrockRuntimeClient({ region });
+      return {
+        send: async (modelId: string, prompt: string) => {
+          const res = await client.send(new m.ConverseCommand({
+            modelId,
+            messages: [{ role: "user", content: [{ text: prompt }] }],
+            inferenceConfig: { temperature: 0, maxTokens: 256 },
+          }));
+          const parts = res.output?.message?.content ?? [];
+          return parts.map((p) => ("text" in p && p.text ? p.text : "")).join("");
+        },
+      };
+    });
+  }
+  return bedrockP;
+}
+
+async function converse(modelId: string, prompt: string): Promise<string> {
+  return (await bedrockConverse()).send(modelId, prompt);
 }
 
 async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
