@@ -1,11 +1,16 @@
 // Builds the in-memory retrieval index from ONE table scan and caches it at module
 // scope — never scanned per query (spec §7). DynamoDB is the source of truth; call
 // invalidateSearchIndex() after an embed pass (or process restart rebuilds it).
+// Spec 2026-07-03 adds artifact sources (INDEX_FILE / INDEX_BUCKET): a prebuilt
+// binary index loaded once per process instead of scanning ~43k items per cold
+// start. Any artifact-load failure degrades to the scan path — never breaks search.
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { promises as fs } from "node:fs";
 import { ddbDoc } from "../../dynamo/client";
 import { itemToCase } from "../../dynamo/cases-table";
 import { unpackF32 } from "./pack";
-import { metaText, type RetrievalUnit } from "./hybrid";
+import { metaText, makeInMemorySearcher, type RetrievalUnit, type Searcher } from "./hybrid";
+import { loadArtifacts } from "./artifact";
 import type { LegalCase } from "../types";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
@@ -24,10 +29,12 @@ export function assembleUnits(
 }
 
 export interface SearchIndex {
-  units: RetrievalUnit[];
+  units: RetrievalUnit[];        // empty when artifact-backed (units are baked into searcher)
   cases: Map<string, LegalCase>; // PROFILE-derived (no chunks) — enough for list display
   embedderId: string | null;     // the embedder that wrote the stored vectors, if any
   vdim: number | null;           // dimension of the stored vectors (compatibility axis)
+  searcher: Searcher;            // ALWAYS present: artifact-backed or built from units
+  source: "artifact" | "scan";
 }
 
 let cached: SearchIndex | null = null;
@@ -38,6 +45,34 @@ export function invalidateSearchIndex(): void {
 
 export async function getSearchIndex(force = false): Promise<SearchIndex> {
   if (cached && !force) return cached;
+
+  // Artifact sources (spec 2026-07-03): INDEX_FILE dir (local) or INDEX_BUCKET (S3).
+  // Any failure falls through to the scan path — degradation, never breakage.
+  const fileDir = (process.env.INDEX_FILE ?? "").trim();
+  const bucket = (process.env.INDEX_BUCKET ?? "").trim();
+  if (fileDir || bucket) {
+    try {
+      let bm25: Buffer;
+      let vectors: Buffer | null = null;
+      if (fileDir) {
+        bm25 = await fs.readFile(`${fileDir}/bm25.bin`);
+        vectors = await fs.readFile(`${fileDir}/vectors.bin`).catch(() => null);
+      } else {
+        const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+        const s3 = new S3Client({});
+        const get = async (Key: string) =>
+          Buffer.from(await (await s3.send(new GetObjectCommand({ Bucket: bucket, Key }))).Body!.transformToByteArray());
+        bm25 = await get("cases-index/v1/bm25.bin");
+        vectors = await get("cases-index/v1/vectors.bin").catch(() => null);
+      }
+      const loaded = loadArtifacts(bm25, vectors);
+      cached = { units: [], cases: loaded.cases, embedderId: loaded.embedderId, vdim: loaded.vdim, searcher: loaded.searcher, source: "artifact" };
+      console.log(`[index] artifact loaded (buildId=${loaded.buildId}, cases=${loaded.cases.size})`);
+      return cached;
+    } catch (e) {
+      console.warn(`[index] artifact load failed (${(e as Error).message}) → falling back to table scan`);
+    }
+  }
 
   const profiles: { id: string; meta: string }[] = [];
   const cases = new Map<string, LegalCase>();
@@ -68,6 +103,7 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
     start = r.LastEvaluatedKey;
   } while (start);
 
-  cached = { units: assembleUnits(profiles, chunks), cases, embedderId, vdim };
+  const units = assembleUnits(profiles, chunks);
+  cached = { units, cases, embedderId, vdim, searcher: makeInMemorySearcher(units), source: "scan" };
   return cached;
 }
