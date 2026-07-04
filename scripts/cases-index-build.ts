@@ -23,7 +23,9 @@ async function main() {
   await fs.mkdir(OUT_DIR, { recursive: true });
   await fs.writeFile(path.join(OUT_DIR, "bm25.bin"), bm25);
   if (vectors) await fs.writeFile(path.join(OUT_DIR, "vectors.bin"), vectors);
-  console.log(`✅ built artifacts buildId=${buildId} · bm25=${(bm25.length / 1e6).toFixed(1)}MB · vectors=${vectors ? (vectors.length / 1e6).toFixed(1) + "MB" : "none"} → ${OUT_DIR}`);
+  // units/cases in the log line make an accidental fixtures-only build (e.g. after
+  // `npm run verify` reset the table) immediately visible to the operator.
+  console.log(`✅ built artifacts buildId=${buildId} · units=${idx.units.length} cases=${idx.cases.size} · bm25=${(bm25.length / 1e6).toFixed(1)}MB · vectors=${vectors ? (vectors.length / 1e6).toFixed(1) + "MB" : "none"} → ${OUT_DIR}`);
 
   if (bucket) {
     const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
