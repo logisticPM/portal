@@ -127,3 +127,18 @@ implementation and the fallback path.
 - Local: query over the real corpus via artifact ≤ ~50 ms (BM25) after a ≤ ~5 s one-time load.
 - Prod search works: cold < ~8 s (incl. S3 GET + Next overhead), warm < 1 s.
 - All parity tests green; typecheck clean; `npm run verify` unchanged.
+
+## Result (production, 2026-07-04)
+
+Artifacts built from the cloud table (units=43,436 · cases=3,485 · bm25 58.9MB ·
+vectors 160.8MB) and uploaded to the SST-provisioned bucket post-deploy.
+
+| prod measurement | before | after |
+|---|---|---|
+| semantic search (cold Lambda) | **504** (60s timeout) | **200 in 5.3s** |
+| semantic search (warm) | 504 | **200 in 2.0s** |
+| known-item `2014 SCC 44` | 504 | **200 in 1.6s** (routed BM25; target case returned) |
+
+Local reference numbers: artifact load 97ms (BM25-only) / 256ms (with vectors) vs
+42.8s scan; query ~57ms vs ~2.7s per-query rebuild. Search results verified
+relevance-ranked (Haida / Mikisew / Rio Tinto / Tsilhqot'in for "duty to consult").
