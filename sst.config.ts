@@ -119,6 +119,13 @@ export default $config({
     // touching the live table. Provisioned now so the path is one step away.
     const rapAnalytics = new sst.aws.Bucket("RapAnalytics");
 
+    // Prebuilt legal-cases search-index artifacts (spec 2026-07-03): the server
+    // loads bm25.bin (and vectors.bin when a query-time embedder is configured)
+    // once per instance instead of scanning the ~43k-item table per cold start —
+    // the prod search-504 fix. Populated by `cases:index-build:cloud` after
+    // corpus-changing pipeline runs (ingest / fulltext / embed / promote).
+    const casesIndex = new sst.aws.Bucket("CasesIndex");
+
     // Shared extraction config for BOTH the Next server function and the async
     // extraction worker. Scoped to "*" for the capstone; tighten to specific
     // model/blueprint ARNs for production. AWS_REGION is a reserved Lambda env
@@ -161,9 +168,12 @@ export default $config({
 
     new sst.aws.Nextjs("Web", {
       // Least-privilege access to exactly these resources (tables + GSIs + buckets).
-      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments],
+      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, casesIndex],
       transform: {
         server: {
+          // Search-index artifact resident in memory (bm25 ~60MB; +~160MB vectors
+          // when dense is enabled later) + faster CPU for index deserialization.
+          memory: "2048 MB",
           // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
           // permission to invoke the async extraction worker.
           permissions: [
@@ -196,6 +206,10 @@ export default $config({
         // Matches the app default (client code falls back to "LegalCases"), but
         // explicit is better than implicit for a prod dependency.
         CASES_TABLE: "LegalCases",
+        // Search-index artifacts (spec 2026-07-03): prebuilt bm25/vectors objects
+        // the server loads once per instance instead of scanning the table — the
+        // prod search-504 fix. Bucket is SST-linked above.
+        INDEX_BUCKET: casesIndex.name,
         // Present → uploadRapAction hands extraction to the worker instead of
         // running it inline (which would hit the request-Lambda timeout).
         EXTRACTOR_FUNCTION_NAME: rapExtract.name,
