@@ -48,8 +48,10 @@ const units: RetrievalUnit[] = [
   assert.deepEqual(mixed.searcher.denseRank(vec(1, 0)), [], "buildId mismatch → empty dense list");
   assert.deepEqual(rankWithSearcher(mixed.searcher, "duty to consult", null), rankWithSearcher(mem, "duty to consult", null), "buildId mismatch must not affect bm25");
 
-  // truncation: a short buffer must throw, never load zero-filled garbage
-  assert.throws(() => loadArtifacts(Buffer.from(built.bm25.subarray(0, built.bm25.length - 1))), /truncated artifact/);
+  // truncation: a short buffer must throw, never load zero-filled garbage.
+  // Cut 8 bytes: tail padding is at most 7, so this always removes real section
+  // bytes regardless of the fixture's serialized length mod 8.
+  assert.throws(() => loadArtifacts(Buffer.from(built.bm25.subarray(0, built.bm25.length - 8))), /truncated artifact/);
 
   console.log("✅ artifact roundtrip (bm25 + vectors + profiles + metadata)");
 })().catch((e) => { console.error(e); process.exit(1); });
