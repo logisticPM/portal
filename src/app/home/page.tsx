@@ -47,7 +47,7 @@ export default async function HomePage() {
           <LinkCard href="/report" title="Report →" desc="Add itemized lines naming each supplier — your questionnaire." />
           <LinkCard href="/coverage" title="Coverage →" desc="Reported vs confirmed, by flow type." />
           <LinkCard href="/my-commitments" title="My RAP commitments →" desc="Submit & track your RAP commitments — these feed the RAP Index." />
-          <LinkCard href="/cases" title="Legal cases — economic justice →" desc="3,485 Indigenous economic-justice cases, searchable & citation-anchored; activation dashboard + methodology." />
+          <LinkCard href="/cases" title="Legal cases — economic justice →" desc="What consultation, accommodation & treaty obligations look like in practice — 3,485 searchable, citation-anchored cases." />
         </div>
       </Shell>
     );
@@ -71,7 +71,7 @@ export default async function HomePage() {
           <LinkCard href="/record" title="My Record →" desc="Everything claimed about you + export / withdraw." />
           <LinkCard href="/profile" title="My Profile →" desc="Your showcase + linked certifications." />
           <LinkCard href={`/s/${session.partyId}`} title="Public page →" desc="Your verified-supplier showcase (if public)." />
-          <LinkCard href="/cases" title="Legal cases — economic justice →" desc="3,485 Indigenous economic-justice cases, searchable & citation-anchored; activation dashboard + methodology." />
+          <LinkCard href="/cases" title="Legal cases — economic justice →" desc="Precedents that back your negotiations — land rights, revenue sharing & consultation wins, searchable & citation-anchored." />
         </div>
       </Shell>
     );
