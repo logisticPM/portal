@@ -10,7 +10,8 @@ function fixtureIndex(): SearchIndex {
   add("1990-1-scr-1075", "R. v. Sparrow");
   add("1997-3-scr-1010", "Delgamuukw v. British Columbia");
   add("2005-scc-69", "Mikisew Cree First Nation v. Canada (Minister of Canadian Heritage)");
-  return { units: [], cases, embedderId: null, vdim: null };
+  const searcher = { bm25Rank: () => [], denseRank: () => [], caseOf: () => undefined };
+  return { units: [], cases, embedderId: null, vdim: null, searcher, source: "scan" };
 }
 
 (async () => {

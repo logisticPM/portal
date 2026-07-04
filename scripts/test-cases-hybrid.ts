@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { rrf, dot, metaText, hybridRank, type RetrievalUnit } from "../src/lib/cases/search/hybrid";
+import { rrf, dot, metaText, hybridRank, makeInMemorySearcher, rankWithSearcher, type RetrievalUnit } from "../src/lib/cases/search/hybrid";
 import { assembleUnits } from "../src/lib/cases/search/build-index";
 import { StubEmbedder } from "../src/lib/cases/search/embedder";
 
@@ -26,6 +26,13 @@ const units: RetrievalUnit[] = [
 ];
 const bm25Only = hybridRank(units, "consultation duty", null);
 assert.equal(bm25Only[0].caseId, "caseA", "BM25-only finds caseA");
+
+// --- wrapper equivalence: hybridRank(units,…) ≡ rankWithSearcher(makeInMemorySearcher(units),…) ---
+{
+  const viaWrapper = hybridRank(units, "consultation duty", null);
+  const viaSearcher = rankWithSearcher(makeInMemorySearcher(units), "consultation duty", null);
+  assert.deepEqual(viaSearcher, viaWrapper, "searcher path must equal wrapper path");
+}
 
 // --- assembleUnits: one meta unit per case + one chunk unit per chunk ---
 const units2 = assembleUnits(

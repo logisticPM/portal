@@ -43,7 +43,9 @@
     "cases:eval:pool": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases tsx scripts/cases-eval.ts --pool",
     "cases:eval:bedrock": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 BEDROCK_REGION=us-east-1 tsx scripts/cases-eval.ts",
     "cases:eval:pool:bedrock": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 BEDROCK_REGION=us-east-1 tsx scripts/cases-eval.ts --pool",
-    "cases:eval:bedrock:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 tsx scripts/cases-eval.ts"
+    "cases:eval:bedrock:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 tsx scripts/cases-eval.ts",
+    "cases:index-build": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases tsx scripts/cases-index-build.ts",
+    "cases:index-build:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases tsx scripts/cases-index-build.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1078.0",

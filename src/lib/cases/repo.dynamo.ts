@@ -6,7 +6,7 @@ import { caseKeys, caseToItems, itemToCase, reassembleCase } from "../dynamo/cas
 import { filterCases, searchCases, buildFacets, buildActivation, buildGraph, buildCorpusStats } from "./query";
 import type { CaseRepo, LegalCase } from "./types";
 import { getSearchIndex } from "./search/build-index";
-import { hybridRank } from "./search/hybrid";
+import { rankWithSearcher } from "./search/hybrid";
 import { getEmbedder } from "./search/embedder";
 import { routeQuery } from "./search/route";
 
@@ -83,7 +83,7 @@ export const dynamoCaseRepo: CaseRepo = {
     } else {
       console.warn(`[hybrid] no stored vectors → BM25-only`);
     }
-    const ranked = hybridRank(idx.units, query, queryVec);
+    const ranked = rankWithSearcher(idx.searcher, query, queryVec);
     const ordered = ranked
       .map((r) => idx.cases.get(r.caseId))
       .filter((c): c is LegalCase => !!c);

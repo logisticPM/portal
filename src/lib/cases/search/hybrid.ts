@@ -1,7 +1,8 @@
 // Pure hybrid fusion: BM25 + dense cosine ranks fused by Reciprocal Rank Fusion
 // (Cormack SIGIR'09, k=60), aggregated to the case by MAX over its retrieval units
 // (a strong single passage is the signal; sum would bias toward long judgments).
-import { Bm25, tokenize } from "./bm25";
+import { tokenize } from "./bm25";
+import { buildInverted, scoreInverted, type InvertedIndex } from "./inverted";
 import type { LegalCase } from "../types";
 
 export interface RetrievalUnit {
@@ -38,36 +39,64 @@ export function metaText(c: Pick<LegalCase, "citation" | "citation2" | "styleOfC
     .join(" ");
 }
 
-// Rank cases for a query. queryVec === null → BM25-only (dense path skipped).
-export function hybridRank(
-  units: RetrievalUnit[],
+// Pluggable search backend: the in-memory impl is built from RetrievalUnits (scan
+// fallback, tests, eval); the artifact impl (see ./artifact.ts, Task 3) is loaded
+// from a prebuilt binary. hybridRank keeps its signature as a thin wrapper so
+// existing callers/tests/eval are unchanged — parity by construction.
+export interface Searcher {
+  bm25Rank(query: string): { id: string }[];             // pre-sorted
+  denseRank(queryVec: Float32Array): { id: string }[];   // pre-sorted; [] when no usable vectors
+  caseOf(unitId: string): string | undefined;
+}
+
+export function makeInMemorySearcher(units: RetrievalUnit[]): Searcher {
+  const inv: InvertedIndex = buildInverted(units.map((u) => ({ id: u.unitId, tokens: tokenize(u.text) })));
+  const unitCase = new Map(units.map((u) => [u.unitId, u.caseId]));
+  return {
+    bm25Rank: (query) => scoreInverted(inv, tokenize(query)).map((r) => ({ id: r.id })),
+    denseRank: (queryVec) =>
+      units
+        // length guard: never dot vectors of different dims (would yield NaN and
+        // silently corrupt the dense ranking). Mismatched-dim vecs are simply skipped.
+        .filter((u) => u.vec && u.vec.length === queryVec.length)
+        .map((u) => ({ id: u.unitId, score: dot(queryVec, u.vec!) }))
+        .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
+        .map((r) => ({ id: r.id })),
+    caseOf: (unitId) => unitCase.get(unitId),
+  };
+}
+
+// Rank cases for a query using a Searcher backend. queryVec === null → BM25-only
+// (dense path skipped).
+export function rankWithSearcher(
+  s: Searcher,
   query: string,
   queryVec: Float32Array | null,
   k = 60,
 ): HybridResult[] {
-  const bm = new Bm25(units.map((u) => ({ id: u.unitId, tokens: tokenize(u.text) })));
-  const lists: { id: string }[][] = [bm.search(tokenize(query)).map((r) => ({ id: r.id }))];
-
-  if (queryVec) {
-    const dense = units
-      // length guard: never dot vectors of different dims (would yield NaN and
-      // silently corrupt the dense ranking). Mismatched-dim vecs are simply skipped.
-      .filter((u) => u.vec && u.vec.length === queryVec.length)
-      .map((u) => ({ id: u.unitId, score: dot(queryVec, u.vec!) }))
-      .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))
-      .map((r) => ({ id: r.id }));
-    lists.push(dense);
-  }
+  const lists: { id: string }[][] = [s.bm25Rank(query)];
+  if (queryVec) lists.push(s.denseRank(queryVec));
 
   const fused = rrf(lists, k);
-  const unitCase = new Map(units.map((u) => [u.unitId, u.caseId]));
   const byCase = new Map<string, number>();
   for (const [unitId, score] of fused) {
-    const caseId = unitCase.get(unitId);
+    const caseId = s.caseOf(unitId);
     if (!caseId) continue;
     byCase.set(caseId, Math.max(byCase.get(caseId) ?? 0, score));
   }
   return [...byCase.entries()]
     .map(([caseId, score]) => ({ caseId, score }))
     .sort((a, b) => b.score - a.score || a.caseId.localeCompare(b.caseId));
+}
+
+// Rank cases for a query. queryVec === null → BM25-only (dense path skipped).
+// Thin wrapper over rankWithSearcher + makeInMemorySearcher for signature-compatible
+// existing callers (route handlers, eval scripts, tests).
+export function hybridRank(
+  units: RetrievalUnit[],
+  query: string,
+  queryVec: Float32Array | null,
+  k = 60,
+): HybridResult[] {
+  return rankWithSearcher(makeInMemorySearcher(units), query, queryVec, k);
 }
