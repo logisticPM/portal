@@ -54,6 +54,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <a href="/rap" className="text-ink2 hover:text-ink">
               RAP Index
             </a>
+            <a href="/cases" className="text-ink2 hover:text-ink">
+              Legal Cases
+            </a>
             <ThemeMenu />
             {session && (
               <a href="/home" className="text-ink2 hover:text-ink">
