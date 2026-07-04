@@ -3,6 +3,7 @@
 // index, and loads fast.
 import assert from "node:assert/strict";
 process.env.INDEX_FILE = "scripts/.cache/index";
+delete process.env.EMBED_PROVIDER; // deterministic: BM25-only → vectors artifact must be skipped
 import { getSearchIndex, invalidateSearchIndex } from "../src/lib/cases/search/build-index";
 import { rankWithSearcher } from "../src/lib/cases/search/hybrid";
 
@@ -17,6 +18,10 @@ import { rankWithSearcher } from "../src/lib/cases/search/hybrid";
   const r1 = rankWithSearcher(art.searcher, "duty to consult", null);
   const queryMs = Date.now() - t1;
   assert.ok(r1.length > 100, "bm25 results over real corpus");
+
+  // Spec gate: with no EMBED_PROVIDER (BM25-only), the vectors artifact is never
+  // loaded — dense ranking over the artifact-backed searcher must be empty.
+  assert.deepEqual(art.searcher.denseRank(new Float32Array(1024)), [], "no embedder → vectors skipped → empty dense list");
 
   process.env.INDEX_FILE = "";
   invalidateSearchIndex();

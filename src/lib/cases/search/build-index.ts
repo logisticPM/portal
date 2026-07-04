@@ -52,18 +52,23 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
   const bucket = (process.env.INDEX_BUCKET ?? "").trim();
   if (fileDir || bucket) {
     try {
+      // Spec ("Vectors artifact"): vectors are loaded ONLY when a real query-time
+      // embedder is configured (EMBED_PROVIDER set, not the stub) — the BM25-only
+      // path must never pay the ~160MB download. Mirrors getEmbedder()'s gating.
+      const provider = (process.env.EMBED_PROVIDER ?? "").trim().toLowerCase();
+      const wantVectors = !!provider && provider !== "stub";
       let bm25: Buffer;
       let vectors: Buffer | null = null;
       if (fileDir) {
         bm25 = await fs.readFile(`${fileDir}/bm25.bin`);
-        vectors = await fs.readFile(`${fileDir}/vectors.bin`).catch(() => null);
+        if (wantVectors) vectors = await fs.readFile(`${fileDir}/vectors.bin`).catch(() => null);
       } else {
         const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
         const s3 = new S3Client({});
         const get = async (Key: string) =>
           Buffer.from(await (await s3.send(new GetObjectCommand({ Bucket: bucket, Key }))).Body!.transformToByteArray());
         bm25 = await get("cases-index/v1/bm25.bin");
-        vectors = await get("cases-index/v1/vectors.bin").catch(() => null);
+        if (wantVectors) vectors = await get("cases-index/v1/vectors.bin").catch(() => null);
       }
       const loaded = loadArtifacts(bm25, vectors);
       cached = { units: [], cases: loaded.cases, embedderId: loaded.embedderId, vdim: loaded.vdim, searcher: loaded.searcher, source: "artifact" };
