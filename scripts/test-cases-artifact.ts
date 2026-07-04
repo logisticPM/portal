@@ -39,5 +39,17 @@ const units: RetrievalUnit[] = [
   assert.deepEqual(lonly.searcher.denseRank(vec(1, 0)), [], "no vectors → empty dense list");
   assert.deepEqual(rankWithSearcher(lonly.searcher, "duty to consult", null), rankWithSearcher(mem, "duty to consult", null));
 
+  // buildId mismatch: bm25 from build A + vectors from build B → dense silently off
+  // (warn, no throw), BM25 unaffected — honest degradation, never corrupt fusion.
+  const buildA = buildArtifacts({ units, cases, embedderId: "stub-hash-v1", vdim: 4 });
+  const buildB = buildArtifacts({ units, cases, embedderId: "stub-hash-v1", vdim: 4 });
+  assert.notEqual(buildA.buildId, buildB.buildId, "two builds must get distinct buildIds");
+  const mixed = loadArtifacts(buildA.bm25, buildB.vectors);
+  assert.deepEqual(mixed.searcher.denseRank(vec(1, 0)), [], "buildId mismatch → empty dense list");
+  assert.deepEqual(rankWithSearcher(mixed.searcher, "duty to consult", null), rankWithSearcher(mem, "duty to consult", null), "buildId mismatch must not affect bm25");
+
+  // truncation: a short buffer must throw, never load zero-filled garbage
+  assert.throws(() => loadArtifacts(Buffer.from(built.bm25.subarray(0, built.bm25.length - 1))), /truncated artifact/);
+
   console.log("✅ artifact roundtrip (bm25 + vectors + profiles + metadata)");
 })().catch((e) => { console.error(e); process.exit(1); });

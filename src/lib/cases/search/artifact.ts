@@ -35,17 +35,36 @@ function pack(headerObj: Record<string, unknown>, sections: { name: string; byte
   return out;
 }
 
-function unpack(buf: Buffer): { header: any; section: (name: string) => Uint8Array } {
+// Minimal typed view of the JSON header (private to the module). bm25 and vectors
+// objects share the container fields; object-specific fields are optional.
+interface ArtifactHeader {
+  formatVersion: number;
+  buildId: string;
+  sections: SectionMap;
+  magicName?: string;
+  n?: number;
+  avgdl?: number;
+  embedderId?: string | null;
+  vdim?: number | null;
+  count?: number;
+  builtAt?: string;
+  counts?: Record<string, number>;
+}
+
+function unpack(buf: Buffer): { header: ArtifactHeader; section: (name: string) => Uint8Array } {
   if (buf.readUInt32LE(0) !== MAGIC) throw new Error("bad artifact magic");
   const hlen = buf.readUInt32LE(4);
   const secStart = buf.readUInt32LE(8);
-  const header = JSON.parse(buf.subarray(12, 12 + hlen).toString("utf8"));
+  const header: ArtifactHeader = JSON.parse(buf.subarray(12, 12 + hlen).toString("utf8"));
   return {
     header,
     section: (name) => {
       const s = header.sections[name];
       if (!s) throw new Error(`missing section ${name}`);
       const abs = secStart + s[0];
+      // Reject short buffers: subarray silently clamps, which would leave the copy
+      // zero-filled past the truncation point (garbage data, no error).
+      if (abs + s[1] > buf.length) throw new Error(`truncated artifact: section '${name}' extends past buffer end`);
       const copy = new Uint8Array(s[1]);
       copy.set(buf.subarray(abs, abs + s[1]));
       return copy;
@@ -53,8 +72,13 @@ function unpack(buf: Buffer): { header: any; section: (name: string) => Uint8Arr
   };
 }
 
-const toU32 = (b: Uint8Array) => new Uint32Array(b.buffer, b.byteOffset, b.byteLength / 4);
-const toF32 = (b: Uint8Array) => new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
+// A non-4-multiple byteLength means the artifact is corrupt — throw rather than
+// silently truncating the view length (byteLength / 4 would floor).
+const assertAligned4 = (b: Uint8Array) => {
+  if (b.byteLength % 4 !== 0) throw new Error("corrupt artifact: section byteLength not 4-aligned");
+};
+const toU32 = (b: Uint8Array) => { assertAligned4(b); return new Uint32Array(b.buffer, b.byteOffset, b.byteLength / 4); };
+const toF32 = (b: Uint8Array) => { assertAligned4(b); return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4); };
 const json = (o: unknown) => new Uint8Array(Buffer.from(JSON.stringify(o), "utf8"));
 const unjson = (b: Uint8Array) => JSON.parse(Buffer.from(b).toString("utf8"));
 
@@ -127,7 +151,7 @@ export function loadArtifacts(bm25Buf: Buffer, vectorsBuf?: Buffer | null): Load
   const caseIds: string[] = unjson(a.section("caseIds"));
   const unitCase = toU32(a.section("unitCase"));
   const inv: InvertedIndex = {
-    ids, n: a.header.n, avgdl: a.header.avgdl,
+    ids, n: a.header.n!, avgdl: a.header.avgdl!, // always written by the bm25 packer
     docLen: toU32(a.section("docLen")),
     terms: new Map(), postings: toU32(a.section("postings")),
   };
@@ -147,7 +171,7 @@ export function loadArtifacts(bm25Buf: Buffer, vectorsBuf?: Buffer | null): Load
     if (v.header.buildId === a.header.buildId) {
       vecUnitIdx = toU32(v.section("unitIdx"));
       vecBlock = toF32(v.section("vecs"));
-      vdim = v.header.vdim;
+      vdim = v.header.vdim ?? null;
     } else {
       console.warn(`[artifact] vectors buildId mismatch (${v.header.buildId} vs ${a.header.buildId}) → dense off`);
     }
