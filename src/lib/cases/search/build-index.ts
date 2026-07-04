@@ -10,7 +10,7 @@ import { ddbDoc } from "../../dynamo/client";
 import { itemToCase } from "../../dynamo/cases-table";
 import { unpackF32 } from "./pack";
 import { metaText, makeInMemorySearcher, type RetrievalUnit, type Searcher } from "./hybrid";
-import { loadArtifacts } from "./artifact";
+import { loadArtifacts, BM25_KEY, VECTORS_KEY } from "./artifact";
 import { isRealProvider } from "./embedder";
 import type { LegalCase } from "../types";
 
@@ -67,8 +67,8 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
         const s3 = new S3Client({});
         const get = async (Key: string) =>
           Buffer.from(await (await s3.send(new GetObjectCommand({ Bucket: bucket, Key }))).Body!.transformToByteArray());
-        bm25 = await get("cases-index/v1/bm25.bin");
-        if (wantVectors) vectors = await get("cases-index/v1/vectors.bin").catch(() => null);
+        bm25 = await get(BM25_KEY);
+        if (wantVectors) vectors = await get(VECTORS_KEY).catch(() => null);
       }
       const loaded = loadArtifacts(bm25, vectors);
       cached = { units: [], cases: loaded.cases, embedderId: loaded.embedderId, vdim: loaded.vdim, searcher: loaded.searcher, source: "artifact" };

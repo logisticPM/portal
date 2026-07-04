@@ -5,11 +5,9 @@ import "./fetch-polyfill";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { getSearchIndex } from "../src/lib/cases/search/build-index";
-import { buildArtifacts } from "../src/lib/cases/search/artifact";
+import { buildArtifacts, BM25_KEY, VECTORS_KEY } from "../src/lib/cases/search/artifact";
 
 const OUT_DIR = path.join(process.cwd(), "scripts", ".cache", "index");
-export const BM25_KEY = `cases-index/v1/bm25.bin`;
-export const VECTORS_KEY = `cases-index/v1/vectors.bin`;
 
 async function main() {
   // Guard against circularity: the builder must ALWAYS scan the table, never load a

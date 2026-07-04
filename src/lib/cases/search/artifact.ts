@@ -10,6 +10,11 @@ import type { LegalCase } from "../types";
 
 const MAGIC = 0x43494458; // "CIDX"
 export const FORMAT_VERSION = 1;
+// Storage keys derive from FORMAT_VERSION — the writer (cases-index-build) and the
+// loader (build-index) both import these, so a format bump moves the key path,
+// the header stamp, and the runtime check below in ONE place.
+export const BM25_KEY = `cases-index/v${FORMAT_VERSION}/bm25.bin`;
+export const VECTORS_KEY = `cases-index/v${FORMAT_VERSION}/vectors.bin`;
 
 interface SectionMap { [name: string]: [offset: number, length: number] }
 
@@ -56,6 +61,9 @@ function unpack(buf: Buffer): { header: ArtifactHeader; section: (name: string) 
   const hlen = buf.readUInt32LE(4);
   const secStart = buf.readUInt32LE(8);
   const header: ArtifactHeader = JSON.parse(buf.subarray(12, 12 + hlen).toString("utf8"));
+  // Runtime insurance beyond the /v1/ key path: never deserialize a future format.
+  if (header.formatVersion !== FORMAT_VERSION)
+    throw new Error(`unsupported artifact formatVersion ${header.formatVersion} (expected ${FORMAT_VERSION})`);
   return {
     header,
     section: (name) => {
