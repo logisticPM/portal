@@ -11,6 +11,7 @@ import { itemToCase } from "../../dynamo/cases-table";
 import { unpackF32 } from "./pack";
 import { metaText, makeInMemorySearcher, type RetrievalUnit, type Searcher } from "./hybrid";
 import { loadArtifacts } from "./artifact";
+import { isRealProvider } from "./embedder";
 import type { LegalCase } from "../types";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
@@ -54,9 +55,8 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
     try {
       // Spec ("Vectors artifact"): vectors are loaded ONLY when a real query-time
       // embedder is configured (EMBED_PROVIDER set, not the stub) — the BM25-only
-      // path must never pay the ~160MB download. Mirrors getEmbedder()'s gating.
-      const provider = (process.env.EMBED_PROVIDER ?? "").trim().toLowerCase();
-      const wantVectors = !!provider && provider !== "stub";
+      // path must never pay the ~160MB download. Shared predicate with getEmbedder.
+      const wantVectors = isRealProvider();
       let bm25: Buffer;
       let vectors: Buffer | null = null;
       if (fileDir) {
@@ -75,7 +75,7 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
       console.log(`[index] artifact loaded (buildId=${loaded.buildId}, cases=${loaded.cases.size})`);
       return cached;
     } catch (e) {
-      console.warn(`[index] artifact load failed (${(e as Error).message}) → falling back to table scan`);
+      console.warn(`[index] artifact load failed (${(e as Error).message}) (source=${fileDir || bucket}) → falling back to table scan`);
     }
   }
 

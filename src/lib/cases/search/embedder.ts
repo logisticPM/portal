@@ -125,10 +125,18 @@ class BedrockEmbedder implements Embedder {
   }
 }
 
+// Shared predicate: is a REAL query-time embedder configured (not absent/stub)?
+// Single source of truth for provider gating — build-index uses it to decide
+// whether to pay the vectors-artifact download; getEmbedder uses its inverse.
+export function isRealProvider(raw = process.env.EMBED_PROVIDER): boolean {
+  const p = (raw ?? "").trim().toLowerCase();
+  return !!p && p !== "stub";
+}
+
 export function getEmbedder(): Embedder {
   const provider = (process.env.EMBED_PROVIDER ?? "").trim().toLowerCase();
   const dim = Number(process.env.EMBED_DIM ?? "1024") || 1024;
-  if (!provider || provider === "stub") return new StubEmbedder(dim);
+  if (!isRealProvider(provider)) return new StubEmbedder(dim);
   if (provider === "bedrock") {
     const model = (process.env.EMBED_MODEL ?? "amazon.titan-embed-text-v2:0").trim();
     const region = (process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-1").trim();
