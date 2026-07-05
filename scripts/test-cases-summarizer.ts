@@ -104,5 +104,110 @@ import assert from "node:assert/strict";
   v = verifyClaims([mk("D.", `The Crown's honour is engaged - and the "duty to consult" arises.`, "7")], curly, URL);
   assert.equal(v.anchors.length, 1);
 
+  const { assembleInput, buildPrompt, summarizeCase, RETRY_SUFFIX } =
+    await import("../src/lib/cases/ingest/summarizer");
+  type LM = import("../src/lib/cases/ingest/llm").LlmModel;
+  type LC = import("../src/lib/cases/types").LegalCase;
+
+  const mkCase = (over: Partial<LC> = {}): LC => ({
+    id: "2004-scc-73", citation: "2004 SCC 73", styleOfCause: "Haida Nation v. British Columbia",
+    court: "Supreme Court of Canada", level: "scc", year: 2004, jurisdiction: "CA",
+    nations: ["Haida"], themes: ["duty_to_consult"],
+    outcome: { outcomeType: "precedent", winType: "doctrine_win", whoWon: "Haida Nation",
+      holding: "The Crown owed a duty to consult before transferring the licence." },
+    casesCited: [], casesCiting: [], citingCount: 0,
+    enrichmentLevel: "index", corpusTier: "core",
+    fullTextAvailable: true,
+    chunks: [
+      { paragraph: "12", text: "The Crown owed a duty to consult the Haida Nation before transferring the licence." },
+      { paragraph: "48", text: "Compensation of $10 million was awarded for the breach of treaty obligations." },
+    ],
+    provenance: { source: "a2aj", sourceUrl: "https://example.org/case", upstreamLicense: "open", ingestedAt: "2026-06-28", unofficial: true },
+    ...over,
+  });
+
+  // --- assembleInput: under budget → all chunks, tagged, document order ---
+  const asm = assembleInput(mkCase().chunks!, "duty to consult");
+  assert.ok(asm.startsWith("[para 12] The Crown"));
+  assert.ok(asm.includes("\n[para 48] Compensation"));
+
+  // --- assembleInput: over budget → first-10 + holding-token + economic chunks, doc order, within budget ---
+  const bigChunks = Array.from({ length: 60 }, (_, i) => ({
+    paragraph: String(i + 1),
+    text: i === 40 ? "The consultation duty framework applies here. ".repeat(20)
+      : i === 50 ? "A settlement of $2 million in compensation. ".repeat(20)
+      : `Filler paragraph number ${i + 1}. `.repeat(20),
+  }));
+  const budget = 12_000;
+  const out = assembleInput(bigChunks, "consultation duty framework", budget);
+  assert.ok(out.length <= budget, "stays within budget");
+  assert.ok(out.includes("[para 1]"), "keeps head chunks");
+  assert.ok(out.includes("[para 41]"), "keeps holding-token chunk");
+  assert.ok(out.includes("[para 51]"), "keeps economic chunk");
+  const idx41 = out.indexOf("[para 41]"); const idx51 = out.indexOf("[para 51]");
+  assert.ok(idx41 < idx51, "document order preserved");
+  assert.equal(assembleInput(bigChunks, "consultation duty framework", budget), out, "deterministic");
+
+  // --- buildPrompt carries case identity + rules + body ---
+  const prompt = buildPrompt(mkCase(), "BODY-SENTINEL");
+  assert.ok(prompt.includes("Haida Nation v. British Columbia"));
+  assert.ok(prompt.includes("2004 SCC 73"));
+  assert.ok(prompt.includes("BODY-SENTINEL"));
+  assert.ok(prompt.includes('"claims"'));
+
+  // --- summarizeCase: happy path ---
+  const goodJson = JSON.stringify({ claims: [
+    { text: "The court said the Crown must consult first.", quote: "duty to consult the Haida Nation", paragraph: "12" },
+    { text: "Ten million dollars was awarded.", quote: "Compensation of $10 million was awarded", paragraph: "48" },
+  ]});
+  const fake = (responses: string[]): LM & { calls: string[] } => {
+    const calls: string[] = [];
+    return { id: "fake:test", calls, call: async (p: string) => { calls.push(p); return responses[Math.min(calls.length - 1, responses.length - 1)]; } };
+  };
+
+  let f = fake([goodJson]);
+  let r = await summarizeCase(mkCase(), f);
+  assert.equal(r.status, "generated");
+  assert.equal(r.summary!.claims.length, 2);
+  assert.equal(r.summary!.claims[0].sourceUrl, "https://example.org/case");
+  assert.equal(r.meta!.method, "llm");
+  assert.equal(r.meta!.model, "fake:test");
+  assert.equal(r.claimsDropped, 0);
+  assert.equal(f.calls.length, 1);
+
+  // --- retry on malformed JSON, corrective suffix changes the prompt ---
+  f = fake(["NOT JSON", goodJson]);
+  r = await summarizeCase(mkCase(), f);
+  assert.equal(r.status, "generated");
+  assert.equal(f.calls.length, 2);
+  assert.ok(f.calls[1].endsWith(RETRY_SUFFIX), "retry appends corrective suffix (new cache key)");
+
+  // --- two malformed responses → failed ---
+  f = fake(["NOT JSON", "STILL NOT JSON"]);
+  r = await summarizeCase(mkCase(), f);
+  assert.equal(r.status, "failed");
+
+  // --- <2 verified claims → failed, nothing written ---
+  const oneGood = JSON.stringify({ claims: [
+    { text: "ok", quote: "duty to consult the Haida Nation", paragraph: "12" },
+    { text: "fabricated", quote: "the moon is made of cheese and treaties", paragraph: "48" },
+  ]});
+  f = fake([oneGood]);
+  r = await summarizeCase(mkCase(), f);
+  assert.equal(r.status, "failed");
+  assert.equal(r.claimsDropped, 1);
+  assert.equal(r.summary, undefined);
+
+  // --- skip rules: no model call happens ---
+  const throwing: LM = { id: "fake:never", call: async () => { throw new Error("must not be called"); } };
+  r = await summarizeCase(mkCase({ summary: { claims: [{ text: "curated", sourceParagraph: "1", sourceUrl: "u" }] } }), throwing);
+  assert.equal(r.status, "skipped_curated");
+  r = await summarizeCase(mkCase({ corpusTier: "substrate" }), throwing);
+  assert.equal(r.status, "skipped_not_core");
+  r = await summarizeCase(mkCase({ chunks: [] }), throwing);
+  assert.equal(r.status, "skipped_no_fulltext");
+  r = await summarizeCase(mkCase({ chunks: undefined }), throwing);
+  assert.equal(r.status, "skipped_no_fulltext");
+
   console.log("✅ test-cases-summarizer passed");
 })();

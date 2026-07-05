@@ -3,9 +3,8 @@
 // Governance: every displayed claim is anchored to a verbatim quote that is
 // mechanically verified against the judgment text; unverifiable claims are
 // dropped; <2 surviving claims → no summary at all (宁缺毋滥).
-import type { CaseChunk, CitationAnchor, CitationAnchored, SummaryMeta } from "../types";
-// Note: `LegalCase` is not yet used here — Task 3 adds `summarizeCase`, which
-// will need it. Left unimported for now so `npm run typecheck` stays clean.
+import type { CaseChunk, CitationAnchor, CitationAnchored, LegalCase, SummaryMeta } from "../types";
+import type { LlmModel } from "./llm";
 
 export interface RawClaim { text: string; quote: string; paragraph: string }
 export type SummarizeStatus =
@@ -66,4 +65,82 @@ export function verifyClaims(
     }
   }
   return { anchors, dropped: claims.length - anchors.length };
+}
+
+const ECON_RE = /compensation|damages|royalt|revenue|settlement|\$/i;
+
+// Deterministic input assembly. Under budget: the whole judgment in document
+// order. Over budget: keep (a) the first 10 chunks (facts/background), (b)
+// chunks sharing tokens with the holding, (c) economic-keyword chunks, then
+// fill remaining budget in document order; emit selected chunks in document order.
+export function assembleInput(chunks: CaseChunk[], holding: string, budget = 240_000): string {
+  const lines = chunks.map((ch) => `[para ${ch.paragraph}] ${ch.text}`);
+  const total = lines.reduce((n, l) => n + l.length + 1, 0);
+  if (total <= budget) return lines.join("\n");
+
+  const holdTokens = (holding.toLowerCase().match(/[a-z]{4,}/g) ?? []).slice(0, 12);
+  const picked = new Set<number>();
+  chunks.forEach((ch, i) => {
+    if (i < 10) { picked.add(i); return; }
+    const low = ch.text.toLowerCase();
+    if (holdTokens.some((t) => low.includes(t)) || ECON_RE.test(ch.text)) picked.add(i);
+  });
+
+  const chosen: number[] = [];
+  let used = 0;
+  const tryAdd = (i: number) => {
+    const cost = lines[i].length + 1;
+    if (used + cost > budget) return;
+    chosen.push(i); used += cost;
+  };
+  for (let i = 0; i < chunks.length; i++) if (picked.has(i)) tryAdd(i);
+  for (let i = 0; i < chunks.length; i++) if (!picked.has(i)) tryAdd(i);
+  chosen.sort((a, b) => a - b);
+  return chosen.map((i) => lines[i]).join("\n");
+}
+
+export function buildPrompt(c: LegalCase, body: string): string {
+  return `You are writing a plain-language summary of a Canadian court decision for readers WITHOUT legal training (Indigenous community members, business advisors, policy staff).
+
+Case: ${c.styleOfCause}, ${c.citation} (${c.court}, ${c.year})
+
+Below is the judgment text as paragraphs, each tagged [para <id>].
+
+Produce STRICTLY this JSON (no markdown, no commentary):
+{"claims":[{"text":"...","quote":"...","paragraph":"..."}]}
+
+Rules:
+- 3 to 6 claims.
+- Each "text": 1-2 plain-language sentences a non-lawyer understands. No legalese.
+- Each "quote": a VERBATIM excerpt copied character-for-character from one paragraph below (at least 15 characters).
+- Each "paragraph": the id from that paragraph's [para <id>] tag.
+- Together the claims must cover: (1) what the dispute was about, (2) what the court decided, (3) the economic significance or consequences.
+- Do not invent facts. Every claim must be supported by its quote.
+
+JUDGMENT TEXT:
+${body}`;
+}
+
+export const RETRY_SUFFIX = "\n\nYour previous output was not valid JSON. Output ONLY the JSON object.";
+
+export async function summarizeCase(c: LegalCase, model: LlmModel): Promise<SummarizeResult> {
+  if (c.summary) return { status: "skipped_curated", claimsDropped: 0 };
+  if (c.corpusTier !== "core") return { status: "skipped_not_core", claimsDropped: 0 };
+  if (!c.chunks || c.chunks.length === 0) return { status: "skipped_no_fulltext", claimsDropped: 0 };
+
+  const prompt = buildPrompt(c, assembleInput(c.chunks, c.outcome.holding));
+  let claims = parseClaims(await model.call(prompt));
+  // Retry once with a corrective suffix — the suffix changes the disk-cache key,
+  // so a cached malformed response can never be replayed as the "retry".
+  if (!claims) claims = parseClaims(await model.call(prompt + RETRY_SUFFIX));
+  if (!claims) return { status: "failed", claimsDropped: 0 };
+
+  const { anchors, dropped } = verifyClaims(claims, c.chunks, c.provenance.sourceUrl);
+  if (anchors.length < 2) return { status: "failed", claimsDropped: dropped };
+  return {
+    status: "generated",
+    summary: { claims: anchors },
+    meta: { method: "llm", model: model.id, generatedAt: new Date().toISOString(), claimsDropped: dropped },
+    claimsDropped: dropped,
+  };
 }
