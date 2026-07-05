@@ -35,5 +35,11 @@ async function main() {
   }
   const after = await dynamoCaseRepo.listCases({ tier: "core" });
   console.log(`✅ demoted ${done} · core ${core.length} → ${after.length} · labels retained for audit`);
+  console.log(
+    "⚠ REBUILD THE SEARCH ARTIFACT NOW (cases:index-build[:cloud]): search results serve\n" +
+    "  case profiles baked into the prebuilt index — demoted cases keep a stale 'core'\n" +
+    "  badge (and pass the core search filter) until the artifact is rebuilt and the\n" +
+    "  server restarts/redeploys.",
+  );
 }
 main().catch((e) => { console.error("❌ cases-demote-none failed:", e); process.exit(1); });

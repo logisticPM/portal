@@ -182,3 +182,17 @@ Policy change: **an empty cross-model agreed set now blocks promotion** —
 cases were demoted via `scripts/cases-demote-none.ts` (corpusTier flipped,
 AI summaries removed — regenerable from the disk cache on re-promotion).
 Core after migration: full + partial agreement + curated only.
+
+Operational notes (review follow-ups): ① after demoting, **rebuild the search
+artifact** (`cases:index-build[:cloud]`) and redeploy/restart — search results
+serve case profiles baked into the prebuilt index, so demoted cases keep a
+stale "core" badge until then (the migration script prints this reminder).
+② `promoteOne` also refuses to label chunk-less candidates — a
+styleOfCause-only prompt is too weak to promote on, and its distinct cache key
+would let a fresh title-only "consensus" re-promote demoted noise; promotion
+happens only in the full-text pipelines (`cases:fetch-fulltext` inline,
+`cases:promote` over reassembled cases). ③ Audit-trail caveat: retained labels
+on demoted substrate cases survive until a future re-ingest rewrites substrate
+profiles from harvest data (labels are cheaply re-derivable from the LLM disk
+cache). ④ Migration runs via npm wrappers (`cases:demote-none[:cloud]`) so the
+table/endpoint pinning matches every sibling script.

@@ -50,6 +50,11 @@ export async function promoteOne(c: LegalCase): Promise<LegalCase | "no_consensu
       labelMeta: { method: "curated", confidence: "high", needsReview: false } };
   }
   if (!includeCandidate(c).include) return null;
+  // Label only on full text: a styleOfCause-only prompt is too weak to promote on,
+  // and its distinct cache key would let a fresh title-only "consensus" bypass the
+  // gate's cached full-text verdict (re-promoting demoted noise). Chunk-less
+  // candidates wait for cases:fetch-fulltext, which promotes with full text inline.
+  if (!c.chunks || c.chunks.length === 0) return null;
   try {
     const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
     const labeled = await labelCase(text);

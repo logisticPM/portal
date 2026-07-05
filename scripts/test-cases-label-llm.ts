@@ -70,6 +70,21 @@ const TEXT = "The Crown failed to consult the Nation before issuing forestry ten
   assert.ok(promoted && promoted !== "no_consensus", "consensus case must be promoted");
   assert.equal(promoted.corpusTier, "core");
   assert.ok(promoted.themes.length > 0);
+  assert.equal(promoted.labelMeta?.method, "dual_llm");
+  assert.notEqual(promoted.labelMeta?.agreement, "none");
+
+  // chunk-less candidate → null (not labeled at all; title-only text is too weak,
+  // and a fresh title-only cache key must not bypass the full-text gate)
+  assert.equal(await promoteOne({ ...mkSub(), chunks: [] }), null);
+  assert.equal(await promoteOne({ ...mkSub(), chunks: undefined }), null);
+
+  // promoteSubstrate wiring: no_consensus is tallied in PRISMA and kept out of core
+  const { promoteSubstrate } = await import("./cases-ingest");
+  process.env.LABEL_MODELS = nonePair!;
+  const ps = await promoteSubstrate([mkSub()]);
+  assert.equal(ps.core.length, 0, "zero-consensus case must not reach core");
+  assert.equal(ps.prisma.excluded.no_model_consensus, 1);
+  assert.equal(ps.prisma.included, 0);
 
   console.log(`✅ label-llm stub e2e (a=${JSON.stringify(a1)} b=${JSON.stringify(bt)} ∩=${JSON.stringify(inter)} agreement=${expectedAgreement}) + consensus gate`);
 })().catch((e) => { console.error(e); process.exit(1); });
