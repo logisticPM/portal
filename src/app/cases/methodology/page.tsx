@@ -45,7 +45,7 @@ export default async function MethodologyPage() {
         </div>
         <div>
           <h2 className="font-serif text-lg">Labeling</h2>
-          <p>Themes and outcome tags on core cases are assigned by dual-model cross-labeling — inter-model agreement measures <em>consistency</em>; accuracy is validated against a human-checked gold sample. Labels are <strong>metadata only</strong>; displayed judgment text stays extractive, and plain-language summaries are the one generated layer, always badged (see below).</p>
+          <p>Themes and outcome tags on core cases are assigned by dual-model cross-labeling — inter-model agreement measures <em>consistency</em>; accuracy is validated against a human-checked gold sample. Cross-model agreement also gates curation: cases where the two models agree on <strong>no theme at all</strong> are not promoted to core — they stay in the substrate pending human review. Labels are <strong>metadata only</strong>; displayed judgment text stays extractive, and plain-language summaries are the one generated layer, always badged (see below).</p>
         </div>
         <div>
           <h2 className="font-serif text-lg">AI plain-language summaries</h2>

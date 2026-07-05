@@ -36,6 +36,8 @@
     "cases:promote": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-promote.ts",
     "cases:summarize": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-summarize.ts",
     "cases:summarize:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-summarize.ts",
+    "cases:demote-none": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-demote-none.ts",
+    "cases:demote-none:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-demote-none.ts",
     "cases:embed": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases tsx scripts/cases-embed.ts",
     "cases:embed:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases tsx scripts/cases-embed.ts",
     "cases:embed:bedrock": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 BEDROCK_REGION=us-east-1 tsx scripts/cases-embed.ts",

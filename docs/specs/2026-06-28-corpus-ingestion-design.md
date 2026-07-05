@@ -168,3 +168,31 @@ Each sub-phase is independently testable and leaves the app working. (The vector
 - **[Open]** Exact second model family (depends on which APIs the team provisions — Bedrock-hosted non-Anthropic, or OpenAI/Gemini). Default: whatever is reachable; recorded in `labelMeta.models`.
 - **[Open]** Gold-sample size the team will actually hand-label (ideal ≈384; a smaller pilot, e.g. 100, is acceptable if reported with wider CI).
 - **[Open]** Whether to ship the non-judgment "milestone" entity (deferred from Phase 1) — not in this spec.
+
+## Amendment (2026-07-05): zero-consensus cases are not promoted
+
+The dual-LLM run exposed that the §3 inclusion regexes over-match (tax-treaty
+"treaty", National-"revenue", property "title"): 106 of 482 core cases had
+`agreement: "none"` (empty agreed theme set), and an audit found most of that
+slice to be non-Indigenous noise (with genuine cases mixed in, e.g. McLean).
+Policy change: **an empty cross-model agreed set now blocks promotion** —
+`promoteOne` returns `"no_consensus"`, tallied in PRISMA as
+`no_model_consensus`, and the case stays substrate pending human review
+(labels retained for audit; nothing deleted). Existing zero-consensus core
+cases were demoted via `scripts/cases-demote-none.ts` (corpusTier flipped,
+AI summaries removed — regenerable from the disk cache on re-promotion).
+Core after migration: full + partial agreement + curated only.
+
+Operational notes (review follow-ups): ① after demoting, **rebuild the search
+artifact** (`cases:index-build[:cloud]`) and redeploy/restart — search results
+serve case profiles baked into the prebuilt index, so demoted cases keep a
+stale "core" badge until then (the migration script prints this reminder).
+② `promoteOne` also refuses to label chunk-less candidates — a
+styleOfCause-only prompt is too weak to promote on, and its distinct cache key
+would let a fresh title-only "consensus" re-promote demoted noise; promotion
+happens only in the full-text pipelines (`cases:fetch-fulltext` inline,
+`cases:promote` over reassembled cases). ③ Audit-trail caveat: retained labels
+on demoted substrate cases survive until a future re-ingest rewrites substrate
+profiles from harvest data (labels are cheaply re-derivable from the LLM disk
+cache). ④ Migration runs via npm wrappers (`cases:demote-none[:cloud]`) so the
+table/endpoint pinning matches every sibling script.
