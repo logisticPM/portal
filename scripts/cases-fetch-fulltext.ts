@@ -59,8 +59,10 @@ async function main() {
     }
 
     const promoted = await promoteOne(withTextCase);
-    const finalCase = promoted ?? withTextCase; // promoted → core; null → stays substrate
-    if (promoted) { promotedToCore++; prisma.included++; }
+    if (promoted === "no_consensus") tallyExclude(prisma, "no_model_consensus");
+    // promoted case → core; "no_consensus"/null → stays substrate
+    const finalCase = promoted && promoted !== "no_consensus" ? promoted : withTextCase;
+    if (promoted && promoted !== "no_consensus") { promotedToCore++; prisma.included++; }
 
     batch.push(finalCase);
     if (++done % 100 === 0) { await flush(batch); batch = []; console.log(`  ${done}/${todo.length} (withText: ${withText} promoted: ${promotedToCore})`); }

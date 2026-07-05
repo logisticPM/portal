@@ -36,10 +36,14 @@ async function upsert(cases: LegalCase[]) {
     await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [TABLE]: items.slice(i, i + 25) } }));
 }
 
-// Decide promotion for a single case. Returns the promoted core case, or null if the
-// case should stay in substrate. Used by both promoteSubstrate and cases-fetch-fulltext.
-// NOTE: does NOT compute PRISMA tally — the caller (promoteSubstrate) owns tallying.
-export async function promoteOne(c: LegalCase): Promise<LegalCase | null> {
+// Decide promotion for a single case. Returns the promoted core case; "no_consensus"
+// when both label models ran but agreed on ZERO themes (policy 2026-07-05: the
+// inclusion regexes over-match — tax-treaty "treaty", National-"revenue", property
+// "title" — and an empty cross-model agreed set is the stronger negative signal, so
+// such cases stay substrate pending human review); or null when labeling wasn't
+// possible (no LLM models configured). Used by promoteSubstrate and cases-fetch-fulltext.
+// NOTE: does NOT compute PRISMA tally — the callers own tallying.
+export async function promoteOne(c: LegalCase): Promise<LegalCase | "no_consensus" | null> {
   const enr = enrichment[c.citation];
   if (enr) {
     return { ...c, ...enr, corpusTier: "core", enrichmentLevel: "deep",
@@ -49,6 +53,7 @@ export async function promoteOne(c: LegalCase): Promise<LegalCase | null> {
   try {
     const text = [c.styleOfCause, ...(c.chunks?.map((x) => x.text) ?? [])].join(" ");
     const labeled = await labelCase(text);
+    if (labeled.themes.length === 0) return "no_consensus";
     return { ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta };
   } catch {
     return null; // no LLM models configured → leave in substrate
@@ -65,7 +70,7 @@ export async function promoteSubstrate(substrate: LegalCase[]): Promise<{ core: 
     // Check enrichment first (curated flagship → always include, no PRISMA exclude)
     if (enrichment[c.citation]) {
       const promoted = await promoteOne(c);
-      if (promoted) { core.push(promoted); prisma.included++; }
+      if (promoted && promoted !== "no_consensus") { core.push(promoted); prisma.included++; }
       continue;
     }
     // Check inclusion filter so we can tally the exclude reason
@@ -73,6 +78,7 @@ export async function promoteSubstrate(substrate: LegalCase[]): Promise<{ core: 
     if (!verdict.include) { tallyExclude(prisma, verdict.reason ?? "unknown"); continue; }
     // Passes filter → attempt label (promoteOne handles the try/catch)
     const promoted = await promoteOne(c);
+    if (promoted === "no_consensus") { tallyExclude(prisma, "no_model_consensus"); continue; }
     if (promoted) { core.push(promoted); prisma.included++; }
     // if promoteOne returns null here it means labelCase threw → stays substrate (no tally)
   }
