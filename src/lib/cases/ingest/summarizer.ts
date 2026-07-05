@@ -59,7 +59,11 @@ export function parseClaims(raw: string): RawClaim[] | null {
 export function verifyClaims(
   claims: RawClaim[], chunks: CaseChunk[], sourceUrl: string,
 ): { anchors: CitationAnchor[]; dropped: number } {
-  // Precondition: chunk paragraph ids are unique (chunkText assigns para-${i+1}); duplicates would last-win.
+  // Preconditions: chunk ids are unique (chunkText assigns para-${i+1}; duplicates
+  // would first-win under find), and ARRAY ORDER = CONTIGUOUS DOCUMENT ORDER
+  // (chunkText splits sequentially, reassembleCase sorts by CHUNK#%04d SK) — the
+  // adjacent-pair window's safety argument depends on it: joining chunks i,i+1
+  // reconstructs real judgment text; joining non-adjacent chunks would not.
   const norm = chunks.map((ch) => ({ para: String(ch.paragraph), text: normWs(ch.text) }));
   const locate = (quote: string, citedPara: string): string | null => {
     const cited = norm.find((n) => n.para === citedPara || n.para === `para-${citedPara}`);

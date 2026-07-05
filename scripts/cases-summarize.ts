@@ -45,7 +45,10 @@ async function main() {
         ExpressionAttributeValues: { ":s": r.summary, ":m": r.meta },
       }));
       stats.generated++; kept += r.summary.claims.length; dropped += r.claimsDropped;
-    } else if (r.status === "failed") { failed.push(c.id); dropped += r.claimsDropped; }
+    } else if (r.status === "failed") {
+      failed.push(c.id); dropped += r.claimsDropped;
+      if (redo) console.log(`   ⚠ ${c.id}: forced regeneration failed — previous summary retained in table`);
+    }
     else if (r.status === "skipped_curated" && c.summaryMeta?.method === "llm") stats.skipped_already_generated++;
     else stats[r.status]++;
     if (++done % 25 === 0) console.log(`… ${done}/${profiles.length} · generated ${stats.generated} · failed ${failed.length}`);

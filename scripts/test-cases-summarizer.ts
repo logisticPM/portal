@@ -90,6 +90,29 @@ import assert from "node:assert/strict";
   v = verifyClaims([mk("F.", "the moon treaty grants mineral rights", "para-1")], split, URL);
   assert.equal(v.anchors.length, 0); assert.equal(v.dropped, 1);
 
+  // ADJACENCY is a constraint, not a convenience: a "quote" stitched from
+  // chunk 1's end + chunk 3's start (skipping chunk 2) must be dropped —
+  // any-pair joining would break the verbatim-text safety property.
+  const three = [
+    { paragraph: "para-1", text: "The application for judicial review is allowed in part" },
+    { paragraph: "para-2", text: "with costs payable forthwith by the respondent Crown." },
+    { paragraph: "para-3", text: "because the consultation record showed no meaningful dialogue." },
+  ];
+  v = verifyClaims([mk("N.", "allowed in part because the consultation record showed", "para-1")], three, URL);
+  assert.equal(v.anchors.length, 0); assert.equal(v.dropped, 1);
+  // …while the genuinely adjacent join still verifies
+  v = verifyClaims([mk("Y.", "allowed in part with costs payable forthwith", "para-1")], three, URL);
+  assert.equal(v.anchors.length, 1);
+
+  // cited chunk takes precedence when the quote exists in multiple chunks
+  const dup = [
+    { paragraph: "para-1", text: "The honour of the Crown is always at stake, said the trial judge." },
+    { paragraph: "para-2", text: "On appeal: the honour of the Crown is always at stake, we agree." },
+  ];
+  v = verifyClaims([mk("D2.", "honour of the Crown is always at stake", "para-2")], dup, URL);
+  assert.equal(v.anchors.length, 1);
+  assert.equal(v.anchors[0].sourceParagraph, "para-2");
+
   // short quote (<15 chars normalized) → dropped
   v = verifyClaims([mk("C.", "duty to", "12")], chunks, URL);
   assert.equal(v.anchors.length, 0);
