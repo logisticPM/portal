@@ -61,7 +61,7 @@ export async function promoteOne(c: LegalCase): Promise<LegalCase | "no_consensu
     if (labeled.themes.length === 0) return "no_consensus";
     return { ...c, themes: labeled.themes as Theme[], corpusTier: "core", labelMeta: labeled.labelMeta };
   } catch {
-    return null; // no LLM models configured → leave in substrate
+    return null; // no LLM models configured → leave in substrate (null also = chunk-less, above)
   }
 }
 
@@ -85,7 +85,7 @@ export async function promoteSubstrate(substrate: LegalCase[]): Promise<{ core: 
     const promoted = await promoteOne(c);
     if (promoted === "no_consensus") { tallyExclude(prisma, "no_model_consensus"); continue; }
     if (promoted) { core.push(promoted); prisma.included++; }
-    // if promoteOne returns null here it means labelCase threw → stays substrate (no tally)
+    // null here = labelCase threw or chunk-less → stays substrate (no tally)
   }
   return { core, prisma };
 }
