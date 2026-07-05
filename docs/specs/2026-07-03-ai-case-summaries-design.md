@@ -63,13 +63,21 @@ summarizeCase(c: LegalCase, model: LlmModel): Promise<SummarizeResult>
 
 ### 2. Mechanical verifier (same file, pure function)
 
-For each claim: `paragraph` must match an actual `chunk.paragraph`; the
-whitespace-normalized `quote` (collapse runs, trim) must be a substring of that
-chunk's normalized text; `quote.length >= 15` (normalized); `text` non-empty.
-Passing claims become `CitationAnchor { text, sourceParagraph: paragraph,
-sourceUrl: c.provenance.sourceUrl }`; failing claims are dropped and counted.
-**Fewer than 2 survivors → `failed`, no summary written (宁缺毋滥).** More than
-6 survivors → keep the first 6 in model output order.
+For each claim: the normalized `quote` (whitespace collapsed + typographic
+punctuation folded symmetrically — quotes/dashes; added in review, cannot admit
+letter/digit differences) must appear **verbatim somewhere in the judgment**;
+`quote.length >= 15` (normalized); `text` non-empty. The anchor's
+`sourceParagraph` is **computed, not model-claimed** (amended 2026-07-05 after
+the first operational run: strict cited-paragraph matching dropped ~half of all
+honest claims — models misattribute paragraph ids and long quotes span chunk
+boundaries). Lookup order: the cited chunk (accepting bare `N` for `para-N`),
+then any single chunk, then adjacent-chunk pairs (chunking splits at ~2KB with
+no overlap; anchor = first chunk of the pair). A quote found nowhere is dropped
+and counted — fabrications still cannot pass. Passing claims become
+`CitationAnchor { text, sourceParagraph: <actual location>, sourceUrl:
+c.provenance.sourceUrl }`. **Fewer than 2 survivors → `failed`, no summary
+written (宁缺毋滥).** More than 6 survivors → keep the first 6 in model output
+order.
 
 ### 3. Types — `src/lib/cases/types.ts` (additive only)
 

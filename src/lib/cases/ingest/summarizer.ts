@@ -45,24 +45,40 @@ export function parseClaims(raw: string): RawClaim[] | null {
   } catch { return null; }
 }
 
-// Mechanical verification: the quote must appear verbatim (whitespace-normalized)
-// in the chunk whose paragraph id the claim cites. Quotes are guaranteed real;
-// paraphrase fidelity is human-spot-checked (spec Q3).
+// Mechanical verification: the quote must appear verbatim (whitespace- and
+// typographic-punctuation-normalized) somewhere in the judgment text. The anchor
+// records where the quote ACTUALLY lives — computed, not model-claimed: models
+// frequently misattribute paragraph ids (measured 2026-07-05: strict cited-
+// paragraph matching dropped half of all honest claims). Lookup order: the cited
+// chunk (accepting a bare "N" for "para-N" — models drop the prefix), then any
+// single chunk, then adjacent-chunk pairs (chunking splits paragraphs at ~2KB
+// with no overlap, so long quotes can legitimately span a boundary; the anchor
+// points at the first chunk of the pair). A quote found nowhere is dropped —
+// fabrications still cannot pass. Paraphrase fidelity is human-spot-checked
+// (spec Q3).
 export function verifyClaims(
   claims: RawClaim[], chunks: CaseChunk[], sourceUrl: string,
 ): { anchors: CitationAnchor[]; dropped: number } {
   // Precondition: chunk paragraph ids are unique (chunkText assigns para-${i+1}); duplicates would last-win.
-  const byPara = new Map(chunks.map((ch) => [String(ch.paragraph), normWs(ch.text)]));
+  const norm = chunks.map((ch) => ({ para: String(ch.paragraph), text: normWs(ch.text) }));
+  const locate = (quote: string, citedPara: string): string | null => {
+    const cited = norm.find((n) => n.para === citedPara || n.para === `para-${citedPara}`);
+    if (cited && cited.text.includes(quote)) return cited.para;
+    const holder = norm.find((n) => n.text.includes(quote));
+    if (holder) return holder.para;
+    for (let i = 0; i + 1 < norm.length; i++) {
+      if ((norm[i].text + " " + norm[i + 1].text).includes(quote)) return norm[i].para;
+    }
+    return null;
+  };
   const anchors: CitationAnchor[] = [];
   for (const cl of claims) {
     if (anchors.length >= 6) break; // keep the first 6 in model output order
-    const para = String(cl.paragraph ?? "");
-    const body = byPara.get(para);
     const quote = normWs(cl.quote ?? "");
     const text = (cl.text ?? "").trim();
-    if (body && text && quote.length >= 15 && body.includes(quote)) {
-      anchors.push({ text, sourceParagraph: para, sourceUrl });
-    }
+    if (!text || quote.length < 15) continue;
+    const para = locate(quote, String(cl.paragraph ?? ""));
+    if (para !== null) anchors.push({ text, sourceParagraph: para, sourceUrl });
   }
   return { anchors, dropped: claims.length - anchors.length };
 }

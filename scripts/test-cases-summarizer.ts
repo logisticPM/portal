@@ -60,13 +60,35 @@ import assert from "node:assert/strict";
   v = verifyClaims([mk("C.", "the court awarded punitive damages", "48")], chunks, URL);
   assert.equal(v.anchors.length, 0); assert.equal(v.dropped, 1);
 
-  // right quote, wrong paragraph id → dropped
+  // right quote, wrong paragraph id → RE-ANCHORED to where the quote actually lives
   v = verifyClaims([mk("C.", "duty to consult the Haida Nation", "48")], chunks, URL);
-  assert.equal(v.anchors.length, 0);
+  assert.equal(v.anchors.length, 1);
+  assert.equal(v.anchors[0].sourceParagraph, "12");
+  assert.equal(v.dropped, 0);
 
-  // unknown paragraph id → dropped
+  // unknown paragraph id, real quote → re-anchored likewise
   v = verifyClaims([mk("C.", "duty to consult the Haida Nation", "99")], chunks, URL);
-  assert.equal(v.anchors.length, 0);
+  assert.equal(v.anchors.length, 1);
+  assert.equal(v.anchors[0].sourceParagraph, "12");
+
+  // bare-number id accepted for "para-N" chunk ids (models drop the prefix)
+  const prefixed = [{ paragraph: "para-7", text: "The honour of the Crown is always at stake in its dealings." }];
+  v = verifyClaims([mk("P.", "honour of the Crown is always at stake", "7")], prefixed, URL);
+  assert.equal(v.anchors.length, 1);
+  assert.equal(v.anchors[0].sourceParagraph, "para-7");
+
+  // quote spanning two adjacent chunks (no-overlap splitting) → anchored to the FIRST chunk
+  const split = [
+    { paragraph: "para-1", text: "The Tribunal found that Canada discriminated against First Nations children" },
+    { paragraph: "para-2", text: "by underfunding child and family services on reserve." },
+  ];
+  v = verifyClaims([mk("S.", "First Nations children by underfunding child and family services", "para-1")], split, URL);
+  assert.equal(v.anchors.length, 1);
+  assert.equal(v.anchors[0].sourceParagraph, "para-1");
+
+  // fabricated quote still cannot pass under any lookup
+  v = verifyClaims([mk("F.", "the moon treaty grants mineral rights", "para-1")], split, URL);
+  assert.equal(v.anchors.length, 0); assert.equal(v.dropped, 1);
 
   // short quote (<15 chars normalized) → dropped
   v = verifyClaims([mk("C.", "duty to", "12")], chunks, URL);
