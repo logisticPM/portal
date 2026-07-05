@@ -50,12 +50,21 @@ export default async function CaseDetail({
 
       {c.summary && (
         <section className="mt-4">
-          <h2 className="font-serif text-lg">Summary <span className="text-xs font-sans font-normal text-ink3">(citation-anchored)</span></h2>
+          <h2 className="font-serif text-lg">
+            Summary <span className="text-xs font-sans font-normal text-ink3">(citation-anchored)</span>
+            {" "}
+            {c.summaryMeta?.method === "llm" && (
+              <span className="ml-2 rounded bg-amber/15 px-2 py-0.5 text-xs font-sans font-normal text-amber">AI-generated · plain language</span>
+            )}
+          </h2>
           <ul className="mt-1 space-y-1 text-sm text-ink2">
             {c.summary.claims.map((cl, i) => (
               <li key={i}>{cl.text} <a href={cl.sourceUrl} className="text-xs text-amber hover:underline" target="_blank" rel="noreferrer">[{cl.sourceParagraph}]</a></li>
             ))}
           </ul>
+          {c.summaryMeta?.method === "llm" && (
+            <p className="mt-1 text-xs text-ink3">AI paraphrase — unofficial; verify each claim against its anchored paragraph.</p>
+          )}
         </section>
       )}
 

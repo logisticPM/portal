@@ -12,17 +12,27 @@ const CACHE = path.join(process.cwd(), "scripts", ".cache", "llm");
 
 export interface LlmModel { id: string; call: (prompt: string) => Promise<string>; }
 
+export interface CallOpts { maxTokens?: number }
+
 // Configure the two families from env. Implement `call` against your provider
 // (e.g. Bedrock Claude + a non-Anthropic family). Throw if keys are missing.
 export function configuredModels(): LlmModel[] {
   const ids = (process.env.LABEL_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (ids.length < 2) throw new Error("Set LABEL_MODELS to two comma-separated model ids (different families).");
-  return ids.map((id) => ({ id, call: (p) => callProvider(id, p) }));
+  return ids.map((id) => modelFromId(id));
 }
 
-async function callProvider(modelId: string, prompt: string): Promise<string> {
+// Build a single LlmModel from a model id, baking call options into the closure
+// so LlmModel.call keeps its (prompt) => Promise<string> shape. Options are
+// copied at construction so later mutation of the caller's object has no effect.
+export function modelFromId(id: string, opts?: CallOpts): LlmModel {
+  const frozen = { ...opts };
+  return { id, call: (p) => callProvider(id, p, frozen) };
+}
+
+async function callProvider(modelId: string, prompt: string, opts?: CallOpts): Promise<string> {
   if (modelId.startsWith("stub:")) return stubLabelResponse(modelId, prompt);
-  return converse(modelId, prompt);
+  return converse(modelId, prompt, opts);
 }
 
 // Deterministic TEST stub (no key, no network): sha256(id+prompt) picks a subset of
@@ -39,18 +49,18 @@ function stubLabelResponse(modelId: string, prompt: string): string {
 // Bedrock Converse API — uniform request/response across model families (Claude,
 // Nova, Llama, …), which is what LABEL_MODELS' two-different-families requirement
 // needs (no per-family body formats). Lazy import keeps the stub path offline.
-let bedrockP: Promise<{ send: (modelId: string, prompt: string) => Promise<string> }> | null = null;
+let bedrockP: Promise<{ send: (modelId: string, prompt: string, opts?: CallOpts) => Promise<string> }> | null = null;
 function bedrockConverse() {
   if (!bedrockP) {
     bedrockP = import("@aws-sdk/client-bedrock-runtime").then((m) => {
       const region = (process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-1").trim();
       const client = new m.BedrockRuntimeClient({ region });
       return {
-        send: async (modelId: string, prompt: string) => {
+        send: async (modelId: string, prompt: string, opts?: CallOpts) => {
           const res = await client.send(new m.ConverseCommand({
             modelId,
             messages: [{ role: "user", content: [{ text: prompt }] }],
-            inferenceConfig: { temperature: 0, maxTokens: 256 },
+            inferenceConfig: { temperature: 0, maxTokens: opts?.maxTokens ?? 256 },
           }));
           const parts = res.output?.message?.content ?? [];
           return parts.map((p) => ("text" in p && p.text ? p.text : "")).join("");
@@ -61,11 +71,11 @@ function bedrockConverse() {
   return bedrockP;
 }
 
-async function converse(modelId: string, prompt: string): Promise<string> {
-  return (await bedrockConverse()).send(modelId, prompt);
+async function converse(modelId: string, prompt: string, opts?: CallOpts): Promise<string> {
+  return (await bedrockConverse()).send(modelId, prompt, opts);
 }
 
-async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
+export async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
   await fs.mkdir(CACHE, { recursive: true });
   const key = createHash("sha256").update(m.id + "\n" + prompt).digest("hex").slice(0, 32);
   const file = path.join(CACHE, key + ".txt");
@@ -74,6 +84,13 @@ async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
   await fs.writeFile(file, out);
   return out;
 }
+
+// Wrap a model so calls go through the disk cache (batch runners use this;
+// summarizeCase itself calls the model directly so tests stay cache-free).
+// Cache key is (id, prompt) only — CallOpts are deliberately NOT keyed (constant
+// per use-site). Changing opts for the same (id, prompt) replays stale output;
+// clear scripts/.cache/llm if you do.
+export const cachedModel = (m: LlmModel): LlmModel => ({ id: m.id, call: (p) => cachedCall(m, p) });
 
 export function parseThemes(raw: string): Theme[] {
   try {

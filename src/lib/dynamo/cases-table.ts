@@ -103,6 +103,7 @@ export function itemToCase(it: any): LegalCase {
         })),
       },
     } : {}),
+    ...(d.summaryMeta !== undefined ? { summaryMeta: d.summaryMeta } : {}),
     ...(d.chunks !== undefined ? {
       chunks: d.chunks.map((ch: any) => ({ paragraph: ch.paragraph, text: ch.text })),
     } : {}),
