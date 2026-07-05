@@ -45,11 +45,11 @@ export default async function MethodologyPage() {
         </div>
         <div>
           <h2 className="font-serif text-lg">Labeling</h2>
-          <p>Themes and outcome tags on core cases are assigned by dual-model cross-labeling — inter-model agreement measures <em>consistency</em>; accuracy is validated against a human-checked gold sample. Labels are <strong>metadata only</strong>; displayed legal content stays extractive and citation-anchored.</p>
+          <p>Themes and outcome tags on core cases are assigned by dual-model cross-labeling — inter-model agreement measures <em>consistency</em>; accuracy is validated against a human-checked gold sample. Labels are <strong>metadata only</strong>; displayed judgment text stays extractive, and plain-language summaries are the one generated layer, always badged (see below).</p>
         </div>
         <div>
           <h2 className="font-serif text-lg">AI plain-language summaries</h2>
-          <p>Core cases carry an AI-generated plain-language summary, badged as such. Every claim is anchored to a verbatim quote that is <strong>mechanically verified</strong> against the judgment text before display — claims whose quotes cannot be found verbatim are discarded, and a case with fewer than two verified claims gets no summary at all. Verification guarantees the quotes are real; paraphrase fidelity is validated by human spot-check. Flagship summaries are human-curated and never overwritten.</p>
+          <p>Core cases with full text carry an AI-generated plain-language summary, badged as such. Every claim is anchored to a verbatim quote that is <strong>mechanically verified</strong> against the judgment text before display — claims whose quotes cannot be found verbatim are discarded, and a case with fewer than two verified claims gets no summary at all. Verification guarantees the quotes are real; paraphrase fidelity is validated by human spot-check. Flagship summaries are human-curated and never overwritten.</p>
         </div>
         <div>
           <h2 className="font-serif text-lg">Retrieval evaluation</h2>

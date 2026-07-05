@@ -52,6 +52,7 @@ export default async function CaseDetail({
         <section className="mt-4">
           <h2 className="font-serif text-lg">
             Summary <span className="text-xs font-sans font-normal text-ink3">(citation-anchored)</span>
+            {" "}
             {c.summaryMeta?.method === "llm" && (
               <span className="ml-2 rounded bg-amber/15 px-2 py-0.5 text-xs font-sans font-normal text-amber">AI-generated · plain language</span>
             )}

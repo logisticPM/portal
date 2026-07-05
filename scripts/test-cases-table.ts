@@ -24,7 +24,9 @@ assert.deepEqual(caseKeys.profile("x"), { PK: "CASE#x", SK: "PROFILE" });
 // once, so a silent itemToCase omission (see MAINTAINER note in cases-table.ts)
 // can ship undetected. This case populates EVERY optional field in LegalCase
 // (types.ts) and pins the full field set against future itemToCase drift.
-const kitchenSink: LegalCase = {
+// Typed Required<LegalCase> so adding a new optional field to LegalCase is a
+// compile error here until this fixture (and itemToCase) cover it.
+const kitchenSink: Required<LegalCase> = {
   id: "kitchen-sink-2026", citation: "2026 SCC 1", citation2: "[2026] 1 SCR 1",
   styleOfCause: "Kitchen Sink v. Everything", court: "Supreme Court of Canada",
   level: "scc", year: 2026, jurisdiction: "Canada",
