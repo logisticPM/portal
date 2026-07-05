@@ -37,7 +37,7 @@ export default async function MethodologyPage() {
         </div>
         <div>
           <h2 className="font-serif text-lg">Sources &amp; provenance</h2>
-          <p>Cases are harvested from the open A2AJ API (metadata + citation graph) and matched to official court decisions for full text. All displayed judgment text is an <strong>unofficial reproduction</strong> of a public decision, linked to its official source; nothing is generated.</p>
+          <p>Cases are harvested from the open A2AJ API (metadata + citation graph) and matched to official court decisions for full text. All displayed judgment text is an <strong>unofficial reproduction</strong> of a public decision, linked to its official source; judgment text is never generated. AI-generated content (plain-language summaries) is always labeled as such and citation-anchored.</p>
         </div>
         <div>
           <h2 className="font-serif text-lg">Selection (PRISMA-style)</h2>
@@ -46,6 +46,10 @@ export default async function MethodologyPage() {
         <div>
           <h2 className="font-serif text-lg">Labeling</h2>
           <p>Themes and outcome tags on core cases are assigned by dual-model cross-labeling — inter-model agreement measures <em>consistency</em>; accuracy is validated against a human-checked gold sample. Labels are <strong>metadata only</strong>; displayed legal content stays extractive and citation-anchored.</p>
+        </div>
+        <div>
+          <h2 className="font-serif text-lg">AI plain-language summaries</h2>
+          <p>Core cases carry an AI-generated plain-language summary, badged as such. Every claim is anchored to a verbatim quote that is <strong>mechanically verified</strong> against the judgment text before display — claims whose quotes cannot be found verbatim are discarded, and a case with fewer than two verified claims gets no summary at all. Verification guarantees the quotes are real; paraphrase fidelity is validated by human spot-check. Flagship summaries are human-curated and never overwritten.</p>
         </div>
         <div>
           <h2 className="font-serif text-lg">Retrieval evaluation</h2>
