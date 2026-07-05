@@ -19,6 +19,13 @@ export interface ThemeLabelMeta {
   needsReview: boolean;
 }
 
+export interface SummaryMeta {
+  method: "curated" | "llm";
+  model?: string;        // e.g. "us.meta.llama3-3-70b-instruct-v1:0"
+  generatedAt?: string;  // ISO timestamp
+  claimsDropped?: number;
+}
+
 export interface CaseOutcome {
   outcomeType: OutcomeType;
   winType: WinType;
@@ -66,6 +73,7 @@ export interface LegalCase {
   economic?: EconomicDimension;
   valueRealization?: ValueRealization;
   summary?: CitationAnchored;
+  summaryMeta?: SummaryMeta;
   chunks?: CaseChunk[];
   casesCited: string[];   // citation strings
   casesCiting: string[];  // citation strings
