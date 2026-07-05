@@ -83,5 +83,26 @@ import assert from "node:assert/strict";
 
   assert.equal(normWs("  a\n\t b  "), "a b");
 
+  // prose braces around otherwise-valid JSON → unparseable slice → null (retry trigger)
+  assert.equal(parseClaims(`intro {brace} {"claims":[{"text":"T","quote":"Q","paragraph":"1"}]} outro {brace}`), null);
+
+  // non-object entries become empty claims (counted as dropped downstream)
+  const mixed = parseClaims(`{"claims":["junk",{"text":"T","quote":"Q","paragraph":"1"}]}`);
+  assert.equal(mixed!.length, 2);
+  assert.deepEqual(mixed![0], { text: "", quote: "", paragraph: "" });
+
+  // mixed batch: 2 valid + 1 fabricated → 2 anchors, dropped 1
+  v = verifyClaims([
+    mk("A.", "duty to consult the Haida Nation", "12"),
+    mk("B.", "the moon is made of green cheese!!", "48"),
+    mk("C.", "Compensation of $10 million was awarded", "48"),
+  ], chunks, URL);
+  assert.equal(v.anchors.length, 2); assert.equal(v.dropped, 1);
+
+  // typographic source vs ASCII quote → still verified (symmetric folding)
+  const curly = [{ paragraph: "7", text: "The Crown’s honour is engaged — and the “duty to consult” arises." }];
+  v = verifyClaims([mk("D.", `The Crown's honour is engaged - and the "duty to consult" arises.`, "7")], curly, URL);
+  assert.equal(v.anchors.length, 1);
+
   console.log("✅ test-cases-summarizer passed");
 })();

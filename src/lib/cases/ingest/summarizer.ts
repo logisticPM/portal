@@ -3,10 +3,9 @@
 // Governance: every displayed claim is anchored to a verbatim quote that is
 // mechanically verified against the judgment text; unverifiable claims are
 // dropped; <2 surviving claims → no summary at all (宁缺毋滥).
-import type { CaseChunk, CitationAnchor, CitationAnchored } from "../types";
-// Note: `LegalCase` and `SummaryMeta` are not yet used here — Task 3 adds
-// `summarizeCase`, which will need both. Left out for now so `npm run
-// typecheck` stays clean (no-unused-vars on unused type imports).
+import type { CaseChunk, CitationAnchor, CitationAnchored, SummaryMeta } from "../types";
+// Note: `LegalCase` is not yet used here — Task 3 adds `summarizeCase`, which
+// will need it. Left unimported for now so `npm run typecheck` stays clean.
 
 export interface RawClaim { text: string; quote: string; paragraph: string }
 export type SummarizeStatus =
@@ -14,11 +13,18 @@ export type SummarizeStatus =
 export interface SummarizeResult {
   status: SummarizeStatus;
   summary?: CitationAnchored;
-  meta?: import("../types").SummaryMeta;
+  meta?: SummaryMeta;
   claimsDropped: number; // claims returned by the model but not kept (failed verification or past the 6 cap)
 }
 
-export const normWs = (s: string) => s.replace(/\s+/g, " ").trim();
+// Fold typographic punctuation the model may ASCII-fy when emitting JSON.
+// Applied symmetrically to quote and source, so it can never admit a quote
+// whose letters/digits differ — it only rescues honest punctuation drops.
+export const normWs = (s: string) =>
+  s.replace(/[‘’‛]/g, "'")
+   .replace(/[“”]/g, '"')
+   .replace(/[‐-―−]/g, "-")
+   .replace(/\s+/g, " ").trim();
 
 // Parse the model's response: first "{" to last "}", strict shape check.
 // Returns null on any malformation (caller retries once with a corrective suffix).
@@ -30,9 +36,13 @@ export function parseClaims(raw: string): RawClaim[] | null {
     const obj = JSON.parse(raw.slice(start, end + 1));
     const arr = (obj as { claims?: unknown })?.claims;
     if (!Array.isArray(arr)) return null;
-    return arr
-      .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
-      .map((c) => ({ text: String(c.text ?? ""), quote: String(c.quote ?? ""), paragraph: String(c.paragraph ?? "") }));
+    // Non-object entries become empty claims so they flow into verifyClaims,
+    // fail verification there, and get counted in `dropped`.
+    return arr.map((c) => {
+      if (!c || typeof c !== "object") return { text: "", quote: "", paragraph: "" };
+      const r = c as Record<string, unknown>;
+      return { text: String(r.text ?? ""), quote: String(r.quote ?? ""), paragraph: String(r.paragraph ?? "") };
+    });
   } catch { return null; }
 }
 
@@ -42,6 +52,7 @@ export function parseClaims(raw: string): RawClaim[] | null {
 export function verifyClaims(
   claims: RawClaim[], chunks: CaseChunk[], sourceUrl: string,
 ): { anchors: CitationAnchor[]; dropped: number } {
+  // Precondition: chunk paragraph ids are unique (chunkText assigns para-${i+1}); duplicates would last-win.
   const byPara = new Map(chunks.map((ch) => [String(ch.paragraph), normWs(ch.text)]));
   const anchors: CitationAnchor[] = [];
   for (const cl of claims) {
