@@ -23,9 +23,11 @@ export function configuredModels(): LlmModel[] {
 }
 
 // Build a single LlmModel from a model id, baking call options into the closure
-// so LlmModel.call keeps its (prompt) => Promise<string> shape.
+// so LlmModel.call keeps its (prompt) => Promise<string> shape. Options are
+// copied at construction so later mutation of the caller's object has no effect.
 export function modelFromId(id: string, opts?: CallOpts): LlmModel {
-  return { id, call: (p) => callProvider(id, p, opts) };
+  const frozen = { ...opts };
+  return { id, call: (p) => callProvider(id, p, frozen) };
 }
 
 async function callProvider(modelId: string, prompt: string, opts?: CallOpts): Promise<string> {
@@ -85,6 +87,9 @@ export async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
 
 // Wrap a model so calls go through the disk cache (batch runners use this;
 // summarizeCase itself calls the model directly so tests stay cache-free).
+// Cache key is (id, prompt) only — CallOpts are deliberately NOT keyed (constant
+// per use-site). Changing opts for the same (id, prompt) replays stale output;
+// clear scripts/.cache/llm if you do.
 export const cachedModel = (m: LlmModel): LlmModel => ({ id: m.id, call: (p) => cachedCall(m, p) });
 
 export function parseThemes(raw: string): Theme[] {
