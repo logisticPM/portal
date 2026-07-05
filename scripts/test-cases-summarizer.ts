@@ -230,5 +230,17 @@ import assert from "node:assert/strict";
   // model.call rejection propagates (throttling contract for the batch runner)
   await assert.rejects(summarizeCase(mkCase(), { id: "fake:throws", call: async () => { throw new Error("ThrottlingException"); } }));
 
+  // dynamo round-trip: summary + summaryMeta must survive caseToItems → reassembleCase
+  // (reassembleCase takes (profileItem, chunkItems); caseToItems returns [profile, ...chunks])
+  const { caseToItems, reassembleCase } = await import("../src/lib/dynamo/cases-table");
+  const withMeta = mkCase({
+    summary: { claims: [{ text: "t", sourceParagraph: "12", sourceUrl: "u" }] },
+    summaryMeta: { method: "llm", model: "m", generatedAt: "2026-07-04T00:00:00.000Z", claimsDropped: 1 },
+  });
+  const items = caseToItems(withMeta);
+  const back = reassembleCase(items[0], items.slice(1));
+  assert.deepEqual(back.summary, withMeta.summary);
+  assert.deepEqual(back.summaryMeta, withMeta.summaryMeta);
+
   console.log("✅ test-cases-summarizer passed");
 })();
