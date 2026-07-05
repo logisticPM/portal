@@ -18,7 +18,7 @@ async function main() {
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
   console.log(`summarizing ${profiles.length} core cases with ${MODEL_ID}`);
 
-  const stats = { generated: 0, skipped_curated: 0, skipped_not_core: 0, skipped_no_fulltext: 0 };
+  const stats = { generated: 0, skipped_curated: 0, skipped_already_generated: 0, skipped_not_core: 0, skipped_no_fulltext: 0 };
   const failed: string[] = [];
   let kept = 0, dropped = 0, done = 0;
 
@@ -39,11 +39,12 @@ async function main() {
       }));
       stats.generated++; kept += r.summary.claims.length; dropped += r.claimsDropped;
     } else if (r.status === "failed") { failed.push(c.id); dropped += r.claimsDropped; }
+    else if (r.status === "skipped_curated" && c.summaryMeta?.method === "llm") stats.skipped_already_generated++;
     else stats[r.status]++;
     if (++done % 25 === 0) console.log(`… ${done}/${profiles.length} · generated ${stats.generated} · failed ${failed.length}`);
   }
 
-  console.log(`✅ summarize: generated ${stats.generated} · curated ${stats.skipped_curated} · no-fulltext ${stats.skipped_no_fulltext} · failed ${failed.length} of ${profiles.length}`);
+  console.log(`✅ summarize: generated ${stats.generated} · curated ${stats.skipped_curated} · already-generated ${stats.skipped_already_generated} · no-fulltext ${stats.skipped_no_fulltext} · failed ${failed.length} of ${profiles.length}`);
   console.log(`   claims kept ${kept} · dropped ${dropped}`);
   if (failed.length) console.log("   failed ids:", failed.join(", "));
 }

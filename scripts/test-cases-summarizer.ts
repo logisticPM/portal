@@ -228,7 +228,7 @@ import assert from "node:assert/strict";
   assert.equal(f.calls.length, 2, "exactly one retry, no loop");
 
   // model.call rejection propagates (throttling contract for the batch runner)
-  await assert.rejects(summarizeCase(mkCase(), { id: "fake:throws", call: async () => { throw new Error("ThrottlingException"); } }));
+  await assert.rejects(summarizeCase(mkCase(), { id: "fake:throws", call: async () => { throw new Error("ThrottlingException"); } }), /ThrottlingException/);
 
   // dynamo round-trip: summary + summaryMeta must survive caseToItems → reassembleCase
   // (reassembleCase takes (profileItem, chunkItems); caseToItems returns [profile, ...chunks])
