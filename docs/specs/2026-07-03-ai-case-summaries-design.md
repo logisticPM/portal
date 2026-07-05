@@ -63,13 +63,21 @@ summarizeCase(c: LegalCase, model: LlmModel): Promise<SummarizeResult>
 
 ### 2. Mechanical verifier (same file, pure function)
 
-For each claim: `paragraph` must match an actual `chunk.paragraph`; the
-whitespace-normalized `quote` (collapse runs, trim) must be a substring of that
-chunk's normalized text; `quote.length >= 15` (normalized); `text` non-empty.
-Passing claims become `CitationAnchor { text, sourceParagraph: paragraph,
-sourceUrl: c.provenance.sourceUrl }`; failing claims are dropped and counted.
-**Fewer than 2 survivors → `failed`, no summary written (宁缺毋滥).** More than
-6 survivors → keep the first 6 in model output order.
+For each claim: the normalized `quote` (whitespace collapsed + typographic
+punctuation folded symmetrically — quotes/dashes; added in review, cannot admit
+letter/digit differences) must appear **verbatim somewhere in the judgment**;
+`quote.length >= 15` (normalized); `text` non-empty. The anchor's
+`sourceParagraph` is **computed, not model-claimed** (amended 2026-07-05 after
+the first operational run: strict cited-paragraph matching dropped ~half of all
+honest claims — models misattribute paragraph ids and long quotes span chunk
+boundaries). Lookup order: the cited chunk (accepting bare `N` for `para-N`),
+then any single chunk, then adjacent-chunk pairs (chunking splits at ~2KB with
+no overlap; anchor = first chunk of the pair). A quote found nowhere is dropped
+and counted — fabrications still cannot pass. Passing claims become
+`CitationAnchor { text, sourceParagraph: <actual location>, sourceUrl:
+c.provenance.sourceUrl }`. **Fewer than 2 survivors → `failed`, no summary
+written (宁缺毋滥).** More than 6 survivors → keep the first 6 in model output
+order.
 
 ### 3. Types — `src/lib/cases/types.ts` (additive only)
 
@@ -171,3 +179,36 @@ this spec.
   paraphrase (any found → prompt iteration before cloud replay).
 - Prod: core case detail pages show badged plain-language summaries with
   working paragraph anchors; methodology page documents the pipeline.
+
+## Result (operational run, 2026-07-05)
+
+- **Model:** `us.meta.llama3-3-70b-instruct-v1:0` (Converse, temperature 0,
+  maxTokens 1024), disk-cached; local table rebuilt from cache first (a prior
+  `verify` freshSeed had reset it — the known hazard).
+- **First pass (strict cited-paragraph verification): 355/476 generated,
+  1,183/2,301 claims dropped.** Diagnosis over cached responses (zero API
+  cost): no truncation, no parse failures — the drops were honest quotes with
+  wrong pointers: models misattribute paragraph ids (quote verbatim, wrong
+  chunk cited), long quotes span no-overlap ~2KB chunk boundaries, and models
+  emit bare `N` for `para-N` ids.
+- **Verifier amended (§2): anchors are computed, not model-claimed.** Lookup:
+  cited chunk → any chunk → adjacent pair. Fabrications still cannot pass —
+  the quote must appear verbatim in real judgment text; only the location
+  attribution changed (strictly more honest: the [para] link now points where
+  the quote actually lives).
+- **Final: 467/476 generated (98%) · 1,827 claims kept (avg 3.9/case) ·
+  548 dropped (true paraphrases, correctly rejected) · 9 failed** (all
+  long-judgment SCC-tier cases where the model paraphrased every "quote":
+  2025-scc-4, 2022-nssc-22, 2021-ykca-5, 2020-scc-4, 2018-scc-40, 2013-scc-14,
+  2008-scc-41, 2005-scc-43, 1999-1-scr-10 — these correctly show no summary).
+- **Spot-check (Q3): PASS.** 38 claims across 10 stratified cases (SCC/FCA/
+  BCCA/BCSC/ONCA/FC/TCC, 1973–2024) checked claim-vs-anchored-paragraph: no
+  fabrication, no meaning inversion. Weaknesses noted, not blocking: some
+  claims anchor to topically-adjacent rather than directly-supporting
+  paragraphs; some "significance" claims are generic. Separate corpus finding:
+  agreement-none cases with empty themes (e.g. 2008-fc-1390, 2013-onca-683,
+  2016-onca-767) are non-Indigenous noise promoted by design — a curation
+  backlog item, not a summary defect (their summaries are faithful).
+- Known cosmetic: the prompt renders chunk ids as `[para para-N]` (double
+  prefix). Fixing it would invalidate the entire response cache for marginal
+  gain; the bare-`N` fallback in the verifier absorbs the model confusion.

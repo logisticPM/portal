@@ -13,10 +13,15 @@ import { summarizeCase } from "../src/lib/cases/ingest/summarizer";
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 const MODEL_ID = process.env.SUMMARY_MODEL ?? "us.meta.llama3-3-70b-instruct-v1:0";
 
+// SUMMARIZE_FORCE=1: regenerate LLM summaries in place (verification/prompt
+// iterations replay from the disk cache, so this is ~free). Curated summaries
+// are still never touched — force only bypasses summaryMeta.method === "llm".
+const FORCE = process.env.SUMMARIZE_FORCE === "1";
+
 async function main() {
   const model = cachedModel(modelFromId(MODEL_ID, { maxTokens: 1024 }));
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
-  console.log(`summarizing ${profiles.length} core cases with ${MODEL_ID}`);
+  console.log(`summarizing ${profiles.length} core cases with ${MODEL_ID}${FORCE ? " (FORCE: regenerating llm summaries)" : ""}`);
 
   const stats = { generated: 0, skipped_curated: 0, skipped_already_generated: 0, skipped_not_core: 0, skipped_no_fulltext: 0 };
   const failed: string[] = [];
@@ -24,9 +29,11 @@ async function main() {
 
   for (const p of profiles) {
     // Curated cases short-circuit on the PROFILE alone; others need chunks reassembled.
-    const c = p.summary ? p : await dynamoCaseRepo.getCase(p.id);
+    const redo = FORCE && p.summaryMeta?.method === "llm";
+    const c = p.summary && !redo ? p : await dynamoCaseRepo.getCase(p.id);
     if (!c) continue;
-    const r = await summarizeCase(c, model);
+    const target = redo ? { ...c, summary: undefined, summaryMeta: undefined } : c;
+    const r = await summarizeCase(target, model);
     if (r.status === "generated" && r.summary && r.meta) {
       await ddbDoc.send(new UpdateCommand({
         TableName: TABLE,
@@ -38,7 +45,10 @@ async function main() {
         ExpressionAttributeValues: { ":s": r.summary, ":m": r.meta },
       }));
       stats.generated++; kept += r.summary.claims.length; dropped += r.claimsDropped;
-    } else if (r.status === "failed") { failed.push(c.id); dropped += r.claimsDropped; }
+    } else if (r.status === "failed") {
+      failed.push(c.id); dropped += r.claimsDropped;
+      if (redo) console.log(`   ⚠ ${c.id}: forced regeneration failed — previous summary retained in table`);
+    }
     else if (r.status === "skipped_curated" && c.summaryMeta?.method === "llm") stats.skipped_already_generated++;
     else stats[r.status]++;
     if (++done % 25 === 0) console.log(`… ${done}/${profiles.length} · generated ${stats.generated} · failed ${failed.length}`);
