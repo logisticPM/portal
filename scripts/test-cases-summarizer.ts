@@ -209,5 +209,26 @@ import assert from "node:assert/strict";
   r = await summarizeCase(mkCase({ chunks: undefined }), throwing);
   assert.equal(r.status, "skipped_no_fulltext");
 
+  // generated with claimsDropped > 0: meta and result carry the same count
+  const withFab = JSON.stringify({ claims: [
+    { text: "A.", quote: "duty to consult the Haida Nation", paragraph: "12" },
+    { text: "B.", quote: "Compensation of $10 million was awarded", paragraph: "48" },
+    { text: "C.", quote: "totally fabricated nonsense quote here", paragraph: "48" },
+  ]});
+  f = fake([withFab]);
+  r = await summarizeCase(mkCase(), f);
+  assert.equal(r.status, "generated");
+  assert.equal(r.meta!.claimsDropped, 1);
+  assert.equal(r.claimsDropped, 1);
+
+  // exactly one retry — never a retry loop
+  f = fake(["NOT JSON", "STILL NOT JSON", "NEVER REACHED"]);
+  r = await summarizeCase(mkCase(), f);
+  assert.equal(r.status, "failed");
+  assert.equal(f.calls.length, 2, "exactly one retry, no loop");
+
+  // model.call rejection propagates (throttling contract for the batch runner)
+  await assert.rejects(summarizeCase(mkCase(), { id: "fake:throws", call: async () => { throw new Error("ThrottlingException"); } }));
+
   console.log("✅ test-cases-summarizer passed");
 })();
