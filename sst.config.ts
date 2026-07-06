@@ -166,6 +166,37 @@ export default $config({
       environment: extractionEnv,
     });
 
+    // Async briefing-note generator (spec 2026-07-05). Generation takes 15-60s —
+    // beyond the web request Lambda's budget — so the requestBriefing server
+    // action invokes this fire-and-forget (same seam as rapExtract). The BM25
+    // search artifact loads from casesIndex on cold start.
+    const briefGen = new sst.aws.Function("BriefGen", {
+      handler: "src/functions/brief-generate.handler",
+      timeout: "120 seconds",
+      memory: "1536 MB", // bm25 artifact (~60MB) + generation headroom
+      link: [casesIndex],
+      permissions: [
+        ...bedrockPerms,
+        // Corpus reads + brief/quota writes on the literal LegalCases table
+        // (created out-of-band by the cases:*:cloud pipeline — same reason the
+        // Web block wires it by ARN, not link).
+        {
+          actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+          resources: [
+            "arn:aws:dynamodb:us-east-1:*:table/LegalCases",
+            "arn:aws:dynamodb:us-east-1:*:table/LegalCases/index/*",
+          ],
+        },
+      ],
+      environment: {
+        CASES_TABLE: "LegalCases",
+        INDEX_BUCKET: casesIndex.name,
+        // Explicit us-east-1: the Llama model lives there; do NOT inherit the
+        // extraction stack's ca-central-1.
+        BEDROCK_REGION: "us-east-1",
+      },
+    });
+
     new sst.aws.Nextjs("Web", {
       // Least-privilege access to exactly these resources (tables + GSIs + buckets).
       link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, casesIndex],
@@ -179,13 +210,15 @@ export default $config({
           permissions: [
             ...bedrockPerms,
             { actions: ["lambda:InvokeFunction"], resources: [rapExtract.arn] },
+            { actions: ["lambda:InvokeFunction"], resources: [briefGen.arn] },
             // Legal-cases corpus table. NOT SST-managed: it is created + seeded by
             // the cases:*:cloud pipeline (scripts/create-table.ts, cases-ingest.ts,
             // cases-fetch-fulltext.ts, cases-embed.ts) under the literal name
             // "LegalCases", so it can't go in `link:` — wire read access by ARN.
-            // The web app only ever reads cases (GSI1 scan / GetItem / chunk Query).
+            // The web app only ever reads cases (GSI1 scan / GetItem / chunk Query),
+            // plus writes brief/quota items for the requestBriefing action.
             {
-              actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan"],
+              actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:PutItem", "dynamodb:UpdateItem"],
               resources: [
                 "arn:aws:dynamodb:us-east-1:*:table/LegalCases",
                 "arn:aws:dynamodb:us-east-1:*:table/LegalCases/index/*",
@@ -213,6 +246,9 @@ export default $config({
         // Present → uploadRapAction hands extraction to the worker instead of
         // running it inline (which would hit the request-Lambda timeout).
         EXTRACTOR_FUNCTION_NAME: rapExtract.name,
+        // Present → requestBriefing hands generation to the worker; unset locally
+        // → the action runs generation inline (next dev has no request timeout).
+        BRIEF_FUNCTION_NAME: briefGen.name,
       },
     });
   },

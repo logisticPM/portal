@@ -52,6 +52,10 @@ export default async function MethodologyPage() {
           <p>Core cases with full text carry an AI-generated plain-language summary, badged as such. Every claim is anchored to a verbatim quote that is <strong>mechanically verified</strong> against the judgment text before display — claims whose quotes cannot be found verbatim are discarded, and a case with fewer than two verified claims gets no summary at all. Verification guarantees the quotes are real; paraphrase fidelity is validated by human spot-check. Flagship summaries are human-curated and never overwritten.</p>
         </div>
         <div>
+          <h2 className="font-serif text-lg">Briefing notes</h2>
+          <p>Briefing notes are generated on demand: a question retrieves the most relevant curated cases (the same ranked search used across the site), and the model may cite <strong>only those retrieved cases</strong> — any invented case reference is mechanically discarded, and a briefing with fewer than two verifiable precedents is refused rather than published. Notes describe what precedents establish, not what a reader should do; they are AI-generated, badged, rate-limited, and <strong>not legal advice</strong>.</p>
+        </div>
+        <div>
           <h2 className="font-serif text-lg">Retrieval evaluation</h2>
           <p>Search quality is measured (nDCG@10 / recall@10 / MRR) on a graded gold set, comparing lexical (BM25) against hybrid retrieval, so ranking changes are evidence-based, not asserted.</p>
         </div>
