@@ -75,13 +75,20 @@ async function converse(modelId: string, prompt: string, opts?: CallOpts): Promi
   return (await bedrockConverse()).send(modelId, prompt, opts);
 }
 
+let cacheWriteWarned = false;
 export async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
-  await fs.mkdir(CACHE, { recursive: true });
   const key = createHash("sha256").update(m.id + "\n" + prompt).digest("hex").slice(0, 32);
   const file = path.join(CACHE, key + ".txt");
-  try { return await fs.readFile(file, "utf8"); } catch { /* miss */ }
+  try { return await fs.readFile(file, "utf8"); } catch { /* miss (incl. no cache dir) */ }
   const out = await m.call(prompt);
-  await fs.writeFile(file, out);
+  // The disk cache is a local-dev optimization; a read-only FS (e.g. a Lambda's
+  // /var/task) must never be fatal — warn once, then proceed uncached.
+  try {
+    await fs.mkdir(CACHE, { recursive: true });
+    await fs.writeFile(file, out);
+  } catch (e) {
+    if (!cacheWriteWarned) { cacheWriteWarned = true; console.warn("[llm] response cache disabled (read-only FS?):", e instanceof Error ? e.message : String(e)); }
+  }
   return out;
 }
 
