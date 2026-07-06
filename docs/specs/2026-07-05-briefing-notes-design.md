@@ -217,3 +217,43 @@ tier) — the noise-gated 373.
   request of the day politely refused.
 - Prod: end-to-end generation via the worker in ≤90s; shareable URL renders
   for a different session; methodology documents the pipeline.
+
+## Result (operational run, 2026-07-06)
+
+Run against the **cloud** table (373 curated core + summaries + the S3 BM25
+artifact) with real Bedrock (`us.meta.llama3-3-70b-instruct-v1:0`), inline path
+(Docker/local DynamoDB was down — the cloud table is the truer prod validation).
+
+- **Yield: 3 of 5 questions produced a briefing** (10–11s each); 2 were
+  **refused by the governance gate**, not published. Both refusals were
+  *conceptual* questions ("what does the duty to consult require…", "what
+  remedies for a breach…"): under **BM25-only retrieval** (prod dense is off —
+  the run logged `embedder/dim mismatch … → BM25-only`) the top-6 didn't
+  include the landmark cases the model reached for, so it cited ids outside the
+  retrieved set → all dropped → `<2 distinct precedents` → refused with "the
+  model could not ground enough precedents for this question." **The gate did
+  exactly its job: it refused rather than showing a hallucinated precedent.**
+  The failures cluster precisely where the retrieval eval predicted dense
+  helps and lexical is weak — so **enabling prod dense (P0-2, already built;
+  vectors in the bucket, code auto-enables) is the direct yield fix.**
+- **Fidelity spot-check (6 cited precedents across the 3 done briefings):**
+  5 are faithful-to-strong matches with the case's own AI summary — Grassy
+  Narrows (2014-scc-48, province may take up Treaty 3 lands) is verbatim-accurate;
+  Huu-Ay-Aht (2005-bcsc-697, forest tenure + revenue sharing) and Brokenhead
+  (2009-fc-484, NEB process suffices) are on-point. The 1 imperfect case
+  (Ktunaxa 2017-scc-54) is a genuine duty-to-consult decision but framed with a
+  revenue-sharing gloss it doesn't really hold — the known thin-economic-corpus
+  effect (the model stretches consultation cases toward a revenue question),
+  **not a fabrication** (the case is real, retrieved, and about duty to consult).
+  No fake cases, no meaning inversion.
+- **Cache + list verified**: re-asking an identical question returns the
+  existing briefing (no spend, no quota); GSI2 recent-list returns all briefs.
+- **Prod render verified**: `/cases/briefings` lists the briefings; a done
+  briefing page (a *different* session via cookie) renders the AI/not-legal-
+  advice banner, precedent cards, and case-name links resolved via
+  `casesRepo.getCase` (e.g. "Grassy Narrows").
+- **Showcase briefings for the demo** (done, shareable): mining obligations on
+  treaty land (`828b525b`), resource-revenue share (`de20b2cf`), honour of the
+  Crown in historic treaties (`c4b8a6c2`).
+- **Follow-up**: prod dense (P0-2) to lift conceptual-question yield;
+  economic-corpus supplementation to fix the revenue-framing stretch.
