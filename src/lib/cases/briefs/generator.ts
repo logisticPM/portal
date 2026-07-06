@@ -47,28 +47,46 @@ export function parseBriefing(raw: string): BriefingBody | null {
     const o = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
     if (typeof o.background !== "string" || typeof o.considerations !== "string") return null;
     if (!Array.isArray(o.precedents) || !Array.isArray(o.principles)) return null;
-    const precedents: BriefPrecedent[] = o.precedents
-      .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
-      .map((p) => ({ caseId: String(p.caseId ?? ""), establishes: String(p.establishes ?? ""), relevance: String(p.relevance ?? "") }));
-    const principles: BriefPrinciple[] = o.principles
-      .filter((p): p is Record<string, unknown> => !!p && typeof p === "object")
-      .map((p) => ({ text: String(p.text ?? ""), caseIds: Array.isArray(p.caseIds) ? p.caseIds.map(String) : [] }));
+    // Non-object entries become empty items so they fail verification and are
+    // counted as dropped downstream (summarizer convention).
+    const precedents: BriefPrecedent[] = o.precedents.map((p) => {
+      if (!p || typeof p !== "object") return { caseId: "", establishes: "", relevance: "" };
+      const r = p as Record<string, unknown>;
+      return { caseId: String(r.caseId ?? ""), establishes: String(r.establishes ?? ""), relevance: String(r.relevance ?? "") };
+    });
+    const principles: BriefPrinciple[] = o.principles.map((p) => {
+      if (!p || typeof p !== "object") return { text: "", caseIds: [] };
+      const r = p as Record<string, unknown>;
+      return { text: String(r.text ?? ""), caseIds: Array.isArray(r.caseIds) ? r.caseIds.map(String) : [] };
+    });
     return { background: o.background, precedents, principles, considerations: o.considerations };
   } catch { return null; }
 }
 
-// Mechanical gate: only retrieved case ids survive; principles keep only valid
-// ids and are dropped when none remain; <2 surviving precedents → null.
+// Mechanical gate: only retrieved case ids survive (trimmed, deduped first-wins,
+// so <2 means 2 DISTINCT cases); principles keep only valid ids, are dropped
+// when none remain, and are capped at 4 (precedents at 6) — cap-trimmed and
+// duplicate entries count in `dropped`.
+// The gate verifies citation MEMBERSHIP only — "establishes"/"relevance" content
+// fidelity is human-spot-checked (spec Operational run), and paragraph-level
+// quote anchors live on the linked case pages.
 export function verifyBriefing(
   body: BriefingBody, retrievedIds: string[],
 ): { body: BriefingBody; dropped: number } | null {
   const valid = new Set(retrievedIds);
+  const seen = new Set<string>();
   const precedents = body.precedents
-    .filter((p) => valid.has(p.caseId) && p.establishes.trim() && p.relevance.trim())
+    .map((p) => ({ ...p, caseId: p.caseId.trim() }))
+    .filter((p) => {
+      if (!valid.has(p.caseId) || !p.establishes.trim() || !p.relevance.trim() || seen.has(p.caseId)) return false;
+      seen.add(p.caseId);
+      return true;
+    })
     .slice(0, 6);
   const principles = body.principles
-    .map((pr) => ({ text: pr.text.trim(), caseIds: pr.caseIds.filter((id) => valid.has(id)) }))
-    .filter((pr) => pr.text && pr.caseIds.length > 0);
+    .map((pr) => ({ text: pr.text.trim(), caseIds: pr.caseIds.map((id) => id.trim()).filter((id) => valid.has(id)) }))
+    .filter((pr) => pr.text && pr.caseIds.length > 0)
+    .slice(0, 4);
   const dropped = (body.precedents.length - precedents.length) + (body.principles.length - principles.length);
   if (precedents.length < 2) return null;
   return { body: { ...body, precedents, principles }, dropped };
@@ -84,8 +102,8 @@ export async function generateBriefing(question: string, cases: LegalCase[], mod
   let parsed = parseBriefing(await model.call(prompt));
   // Cache-safe retry: the suffix changes the disk-cache key (summarizer convention).
   if (!parsed) parsed = parseBriefing(await model.call(prompt + RETRY_SUFFIX));
-  if (!parsed) return { status: "failed", failReason: "the model could not produce a verifiable briefing for this question" };
+  if (!parsed) return { status: "failed", failReason: "the model did not return a readable briefing — please try again" };
   const verified = verifyBriefing(parsed, cases.map((c) => c.id));
-  if (!verified) return { status: "failed", failReason: "the model could not produce a verifiable briefing for this question" };
+  if (!verified) return { status: "failed", failReason: "the model could not ground enough precedents for this question" };
   return { status: "done", body: verified.body, dropped: verified.dropped };
 }

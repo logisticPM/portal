@@ -17,7 +17,7 @@ export interface Briefing {
   body?: BriefingBody;           // when done
   retrievedCaseIds: string[];    // provenance: the top-k retrieval set
   failReason?: string;           // when failed (honest, user-visible)
-  droppedPoints?: number;        // verification-dropped precedents/principles
+  droppedPoints?: number;        // points not kept: failed verification, duplicates, or past the caps (6 precedents / 4 principles)
   model: string;
   requester: string;             // "kind" or "kind:partyId"
   createdAt: string;             // ISO timestamp

@@ -107,5 +107,44 @@ import assert from "node:assert/strict";
   r = await generateBriefing("Q?", [cases[0]], throwing);
   assert.equal(r.status, "failed");
 
+  // duplicate caseIds: one case cited twice must NOT satisfy the ≥2 distinct gate
+  const dup = { ...goodBody, precedents: [
+    { caseId: "case-a", establishes: "E1.", relevance: "R1." },
+    { caseId: "case-a", establishes: "E2.", relevance: "R2." },
+  ]};
+  assert.equal(verifyBriefing(dup, retrieved), null);
+
+  // whitespace-variant id is trimmed and rescued
+  const spaced = { ...goodBody, precedents: [
+    { caseId: " case-a ", establishes: "E.", relevance: "R." },
+    { caseId: "case-b", establishes: "E.", relevance: "R." },
+  ]};
+  const vs = verifyBriefing(spaced, retrieved);
+  assert.ok(vs && vs.body.precedents[0].caseId === "case-a");
+
+  // cap overflow: 7 valid distinct precedents → 6 kept, 1 counted dropped
+  const seven = { ...goodBody, precedents: ["case-a","case-b","case-c","case-a2","case-b2","case-c2","case-d2"].map((id) => ({ caseId: id, establishes: "E.", relevance: "R." })) };
+  const v7 = verifyBriefing(seven, ["case-a","case-b","case-c","case-a2","case-b2","case-c2","case-d2"]);
+  assert.ok(v7); assert.equal(v7!.body.precedents.length, 6); assert.equal(v7!.dropped, 1);
+
+  // principles capped at 4 (cap-trimmed counted in dropped)
+  const manyPr = { ...goodBody, principles: Array.from({ length: 6 }, (_, i) => ({ text: `P${i}.`, caseIds: ["case-a"] })) };
+  const vp = verifyBriefing(manyPr, retrieved);
+  assert.ok(vp); assert.equal(vp!.body.principles.length, 4); assert.equal(vp!.dropped, 2);
+
+  // junk entries in precedents count as dropped
+  const junky = parseBriefing(`{"background":"b","precedents":[{"caseId":"case-a","establishes":"E.","relevance":"R."},{"caseId":"case-b","establishes":"E.","relevance":"R."},"junk",42],"principles":[],"considerations":"c"}`);
+  assert.ok(junky); assert.equal(junky!.precedents.length, 4);
+  const vj = verifyBriefing(junky!, retrieved);
+  assert.ok(vj); assert.equal(vj!.body.precedents.length, 2); assert.equal(vj!.dropped, 2);
+
+  // distinct fail reasons
+  f = fake(["NOT JSON", "STILL NOT"]);
+  r = await generateBriefing("Q?", cases, f);
+  if (r.status === "failed") assert.ok(/readable briefing/.test(r.failReason));
+  f = fake([allFake]);
+  r = await generateBriefing("Q?", cases, f);
+  if (r.status === "failed") assert.ok(/ground enough precedents/.test(r.failReason));
+
   console.log("✅ test-cases-briefs passed");
 })().catch((e) => { console.error(e); process.exit(1); });
