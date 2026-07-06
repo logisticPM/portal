@@ -10,6 +10,9 @@ const STALE_MS = 5 * 60_000;
 export default async function BriefingPage({ params }: { params: { id: string } }) {
   const b = await getBrief(params.id);
   if (!b) notFound();
+  // Display-only stale cutoff: a brief whose worker died without writing status
+  // stays "pending" in Dynamo (quota already spent, not refunded) but renders as
+  // unavailable after 5 min. A real build would add a TTL sweep / status write.
   const stalePending = b.status === "pending" && Date.now() - Date.parse(b.createdAt) > STALE_MS;
 
   if (b.status === "pending" && !stalePending) {

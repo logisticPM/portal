@@ -23,6 +23,9 @@ export async function requestBriefing(formData: FormData) {
   if (!session) redirect("/login");
   const question = String(formData.get("question") ?? "").trim();
   if (question.length < 10 || question.length > 500) redirect("/cases/briefings?err=length");
+  // NOTE: mock-auth demo — persona comes from an unsigned cookie the user sets
+  // freely, so this per-requester daily quota only slows abuse, it doesn't prevent
+  // it (real auth is Horizon-2). It bounds accidental/casual over-generation.
   const requester = session!.partyId ? `${session!.kind}:${session!.partyId}` : session!.kind;
 
   // Cache: identical (normalized) question → the existing briefing, no spend, no quota.
