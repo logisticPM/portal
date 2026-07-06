@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { casesRepo } from "@/lib/cases";
 import { StatCard, Bar } from "../ui";
+import { getSession } from "@/lib/auth";
+import { resolveLens, lensConfig } from "@/lib/cases/lenses";
 
 const cad = (n: number) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(n);
 
-export default async function ActivationPage() {
+export default async function ActivationPage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
   const s = await casesRepo.getActivationSummary();
   const themes = Object.entries(s.byTheme);
   const maxTheme = Math.max(1, ...themes.map(([, n]) => n));
@@ -15,6 +17,7 @@ export default async function ActivationPage() {
     <div className="mx-auto max-w-3xl">
       <h1 className="font-serif text-2xl">Activation dashboard</h1>
       <p className="mt-1 text-sm text-ink3">Turning Indigenous legal wins into economic intelligence (curated core cases).</p>
+      <p className="mt-1 text-sm text-ink3">{lensConfig(resolveLens(searchParams.lens, getSession())).tagline}</p>
 
       <div className="mt-4 grid grid-cols-3 gap-3">
         <StatCard label="curated cases" value={s.totalCases} />
