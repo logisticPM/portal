@@ -100,3 +100,28 @@ Titan v2 over the same public court text already in the corpus.
   `→ BM25-only` warning for `useDense` queries); the previously-refused
   conceptual briefings ground; citation/case-name queries still BM25-only.
 - Rollback is a four-variable deletion.
+
+## Result (deploy + verification, 2026-07-06)
+
+PR #109 merged (`6c3489d`); auto-deploy succeeded (BriefGen + Web picked up the
+four env vars). Verified with the exact prod env config against the cloud
+artifact:
+
+- **Dense engages, ID matches:** `resolveEmbedRegion()` → `us-east-1` (the
+  `EMBED_REGION` override beats the inherited ca-central-1); active embedder
+  `bedrock:amazon.titan-embed-text-v2:0`/1024 **== stored artifact embedderId**
+  → `ID MATCH: true` → the dense gate passes (no silent no-op). A live Titan
+  embed returned a 1024-dim L2-normalized vector.
+- **Routing intact:** conceptual query → `useDense: true` (embeds + hybrid);
+  `2014 SCC 48` citation → `useDense: false` (skips the embed, BM25-only, by
+  design — known-item precision unaffected).
+- **The failure mode is fixed:** the two conceptual briefing questions that were
+  **refused** on 2026-07-06 under BM25-only both now **ground with 0 dropped**
+  (15–19s) — dense retrieval pulled in the SCC/FCA landmark cases the model
+  reached for (Clyde River / Chippewas 2017-scc-40, Trans Mountain 2018-fca-153,
+  2010-scc-43, …) so its precedents survived verification. Briefing conceptual
+  yield went from refused → published. New briefings render on prod with the
+  AI/not-legal-advice banner; prod conceptual `/cases` search returns hits.
+- **Net:** the operational-run yield gap (2/5 refused, all conceptual) is
+  closed; the governance gate still refuses ungroundable output, there's just
+  far less of it now that conceptual retrieval surfaces the right cases.
