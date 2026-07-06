@@ -133,13 +133,25 @@ export function isRealProvider(raw = process.env.EMBED_PROVIDER): boolean {
   return !!p && p !== "stub";
 }
 
+// Region for the cases (query/corpus) embedder. A dedicated EMBED_REGION takes
+// priority so it can override the Web function's BEDROCK_REGION=ca-central-1
+// (set for RAP extraction) — cases embedding must hit us-east-1, where the
+// Titan v2 vectors were written. Empty/whitespace values fall through.
+export function resolveEmbedRegion(env: Record<string, string | undefined> = process.env): string {
+  for (const v of [env.EMBED_REGION, env.BEDROCK_REGION, env.AWS_REGION]) {
+    const t = (v ?? "").trim();
+    if (t) return t;
+  }
+  return "us-east-1";
+}
+
 export function getEmbedder(): Embedder {
   const provider = (process.env.EMBED_PROVIDER ?? "").trim().toLowerCase();
   const dim = Number(process.env.EMBED_DIM ?? "1024") || 1024;
   if (!isRealProvider(provider)) return new StubEmbedder(dim);
   if (provider === "bedrock") {
     const model = (process.env.EMBED_MODEL ?? "amazon.titan-embed-text-v2:0").trim();
-    const region = (process.env.BEDROCK_REGION ?? process.env.AWS_REGION ?? "us-east-1").trim();
+    const region = resolveEmbedRegion();
     const concurrency = Math.max(1, Number(process.env.EMBED_CONCURRENCY ?? "16") || 16);
     return new BedrockEmbedder(model, dim, region, concurrency);
   }

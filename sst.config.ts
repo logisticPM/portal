@@ -194,6 +194,14 @@ export default $config({
         // Explicit us-east-1: the Llama model lives there; do NOT inherit the
         // extraction stack's ca-central-1.
         BEDROCK_REGION: "us-east-1",
+        // Dense retrieval (spec 2026-07-06): query-side Bedrock embedding for
+        // hybrid search. Matches the embedder that wrote the vectors so the
+        // stored/active embedder ids agree and dense engages. EMBED_REGION pins
+        // us-east-1 (where Titan v2 + the vectors live).
+        EMBED_PROVIDER: "bedrock",
+        EMBED_MODEL: "amazon.titan-embed-text-v2:0",
+        EMBED_DIM: "1024",
+        EMBED_REGION: "us-east-1",
       },
     });
 
@@ -203,7 +211,7 @@ export default $config({
       transform: {
         server: {
           // Search-index artifact resident in memory (bm25 ~60MB; +~160MB vectors
-          // when dense is enabled later) + faster CPU for index deserialization.
+          // now dense is enabled) + faster CPU for index deserialization.
           memory: "2048 MB",
           // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
           // permission to invoke the async extraction worker.
@@ -249,6 +257,14 @@ export default $config({
         // Present → requestBriefing hands generation to the worker; unset locally
         // → the action runs generation inline (next dev has no request timeout).
         BRIEF_FUNCTION_NAME: briefGen.name,
+        // Dense retrieval (spec 2026-07-06). EMBED_REGION=us-east-1 overrides the
+        // inherited extractionEnv BEDROCK_REGION=ca-central-1 for cases embedding
+        // ONLY — RAP extraction still uses ca-central-1. The query router keeps
+        // dense's embed call to conceptual/topical queries; known-item stays BM25.
+        EMBED_PROVIDER: "bedrock",
+        EMBED_MODEL: "amazon.titan-embed-text-v2:0",
+        EMBED_DIM: "1024",
+        EMBED_REGION: "us-east-1",
       },
     });
   },
