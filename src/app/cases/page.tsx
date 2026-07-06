@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { casesRepo } from "@/lib/cases";
 import type { Theme, CourtLevel, WinType, CorpusTier } from "@/lib/cases";
-import { CaseListItem } from "./ui";
+import { CaseListItem, LensSwitcher } from "./ui";
+import { getSession } from "@/lib/auth";
+import { resolveLens, applyLens } from "@/lib/cases/lenses";
 
 const THEMES: Theme[] = ["land_rights", "resource_revenue", "duty_to_consult", "treaty", "fiduciary", "self_determination"];
 const LEVELS: CourtLevel[] = ["scc", "fca", "fc", "provincial_appeal", "provincial_superior", "tribunal"];
@@ -23,11 +25,19 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
   const facets = await casesRepo.listFacets({ tier: "all" });
   const nations = Object.keys(facets.byNation).sort();
 
+  const session = getSession();
+  const lens = resolveLens(searchParams.lens, session);
+  // Lens reorders the BROWSE list only. When there's a search query, retrieval
+  // ranking (dense/BM25) is authoritative — the lens contributes framing, not order.
+  const ordered = q ? cases : applyLens(cases, lens);
+
   const sel = "rounded border border-line bg-panel px-2 py-1";
   return (
     <div className="mx-auto max-w-4xl">
       <h1 className="font-serif text-2xl">Legal cases — economic justice</h1>
       <p className="mt-1 text-sm text-ink3">Canada&apos;s Indigenous economic-justice case law, searchable and citation-anchored.</p>
+
+      <LensSwitcher active={lens} params={searchParams} />
 
       <form action="/cases" className="mt-4 space-y-2">
         <div className="flex gap-2">
@@ -61,8 +71,8 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
       </div>
 
       <ul className="mt-3 divide-y divide-line">
-        {cases.map((c) => <CaseListItem key={c.id} c={c} q={q} />)}
-        {cases.length === 0 && (
+        {ordered.map((c) => <CaseListItem key={c.id} c={c} q={q} />)}
+        {ordered.length === 0 && (
           <li className="py-3 text-ink3">
             {q
               ? "No cases match."
