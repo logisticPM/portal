@@ -141,10 +141,27 @@ import assert from "node:assert/strict";
   // distinct fail reasons
   f = fake(["NOT JSON", "STILL NOT"]);
   r = await generateBriefing("Q?", cases, f);
+  assert.equal(r.status, "failed");
   if (r.status === "failed") assert.ok(/readable briefing/.test(r.failReason));
   f = fake([allFake]);
   r = await generateBriefing("Q?", cases, f);
+  assert.equal(r.status, "failed");
   if (r.status === "failed") assert.ok(/ground enough precedents/.test(r.failReason));
+
+  const { normalizeQuestion, questionHash, briefKeys } = await import("../src/lib/cases/briefs/repo");
+
+  // normalization: case / whitespace / trailing + typographic punctuation fold together
+  const q1 = "What duties before mining on treaty land?";
+  assert.equal(normalizeQuestion("  what   DUTIES before mining on treaty land ?? "), normalizeQuestion(q1));
+  assert.equal(normalizeQuestion("What duties before mining on treaty land"), normalizeQuestion(q1));
+  assert.equal(questionHash("WHAT duties before mining on treaty land?"), questionHash(q1));
+  assert.notEqual(questionHash("A different question entirely"), questionHash(q1));
+  assert.equal(questionHash(q1).length, 32);
+
+  // key shapes (storage contract)
+  assert.deepEqual(briefKeys.brief("abc"), { PK: "BRIEF#abc", SK: "BRIEF" });
+  assert.deepEqual(briefKeys.qhash("h1"), { PK: "QHASH#h1", SK: "QHASH" });
+  assert.deepEqual(briefKeys.quota("2026-07-05", "company:c-1"), { PK: "BQUOTA#2026-07-05#company:c-1", SK: "BQUOTA" });
 
   console.log("✅ test-cases-briefs passed");
 })().catch((e) => { console.error(e); process.exit(1); });
