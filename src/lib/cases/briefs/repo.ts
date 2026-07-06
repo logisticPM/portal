@@ -21,7 +21,7 @@ export const briefKeys = {
 // Same-question detection: lowercase, fold whitespace/typographic punctuation
 // (normWs), strip trailing punctuation. Hash = first 32 hex of sha256.
 export function normalizeQuestion(q: string): string {
-  return normWs(q).toLowerCase().replace(/[?!.,;:'"\s]+$/g, "");
+  return normWs(q).toLowerCase().replace(/[?!.,;:'"\s]+$/, "");
 }
 export const questionHash = (q: string): string =>
   createHash("sha256").update(normalizeQuestion(q)).digest("hex").slice(0, 32);
@@ -47,7 +47,7 @@ export async function setBriefRetrieved(id: string, caseIds: string[]): Promise<
   }));
 }
 
-export async function setBriefDone(id: string, body: BriefingBody, droppedPoints: number): Promise<void> {
+export async function setBriefDone(id: string, questionHash: string, body: BriefingBody, droppedPoints: number): Promise<void> {
   await ddbDoc.send(new UpdateCommand({
     TableName: TABLE, Key: briefKeys.brief(id),
     // STATUS is a DynamoDB reserved word — alias every path segment.
@@ -55,13 +55,11 @@ export async function setBriefDone(id: string, body: BriefingBody, droppedPoints
     ExpressionAttributeNames: { "#d": "data", "#s": "status", "#b": "body", "#dp": "droppedPoints" },
     ExpressionAttributeValues: { ":s": "done", ":b": body, ":dp": droppedPoints },
   }));
-  const brief = await getBrief(id);
-  if (brief) {
-    await ddbDoc.send(new PutCommand({
-      TableName: TABLE,
-      Item: { ...briefKeys.qhash(brief.questionHash), et: "BriefQHash", data: { briefId: id } },
-    }));
-  }
+  // Cache pointer: written only when a briefing completes (done), never on create/failed.
+  await ddbDoc.send(new PutCommand({
+    TableName: TABLE,
+    Item: { ...briefKeys.qhash(questionHash), et: "BriefQHash", data: { briefId: id } },
+  }));
 }
 
 export async function setBriefFailed(id: string, failReason: string): Promise<void> {
@@ -89,7 +87,9 @@ export async function bumpQuota(requester: string, date: string): Promise<number
     ExpressionAttributeValues: { ":one": 1 },
     ReturnValues: "UPDATED_NEW",
   }));
-  return Number(r.Attributes?.count ?? 0);
+  // Fail CLOSED: a missing count must not read as "under the limit".
+  if (r.Attributes?.count === undefined) throw new Error("bumpQuota: no count returned");
+  return Number(r.Attributes.count);
 }
 
 export async function listRecentBriefs(limit = 20): Promise<Briefing[]> {
