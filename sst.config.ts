@@ -211,7 +211,7 @@ export default $config({
       transform: {
         server: {
           // Search-index artifact resident in memory (bm25 ~60MB; +~160MB vectors
-          // when dense is enabled later) + faster CPU for index deserialization.
+          // now dense is enabled) + faster CPU for index deserialization.
           memory: "2048 MB",
           // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
           // permission to invoke the async extraction worker.
