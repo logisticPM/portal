@@ -58,5 +58,15 @@ import assert from "node:assert/strict";
   assert.equal(lensHref({ lens: "corporate" }, "legal_advisor"), "/cases?lens=legal_advisor");
   assert.equal(lensHref({}, "indigenous_gov"), "/cases?lens=indigenous_gov");
 
+  // governance invariant holds for edge inputs (never drops/dupes a case)
+  assert.deepEqual(applyLens([], "corporate"), []);
+  const one = [mk("solo", ["treaty"], 3)];
+  assert.deepEqual(applyLens(one, "legal_advisor").map((x) => x.id), ["solo"]);
+  // duplicate ids: both survive, length preserved
+  const dups = [mk("x", ["treaty"], 1), mk("x", ["land_rights"], 2), mk("y", [], 0)];
+  const outDup = applyLens(dups, "indigenous_gov");
+  assert.equal(outDup.length, 3);
+  assert.deepEqual(outDup.map((c) => c.id).slice().sort(), ["x", "x", "y"]);
+
   console.log("✅ test-cases-lenses passed");
 })().catch((e) => { console.error(e); process.exit(1); });

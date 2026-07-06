@@ -1,7 +1,7 @@
 // Audience lens (spec 2026-07-06, client idea #5). A relevance lens over the SAME
 // corpus: reorders + reframes per audience, never filters or hides (governance:
 // reads open to all). All functions pure.
-import type { LegalCase, Theme } from "./types";
+import type { CourtLevel, LegalCase, Theme } from "./types";
 import type { Session } from "@/lib/auth";
 
 export type Lens = "indigenous_gov" | "legal_advisor" | "corporate";
@@ -50,7 +50,7 @@ export function resolveLens(param: string | undefined, session: Session | null):
 }
 
 // Court-level strength rank (higher = stronger); unknown levels sort last.
-const LEVEL_RANK: Record<string, number> = {
+const LEVEL_RANK: Record<CourtLevel, number> = {
   scc: 6, fca: 5, provincial_appeal: 4, fc: 3, provincial_superior: 2, tribunal: 1,
 };
 
