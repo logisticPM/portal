@@ -37,6 +37,12 @@ const claimLabel: Record<ClaimBasis, string> = {
 const claimStyle: Record<ClaimBasis, string> = {
   self_reported: "border-line text-ink3", statutory: "border-cedar text-cedar", independently_verified: "border-amber text-amber",
 };
+// Defensive: never render a blank category. If a stored value is outside the
+// enum (e.g. a bad extraction), fall back to a humanized version of the raw key
+// ("education_training" → "Education training") instead of undefined.
+const humanize = (k: string) => (k ? k.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "Uncategorized");
+const labelType = (t: string) => typeLabel[t as CommitmentType] ?? humanize(t);
+const labelSector = (s: string) => sectorLabel[s as Sector] ?? humanize(s);
 
 export default async function RapDashboardPage() {
   // gather every commitment via the per-sector slice
@@ -71,8 +77,8 @@ export default async function RapDashboardPage() {
       ? Math.round(((byStatus.get("on_track") ?? 0) + (byStatus.get("met") ?? 0)) / all.length * 100)
       : 0,
   };
-  const sectorData = sectorRows.map((b) => ({ key: b.sector, label: sectorLabel[b.sector], value: b.commitments.length }));
-  const typeData = [...byType.entries()].map(([t, n]) => ({ key: t, label: typeLabel[t], value: n }));
+  const sectorData = sectorRows.map((b) => ({ key: b.sector, label: labelSector(b.sector), value: b.commitments.length }));
+  const typeData = [...byType.entries()].map(([t, n]) => ({ key: t, label: labelType(t), value: n }));
   const statusData = (["met", "on_track", "delayed", "not_started", "missed"] as ProgressStatus[])
     .map((s) => ({ key: s, label: statusLabel[s], value: byStatus.get(s) ?? 0 }));
 
@@ -110,7 +116,7 @@ export default async function RapDashboardPage() {
                   <div className="flex justify-between gap-4 text-sm mb-2">
                     <span className="font-medium">{c.action}</span>
                     <span className="text-ink3 whitespace-nowrap">
-                      {sectorLabel[c.sector]} · {typeLabel[c.commitmentType]}
+                      {labelSector(c.sector)} · {labelType(c.commitmentType)}
                     </span>
                   </div>
                   <div className="text-ink3 text-sm mb-2">

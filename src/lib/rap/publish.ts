@@ -10,16 +10,28 @@ import type {
   ClaimBasis,
   Commitment,
   CommitmentRollup,
+  CommitmentType,
   ExtractedCommitment,
   ExtractedRap,
   ExtractionResult,
   Grounded,
   Observation,
+  Pillar,
   RapDocument,
   RapOrganization,
   Sector,
   SizeBand,
 } from "./types";
+import { COMMITMENT_TYPES, PILLARS, SECTORS } from "./extraction-schema";
+
+// Coerce a raw (possibly model-produced) string to a known enum value, falling
+// back when it's out of range. BDA doesn't hard-enforce the blueprint enums, so
+// e.g. a pillar name ("economy") can leak into commitmentType — this stops any
+// out-of-enum value from reaching the dashboard (where it renders as a blank
+// category). See the "economy" incident on the RBC extraction.
+function oneOf<T extends string>(v: string | null | undefined, allowed: readonly T[], fallback: T): T {
+  return v != null && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
+}
 
 // Pipeline sets Grounded.flagged when confidence < this OR a validation rule
 // fails. The action layer treats any flagged field as "needs a human", so this
@@ -169,7 +181,7 @@ export function buildCanonical(
   },
 ): PublishResult {
   const claimBasis: ClaimBasis = meta.claimBasis ?? "self_reported";
-  const sector = (val(extracted.sector) ?? "other") as Sector;
+  const sector = oneOf<Sector>(val(extracted.sector), SECTORS, "other");
   const orgName = val(extracted.orgName) ?? "Unknown organization";
 
   const org: RapOrganization = {
@@ -209,8 +221,8 @@ export function buildCanonical(
       rapId: ids.rapId,
       orgId: ids.orgId,
       sector,
-      pillar: c.pillarNormalized ?? "other",
-      commitmentType: val(c.commitmentType) ?? "other",
+      pillar: oneOf<Pillar>(c.pillarNormalized, PILLARS, "other"),
+      commitmentType: oneOf<CommitmentType>(val(c.commitmentType), COMMITMENT_TYPES, "other"),
       action: val(c.action) ?? "",
       deliverable: val(c.deliverable) ?? "",
       targetText: val(c.metric),

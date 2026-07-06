@@ -15,13 +15,13 @@
 // ===========================================================================
 import type { CommitmentType, FrameworkRef, Jurisdiction, PairLevel, Pillar, Sector } from "./types";
 
-const SECTORS: Sector[] = [
+export const SECTORS: Sector[] = [
   "mining_extractive", "finance_banking", "telecom", "energy", "government", "retail", "transport", "other",
 ];
-const PILLARS: Pillar[] = [
+export const PILLARS: Pillar[] = [
   "relationships", "respect", "opportunities", "governance", "employment", "community", "environment", "economy", "education", "other",
 ];
-const COMMITMENT_TYPES: CommitmentType[] = [
+export const COMMITMENT_TYPES: CommitmentType[] = [
   "procurement", "employment", "education_training", "cultural_awareness", "community_investment", "governance", "environmental", "partnership", "other",
 ];
 const FRAMEWORK_REFS: FrameworkRef[] = ["undrip", "trc_cta_92", "ocap", "pair", "other"];
