@@ -121,3 +121,16 @@ the court's own number, citation-anchored to a paragraph.
 - **Caveats surfaced in the UI:** nominal amounts across different years (not
   inflation-adjusted); figures are AI-extracted and should be verified against the
   source; the curated `economic` field remains the authoritative record.
+
+## Nations extraction (2026-07-07) — style-of-cause-anchored, verbatim-verified
+
+The `nations` field was empty on all A2AJ-promoted core cases (only 2 curated
+flagships had it), so the `/cases` nation facet was dead. `cases:extract-nations`
+now fills it: an LLM returns the Indigenous **party** nation(s) — usually named in
+the style of cause — and a mechanical verifier keeps a name only if it appears
+verbatim (whitespace/typography-normalized) in the case title or judgment text.
+Only cases with an empty `nations` array are written, so curated nations are never
+overwritten. `nations` is part of the search `metaText`, so the artifact is rebuilt
+after a run (no re-embed — chunks/vectors are unchanged). Precision caveat: verbatim
+presence proves a name is in the record, not that it is the party; the style-of-cause
+anchoring keeps this tight, but residual "mentioned, not party" noise is possible.
