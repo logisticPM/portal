@@ -5,6 +5,7 @@ const TABS = [
   { href: "/organizations", label: "Organizations" },
   { href: "/analytics", label: "Coverage analysis" },
   { href: "/verify", label: "Verification" },
+  { href: "/extract", label: "Extract" },
 ];
 
 export function InstituteNav({ active }: { active: string }) {

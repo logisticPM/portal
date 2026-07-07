@@ -9,7 +9,7 @@ export default async function ExtractPage({ searchParams }: { searchParams: { ta
   const tab = searchParams.tab === "review" ? "review" : "upload";
   return (
     <div className="space-y-6">
-      <InstituteNav active="/commitments" />
+      <InstituteNav active="/extract" />
       <ExtractTabs active={tab} />
       {tab === "upload" ? (
         <div>
