@@ -223,3 +223,56 @@ fabricated (activation economic aggregate unchanged).
 - **Ops (post-merge):** `resource_revenue` core count rises materially from 14,
   with every new label having passed the dual-LLM consensus gate; existing
   full-texted cases are demonstrably untouched; no fabricated figures anywhere.
+
+## Result (2026-07-07)
+
+Ran the full credentialed sequence against the production cloud table
+(`LegalCases`, us-east-1) under rubric `2026-07-06.1`. PR #115 merged first
+(`f885a3a`).
+
+**Headline: `resource_revenue` core 14 → 33 (+19, +136%).**
+
+| Metric | Before | After |
+|---|---|---|
+| `resource_revenue` (core) | 14 | **33** (+19) |
+| Core total | 373 | **452** (+79) |
+| Substrate | ~3,485 | 4,597 |
+| land_rights / duty_to_consult / treaty / fiduciary / self_determination (core) | 233 / 202 / 117 / 65 / 42 | 286 / 227 / 140 / 76 / 47 |
+| Core needs-review (partial LLM agreement) | — | 319 |
+| Embedded chunks (total) | ~39,231 | 72,631 |
+
+Step-by-step:
+
+1. **`cases:harvest-economic`** — 2,651 candidates → **1,564 new substrate**,
+   **1,087 already-present skipped**. The additive-safe conditional write is thus
+   verified in production: not one existing record was overwritten.
+2. **`cases:fetch-fulltext`** (widened rubric) — 3,719 no-fulltext substrate
+   processed; **900 got full text**, **79 promoted to core**; the rest excluded by
+   the unchanged gates — PRISMA `no_indigenous_signal 3,396 · no_economic_theme 70
+   · no_model_consensus 174`. Every promotion passed the dual-LLM consensus gate.
+3. **`cases:embed:bedrock:cloud`** — 33,400 new chunks embedded
+   (`bedrock:amazon.titan-embed-text-v2:0`, dim 1024), 72,631 total; embedder id
+   matches the artifact stamp, so dense retrieval covers the new cases.
+4. **`cases:index-build:cloud`** — rebuilt + uploaded artifact
+   `buildId=1783405236680-6acuq5kn`, cases 5,049, bm25 105.4 MB + vectors 297.6 MB,
+   to `s3://…casesindexbucket…/cases-index/v1/`.
+5. **`cases:datasheet`** — refreshed (table above).
+
+**Governance verification:**
+- **No clobber.** `fetch-fulltext` only lists `tier:"substrate"`, so core was never
+  touched; harvest skipped 1,087 existing records. Arithmetic closes: 373 existing
+  core + 79 new = 452. Existing summaries/labels/vectors intact.
+- **No fabrication.** No monetary `EconomicDimension` value was written anywhere;
+  the activation economic aggregate is unchanged. `resource_revenue` grew purely
+  by labeling real harvested cases.
+
+**Honest caveats:**
+- Only ~900 of the 1,564 new cases had A2AJ full text (the known federal-skewed
+  coverage ceiling), which caps the promotable pool. The +19 lift is genuine but
+  modest in absolute terms — breadth is A2AJ-bounded.
+- The four `ECON_CANDIDATE_SEEDS` and the eight expanded queries remain **candidate
+  methodology pending Kay/expert validation**; 319 core cases carry
+  `needsReview` (partial LLM agreement).
+- Production search serves the previous artifact from memory until the next Web
+  Lambda cold start; the uploaded artifact is picked up automatically then (no
+  redeploy forced here).
