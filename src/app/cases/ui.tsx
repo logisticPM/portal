@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { LegalCase, CaseChunk } from "@/lib/cases";
 import { splitHighlight } from "./highlight";
+import { LENSES, lensConfig, lensHref, type Lens } from "@/lib/cases/lenses";
 
 export function TierBadge({ tier, fullTextAvailable }: { tier: "core" | "substrate"; fullTextAvailable: boolean }) {
   if (tier === "core") return <span className="rounded bg-cedar/15 px-2 py-0.5 text-xs text-cedar">core</span>;
@@ -21,6 +22,33 @@ export function CaseListItem({ c, q }: { c: LegalCase; q: string }) {
         ? <div className="text-sm text-ink2">{c.outcome.holding}</div>
         : c.fullTextAvailable ? <div className="text-sm text-ink3">Full-text judgment — open to read.</div> : null}
     </li>
+  );
+}
+
+export function LensSwitcher({ active, params, searching = false }: { active: Lens; params: Record<string, string | undefined>; searching?: boolean }) {
+  return (
+    <div className="mt-3 rounded border border-line bg-panel px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-ink3">View as</span>
+        {LENSES.map((l) => (
+          <a
+            key={l}
+            href={lensHref(params, l)}
+            aria-current={l === active ? "page" : undefined}
+            className={
+              l === active
+                ? "rounded-full bg-amber/20 px-3 py-1 text-amber"
+                : "rounded-full border border-line px-3 py-1 text-ink2 hover:border-amber/50 hover:text-amber"
+            }
+          >
+            {lensConfig(l).label}
+          </a>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-ink3">
+        {lensConfig(active).tagline} <span className="text-ink3">· {searching ? "The same public record — search results are ranked by relevance; your lens sets the browse order. Anyone can switch; nothing is hidden." : "The same public record, reordered for your context — anyone can switch; nothing is hidden."}</span>
+      </p>
+    </div>
   );
 }
 
