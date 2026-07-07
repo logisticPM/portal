@@ -65,6 +65,18 @@ export function buildFacets(cases: LegalCase[]): Facets {
   };
 }
 
+// The LLM's awarded/ordered label is noisy — a fidelity spot-check (2026-07-07)
+// found contextual recitals (e.g. a mentioned $23.34B settlement Canada "entered
+// into") mislabeled "awarded", which inflated the dashboard ranges. This mechanical
+// gate is the trustworthy signal for aggregation: the quote must carry a grant/order
+// verb AND no background-recital marker. Per-case display is unaffected (readers see
+// every figure with its quote); only the aggregated ranges use this gate.
+const GRANT_RE = /\b(awarded|awarding|granted|ordered to pay|shall pay|to be paid|received|judgment (?:for|of|in the amount)|damages (?:of|in the amount)|compensation of|liable (?:to pay|for)|entitled to|transfer of)\b/i;
+const CONTEXT_RE = /\b(entered into|was advised|has paid|have paid|had paid|committed|provided over|agreement in principle|available|set aside|budget)\b/i;
+export function isCourtGranted(quote: string): boolean {
+  return GRANT_RE.test(quote) && !CONTEXT_RE.test(quote);
+}
+
 export function buildActivation(cases: LegalCase[]): ActivationSummary {
   const byTheme: Partial<Record<Theme, number>> = {};
   const valueRealization: Partial<Record<RealizationStatus, number>> = {};
@@ -87,6 +99,9 @@ export function buildActivation(cases: LegalCase[]): ActivationSummary {
       // Equity is a percentage range; a $-amount mislabeled "equity" (no unit) must
       // not pollute it (would mix "%" and CAD in one range).
       if (fig.kind === "equity" && fig.unit !== "percent") continue;
+      // Mechanical grant gate: the model's role label alone is unreliable, so only
+      // amounts the judgment actually grants (not recited context) enter the ranges.
+      if (!isCourtGranted(fig.quote)) continue;
       addAmount(fig.kind, c.id, fig.amount, fig.unit === "percent" ? "%" : fig.currency);
     }
     if (c.economic?.settlementAmount != null) addAmount("settlement", c.id, c.economic.settlementAmount, "CAD");

@@ -185,3 +185,51 @@ Against the cloud table (`AWS_REGION=us-east-1 CASES_TABLE=LegalCases`):
   citation-anchored figure; the dashboard shows coverage + per-kind ranges with the
   caveat and **no grand total**; a fidelity spot-check finds every displayed figure
   verbatim at its anchor; no fabricated numbers anywhere.
+
+## Result (2026-07-07)
+
+Ran `cases:extract-figures:cloud` over the 452 production core cases (PR #117
+merged, `5071013`). Model `us.meta.llama3-3-70b-instruct-v1:0`. The search
+artifact was **not** rebuilt (figures aren't indexed).
+
+**Extraction:** 143 of 452 core cases carry ≥1 figure; **511 figures** total,
+every one verbatim-verified against the judgment text. By role: contextual 181,
+valuation 127, awarded 131, claimed 69, ordered 3. (35 cases returned unparseable
+JSON twice → no figures, honest.)
+
+**Fidelity spot-check found a real problem, and a fix.** The numbers are all real,
+but the LLM's `role` label is unreliable: it tagged **contextual recitals** as
+"awarded" — e.g. in `2025-fc-561`, *"Canada entered into a $23.34 billion
+settlement…"* (a background mention of the historic FNCFS settlement, not an award
+in that case) and funding-availability amounts (*"was advised that $25.5 million…
+was available"*). Aggregating on the raw role label produced a misleading
+settlement range of **$2.97M–$23.34B**.
+
+**Fix (this branch): a mechanical grant gate** (`isCourtGranted`, query.ts) — a
+figure enters the ranges only if its quote carries a grant/order verb AND no
+background-recital marker. Verification already guaranteed the *number*; this gates
+the *classification* mechanically instead of trusting the model. Effect:
+
+| | raw role label | + grant gate |
+|---|---|---|
+| cases in aggregation | 57 | **24** |
+| settlement range | $2.97M–**$23.34B** | $2.97M–**$14M** (median $8.49M) |
+
+**Final gated dashboard aggregation (24 of 452 cases):**
+- settlement — 2 cases · $2.97M–$14M (median $8.49M)
+- compensation — 12 cases · $325–$34.18M (median $58.4K)
+- damages — 3 cases · $1K–$150K (median $50K)
+- resource_revenue — 1 case · $6.8M
+- equity — 2 cases · 1.7%–50% (median 25.85%)
+- other — 7 cases · $700–$850K (median $20K)
+
+**Governance confirmed:** every figure is verbatim-real (no fabrication); no
+cross-case or cross-kind total anywhere; contextual/claimed/valuation figures are
+excluded from ranges but still shown per-case with their quotes so a reader can
+judge. Curated `economic` remains authoritative and separate.
+
+**Known limitations:** role classification is model-assigned (the grant gate is a
+heuristic, not perfect — a genuine award phrased unusually can be dropped, and a
+recital using a grant verb could slip through); ~8% of cases yield unparseable JSON
+and get no figures; amounts are nominal across years. A curator (Kay) pass could
+promote high-value figures to the authoritative `economic` layer.
