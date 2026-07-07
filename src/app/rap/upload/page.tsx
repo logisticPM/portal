@@ -4,7 +4,7 @@
 // queue; anything else auto-publishes). The real build adds a file input that
 // uploads to S3 first and passes the key.
 import Link from "next/link";
-import { UploadForm } from "./UploadForm";
+import { UploadForm } from "@/app/extract/UploadForm";
 
 export const dynamic = "force-dynamic";
 
