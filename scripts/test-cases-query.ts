@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { caseFixtures } from "../src/lib/cases/query"; // re-exported for convenience
-import { filterCases, searchCases, buildFacets, buildActivation, buildGraph } from "../src/lib/cases/query";
+import { filterCases, searchCases, buildFacets, buildActivation, buildGraph, isCourtGranted } from "../src/lib/cases/query";
 
 const all = caseFixtures;
 
@@ -30,21 +30,28 @@ assert.equal(a.totalCases, 4, "4 cases");
 assert.equal(a.valueRealization.realized, 2, "2 realized");
 assert.ok(a.landmarkCases.length > 0, "has landmark cases");
 
-// economicFigures: per-kind ranges from awarded/ordered figures, one amount per case, no sums
+// isCourtGranted: grant/order verb required, background recital excluded (fidelity 2026-07-07)
+assert.equal(isCourtGranted("the court is awarding the appellants $30 million"), true, "grant verb kept");
+assert.equal(isCourtGranted("ordered to pay $40,000 in costs"), true, "order verb kept");
+assert.equal(isCourtGranted("Canada entered into a $23.34 billion settlement"), false, "contextual recital excluded");
+assert.equal(isCourtGranted("was advised that $25.5 million in funding was available"), false, "funding availability excluded");
+assert.equal(isCourtGranted("the reserve covers 2,589 square kilometres"), false, "no grant verb excluded");
+
+// economicFigures: per-kind ranges from court-granted awarded/ordered figures, one amount per case, no sums
 const ef = buildActivation([
   { ...caseFixtures[0], id: "f1", extractedFigures: [
-    { raw: "$10", amount: 10, currency: "CAD", kind: "settlement", role: "awarded", quote: "$10", sourceParagraph: "para-1", sourceUrl: "u" },
-    { raw: "$40", amount: 40, currency: "CAD", kind: "settlement", role: "awarded", quote: "$40", sourceParagraph: "para-1", sourceUrl: "u" },
-    { raw: "$999", amount: 999, currency: "CAD", kind: "settlement", role: "claimed", quote: "$999", sourceParagraph: "para-1", sourceUrl: "u" },
+    { raw: "$10", amount: 10, currency: "CAD", kind: "settlement", role: "awarded", quote: "the court awarded $10", sourceParagraph: "para-1", sourceUrl: "u" },
+    { raw: "$40", amount: 40, currency: "CAD", kind: "settlement", role: "awarded", quote: "the court awarded $40", sourceParagraph: "para-1", sourceUrl: "u" },
+    { raw: "$999", amount: 999, currency: "CAD", kind: "settlement", role: "claimed", quote: "the plaintiff claimed $999", sourceParagraph: "para-1", sourceUrl: "u" },
   ] },
   { ...caseFixtures[1], id: "f2", extractedFigures: [
-    { raw: "$20", amount: 20, currency: "CAD", kind: "settlement", role: "ordered", quote: "$20", sourceParagraph: "para-1", sourceUrl: "u" },
+    { raw: "$20", amount: 20, currency: "CAD", kind: "settlement", role: "ordered", quote: "ordered to pay $20", sourceParagraph: "para-1", sourceUrl: "u" },
   ] },
 ]).economicFigures;
 assert.equal(ef.totalCases, 2, "denominator = cases passed");
-assert.equal(ef.casesWithFigures, 2, "both cases have an awarded/ordered figure");
+assert.equal(ef.casesWithFigures, 2, "both cases have a court-granted figure");
 assert.equal(ef.byKind.settlement?.countCases, 2, "one amount per case");
-assert.equal(ef.byKind.settlement?.max, 40, "case f1 keeps its largest awarded (40, not the claimed 999)");
+assert.equal(ef.byKind.settlement?.max, 40, "case f1 keeps its largest granted (40, not the claimed 999)");
 assert.equal(ef.byKind.settlement?.min, 20);
 assert.equal(ef.byKind.settlement?.median, 30, "median of [20,40]");
 assert.equal(ef.byKind.settlement?.unit, "CAD");
@@ -52,11 +59,11 @@ assert.equal((ef as any).settlement, undefined, "no flat cross-case total field"
 
 // byKind key order is deterministic regardless of input case order (dynamo≡mock parity)
 const cA = { ...caseFixtures[0], id: "A", extractedFigures: [
-  { raw: "$5", amount: 5, currency: "CAD", kind: "settlement" as const, role: "awarded" as const, quote: "$5", sourceParagraph: "para-1", sourceUrl: "u" },
-  { raw: "$7", amount: 7, currency: "CAD", kind: "damages" as const, role: "awarded" as const, quote: "$7", sourceParagraph: "para-1", sourceUrl: "u" },
+  { raw: "$5", amount: 5, currency: "CAD", kind: "settlement" as const, role: "awarded" as const, quote: "awarded $5", sourceParagraph: "para-1", sourceUrl: "u" },
+  { raw: "$7", amount: 7, currency: "CAD", kind: "damages" as const, role: "awarded" as const, quote: "awarded $7 in damages", sourceParagraph: "para-1", sourceUrl: "u" },
 ] };
 const cB = { ...caseFixtures[1], id: "B", extractedFigures: [
-  { raw: "$3", amount: 3, currency: "CAD", kind: "damages" as const, role: "awarded" as const, quote: "$3", sourceParagraph: "para-1", sourceUrl: "u" },
+  { raw: "$3", amount: 3, currency: "CAD", kind: "damages" as const, role: "awarded" as const, quote: "awarded $3 in damages", sourceParagraph: "para-1", sourceUrl: "u" },
 ] };
 assert.equal(
   JSON.stringify(buildActivation([cA, cB]).economicFigures.byKind),
@@ -66,8 +73,8 @@ assert.equal(
 // equity guard: a $-amount mislabeled equity (no unit) is excluded from the percent range
 const eqGuard = buildActivation([
   { ...caseFixtures[0], id: "eq1", extractedFigures: [
-    { raw: "$500,000", amount: 500000, currency: "CAD", kind: "equity", role: "awarded", quote: "$500,000", sourceParagraph: "para-1", sourceUrl: "u" },
-    { raw: "30%", amount: 30, currency: "CAD", unit: "percent", kind: "equity", role: "awarded", quote: "30%", sourceParagraph: "para-1", sourceUrl: "u" },
+    { raw: "$500,000", amount: 500000, currency: "CAD", kind: "equity", role: "awarded", quote: "awarded $500,000", sourceParagraph: "para-1", sourceUrl: "u" },
+    { raw: "30%", amount: 30, currency: "CAD", unit: "percent", kind: "equity", role: "awarded", quote: "awarded a 30% equity stake", sourceParagraph: "para-1", sourceUrl: "u" },
   ] },
 ]).economicFigures;
 assert.equal(eqGuard.byKind.equity?.unit, "%", "equity range is percent-only");
