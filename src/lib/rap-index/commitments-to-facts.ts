@@ -21,7 +21,7 @@ export function commitmentsToFacts(commitments: Commitment[]): Fact[] {
     orgName: c.orgName,
     sector: c.sector as Fact["sector"],
     sizeBand: SIZE_BAND[c.orgSize] ?? "unknown",
-    region: "",
+    region: "—",
     jurisdiction: "CA" as Fact["jurisdiction"],
     rapId: c.id,
     rapTitle: c.title,

@@ -19,6 +19,10 @@ export async function ReviewPanel() {
         </p>
       </div>
 
+      <p className="text-ink3 text-sm">
+        {jobs.length} flagged {jobs.length === 1 ? "document" : "documents"} awaiting review
+      </p>
+
       {jobs.length === 0 && (
         <div className="bg-panel rounded border border-line p-8 text-center text-ink3">
           Nothing to review — the queue is clear.

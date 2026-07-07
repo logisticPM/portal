@@ -11,8 +11,6 @@ function isPublic(path: string): boolean {
     path === "/login" ||
     path === "/register" || // anyone registers before they have an account
     path.startsWith("/s/") || // public verified-supplier showcase
-    path === "/rap" || // public RAP Index dashboard (upload/review are gated below)
-    path === "/rap/explore" || // public exploratory dashboard (part of the RAP Index)
     path.startsWith("/api/") ||
     path.startsWith("/_next/") ||
     path === "/favicon.ico"
@@ -24,7 +22,7 @@ const COMPANY_ONLY = ["/report", "/coverage", "/my-commitments"];
 const SUPPLIER_ONLY = ["/confirm", "/record", "/profile"];
 // RAP submission + extraction QA are the curator's (Indigenomics) tools — the
 // public sees only the /rap dashboard. (Self-serve org upload is a later mode.)
-const INDIGENOMICS_ONLY = ["/verify", "/organizations", "/rap/upload", "/rap/review"];
+const INDIGENOMICS_ONLY = ["/verify", "/organizations", "/extract"];
 
 const hits = (path: string, prefixes: string[]) =>
   prefixes.some((p) => path === p || path.startsWith(p + "/"));

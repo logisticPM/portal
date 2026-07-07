@@ -9,9 +9,12 @@ const RAP_SECTORS: Sector[] = [
   "mining_extractive", "finance_banking", "telecom", "energy", "government", "retail", "transport", "other",
 ];
 
-// Single seam both the RAP Index and Explore read through. Flag default keeps
-// us on the seeded commitments domain; flip RAP_INDEX_SOURCE=rap at the
-// corpus-plan cutover (docs/rap-index-grounded-corpus-plan.md).
+// Explore reads its facts through this seam; the Table page (/commitments/page.tsx)
+// reads the commitments domain directly today. Both show the same domain now — the
+// flag default keeps Explore on the seeded commitments domain — and
+// RAP_INDEX_SOURCE governs Explore's source; flip it to "rap" at the
+// corpus-plan cutover (docs/rap-index-grounded-corpus-plan.md). A full cutover
+// will also need the Table page to move onto this seam.
 export async function getIndexFacts(): Promise<Fact[]> {
   if (process.env.RAP_INDEX_SOURCE === "rap") {
     const perSector = await Promise.all(RAP_SECTORS.map((s) => rapRepo.listCommitmentsBySector(s)));
