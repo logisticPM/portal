@@ -104,6 +104,15 @@ export function itemToCase(it: any): LegalCase {
       },
     } : {}),
     ...(d.summaryMeta !== undefined ? { summaryMeta: d.summaryMeta } : {}),
+    ...(d.extractedFigures !== undefined ? {
+      extractedFigures: d.extractedFigures.map((fig: any) => ({
+        raw: fig.raw, amount: fig.amount, currency: fig.currency,
+        ...(fig.unit !== undefined ? { unit: fig.unit } : {}),
+        kind: fig.kind, role: fig.role, quote: fig.quote,
+        sourceParagraph: fig.sourceParagraph, sourceUrl: fig.sourceUrl,
+      })),
+    } : {}),
+    ...(d.figuresMeta !== undefined ? { figuresMeta: d.figuresMeta } : {}),
     ...(d.chunks !== undefined ? {
       chunks: d.chunks.map((ch: any) => ({ paragraph: ch.paragraph, text: ch.text })),
     } : {}),

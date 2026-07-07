@@ -42,6 +42,13 @@ const kitchenSink: Required<LegalCase> = {
     { text: "A citation-anchored claim.", sourceParagraph: "para-1", sourceUrl: "https://example.org/kitchen-sink" },
   ] },
   summaryMeta: { method: "llm", model: "us.meta.llama3-3-70b-instruct-v1:0", generatedAt: "2026-07-04T00:00:00.000Z", claimsDropped: 2 },
+  extractedFigures: [
+    { raw: "$1,000,000", amount: 1_000_000, currency: "CAD", kind: "settlement", role: "awarded",
+      quote: "ordered to pay $1,000,000 in damages", sourceParagraph: "para-2", sourceUrl: "https://example.org/kitchen-sink" },
+    { raw: "51%", amount: 51, currency: "CAD", unit: "percent", kind: "equity", role: "ordered",
+      quote: "a 51% equity stake in the project", sourceParagraph: "para-2", sourceUrl: "https://example.org/kitchen-sink" },
+  ],
+  figuresMeta: { method: "llm", model: "us.meta.llama3-3-70b-instruct-v1:0", generatedAt: "2026-07-07T00:00:00.000Z", dropped: 1 },
   chunks: [
     { paragraph: "para-1", text: "A citation-anchored claim appears here in full." },
     { paragraph: "para-2", text: "A second paragraph of judgment text." },

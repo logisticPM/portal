@@ -41,6 +41,30 @@ export interface EconomicDimension {
   economicSummary: string;
 }
 
+export type FigureKind = "settlement" | "compensation" | "damages" | "resource_revenue" | "equity" | "other";
+export type FigureRole = "awarded" | "ordered" | "claimed" | "valuation" | "contextual";
+
+export interface ExtractedFigure {
+  raw: string;              // verbatim as it appears, e.g. "$30 million", "51%"
+  amount: number;           // deterministically parsed from raw
+  currency: string;         // "CAD" default; "USD" if the judgment says so
+  unit?: "percent";         // set for equity stakes expressed as a percentage
+  kind: FigureKind;
+  role: FigureRole;
+  quote: string;            // clause containing raw, verbatim and verified in the text
+  sourceParagraph: string;
+  sourceUrl: string;
+}
+
+export interface FiguresMeta { method: "llm"; model: string; generatedAt: string; dropped: number; }
+
+export interface FigureRange { countCases: number; min: number; median: number; max: number; unit: string; }
+export interface EconomicFigures {
+  totalCases: number;
+  casesWithFigures: number;
+  byKind: Partial<Record<FigureKind, FigureRange>>;
+}
+
 export type RealizationStatus = "declared" | "negotiating" | "realized" | "stalled" | "unknown";
 export interface ValueRealization { status: RealizationStatus; note: string; asOf: string; }
 
@@ -74,6 +98,8 @@ export interface LegalCase {
   valueRealization?: ValueRealization;
   summary?: CitationAnchored;
   summaryMeta?: SummaryMeta;
+  extractedFigures?: ExtractedFigure[];
+  figuresMeta?: FiguresMeta;
   chunks?: CaseChunk[];
   casesCited: string[];   // citation strings
   casesCiting: string[];  // citation strings
