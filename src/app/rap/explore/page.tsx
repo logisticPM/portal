@@ -6,7 +6,7 @@ import Link from "next/link";
 import { rapRepo } from "@/lib/rap";
 import type { Sector } from "@/lib/rap";
 import { buildFacts } from "@/lib/rap/analytics";
-import { ExploreClient } from "./ExploreClient";
+import { ExploreClient } from "@/app/commitments/explore/ExploreClient";
 
 export const dynamic = "force-dynamic";
 
