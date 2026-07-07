@@ -16,12 +16,14 @@ Replace the illustrative `/commitments` page with one sourced from the **grounde
 |---|---|
 | Grounded commitments (pipeline-extracted, human-reviewed) | **≥ 80** |
 | Distinct organizations | **≥ 40** |
-| Sectors represented (rap taxonomy) | **≥ 6 of 8** |
+| Sectors represented (expanded rap taxonomy, §4) | **≥ 6** |
 | Rows with a verified `source {quote, page}` | **100%** of shown rows |
 | Rows with fabricated/empty grounding | **0** (hard rule) |
 | Feature parity with current `main` page | risk + insights + integrity + export + search all working on rap types |
 
 Rationale: 80/40 keeps us near the current 106/100 density so the page doesn't read as thin, while never showing an ungrounded row. Below the gate, `main` stays live.
+
+**Isolation strategy (decided 2026-07-07):** the grounded work must not reach users until it clears the gate. Mechanism: the **code** lands on `main` incrementally behind the `RAP_INDEX_SOURCE` flag (default `commitments`, so it is dormant/invisible in prod), and the **grounded data accumulates in a dedicated non-prod SST stage** until it hits 80/40 — then flip the flag on prod. This is preferred over a long-lived git branch (which drifts hard against a very active `main`). A literal integration branch is an acceptable fallback if the team prefers, at the cost of regular rebasing.
 
 **Non-negotiable:** we do **not** transcode `DATA_VERIFICATION.md`'s illustrative rows into the rap schema to pad the count — that fabricates grounding and defeats the purpose. Illustrative data may remain only behind the existing `@/lib/commitments` page until cutover.
 
@@ -46,7 +48,7 @@ Rationale: 80/40 keeps us near the current 106/100 density so the page doesn't r
 **Exit:** flag exists; dashboard shows the 3-PDF / ~25-row starting point.
 
 ### Phase 1 — Corpus acquisition (2–3 wk, the long pole)
-Turn `DATA_VERIFICATION.md`'s 100-org inventory into feedable source documents. Track every org in an acquisition sheet: `org · sector · source type (PDF | web | statutory) · URL · acquired? · pages`.
+Turn `DATA_VERIFICATION.md`'s 100-org inventory into feedable source documents. **The illustrative rows are the worklist** — each already carries the public **source URL** it was drawn from, so acquisition = "for each illustrative row, fetch its source (PDF or web page) and grind it into a grounded row." Track every org in an acquisition sheet: `org · sector · source type (PDF | web | statutory) · URL · acquired? · pages`.
 
 - [ ] **PDF-first orgs** — download the org's actual RAP/reconciliation PDF (start with the ~6 in §4). Target: 25–35 clean PDFs.
 - [ ] **Web-only orgs** (Enbridge IRAP, TELUS, Agnico narrative, …) — build an **HTML→document capture path**: scrape the micro-site to clean text/PDF, preserving page/section anchors so grounding still points somewhere verifiable. This is the structural blocker §4 calls out; budget real time for it.
@@ -57,7 +59,7 @@ Turn `DATA_VERIFICATION.md`'s 100-org inventory into feedable source documents. 
 
 ### Phase 2 — Pipeline hardening (1.5 wk, parallel with Ph.1)
 - [ ] **Image-heavy PDFs** (RBC-class): confirm OCR/vision extraction path works end-to-end; RBC is the canonical stress test.
-- [ ] **Web-page ingestion**: a normalized "document" adapter so HTML captures flow through the same extract→ground→review path as PDFs, with a synthetic but stable `page`/anchor.
+- [ ] **Web-page ingestion (HTML-capture adapter — decided: build now)**: web RAPs aren't images, so they need **no OCR**. Fetch + clean the page to text and feed it **straight into the Bedrock tool-use core** (`pipeline.bedrock.ts`'s `CLAUDE_TOOL` / `EXTRACTION_SYSTEM` / `validateAndFlag`), **skipping Textract**. Reuse the verbatim-quote grounding; swap the PDF `page` anchor for a stable section/heading anchor. This is a small adapter over the existing engine, not a new pipeline. (BDA — `pipeline.bda.ts` — stays the PDF-native path; the `ca` stage already runs the Bedrock engine in-region.)
 - [ ] **Grounding QA**: reject/flag any extracted commitment whose `source.quote` doesn't verify against the source text (reuse the quote-verifier pattern already in the cases pipeline). Zero ungrounded rows is a hard gate.
 - [ ] **Statutory adapter**: map ISC 5% / ESTMA rows → rap `Commitment` with `claimBasis: statutory` and a source anchor to the dataset row.
 
@@ -131,9 +133,21 @@ Port `main`'s page capabilities so the cutover loses nothing:
 
 ---
 
-## 7. Open decisions for the team
+## 7. Decisions (resolved 2026-07-07, Nate)
 
-1. **Gate numbers** — is 80/40 the right "credible" bar, or ship at a thinner 60/30 first?
-2. **Web-only orgs** — build the HTML-capture adapter now, or defer those orgs and lean on statutory sources for volume?
-3. **Sector enum** — expand rap `Sector` to ~15, or adopt a coarser grouping and accept some `"other"`?
-4. **Illustrative data** — retire entirely, or keep behind a `demo` flag for screenshots/marketing?
+1. **Gate numbers — 80/40 confirmed** as the starting bar. Build toward it in isolation and do **not** let a half-built grounded page reach `main`/prod before the gate (mechanism in §1 "Isolation strategy": flag-dormant code on `main` + grounded data in a non-prod stage; a side branch is the fallback).
+2. **Web-only orgs — build the HTML-capture adapter now** (do not defer). Not all RAPs are PDFs; BDA is PDF-only, so we need a non-BDA path. Implementation: route cleaned HTML text through the existing Bedrock tool-use core, skipping Textract (Phase 2).
+3. **Sector enum — expand to 15+.** Cover the real distribution rather than collapsing to `"other"`. Accept the mechanical cost (blueprint enum + coercion fallbacks + label maps).
+4. **Illustrative data — keep (do not retire).** It is genuinely sourced (web pages, just not PDFs) and stays behind the existing commitments page as demo/fallback **and** as the acquisition worklist (each row's source URL is the target the HTML adapter grounds). Retire only after cutover, if at all.
+
+## 8. Provenance ≠ grounding ≠ confirmation (team alignment)
+
+A recurring confusion to head off: **a source URL is not supplier confirmation.** Three independent axes:
+
+| Axis | Question | Satisfied by | Where it lives |
+|---|---|---|---|
+| **Provenance** | Does the claim trace to a real source? | `DATA_VERIFICATION.md` source URLs → "self-reported **with citation**" | `source {label,url}` / `source {quote,page}` |
+| **Grounding** | Is the extracted figure faithful to that source? | pipeline quote+page anchoring + `validateAndFlag` | rap extraction |
+| **Confirmation** | Is the claim actually **true** — did the counterparty attest? | a **confirmation record** (supplier/Nation confirms/disputes) or a supplier-side dataset (CCIB/PAIR, ISC 5%, Nation records) | `claimBasis: independently_verified` → `confirmed` status |
+
+Marking sources satisfies **provenance only**. The `DATA_VERIFICATION.md §1` fix-list (Suncor "63 sites", Enbridge cumulative-vs-annual, etc.) shows well-sourced figures that are still wrong/misleading — **source ≠ truth**. "Supplier-confirmed" requires the *other side of the transaction* to attest, which is exactly the layer the portal exists to add and why the fixtures deliberately cap at `reported` / 0% confirmed. **Confirmation is a product to build, not a field a citation grants** — a separate track from this corpus effort, and not part of the 80/40 grounding gate.
