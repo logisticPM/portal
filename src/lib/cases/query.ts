@@ -84,6 +84,9 @@ export function buildActivation(cases: LegalCase[]): ActivationSummary {
     if (st) valueRealization[st] = (valueRealization[st] ?? 0) + 1;
     for (const fig of c.extractedFigures ?? []) {
       if (fig.role !== "awarded" && fig.role !== "ordered") continue;
+      // Equity is a percentage range; a $-amount mislabeled "equity" (no unit) must
+      // not pollute it (would mix "%" and CAD in one range).
+      if (fig.kind === "equity" && fig.unit !== "percent") continue;
       addAmount(fig.kind, c.id, fig.amount, fig.unit === "percent" ? "%" : fig.currency);
     }
     if (c.economic?.settlementAmount != null) addAmount("settlement", c.id, c.economic.settlementAmount, "CAD");
@@ -103,7 +106,9 @@ export function buildActivation(cases: LegalCase[]): ActivationSummary {
     const median = amounts.length % 2 ? amounts[mid] : (amounts[mid - 1] + amounts[mid]) / 2;
     byKind[kind] = { countCases: m.size, min: amounts[0], max: amounts[amounts.length - 1], median, unit: kindUnit.get(kind) ?? "CAD" };
   }
-  const economicFigures: EconomicFigures = { totalCases: cases.length, casesWithFigures: casesWith.size, byKind };
+  // sortKeys: deterministic byKind ordering so JSON.stringify matches across mock and
+  // dynamo (Scan order is not guaranteed) — the dynamo≡mock parity check depends on it.
+  const economicFigures: EconomicFigures = { totalCases: cases.length, casesWithFigures: casesWith.size, byKind: sortKeys(byKind) };
   return {
     totalCases: cases.length,
     byTheme: sortKeys(byTheme),
