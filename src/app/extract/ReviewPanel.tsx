@@ -3,30 +3,25 @@
 // shows its grounding (verbatim quote + page); flagged fields are highlighted so
 // the reviewer's eye goes straight to what the AI was unsure about. This is
 // extraction QA, NOT Indigenomics truth-verification.
-import Link from "next/link";
 import { extractionRepo } from "@/lib/rap";
 import { confirmExtractionAction, rejectExtractionAction } from "@/lib/rap/actions";
 import type { ExtractedRap, Grounded } from "@/lib/rap";
 
-export const dynamic = "force-dynamic";
-
-export default async function ReviewQueuePage() {
+export async function ReviewPanel() {
   const jobs = await extractionRepo.listByStatus("PENDING_REVIEW");
 
   return (
     <div className="space-y-8">
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · Extraction QA</div>
-          <h1 className="font-serif text-3xl">
-            Review queue <span className="text-ink3 text-base">— {jobs.length} flagged {jobs.length === 1 ? "document" : "documents"}</span>
-          </h1>
-          <p className="text-ink3 text-sm mt-1">
-            Confirm the AI read each document correctly. Clean, high-confidence extractions publish automatically and never appear here.
-          </p>
-        </div>
-        <Link href="/rap" className="px-3 py-2 rounded border border-line text-sm">← Dashboard</Link>
+      <div>
+        <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · Extraction QA</div>
+        <p className="text-ink3 text-sm mt-1">
+          Confirm the AI read each document correctly. Clean, high-confidence extractions publish automatically and never appear here.
+        </p>
       </div>
+
+      <p className="text-ink3 text-sm">
+        {jobs.length} flagged {jobs.length === 1 ? "document" : "documents"} awaiting review
+      </p>
 
       {jobs.length === 0 && (
         <div className="bg-panel rounded border border-line p-8 text-center text-ink3">

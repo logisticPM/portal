@@ -51,7 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </a>
           <div className="flex items-center gap-4 text-xs">
             <span className="uppercase tracking-[0.18em] text-ink3">demo · {process.env.NEXT_PUBLIC_DATA_LABEL ?? "synthetic data"}</span>
-            <a href="/rap" className="text-ink2 hover:text-ink">
+            <a href="/commitments" className="text-ink2 hover:text-ink">
               RAP Index
             </a>
             <a href="/cases" className="text-ink2 hover:text-ink">

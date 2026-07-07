@@ -5,6 +5,7 @@ import Link from "next/link";
 import { commitmentsRepo, computeRisk, buildInsights, confirmationIntegrity } from "@/lib/commitments";
 import type { CommitmentStatus, CommitmentType, OrgSize, RapType, Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
+import { RapIndexTabs } from "@/components/RapIndexTabs";
 import { CommitmentSearch } from "./CommitmentSearch";
 import { PageJump } from "./PageJump";
 import { FilterRow } from "@/components/FilterRow";
@@ -280,6 +281,7 @@ export default async function CommitmentsPage({
   return (
     <div className="space-y-8">
       <InstituteNav active="/commitments" />
+      <RapIndexTabs active="table" />
 
       <div>
         <h1 className="font-serif text-3xl">

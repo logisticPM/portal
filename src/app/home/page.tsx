@@ -90,8 +90,8 @@ export default async function HomePage() {
         <Stat value={String(pending.length)} label="certification claims pending review" />
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
-        <LinkCard href="/rap" title="RAP Index — submitted plans →" desc="Upload RAPs (AI extraction); commitments by sector, size & type; progress over time." />
-        <LinkCard href="/rap/review" title="Extraction review queue →" desc="QA flagged AI extractions before they publish." />
+        <LinkCard href="/extract?tab=upload" title="Submit a RAP — AI extraction →" desc="Upload a published RAP PDF; AI extracts commitments for review before they publish." />
+        <LinkCard href="/extract?tab=review" title="Extraction review queue →" desc="QA flagged AI extractions before they publish." />
         <LinkCard href="/commitments" title="Commitments dashboard →" desc="RAP commitments by sector, size & type, tracked over time." />
         <LinkCard href="/analytics" title="RAP analysis →" desc="The Index: coverage, by flow, by tier, integrity signals." />
         <LinkCard href="/verify" title="Verification queue →" desc="Review pending supplier certification claims." />

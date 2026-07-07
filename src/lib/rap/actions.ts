@@ -2,11 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { extractionRepo, rapRepo } from "./index";
-import { computeRollup } from "./rollup";
+import { extractionRepo } from "./index";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
 import { contentTypeFor, isUploadConfigured, putDocument, uploadKey } from "./storage";
-import type { Observation, ProgressStatus } from "./types";
 
 const uuid = () => globalThis.crypto.randomUUID();
 
@@ -65,19 +63,19 @@ export async function uploadRapAction(formData: FormData) {
     } catch (e) {
       await extractionRepo.markFailed(job.id, `extractor invoke failed: ${e instanceof Error ? e.message : String(e)}`);
     }
-    revalidatePath("/rap/review");
-    redirect("/rap/review");
+    revalidatePath("/extract");
+    redirect("/extract?tab=review");
   }
 
   // SYNC path (local dev / mock — fast): run inline. redirect() throws
   // NEXT_REDIRECT, so it runs AFTER stageExtraction (which never throws).
   const outcome = await stageExtraction({ jobId: job.id, fileName, sourceS3Key });
   if (outcome.status === "published") {
-    revalidatePath("/rap");
-    redirect("/rap"); // auto-published → dashboard
+    revalidatePath("/commitments");
+    redirect("/commitments"); // auto-published → dashboard
   }
-  revalidatePath("/rap/review");
-  redirect("/rap/review"); // flagged or failed → review queue
+  revalidatePath("/extract");
+  redirect("/extract?tab=review"); // flagged or failed → review queue
 }
 
 // Human approves a flagged extraction. `reviewedBy` identifies the admin/org
@@ -92,35 +90,9 @@ export async function confirmExtractionAction(formData: FormData) {
   if (!job || !job.extracted) return;
 
   await publishAndConfirm(job, job.extracted, reviewedBy);
-  revalidatePath("/rap");
-  revalidatePath("/rap/review");
-  redirect("/rap");
-}
-
-// Record a progress observation against a commitment, then recompute its rollup.
-// Recomputing here keeps local/mock consistent (no Streams Lambda locally); the
-// deployed Streams Lambda also recomputes the same rollup — idempotent.
-export async function recordProgressAction(formData: FormData) {
-  const commitId = String(formData.get("commitId") ?? "").trim();
-  const status = String(formData.get("status") ?? "").trim() as ProgressStatus;
-  if (!commitId || !status) return;
-
-  const rawValue = String(formData.get("observedValue") ?? "").trim();
-  const observedValue = rawValue === "" ? null : Number(rawValue);
-
-  const obs: Observation = {
-    commitId,
-    observedAt: new Date().toISOString(),
-    status,
-    observedValue: observedValue === null || Number.isNaN(observedValue) ? null : observedValue,
-    note: String(formData.get("note") ?? "").trim() || null,
-    recordedBy: String(formData.get("recordedBy") ?? "admin").trim(),
-  };
-  await rapRepo.putObservation(obs);
-  await rapRepo.putRollup(computeRollup(commitId, await rapRepo.listObservations(commitId)));
-
-  revalidatePath("/rap");
-  redirect("/rap");
+  revalidatePath("/commitments");
+  revalidatePath("/extract");
+  redirect("/commitments");
 }
 
 export async function rejectExtractionAction(formData: FormData) {
@@ -130,6 +102,6 @@ export async function rejectExtractionAction(formData: FormData) {
   if (!jobId) return;
 
   await extractionRepo.rejectJob(jobId, reviewedBy, reason);
-  revalidatePath("/rap/review");
-  redirect("/rap/review");
+  revalidatePath("/extract");
+  redirect("/extract?tab=review");
 }
