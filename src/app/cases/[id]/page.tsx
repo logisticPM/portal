@@ -68,6 +68,29 @@ export default async function CaseDetail({
         </section>
       )}
 
+      {c.extractedFigures && c.extractedFigures.length > 0 && (
+        <section className="mt-4">
+          <h2 className="font-serif text-lg">
+            Recorded economic figures <span className="text-xs font-sans font-normal text-ink3">(citation-anchored)</span>
+            {c.figuresMeta?.method === "llm" && (
+              <span className="ml-2 rounded bg-amber/15 px-2 py-0.5 text-xs font-sans font-normal text-amber">AI-extracted · verify against source</span>
+            )}
+          </h2>
+          <ul className="mt-1 space-y-2 text-sm text-ink2">
+            {c.extractedFigures.map((f, i) => (
+              <li key={i} className="rounded border border-line bg-panel px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-serif">{f.raw}</span>
+                  <span className="rounded border border-line bg-ink/5 px-2 py-0.5 text-xs">{f.kind.replace(/_/g, " ")} · {f.role}</span>
+                </div>
+                <p className="mt-1 text-xs text-ink3">&ldquo;{f.quote}&rdquo; <span className="text-ink3">({f.sourceParagraph})</span></p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs text-ink3">Figures as recorded in the judgment — the court&rsquo;s own numbers, not estimates. Verify against the source text.</p>
+        </section>
+      )}
+
       {!c.outcome.holding && !c.fullTextAvailable && (
         <p className="mt-4 rounded border border-line bg-ink/5 px-3 py-2 text-sm text-ink3">
           Not yet curated, and no full text is available for this record. See the official source below.

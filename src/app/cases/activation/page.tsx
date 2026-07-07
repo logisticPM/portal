@@ -11,7 +11,7 @@ export default async function ActivationPage({ searchParams }: { searchParams: R
   const themes = Object.entries(s.byTheme);
   const maxTheme = Math.max(1, ...themes.map(([, n]) => n));
   const real = s.valueRealization;
-  const ev = s.economicValue;
+  const ef = s.economicFigures;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -26,12 +26,20 @@ export default async function ActivationPage({ searchParams }: { searchParams: R
       </div>
 
       <section className="mt-6">
-        <h2 className="font-serif text-lg">Economic value <span className="text-xs font-sans font-normal text-ink3">(recorded across core cases)</span></h2>
-        <div className="mt-2 grid grid-cols-3 gap-3">
-          <StatCard label="settlements" value={cad(ev.settlement)} />
-          <StatCard label="resource revenue" value={cad(ev.resourceRevenue)} />
-          <StatCard label="equity stake %" value={ev.equity} />
+        <h2 className="font-serif text-lg">Recorded economic figures <span className="text-xs font-sans font-normal text-ink3">(as recorded in the judgments)</span></h2>
+        <p className="mt-1 text-sm text-ink3">Figures recorded in {ef.casesWithFigures} of {ef.totalCases} core cases.</p>
+        <div className="mt-2 space-y-1 text-sm">
+          {Object.entries(ef.byKind).map(([kind, r]) => (
+            <div key={kind} className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+              <span className="capitalize">{kind.replace(/_/g, " ")} <span className="text-ink3">· {r.countCases} case{r.countCases === 1 ? "" : "s"}</span></span>
+              <span className="text-ink2">
+                {r.unit === "%" ? `${r.min}–${r.max}% (median ${r.median}%)` : `${cad(r.min)}–${cad(r.max)} (median ${cad(r.median)})`}
+              </span>
+            </div>
+          ))}
+          {Object.keys(ef.byKind).length === 0 && <p className="text-ink3">No court-awarded figures recorded yet.</p>}
         </div>
+        <p className="mt-2 text-xs text-ink3">The courts&rsquo; own numbers, extracted and citation-anchored — not estimates, projections, or a corpus total; nominal amounts across different years, not inflation-adjusted.</p>
       </section>
 
       <section className="mt-6">

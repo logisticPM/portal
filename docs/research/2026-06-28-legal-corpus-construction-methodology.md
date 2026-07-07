@@ -102,3 +102,22 @@ authority.**
   only proposes more matches — both models must still agree.
 - **No dollar figures were fabricated.** Monetary `EconomicDimension` values remain
   curated-only; figure estimation is deferred to client idea #3.
+
+## Recorded economic figures (2026-07-07) — extracted, citation-anchored, non-authoritative
+
+Client idea #3 ("economic impact estimator") is implemented as **recorded economic
+figures**, deliberately NOT an estimate or projection. An LLM extracts monetary
+figures from core judgments; a mechanical verifier keeps a figure only if its
+amount parses deterministically AND its quote appears verbatim in the judgment
+text (re-anchored, same discipline as the AI summaries). Every displayed figure is
+the court's own number, citation-anchored to a paragraph.
+
+- **Storage:** a non-authoritative `extractedFigures[]` layer on each case,
+  separate from the curated (Kay-authoritative) `economic` field.
+- **Aggregation:** per-kind ranges (min/median/max) over court-`awarded`/`ordered`
+  figures, one amount per case per kind, with a coverage denominator (`N / core`).
+  **No cross-case or cross-kind totals** — a summed "economic value of Indigenous
+  wins" would be the Gallagher credibility trap (non-representative, non-commensurable).
+- **Caveats surfaced in the UI:** nominal amounts across different years (not
+  inflation-adjusted); figures are AI-extracted and should be verified against the
+  source; the curated `economic` field remains the authoritative record.
