@@ -25,7 +25,7 @@ export function CaseListItem({ c, q }: { c: LegalCase; q: string }) {
   );
 }
 
-export function LensSwitcher({ active, params }: { active: Lens; params: Record<string, string | undefined> }) {
+export function LensSwitcher({ active, params, searching = false }: { active: Lens; params: Record<string, string | undefined>; searching?: boolean }) {
   return (
     <div className="mt-3 rounded border border-line bg-panel px-3 py-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -34,6 +34,7 @@ export function LensSwitcher({ active, params }: { active: Lens; params: Record<
           <a
             key={l}
             href={lensHref(params, l)}
+            aria-current={l === active ? "page" : undefined}
             className={
               l === active
                 ? "rounded-full bg-amber/20 px-3 py-1 text-amber"
@@ -45,7 +46,7 @@ export function LensSwitcher({ active, params }: { active: Lens; params: Record<
         ))}
       </div>
       <p className="mt-1 text-xs text-ink3">
-        {lensConfig(active).tagline} <span className="text-ink3">· The same public record, reordered for your context — anyone can switch; nothing is hidden.</span>
+        {lensConfig(active).tagline} <span className="text-ink3">· {searching ? "The same public record — search results are ranked by relevance; your lens sets the browse order. Anyone can switch; nothing is hidden." : "The same public record, reordered for your context — anyone can switch; nothing is hidden."}</span>
       </p>
     </div>
   );

@@ -37,9 +37,10 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
       <h1 className="font-serif text-2xl">Legal cases — economic justice</h1>
       <p className="mt-1 text-sm text-ink3">Canada&apos;s Indigenous economic-justice case law, searchable and citation-anchored.</p>
 
-      <LensSwitcher active={lens} params={searchParams} />
+      <LensSwitcher active={lens} params={searchParams} searching={!!q} />
 
       <form action="/cases" className="mt-4 space-y-2">
+        <input type="hidden" name="lens" value={lens} />
         <div className="flex gap-2">
           <input name="q" defaultValue={q} placeholder="Search citation, case name, or full text…" className="flex-1 rounded border border-line bg-panel px-3 py-2" />
           <button className="rounded bg-ink px-4 py-2 text-bg hover:bg-ink/90">Search</button>
