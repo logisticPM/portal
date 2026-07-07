@@ -126,7 +126,7 @@ export interface Facets {
 export interface ActivationSummary {
   totalCases: number;
   byTheme: Partial<Record<Theme, number>>;
-  economicValue: { settlement: number; resourceRevenue: number; equity: number };
+  economicFigures: EconomicFigures;
   valueRealization: Partial<Record<RealizationStatus, number>>;
   landmarkCases: { id: string; styleOfCause: string; citingCount: number }[];
 }

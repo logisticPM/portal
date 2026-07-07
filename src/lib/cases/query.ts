@@ -3,7 +3,7 @@
 import { caseFixtures } from "./fixtures";
 import type {
   LegalCase, CaseFilter, Facets, ActivationSummary, CitationGraph, CorpusStats,
-  Theme, CourtLevel, WinType, RealizationStatus,
+  Theme, CourtLevel, WinType, RealizationStatus, FigureKind, EconomicFigures, FigureRange,
 } from "./types";
 
 export { caseFixtures }; // convenience re-export for tests
@@ -68,23 +68,46 @@ export function buildFacets(cases: LegalCase[]): Facets {
 export function buildActivation(cases: LegalCase[]): ActivationSummary {
   const byTheme: Partial<Record<Theme, number>> = {};
   const valueRealization: Partial<Record<RealizationStatus, number>> = {};
-  const economicValue = { settlement: 0, resourceRevenue: 0, equity: 0 };
+  // One amount per case per kind (largest court-awarded/ordered figure, or curated
+  // amount). Ranges only — never a cross-case or cross-kind sum (spec §3, Gallagher).
+  const perKind = new Map<FigureKind, Map<string, number>>();
+  const kindUnit = new Map<FigureKind, string>();
+  const addAmount = (kind: FigureKind, caseId: string, amount: number, unit: string) => {
+    let m = perKind.get(kind); if (!m) { m = new Map(); perKind.set(kind, m); }
+    const cur = m.get(caseId);
+    if (cur === undefined || amount > cur) m.set(caseId, amount);
+    kindUnit.set(kind, unit);
+  };
   for (const c of cases) {
     for (const t of c.themes) byTheme[t] = (byTheme[t] ?? 0) + 1;
     const st = c.valueRealization?.status;
     if (st) valueRealization[st] = (valueRealization[st] ?? 0) + 1;
-    economicValue.settlement += c.economic?.settlementAmount ?? 0;
-    economicValue.resourceRevenue += c.economic?.resourceRevenue ?? 0;
-    economicValue.equity += c.economic?.equityStake ?? 0;
+    for (const fig of c.extractedFigures ?? []) {
+      if (fig.role !== "awarded" && fig.role !== "ordered") continue;
+      addAmount(fig.kind, c.id, fig.amount, fig.unit === "percent" ? "%" : fig.currency);
+    }
+    if (c.economic?.settlementAmount != null) addAmount("settlement", c.id, c.economic.settlementAmount, "CAD");
+    if (c.economic?.resourceRevenue != null) addAmount("resource_revenue", c.id, c.economic.resourceRevenue, "CAD");
+    if (c.economic?.equityStake != null) addAmount("equity", c.id, c.economic.equityStake, "%");
   }
   const landmarkCases = [...cases]
     .sort((a, b) => b.citingCount - a.citingCount || a.id.localeCompare(b.id))
     .slice(0, 5)
     .map((c) => ({ id: c.id, styleOfCause: c.styleOfCause, citingCount: c.citingCount }));
+  const byKind: Partial<Record<FigureKind, FigureRange>> = {};
+  const casesWith = new Set<string>();
+  for (const [kind, m] of perKind) {
+    const amounts = [...m.values()].sort((a, b) => a - b);
+    for (const id of m.keys()) casesWith.add(id);
+    const mid = Math.floor(amounts.length / 2);
+    const median = amounts.length % 2 ? amounts[mid] : (amounts[mid - 1] + amounts[mid]) / 2;
+    byKind[kind] = { countCases: m.size, min: amounts[0], max: amounts[amounts.length - 1], median, unit: kindUnit.get(kind) ?? "CAD" };
+  }
+  const economicFigures: EconomicFigures = { totalCases: cases.length, casesWithFigures: casesWith.size, byKind };
   return {
     totalCases: cases.length,
     byTheme: sortKeys(byTheme),
-    economicValue,
+    economicFigures,
     valueRealization: sortKeys(valueRealization),
     landmarkCases,
   };
