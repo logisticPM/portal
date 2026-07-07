@@ -15,5 +15,12 @@ import assert from "node:assert/strict";
   assert.ok(Array.isArray(ECON_CANDIDATE_SEEDS) && ECON_CANDIDATE_SEEDS.length >= 4, "need >=4 candidate seeds");
   for (const c of ECON_CANDIDATE_SEEDS) assert.match(c, /\d{4}\s+[A-Z]/, `malformed citation: ${c}`);
 
+  // --- Task 2: widened resource_revenue rubric ---
+  const { RUBRIC_VERSION, THEME_RUBRIC, labelPrompt } = await import("../src/lib/cases/ingest/rubric");
+  assert.equal(RUBRIC_VERSION, "2026-07-06.1", "RUBRIC_VERSION must be bumped");
+  assert.match(THEME_RUBRIC.resource_revenue, /impact-benefit/, "rubric must mention impact-benefit agreements");
+  assert.match(THEME_RUBRIC.resource_revenue, /expropriation|taking/, "rubric must mention taking/expropriation");
+  assert.match(labelPrompt("hello"), /impact-benefit/, "widened rubric must reach the label prompt");
+
   console.log("✅ test-cases-economic-supplement passed");
 })().catch((e) => { console.error(e); process.exit(1); });
