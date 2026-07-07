@@ -34,7 +34,7 @@ export async function upsertIfAbsent(
 ): Promise<{ added: number; skipped: number }> {
   let added = 0, skipped = 0;
   for (const c of cases) {
-    const [profile] = caseToItems(c); // bare substrate → PROFILE only (no chunks)
+    const [profile] = caseToItems(c); // write only the PROFILE item; any chunks on the case object are intentionally dropped
     try {
       await send(new PutCommand({ TableName: TABLE, Item: profile, ConditionExpression: "attribute_not_exists(PK)" }));
       added++;
