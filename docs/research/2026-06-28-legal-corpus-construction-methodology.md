@@ -76,3 +76,29 @@
 - Lee 2022 (dedup) https://aclanthology.org/2022.acl-long.577/ · Cochran n≈384 / Wilson https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval · Datasheets https://arxiv.org/abs/1803.09010 · Data Statements https://aclanthology.org/Q18-1041/ · Epstein & King 2002 https://chicagounbound.uchicago.edu/uclrev/vol69/iss1/1/
 - Yellowhead Land Back https://redpaper.yellowheadinstitute.org/wp-content/uploads/2019/10/red-paper-report-final.pdf · Legal Billy Club https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4370375 · USask CNLR https://indigenouslaw.usask.ca/publications/canadian-native-law-reporter.php
 - A2AJ 论文（116,734；不抓 CanLII）https://arxiv.org/abs/2509.13032 · A2AJ 数据页（191k+）https://a2aj.ca/data/
+
+## Economic supplementation (2026-07-06) — candidate methodology, pending expert (Kay) validation
+
+To raise the thin economic dimension (`resource_revenue` was 14/~373 core), the
+economic harvest surface and label rubric were broadened. **These additions are
+candidate methodology awaiting expert validation; they carry no curated
+authority.**
+
+- **`THEME_QUERIES.resource_revenue`** expanded from 2 to 8 terms: `revenue sharing`,
+  `resource revenue`, `impact benefit agreement`, `resource royalties`,
+  `equity stake`, `equitable compensation`, `expropriation compensation`,
+  `economic loss`.
+- **`ECON_CANDIDATE_SEEDS`** (new, separate from curated `SEED_CITATIONS`):
+  `2009 SCC 9` (Ermineskin — oil/gas royalties), `2021 SCC 28` (Southwind —
+  equitable compensation for taken land), `2001 SCC 85` (Osoyoos — expropriation/
+  tax), `2007 ONCA 744` (Whitefish — undervalued timber lease). Neutral citations
+  verified against public court records on 2026-07-06. Not added to `enrichment.ts`;
+  they pass through the inclusion filter + dual-LLM consensus gate like any
+  harvested case.
+- **`THEME_RUBRIC.resource_revenue`** widened (`RUBRIC_VERSION` → `2026-07-06.1`)
+  to recognize impact-benefit agreements, equity participation, and compensation/
+  valuation for the taking, expropriation, flooding, or infringement of land and
+  resource rights. The dual-LLM consensus gate is unchanged, so the wider rubric
+  only proposes more matches — both models must still agree.
+- **No dollar figures were fabricated.** Monetary `EconomicDimension` values remain
+  curated-only; figure estimation is deferred to client idea #3.
