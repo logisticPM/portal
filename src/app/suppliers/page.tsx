@@ -20,10 +20,12 @@ const tierStyles: Record<IdentityTier, string> = {
   self_declared: "border-rust/30 bg-rust/10 text-rust",
 };
 
+const identityRank: Record<IdentityTier, number> = { nation: 0, ccab: 1, self_declared: 2 };
+
 export default async function SuppliersPage({
   searchParams,
 }: {
-  searchParams: { sector?: string; q?: string; letter?: string };
+  searchParams: { sector?: string; q?: string; letter?: string; sort?: string; dir?: string };
 }) {
   const session = getSession();
   if (!session || session.kind !== "indigenomics") redirect("/home");
@@ -57,17 +59,55 @@ export default async function SuppliersPage({
         r.region.toLowerCase().includes(q)),
   );
 
+  // sortable columns (mirrors /organizations): first header click sorts in `primary`
+  // direction, a second click reverses, a third returns to the default (revenue desc).
+  const COLS = [
+    { key: "name", label: "Supplier", primary: "asc", align: "text-left", val: (r: (typeof rows)[number]) => r.s.name.toLowerCase() },
+    { key: "sector", label: "Sector", primary: "asc", align: "text-left", val: (r: (typeof rows)[number]) => r.sector },
+    { key: "region", label: "Region", primary: "asc", align: "text-center", val: (r: (typeof rows)[number]) => r.region },
+    { key: "identity", label: "Identity", primary: "asc", align: "text-center", val: (r: (typeof rows)[number]) => identityRank[r.s.identityTier] },
+    { key: "ownership", label: "Indigenous-owned", primary: "desc", align: "text-right", val: (r: (typeof rows)[number]) => r.s.ownershipPct ?? -1 },
+    { key: "revenue", label: "Confirmed revenue", primary: "desc", align: "text-right", val: (r: (typeof rows)[number]) => r.revenue },
+  ] as const;
+
+  const sortCol = COLS.find((c) => c.key === searchParams.sort);
+  const dir = searchParams.dir === "asc" || searchParams.dir === "desc" ? searchParams.dir : undefined;
+  let sorted = filtered;
+  if (sortCol && dir) {
+    const mul = dir === "asc" ? 1 : -1;
+    sorted = [...filtered].sort((a, b) => {
+      const av = sortCol.val(a);
+      const bv = sortCol.val(b);
+      if (av < bv) return -1 * mul;
+      if (av > bv) return 1 * mul;
+      return a.s.name.localeCompare(b.s.name);
+    });
+  }
+
   const hasFilter = !!(searchParams.sector || searchParams.q || searchParams.letter);
-  const qs = (next: { sector?: string; letter?: string }) => {
+  const qs = (next: { sector?: string; letter?: string; sort?: string; dir?: string }) => {
     const p = new URLSearchParams();
     const sector = "sector" in next ? next.sector : searchParams.sector;
     const lt = "letter" in next ? next.letter : searchParams.letter;
+    const sort = "sort" in next ? next.sort : searchParams.sort;
+    const d = "dir" in next ? next.dir : searchParams.dir;
     if (sector) p.set("sector", sector);
     if (searchParams.q) p.set("q", searchParams.q);
     if (lt) p.set("letter", lt);
+    if (sort) p.set("sort", sort);
+    if (d) p.set("dir", d);
     const s = p.toString();
     return s ? `/suppliers?${s}` : "/suppliers";
   };
+
+  // 3-state header click: none → primary → reverse → none
+  const nextSort = (key: string, primary: string) => {
+    if (searchParams.sort !== key) return { sort: key, dir: primary };
+    if (searchParams.dir === primary) return { sort: key, dir: primary === "asc" ? "desc" : "asc" };
+    return { sort: undefined, dir: undefined };
+  };
+  const arrow = (key: string) =>
+    searchParams.sort === key ? (searchParams.dir === "asc" ? " ↑" : " ↓") : "";
 
   return (
     <div className="space-y-8">
@@ -120,16 +160,23 @@ export default async function SuppliersPage({
             <thead>
               <tr className="text-ink3 text-xs uppercase tracking-widest border-b border-line">
                 <th className="text-left font-normal px-4 py-3 w-10">#</th>
-                <th className="text-left font-normal px-4 py-3">Supplier</th>
-                <th className="text-left font-normal px-4 py-3">Sector</th>
-                <th className="text-center font-normal px-4 py-3">Region</th>
-                <th className="text-center font-normal px-4 py-3">Identity</th>
-                <th className="text-right font-normal px-4 py-3">Indigenous-owned</th>
-                <th className="text-right font-normal px-4 py-3">Confirmed revenue</th>
+                {COLS.map((c) => (
+                  <th key={c.key} className={`font-normal px-4 py-3 ${c.align}`}>
+                    <ScrollLink
+                      href={qs(nextSort(c.key, c.primary))}
+                      className={`inline-flex items-center gap-0.5 hover:text-ink ${
+                        searchParams.sort === c.key ? "text-amber" : ""
+                      }`}
+                    >
+                      {c.label}
+                      <span className="tabular-nums">{arrow(c.key)}</span>
+                    </ScrollLink>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink/10">
-              {filtered.map(({ s, sector, region, revenue }, i) => (
+              {sorted.map(({ s, sector, region, revenue }, i) => (
                 <tr key={s.id} className="hover:bg-amber/5">
                   <td className="px-4 py-3 text-ink3">{i + 1}</td>
                   <td className="px-4 py-3">
