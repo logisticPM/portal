@@ -102,3 +102,36 @@ Against the cloud table (`AWS_REGION=us-east-1 CASES_TABLE=LegalCases`):
 - **Ops:** the `byNation` facet grows from 2 to a realistic count of distinct First
   Nations; every filled nation is verbatim in its case's title or judgment; curated
   flagships untouched; the search artifact reflects the new nations.
+
+## Result (2026-07-07)
+
+Ran `cases:extract-nations:cloud` over the 452 production core cases (PR #119
+merged, `815af12`). Model `us.meta.llama3-3-70b-instruct-v1:0`.
+
+**Headline: the `byNation` facet went from 2 → ~435 distinct nations.**
+
+- **filled 412 · empty 38 · curated-skipped 2 · failed 0.** The 38 empty are cases
+  with no clearly-named Indigenous party (e.g. an individual accused, or a nation
+  named only obliquely) — correctly left empty rather than guessed.
+- Every filled name is verbatim-verified in the case title or judgment
+  (`verifyNations`); no fabrication. The 2 curated flagships were skipped
+  (never overwritten).
+- **Caveat (canonicalization deferred):** ~435 distinct *surface forms* includes
+  variants of the same nation — e.g. "Haida Nation" / "Council of the Haida Nation"
+  / "Haida". The filter is now genuinely usable across hundreds of First Nations,
+  but merging variants into canonical entries is future curation work (a Kay task),
+  deliberately out of scope here.
+- Artifact rebuilt (`buildId 1783469848770-skhsim5n`, bm25 105.9 MB — `nations` is in
+  `metaText`) and uploaded to the production bucket; **no re-embed** (vectors 297.6 MB
+  unchanged). Nation search reflects the new data on the next Web Lambda cold start.
+
+**Derived-layer refresh (same credentialed session).** Because the economic-corpus
++79 promotion (2026-07-07) post-dated the last summarize run (2026-07-05), the new
+core cases lacked summaries. Re-ran the idempotent batches:
+- `cases:summarize:cloud` — **generated 84** new (now ~448/452 have a summary; 3
+  correctly refused — long all-paraphrase SCC judgments that can't anchor ≥2 quotes).
+- `cases:extract-figures:cloud` — **+4** (415 already covered by the estimator ops run).
+
+All three derived layers (nations / summaries / figures) are now current over the
+full core. **Operational rule reaffirmed:** these derived layers should be re-run
+after any core growth (promotion / backfill).
