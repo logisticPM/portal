@@ -3,6 +3,7 @@
 const TABS = [
   { href: "/commitments", label: "RAP Index" },
   { href: "/organizations", label: "Organizations" },
+  { href: "/suppliers", label: "Suppliers" },
   { href: "/analytics", label: "Coverage analysis" },
   { href: "/verify", label: "Verification" },
   { href: "/alignment", label: "Alignment" },

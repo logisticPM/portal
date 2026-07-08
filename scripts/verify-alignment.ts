@@ -3,6 +3,7 @@
 // Pure checks (score, normalize, marshaller) need no DB. Repo-parity + scenario
 // sections (added in later tasks) need DynamoDB Local (`npm run ddb:up`).
 // ===========================================================================
+import { getSupplierProfile } from "../src/lib/suppliers/supplier-profiles";
 import { cosine, structuredScore, combine, THRESHOLD } from "../src/lib/alignment/score";
 import { normalizeSector, normalizeRegion } from "../src/lib/alignment/normalize";
 import { opportunityKeys, toOpportunityItem, itemToOpportunity } from "../src/lib/dynamo/alignment-table";
@@ -115,6 +116,11 @@ async function main() {
   } else {
     console.warn("⚠️  opp repo parity skipped — set DYNAMO_ENDPOINT (npm run ddb:up)");
   }
+
+  // --- supplier profiles (curated real data) ---
+  check("profile: norsask HQ", getSupplierProfile("s-norsask")?.headquarters === "Meadow Lake, Saskatchewan");
+  check("profile: 3ne has no employees (unpublished)", getSupplierProfile("s-3ne")?.employees === undefined);
+  check("profile: unknown id -> undefined", getSupplierProfile("s-nope") === undefined);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

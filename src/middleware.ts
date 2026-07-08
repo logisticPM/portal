@@ -22,7 +22,7 @@ const COMPANY_ONLY = ["/report", "/coverage", "/my-commitments"];
 const SUPPLIER_ONLY = ["/confirm", "/record", "/profile"];
 // RAP submission + extraction QA are the curator's (Indigenomics) tools — the
 // public sees only the /rap dashboard. (Self-serve org upload is a later mode.)
-const INDIGENOMICS_ONLY = ["/verify", "/organizations", "/extract", "/alignment"];
+const INDIGENOMICS_ONLY = ["/verify", "/organizations", "/extract", "/alignment", "/suppliers"];
 
 const hits = (path: string, prefixes: string[]) =>
   prefixes.some((p) => path === p || path.startsWith(p + "/"));
