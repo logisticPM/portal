@@ -15,6 +15,7 @@ import type { LegalCase } from "../src/lib/cases/types";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 const SLEEP_MS = Number(process.env.BACKFILL_SLEEP_MS ?? 400); // polite delay between official-site fetches
+const HOST = process.env.BACKFILL_HOST; // optional: scope the run to one open host (e.g. decisions.scc-csc.ca)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function flush(batch: LegalCase[]) {
@@ -25,8 +26,12 @@ async function flush(batch: LegalCase[]) {
 
 async function main() {
   const all = await dynamoCaseRepo.listCases({ tier: "all" });
-  const todo = all.filter((c) => !c.fullTextAvailable && isOpenSource(c.provenance.sourceUrl));
-  console.log(`backfill: ${todo.length} open-source no-fulltext cases`);
+  const hostOf = (u: string) => { try { return new URL(u).host; } catch { return ""; } };
+  const todo = all.filter((c) =>
+    !c.fullTextAvailable &&
+    isOpenSource(c.provenance.sourceUrl) &&
+    (!HOST || hostOf(c.provenance.sourceUrl) === HOST));
+  console.log(`backfill: ${todo.length} open-source no-fulltext cases${HOST ? ` (host=${HOST})` : ""}`);
 
   let done = 0, withText = 0, promoted = 0;
   let batch: LegalCase[] = [];
