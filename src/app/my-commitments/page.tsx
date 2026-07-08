@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { repo } from "@/lib/repo";
 import { commitmentsRepo, computeRisk } from "@/lib/commitments";
+import { alignmentRepo } from "@/lib/alignment";
 import type { CommitmentStatus, CommitmentType, OrgSize, Sector } from "@/lib/commitments";
 import {
   createCommitmentAction,
@@ -39,6 +40,13 @@ export default async function MyCommitmentsPage() {
     repo.getParty(session.partyId),
     commitmentsRepo.listCommitments({ orgId: session.partyId }),
   ]);
+  const opportunities = await alignmentRepo.listForOrg(session.partyId);
+  const oppsByCommitment = new Map<string, typeof opportunities>();
+  for (const o of opportunities) {
+    const arr = oppsByCommitment.get(o.commitmentId) ?? [];
+    arr.push(o);
+    oppsByCommitment.set(o.commitmentId, arr);
+  }
   const year = new Date().getFullYear();
   // Overdue / at-risk alert, scoped to THIS company's own commitments only
   // (listCommitments is filtered by session.partyId, so no other org's data
@@ -191,6 +199,24 @@ export default async function MyCommitmentsPage() {
                   <input type="hidden" name="id" value={c.id} />
                   <button className="text-rust text-xs hover:underline">delete</button>
                 </form>
+                {(oppsByCommitment.get(c.id) ?? []).length > 0 && (
+                  <div className="mt-3 border-t border-line pt-3 w-full">
+                    <div className="text-ink3 text-xs uppercase tracking-widest mb-2">
+                      Indigenous suppliers that fit this commitment
+                    </div>
+                    <div className="space-y-2">
+                      {(oppsByCommitment.get(c.id) ?? []).map((o) => (
+                        <div key={o.id} className="flex items-center gap-3 text-sm flex-wrap">
+                          <span className="bg-cedar/20 text-cedar border border-cedar/40 rounded px-1.5 py-0.5 text-xs">
+                            {Math.round(o.score * 100)}% fit
+                          </span>
+                          <a href={`/s/${o.supplierId}`} className="font-serif text-cedar underline">{o.supplierName}</a>
+                          {o.rationale && <span className="text-ink3">— {o.rationale}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

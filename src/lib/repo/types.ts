@@ -44,6 +44,8 @@ export interface Supplier extends BaseParty {
   sector?: string;
   blurb?: string;
   region?: string;
+  sectorNorm?: import("../commitments/types").Sector; // normalized RAP sector (alignment)
+  regionNorm?: string; // normalized province code (alignment)
   website?: string;
   profilePublic?: boolean; // OCAP toggle; default false
   verifications?: Verification[]; // Layer A: linked external certifications (drive identityTier)
