@@ -38,7 +38,19 @@ export async function fetchOfficialText(url: string, get?: (u: string) => Promis
   if (!isOpenSource(url)) return "";
   const doGet = get ?? (async (u: string) => {
     const res = await fetch(u, { headers: { "User-Agent": BROWSER_UA } });
-    return res.ok ? res.text() : "";
+    if (!res.ok) return "";
+    const buf = Buffer.from(await res.arrayBuffer());
+    // Decode with the declared charset (Content-Type, else a <meta charset>), default
+    // windows-1252 — bccourts serves legacy-encoded HTML, and UTF-8-decoding it mangles
+    // apostrophes/accents (e.g. nation names like "Tsilhqot'in").
+    const ct = res.headers.get("content-type") ?? "";
+    const header = /charset=([^;\s]+)/i.exec(ct)?.[1];
+    const metaHtml = buf.toString("latin1").slice(0, 2048);
+    const meta = /<meta[^>]+charset=["']?([\w-]+)/i.exec(metaHtml)?.[1];
+    let cs = (header ?? meta ?? "windows-1252").toLowerCase();
+    if (cs === "iso-8859-1" || cs === "latin1") cs = "windows-1252"; // superset, fixes smart quotes
+    try { return new TextDecoder(cs as string).decode(buf); }
+    catch { return new TextDecoder("windows-1252").decode(buf); }
   });
   try {
     const text = htmlToText(await doGet(url));
