@@ -7,6 +7,9 @@ import { cosine, structuredScore, combine } from "../src/lib/alignment/score";
 import { normalizeSector, normalizeRegion } from "../src/lib/alignment/normalize";
 import { opportunityKeys, toOpportunityItem, itemToOpportunity } from "../src/lib/dynamo/alignment-table";
 import type { Opportunity } from "../src/lib/alignment/types";
+import { createSingleTable } from "../src/lib/dynamo/create";
+import { mockAlignmentRepo, _resetMockAlignment } from "../src/lib/alignment/repo.mock";
+import { dynamoAlignmentRepo } from "../src/lib/alignment/repo.dynamo";
 
 let pass = 0;
 let fail = 0;
@@ -54,6 +57,21 @@ async function main() {
   check("opp: PK is OPPORTUNITY#<orgId>", item.PK === "OPPORTUNITY#rbc-royal-bank-of-canada");
   check("opp: GSI1PK groups all (radar)", item.GSI1PK === "OPPORTUNITY");
   check("opp: round-trips", JSON.stringify(itemToOpportunity(item)) === JSON.stringify(o));
+
+  // --- opportunity repo parity (DynamoDB Local) ---
+  if (process.env.DYNAMO_ENDPOINT) {
+    process.env.ALIGNMENT_TABLE = "Alignment";
+    await createSingleTable("Alignment");
+    _resetMockAlignment();
+    await mockAlignmentRepo.upsert(o);
+    await dynamoAlignmentRepo.upsert(o);
+    const m = await mockAlignmentRepo.listForOrg(o.orgId);
+    const d = await dynamoAlignmentRepo.listForOrg(o.orgId);
+    check("opp repo: mock ≡ dynamo (listForOrg)", JSON.stringify(m) === JSON.stringify(d));
+    check("opp repo: listAll returns it", (await dynamoAlignmentRepo.listAll()).some((x) => x.id === o.id));
+  } else {
+    console.warn("⚠️  opp repo parity skipped — set DYNAMO_ENDPOINT (npm run ddb:up)");
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
