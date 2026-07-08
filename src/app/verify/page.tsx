@@ -12,7 +12,7 @@ export default async function VerifyPage() {
 
   const pending = await repo.listPendingVerifications();
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <InstituteNav active="/verify" />
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · verification</div>
