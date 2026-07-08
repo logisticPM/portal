@@ -29,6 +29,7 @@ export async function computeForCommitment(
   repo: OpportunityRepo,
 ): Promise<Opportunity[]> {
   if (commitment.type !== "procurement") return [];
+  if (!commitment.orgId) return []; // opportunities are keyed by orgId (drives the company view); skip unattributed commitments
   const suppliers = pool.filter((p): p is Supplier => p.role === "supplier" && isVerifiedSupplier(p));
   if (suppliers.length === 0) return [];
 
@@ -45,7 +46,7 @@ export async function computeForCommitment(
     return {
       id: opportunityId(commitment.id, s.id),
       commitmentId: commitment.id,
-      orgId: commitment.orgId ?? commitment.orgName,
+      orgId: commitment.orgId as string,
       supplierId: s.id,
       supplierName: s.name,
       commitmentTitle: commitment.title,

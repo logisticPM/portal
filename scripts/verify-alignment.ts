@@ -110,6 +110,8 @@ async function main() {
     check("engine: top match is the construction supplier", opps[0]?.supplierId === "s-eagle");
     check("engine: score above threshold + reasons.sectorMatch", (opps[0]?.score ?? 0) >= 0.6 && opps[0]?.reasons.sectorMatch === true);
     check("engine: upserted to repo", (await alignmentRepo.listForOrg("test-co")).some((x) => x.supplierId === "s-eagle"));
+    const noOrgCommit = { ...scenarioCommit, id: "cm-noorg", orgId: undefined };
+    check("engine: skips commitment without orgId", (await computeForCommitment(noOrgCommit as any, supplierPool as any, alignmentRepo)).length === 0);
   } else {
     console.warn("⚠️  opp repo parity skipped — set DYNAMO_ENDPOINT (npm run ddb:up)");
   }
