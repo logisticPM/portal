@@ -45,7 +45,7 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="max-w-xl space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3">
         <h1 className="font-serif text-2xl">{supplier.name} — profile</h1>
         <a className="ml-auto text-ink3 underline text-sm" href={`/s/${supplierId}`}>view public page →</a>
