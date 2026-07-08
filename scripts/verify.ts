@@ -79,7 +79,7 @@ async function main() {
   for (const c of ["c-northway", "c-cedartrust", "c-mapletel"]) {
     check(`getCoverage(${c})`, eq(await mockRepo.getCoverage(c), await dynamoRepo.getCoverage(c)));
   }
-  for (const s of ["s-eagle", "s-raven", "s-sweetgrass"]) {
+  for (const s of ["s-membertou", "s-bouchier", "s-fch"]) {
     const [m, d] = [await mockRepo.getSupplierRecord(s), await dynamoRepo.getSupplierRecord(s)];
     check(
       `getSupplierRecord(${s})`,
@@ -100,22 +100,22 @@ async function main() {
   // demo loop
   const before = await dynamoRepo.getCoverage("c-northway");
   const line = await dynamoRepo.createReportedLine({
-    companyId: "c-northway", supplierId: "s-raven", amount: 500_000, flowType: "procurement", period: "2025",
+    companyId: "c-northway", supplierId: "s-bouchier", amount: 500_000, flowType: "procurement", period: "2025",
   });
-  const inbox = await dynamoRepo.listPendingForSupplier("s-raven");
+  const inbox = await dynamoRepo.listPendingForSupplier("s-bouchier");
   check("new line appears in supplier pending inbox", inbox.some((l) => l.id === line.id));
-  await dynamoRepo.recordConfirmation({ lineId: line.id, status: "confirmed", byPartyId: "s-raven" });
+  await dynamoRepo.recordConfirmation({ lineId: line.id, status: "confirmed", byPartyId: "s-bouchier" });
   const after = await dynamoRepo.getCoverage("c-northway");
   check("coverage rises by 500k after confirm", after.totalConfirmed === before.totalConfirmed + 500_000,
     `${before.totalConfirmed} → ${after.totalConfirmed}`);
 
   // CORRECTED path (previously untested): correct a pending seeded line to a lower amount
   const covBefore = await dynamoRepo.getCoverage("c-northway");
-  await dynamoRepo.recordConfirmation({ lineId: "l-3", status: "corrected", correctedAmount: 50_000, byPartyId: "s-sweetgrass" });
+  await dynamoRepo.recordConfirmation({ lineId: "l-3", status: "corrected", correctedAmount: 50_000, byPartyId: "s-fch" });
   const covAfter = await dynamoRepo.getCoverage("c-northway");
   check("corrected line counts at corrected amount (+50k)", covAfter.totalConfirmed === covBefore.totalConfirmed + 50_000,
     `${covBefore.totalConfirmed} → ${covAfter.totalConfirmed}`);
-  const sweetgrass = await dynamoRepo.getSupplierRecord("s-sweetgrass");
+  const sweetgrass = await dynamoRepo.getSupplierRecord("s-fch");
   check("supplier record reflects corrected revenue", sweetgrass.confirmedRevenue === 50_000, `$${sweetgrass.confirmedRevenue}`);
 
   // registerSupplier (previously untested)
@@ -127,11 +127,11 @@ async function main() {
 
   // withdraw (OCAP)
   const preWithdraw = await dynamoRepo.getCoverage("c-northway");
-  await dynamoRepo.withdraw("s-raven");
+  await dynamoRepo.withdraw("s-bouchier");
   const postWithdraw = await dynamoRepo.getCoverage("c-northway");
   check("withdraw drops coverage", postWithdraw.totalConfirmed < preWithdraw.totalConfirmed,
     `${preWithdraw.totalConfirmed} → ${postWithdraw.totalConfirmed}`);
-  const revertedInbox = await dynamoRepo.listPendingForSupplier("s-raven");
+  const revertedInbox = await dynamoRepo.listPendingForSupplier("s-bouchier");
   check("withdrawn lines revert to pending", revertedInbox.some((l) => l.id === line.id));
 
   // --- 3. survey -----------------------------------------------------------
