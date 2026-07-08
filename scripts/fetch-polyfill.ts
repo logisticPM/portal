@@ -1,30 +1,57 @@
-// Polyfill global.fetch with node:https on platforms where undici's built-in
-// fetch times out (e.g. Windows with certain TLS stacks). Imported as a side
-// effect at the top of ingest scripts before any live-network modules load.
+// Faithful global.fetch polyfill over node:https/node:http, for platforms where
+// undici's built-in fetch times out (e.g. Windows with certain TLS stacks). Installed
+// as a side effect at the top of ingest scripts. Supports the subset of the fetch API
+// our code uses: init.headers passthrough (so a User-Agent actually gets sent — some
+// official sites 403 UA-less requests), redirect following (node:https does not follow
+// automatically), and a Response with ok/status/headers.get()/arrayBuffer()/text()/json().
 import https from "node:https";
 import http from "node:http";
+import { Buffer } from "node:buffer";
 
+type FetchInit = { headers?: Record<string, string> };
 type FetchResponse = {
   ok: boolean;
   status: number;
-  json: () => Promise<unknown>;
+  headers: { get: (name: string) => string | null };
+  arrayBuffer: () => Promise<ArrayBuffer>;
   text: () => Promise<string>;
+  json: () => Promise<unknown>;
 };
 
-function nodeFetch(url: string | URL): Promise<FetchResponse> {
+const MAX_REDIRECTS = 5;
+
+function nodeFetch(url: string | URL, init?: FetchInit, redirectsLeft = MAX_REDIRECTS): Promise<FetchResponse> {
   const urlStr = url.toString();
   const lib = urlStr.startsWith("https") ? https : http;
   return new Promise((resolve, reject) => {
-    const req = lib.get(urlStr, { timeout: 30000 }, (res) => {
+    const req = lib.get(urlStr, { timeout: 30000, headers: init?.headers ?? {} }, (res) => {
+      const status = res.statusCode ?? 0;
+      const loc = res.headers.location;
+      // node:https/http does NOT follow redirects — do it ourselves.
+      if (status >= 300 && status < 400 && loc && redirectsLeft > 0) {
+        res.resume(); // drain the redirect body
+        const next = new URL(loc, urlStr).toString();
+        resolve(nodeFetch(next, init, redirectsLeft - 1));
+        return;
+      }
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () => {
-        const text = Buffer.concat(chunks).toString();
+        const body = Buffer.concat(chunks);
         resolve({
-          ok: (res.statusCode ?? 0) < 400,
-          status: res.statusCode ?? 0,
-          json: () => Promise.resolve(JSON.parse(text)),
-          text: () => Promise.resolve(text),
+          ok: status >= 200 && status < 300,
+          status,
+          headers: {
+            get: (name: string) => {
+              const v = res.headers[name.toLowerCase()];
+              return v == null ? null : Array.isArray(v) ? v.join(", ") : v;
+            },
+          },
+          arrayBuffer: () => Promise.resolve(
+            body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer,
+          ),
+          text: () => Promise.resolve(body.toString("utf8")),
+          json: () => Promise.resolve(JSON.parse(body.toString("utf8"))),
         });
       });
     });
@@ -33,7 +60,5 @@ function nodeFetch(url: string | URL): Promise<FetchResponse> {
   });
 }
 
-// Only install if the built-in fetch is broken (test with a known URL would be
-// slow; instead always install — node:https is stable on all platforms).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(globalThis as any).fetch = nodeFetch;
+(globalThis as any).fetch = (url: string | URL, init?: FetchInit) => nodeFetch(url, init);
