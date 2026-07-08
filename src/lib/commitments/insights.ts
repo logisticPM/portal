@@ -40,26 +40,31 @@ export interface RiskReport {
   onTrackCount: number; // confirmed or on-pace (i.e. not flagged)
 }
 
-// Overdue = target year passed without confirmation. At-risk = due this year but
-// behind pace (<60%) or stalled. Confirmed commitments are never flagged.
+// Overdue = target year passed and not supplier-confirmed. At-risk = due this year
+// but behind pace (<60%) or stalled. Only `confirmed` (independently verified) is
+// ever trusted as "done" — a self-reported but unconfirmed milestone past its
+// deadline is exactly the confirmation gap this dashboard exists to surface.
 export function computeRisk(items: Commitment[], currentYear: number): RiskReport {
   const flags: RiskFlag[] = [];
   for (const c of items) {
-    // confirmed = delivered; reported = claimed complete (awaiting confirmation) —
-    // neither is "behind", so only committed / in_progress / stalled can be flagged.
-    if (c.status === "confirmed" || c.status === "reported") continue;
-    const stalled = c.status === "stalled" ? " · stalled" : "";
+    // confirmed = supplier/Nation-verified delivery — the only status we trust as
+    // done. Everything else (committed / in_progress / stalled / self-reported) is
+    // still subject to the deadline check.
+    if (c.status === "confirmed") continue;
+    const notes =
+      (c.status === "stalled" ? " · stalled" : "") +
+      (c.status === "reported" ? " · self-reported, unconfirmed" : "");
     if (c.targetYear < currentYear) {
       flags.push({
         commitment: c,
         kind: "overdue",
-        reason: `Target ${c.targetYear} passed · ${c.progressPct}%${stalled}`,
+        reason: `Target ${c.targetYear} passed · ${c.progressPct}%${notes}`,
       });
     } else if (c.targetYear === currentYear && (c.progressPct < 60 || c.status === "stalled")) {
       flags.push({
         commitment: c,
         kind: "at_risk",
-        reason: `Due ${c.targetYear} · ${c.progressPct}%${stalled}`,
+        reason: `Due ${c.targetYear} · ${c.progressPct}%${notes}`,
       });
     }
   }
