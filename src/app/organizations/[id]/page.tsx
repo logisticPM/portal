@@ -119,58 +119,6 @@ export default async function OrgScorecardPage({
         <p className="text-ink2 text-sm mt-1 capitalize">{org.sectors.map(label).join(" · ")}</p>
       </div>
 
-      {/* overdue / at-risk alert — surfaces milestones past their target year or
-          behind pace, so a company sees them as soon as its page loads (client req #5). */}
-      {risk.flags.length > 0 && (
-        <section
-          role="alert"
-          aria-label="Milestones off track"
-          className="rounded border border-rust/40 bg-rust/5 shadow-card p-5"
-        >
-          <div className="flex items-start gap-3">
-            <span className="text-rust text-lg leading-none mt-0.5" aria-hidden>
-              ⚠
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-ink">
-                Action needed: {risk.flags.length} milestone{risk.flags.length > 1 ? "s" : ""} off track
-              </div>
-              <div className="text-ink3 text-xs mt-0.5">
-                {risk.overdueCount} overdue · {risk.atRiskCount} at risk · based on this organization&apos;s own
-                public reported milestones
-              </div>
-              <ul className="mt-3 space-y-1.5">
-                {risk.flags.slice(0, 6).map((f) => (
-                  <li key={f.commitment.id} className="flex items-baseline gap-2 text-sm">
-                    <span
-                      className={`text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 border ${
-                        f.kind === "overdue"
-                          ? "text-rust border-rust/40 bg-rust/10"
-                          : "text-amber border-amber/40 bg-amber/10"
-                      }`}
-                    >
-                      {f.kind === "overdue" ? "overdue" : "at risk"}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="text-ink2">{f.commitment.title}</span>
-                      <span className="text-ink3"> · {f.reason}</span>
-                    </span>
-                    <a href={`#c-${f.commitment.id}`} className="text-amber hover:underline shrink-0 text-xs">
-                      view ›
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              {risk.flags.length > 6 && (
-                <div className="text-ink3 text-xs mt-2">
-                  + {risk.flags.length - 6} more in the commitments list below.
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* about — public reference info (Wikipedia-style) */}
       {profile && (
         <section className="bg-panel rounded border border-line shadow-card p-5">
@@ -316,7 +264,7 @@ export default async function OrgScorecardPage({
 
         <div className="divide-y divide-ink/10">
           {filtered.map((c) => (
-            <details key={c.id} id={`c-${c.id}`} className="group scroll-mt-24">
+            <details key={c.id} className="group">
               <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-center gap-3 py-2 text-sm">
                 <span className="text-ink3 text-xs shrink-0 transition-transform group-open:rotate-90">›</span>
                 <div className="flex-1 min-w-0">
