@@ -1,8 +1,8 @@
-// Official-source full-text backfill (spec 2026-07-07 rev). v1: for no-full-text
-// cases whose sourceUrl is an open host (bccourts), fetch verbatim HTML text, apply,
+// Official-source full-text backfill. For no-full-text cases whose sourceUrl is an open
+// host (bccourts HTML or SCC PDF — see official-source.ts), fetch verbatim text, apply,
 // mark provenance official_court, and promote inline. ADDITIVE: only touches
 // !fullTextAvailable cases, so existing full text / vectors are never rewritten.
-// Resumable (re-run skips cases that now have text); disk-cached fetches.
+// Resumable (re-run skips cases that now have text). Optional BACKFILL_HOST scopes the run.
 import "./fetch-polyfill";
 import { BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
