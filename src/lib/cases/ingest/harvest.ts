@@ -22,11 +22,12 @@ export function dateWindows(from: string, to: string, years: number): [string, s
 }
 
 async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  await fs.mkdir(CACHE_DIR, { recursive: true });
   const file = path.join(CACHE_DIR, key.replace(/[^a-z0-9]+/gi, "_") + ".json");
-  try { return JSON.parse(await fs.readFile(file, "utf8")) as T; } catch { /* miss */ }
+  try { return JSON.parse(await fs.readFile(file, "utf8")) as T; } catch { /* miss (incl. no dir) */ }
   const val = await fn();
-  await fs.writeFile(file, JSON.stringify(val));
+  // Best-effort disk cache: a read-only FS (e.g. a Lambda's /var/task) must never be
+  // fatal — mkdir/write inside try/catch, then proceed uncached.
+  try { await fs.mkdir(CACHE_DIR, { recursive: true }); await fs.writeFile(file, JSON.stringify(val)); } catch { /* uncached */ }
   return val;
 }
 
