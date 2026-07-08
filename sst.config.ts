@@ -58,7 +58,29 @@ export default $config({
     // RAP Impact Survey (Organization / SurveyResponse)
     const rapSurvey = new sst.aws.Dynamo("RapSurvey", singleTableShape);
     // RAP commitments index (Commitment) — the commitments dashboard (from main)
-    const commitments = new sst.aws.Dynamo("Commitments", singleTableShape);
+    const commitments = new sst.aws.Dynamo("Commitments", {
+      ...singleTableShape,
+      stream: "new-and-old-images",
+    });
+    const alignment = new sst.aws.Dynamo("Alignment", singleTableShape);
+
+    // Recompute alignment opportunities when a commitment changes.
+    commitments.subscribe("AlignmentEngine", {
+      handler: "src/functions/alignment.handler",
+      link: [commitments, alignment, dataPortal],
+      permissions: bedrockPerms,
+      environment: {
+        REPO_IMPL: "dynamo",
+        COMMITMENTS_TABLE: commitments.name,
+        ALIGNMENT_TABLE: alignment.name,
+        DYNAMO_TABLE: dataPortal.name,
+        EMBED_PROVIDER: process.env.EMBED_PROVIDER ?? "stub",
+        EMBED_MODEL: "amazon.titan-embed-text-v2:0",
+        EMBED_DIM: "1024",
+        EMBED_REGION: "us-east-1",
+        LABEL_MODELS: process.env.LABEL_MODELS ?? "stub:a,stub:b",
+      },
+    });
 
     // RAP submission portal + Index (ExtractionJob / RapDocument / Commitment /
     // Observation). PITR + Streams enabled:
@@ -231,7 +253,7 @@ export default $config({
 
     new sst.aws.Nextjs("Web", {
       // Least-privilege access to exactly these resources (tables + GSIs + buckets).
-      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, casesIndex],
+      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, alignment, casesIndex],
       transform: {
         server: {
           // Search-index artifact resident in memory (bm25 ~60MB; +~160MB vectors
@@ -267,6 +289,7 @@ export default $config({
         SURVEY_TABLE: rapSurvey.name,
         AUTH_SECRET: authSecret.value, // HMAC session-signing key (server-side; never NEXT_PUBLIC_)
         COMMITMENTS_TABLE: commitments.name,
+        ALIGNMENT_TABLE: alignment.name,
         // Legal-cases corpus: literal table name (created/seeded out-of-band by the
         // cases:*:cloud pipeline — see the IAM grant in transform.server above).
         // Matches the app default (client code falls back to "LegalCases"), but
