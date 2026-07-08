@@ -63,24 +63,8 @@ export default $config({
       stream: "new-and-old-images",
     });
     const alignment = new sst.aws.Dynamo("Alignment", singleTableShape);
-
-    // Recompute alignment opportunities when a commitment changes.
-    commitments.subscribe("AlignmentEngine", {
-      handler: "src/functions/alignment.handler",
-      link: [commitments, alignment, dataPortal],
-      permissions: bedrockPerms,
-      environment: {
-        REPO_IMPL: "dynamo",
-        COMMITMENTS_TABLE: commitments.name,
-        ALIGNMENT_TABLE: alignment.name,
-        DYNAMO_TABLE: dataPortal.name,
-        EMBED_PROVIDER: process.env.EMBED_PROVIDER ?? "stub",
-        EMBED_MODEL: "amazon.titan-embed-text-v2:0",
-        EMBED_DIM: "1024",
-        EMBED_REGION: "us-east-1",
-        LABEL_MODELS: process.env.LABEL_MODELS ?? "stub:a,stub:b",
-      },
-    });
+    // NOTE: the alignment stream subscriber is declared LATER (after bedrockPerms),
+    // since `const bedrockPerms` is in the temporal dead zone up here.
 
     // RAP submission portal + Index (ExtractionJob / RapDocument / Commitment /
     // Observation). PITR + Streams enabled:
@@ -172,6 +156,25 @@ export default $config({
       { actions: ["bedrock:InvokeDataAutomationAsync", "bedrock:GetDataAutomationStatus"], resources: ["*"] },
       { actions: ["textract:AnalyzeDocument", "textract:StartDocumentTextDetection", "textract:GetDocumentTextDetection", "textract:DetectDocumentText"], resources: ["*"] },
     ];
+
+    // Recompute alignment opportunities when a commitment changes. Declared here
+    // (not next to the Alignment table) because it needs `bedrockPerms` above.
+    commitments.subscribe("AlignmentEngine", {
+      handler: "src/functions/alignment.handler",
+      link: [commitments, alignment, dataPortal],
+      permissions: bedrockPerms,
+      environment: {
+        REPO_IMPL: "dynamo",
+        COMMITMENTS_TABLE: commitments.name,
+        ALIGNMENT_TABLE: alignment.name,
+        DYNAMO_TABLE: dataPortal.name,
+        EMBED_PROVIDER: process.env.EMBED_PROVIDER ?? "stub",
+        EMBED_MODEL: "amazon.titan-embed-text-v2:0",
+        EMBED_DIM: "1024",
+        EMBED_REGION: "us-east-1",
+        LABEL_MODELS: process.env.LABEL_MODELS ?? "stub:a,stub:b",
+      },
+    });
 
     // Async extraction worker — long timeout (BDA takes ~60-80s, past the web
     // request Lambda's ~20s limit). uploadRapAction invokes it fire-and-forget
