@@ -39,10 +39,12 @@ export const dynamoAlignmentRepo: OpportunityRepo = {
   },
   async setStatus(id: string, status: OpportunityStatus) {
     const found = await findById(id);
-    if (found) await this.upsert({ ...found, status });
+    if (found) await dynamoAlignmentRepo.upsert({ ...found, status });
   },
 };
 
+// TODO(scale): O(N) table scan per call; fine at demo scale. remove/setStatus
+// call this — a large prune loop = N scans. Add a GSI on data.id if this grows.
 async function findById(id: string): Promise<Opportunity | null> {
   let start: Record<string, any> | undefined;
   do {

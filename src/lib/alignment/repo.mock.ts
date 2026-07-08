@@ -2,7 +2,8 @@ import type { Opportunity, OpportunityRepo, OpportunityStatus } from "./types";
 
 let store: Opportunity[] = [];
 
-const byScore = (a: Opportunity, b: Opportunity) => b.score - a.score || a.id.localeCompare(b.id);
+// desc score, then desc id — matches the dynamo SK order (padded score + id, queried ScanIndexForward:false)
+const byScore = (a: Opportunity, b: Opportunity) => b.score - a.score || b.id.localeCompare(a.id);
 
 export const mockAlignmentRepo: OpportunityRepo = {
   async listForOrg(orgId) {

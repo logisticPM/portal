@@ -69,6 +69,10 @@ async function main() {
     const d = await dynamoAlignmentRepo.listForOrg(o.orgId);
     check("opp repo: mock ≡ dynamo (listForOrg)", JSON.stringify(m) === JSON.stringify(d));
     check("opp repo: listAll returns it", (await dynamoAlignmentRepo.listAll()).some((x) => x.id === o.id));
+    const o2 = { ...o, id: "cm-rbc-proc::s-raven", supplierId: "s-raven", supplierName: "Raven Logistics" };
+    await mockAlignmentRepo.upsert(o2);
+    await dynamoAlignmentRepo.upsert(o2);
+    check("opp repo: mock ≡ dynamo (listAll, tie-order)", JSON.stringify(await mockAlignmentRepo.listAll()) === JSON.stringify(await dynamoAlignmentRepo.listAll()));
   } else {
     console.warn("⚠️  opp repo parity skipped — set DYNAMO_ENDPOINT (npm run ddb:up)");
   }
