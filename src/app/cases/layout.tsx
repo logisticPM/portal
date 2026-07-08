@@ -11,6 +11,7 @@ export default function CasesLayout({ children }: { children: ReactNode }) {
             <Link href="/cases" className="hover:text-amber">Cases</Link>
             <Link href="/cases/activation" className="hover:text-amber">Activation</Link>
             <Link href="/cases/briefings" className="hover:text-amber">Briefings</Link>
+            <Link href="/cases/monitoring" className="hover:text-amber">Monitoring</Link>
             <Link href="/cases/methodology" className="hover:text-amber">Methodology</Link>
           </nav>
         </div>
