@@ -4,6 +4,7 @@
 // sections (added in later tasks) need DynamoDB Local (`npm run ddb:up`).
 // ===========================================================================
 import { cosine, structuredScore, combine } from "../src/lib/alignment/score";
+import { normalizeSector, normalizeRegion } from "../src/lib/alignment/normalize";
 
 let pass = 0;
 let fail = 0;
@@ -29,6 +30,14 @@ async function main() {
   // --- combine ---
   check("combine: weights structured + semantic", Math.abs(combine(1, 1) - 1) < 1e-6 && combine(0, 0) === 0);
   check("combine: monotonic in semantic", combine(0.5, 0.9) > combine(0.5, 0.1));
+
+  // --- normalization (deterministic map) ---
+  check("normalize sector: Construction -> construction", normalizeSector("Construction") === "construction");
+  check("normalize sector: Logistics -> transport", normalizeSector("Logistics") === "transport");
+  check("normalize sector: IT consulting -> consulting", normalizeSector("IT consulting") === "consulting");
+  check("normalize sector: unknown -> undefined", normalizeSector("basket weaving") === undefined);
+  check("normalize region: British Columbia -> BC", normalizeRegion("British Columbia") === "BC");
+  check("normalize region: AB stays AB", normalizeRegion("AB") === "AB");
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
