@@ -50,20 +50,24 @@ const LIGATURES: Record<string, string> = {
   "ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st",
 };
 // A running header/footer line we deterministically drop for SCC PDFs.
-const RUNNING_HEADER_RE = /^\s*SUPREME COURT OF CANADA\s*$/i;
+const RUNNING_HEADER_RE = /^\s*SUPREME COURT OF CANADA\s*$/;
 
 // Deterministic, VERBATIM cleanup of raw pdf-parse text. Only removes artifacts
 // (running headers, page-number lines, line-break hyphenation) and normalizes ligature
 // glyphs to the identical ASCII letters — never alters or invents word content.
 export function cleanupPdfText(raw: string): string {
-  let s = raw;
+  let s = raw.replace(/\r\n?/g, "\n");
   for (const [k, v] of Object.entries(LIGATURES)) s = s.split(k).join(v);
-  // Join hyphenated line breaks: "word-\nrest" → "wordrest" (letter-hyphen-newline-letter).
-  s = s.replace(/([A-Za-z])-\n([A-Za-z])/g, "$1$2");
+  // Line-break at a hyphen: remove only the NEWLINE, keep the hyphen. We cannot
+  // deterministically tell a soft (line-wrap) hyphen from a real compound hyphen without
+  // a lexicon, so we never delete the hyphen — a retained soft-hyphen ("judg-ment") is a
+  // verbatim-faithful artifact (lost recall), whereas deleting a real one fabricates a
+  // non-word ("selfdetermination"). Integrity over prettiness.
+  s = s.replace(/([A-Za-z])-\n([A-Za-z])/g, "$1-$2");
   const lines = s.split("\n").filter((ln) => {
     const t = ln.trim();
     if (RUNNING_HEADER_RE.test(t)) return false; // running header
-    if (/^\d{1,4}$/.test(t)) return false;        // page-number-only line
+    if (/^\d{1,3}$/.test(t)) return false; // page-number-only line — 1–3 digits so a 4-digit year ("...Act, 1982") on its own line is NOT dropped; a rare standalone 1–3 digit content number may be lost (safe-fail = recall, verified acceptable in the ops fidelity gate)
     return true;
   });
   // Re-join, collapse intra-line whitespace, paragraph-join on blank lines.

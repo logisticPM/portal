@@ -61,11 +61,17 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
     "The oﬀice granted the declaration.", // ligature ﬀ → ff
   ].join("\n");
   const cleaned = cleanupPdfText(raw);
-  assert.ok(cleaned.includes("compensation for the taking of its land."), "de-hyphenated across line break");
+  assert.ok(cleaned.includes("compensa-tion for the taking of its land."), "newline removed, hyphen preserved (verbatim-conservative)");
   assert.ok(cleaned.includes("The office granted the declaration."), "ligature normalized");
   assert.ok(!/SUPREME COURT OF CANADA/.test(cleaned), "running header dropped");
   assert.ok(!/^\s*12\s*$/m.test(cleaned), "page-number-only line dropped");
   assert.ok(!/compensa-\s*\n/.test(cleaned), "no dangling hyphen");
+  // genuine hyphenated compound must survive intact (the Critical case)
+  assert.ok(cleanupPdfText("The right to self-\ndetermination is protected.").includes("self-determination"), "real compound hyphen preserved");
+  // CRLF input is normalized and joined
+  assert.ok(cleanupPdfText("The claim for compensa-\r\ntion succeeded here today.").includes("compensa-tion succeeded"), "CRLF normalized + joined");
+  // a 4-digit year on its own line is NOT dropped
+  assert.ok(/\b1982\b/.test(cleanupPdfText("Constitution Act\n\n1982\n\nsection thirty-five confers the right.")), "standalone 4-digit year kept");
 
   // --- pdfToText: delegates to the injected parser then cleans ---
   const fakeParse = async (_buf: Buffer) => ({
@@ -73,7 +79,7 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
     numpages: 1, numrender: 1, info: null, metadata: null, version: "x",
   });
   const pt = await pdfToText(Buffer.from("%PDF-fake"), fakeParse);
-  assert.ok(pt.includes("Hello world of judgment reasoning here."), "pdfToText cleans parser output");
+  assert.ok(pt.includes("Hello world of judg-ment reasoning here."), "pdfToText cleans parser output");
   assert.ok(!/SUPREME COURT OF CANADA/.test(pt), "pdfToText drops running header");
 
   console.log("✅ test-cases-official-source passed");
