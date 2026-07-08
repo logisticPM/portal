@@ -5,10 +5,13 @@
 import type { IdentityTier } from "../repo/types";
 
 // Tunable weights + cutoffs (single source of truth).
-export const THRESHOLD = 0.6; // keep opportunities scoring >= this
+// Structured (sector/tier/ownership) dominates so real sector matches surface even
+// when the semantic signal is weak (e.g. the offline stub embedder); semantic (0.3)
+// breaks ties and surfaces cross-sector fits when a real embedder is configured.
+export const THRESHOLD = 0.5; // keep opportunities scoring >= this
 export const TOP_N = 5; // per commitment
-const W_STRUCTURED = 0.55;
-const W_SEMANTIC = 0.45;
+const W_STRUCTURED = 0.7;
+const W_SEMANTIC = 0.3;
 
 const TIER_WEIGHT: Record<IdentityTier, number> = {
   nation: 1,

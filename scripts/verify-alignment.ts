@@ -3,7 +3,7 @@
 // Pure checks (score, normalize, marshaller) need no DB. Repo-parity + scenario
 // sections (added in later tasks) need DynamoDB Local (`npm run ddb:up`).
 // ===========================================================================
-import { cosine, structuredScore, combine } from "../src/lib/alignment/score";
+import { cosine, structuredScore, combine, THRESHOLD } from "../src/lib/alignment/score";
 import { normalizeSector, normalizeRegion } from "../src/lib/alignment/normalize";
 import { opportunityKeys, toOpportunityItem, itemToOpportunity } from "../src/lib/dynamo/alignment-table";
 import type { Opportunity } from "../src/lib/alignment/types";
@@ -108,7 +108,7 @@ async function main() {
     ];
     const opps = await computeForCommitment(scenarioCommit as any, supplierPool as any, alignmentRepo);
     check("engine: top match is the construction supplier", opps[0]?.supplierId === "s-eagle");
-    check("engine: score above threshold + reasons.sectorMatch", (opps[0]?.score ?? 0) >= 0.6 && opps[0]?.reasons.sectorMatch === true);
+    check("engine: score above threshold + reasons.sectorMatch", (opps[0]?.score ?? 0) >= THRESHOLD && opps[0]?.reasons.sectorMatch === true);
     check("engine: upserted to repo", (await alignmentRepo.listForOrg("test-co")).some((x) => x.supplierId === "s-eagle"));
     const noOrgCommit = { ...scenarioCommit, id: "cm-noorg", orgId: undefined };
     check("engine: skips commitment without orgId", (await computeForCommitment(noOrgCommit as any, supplierPool as any, alignmentRepo)).length === 0);
