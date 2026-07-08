@@ -171,54 +171,62 @@ export default async function MyCommitmentsPage() {
         {mine.length === 0 ? (
           <p className="text-ink3 text-sm">None yet. Add your first above.</p>
         ) : (
-          <div className="divide-y divide-ink/10">
-            {mine.map((c) => (
-              <div key={c.id} className="py-3 flex flex-wrap items-center gap-3 text-sm">
-                <div className="flex-1 min-w-[220px]">
-                  <div>{c.title}</div>
-                  <div className="text-ink3 text-xs capitalize">
-                    {label(c.sector)} · {label(c.type)} · {c.orgSize} · target {c.targetYear}
+          <div className="space-y-3">
+            {mine.map((c) => {
+              const opps = oppsByCommitment.get(c.id) ?? [];
+              return (
+                <div key={c.id} className="rounded border border-line bg-bg/30 p-4 space-y-3">
+                  {/* commitment header + controls */}
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <div className="flex-1 min-w-[220px]">
+                      <div className="font-medium text-ink">{c.title}</div>
+                      <div className="text-ink3 text-xs capitalize">
+                        {label(c.sector)} · {label(c.type)} · {c.orgSize} · target {c.targetYear}
+                      </div>
+                    </div>
+                    {/* inline update */}
+                    <form action={updateCommitmentAction} className="flex items-center gap-2">
+                      <input type="hidden" name="id" value={c.id} />
+                      <select name="status" defaultValue={c.status} className="rounded border border-line bg-bg/40 px-2 py-1 text-xs capitalize">
+                        {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+                      </select>
+                      <input
+                        name="progressPct" type="number" min={0} max={100} defaultValue={c.progressPct}
+                        className="w-16 rounded border border-line bg-bg/40 px-2 py-1 text-xs"
+                      />
+                      <button className="rounded border border-line px-2 py-1 text-xs hover:border-amber/50 text-ink2 hover:text-ink">Save</button>
+                    </form>
+                    <span className={`text-xs rounded border px-2 py-0.5 capitalize ${STATUS_PILL[c.status] ?? "border-line"}`}>
+                      {label(c.status)}
+                    </span>
+                    <form action={deleteCommitmentAction}>
+                      <input type="hidden" name="id" value={c.id} />
+                      <button className="text-rust text-xs hover:underline">delete</button>
+                    </form>
                   </div>
+
+                  {/* AI-matched suppliers, nested + scoped to THIS commitment */}
+                  {opps.length > 0 && (
+                    <div className="rounded border border-cedar/30 bg-cedar/5 p-3">
+                      <div className="text-cedar text-xs uppercase tracking-widest mb-2">
+                        ✦ AI-matched suppliers for “{c.title}”
+                      </div>
+                      <div className="space-y-1.5">
+                        {opps.map((o) => (
+                          <div key={o.id} className="flex items-baseline gap-3 text-sm flex-wrap">
+                            <span className="bg-cedar/20 text-cedar border border-cedar/40 rounded px-1.5 py-0.5 text-xs shrink-0">
+                              {Math.round(o.score * 100)}% fit
+                            </span>
+                            <a href={`/s/${o.supplierId}`} className="font-serif text-cedar underline">{o.supplierName}</a>
+                            {o.rationale && <span className="text-ink3">— {o.rationale}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {/* inline update */}
-                <form action={updateCommitmentAction} className="flex items-center gap-2">
-                  <input type="hidden" name="id" value={c.id} />
-                  <select name="status" defaultValue={c.status} className="rounded border border-line bg-bg/40 px-2 py-1 text-xs capitalize">
-                    {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
-                  </select>
-                  <input
-                    name="progressPct" type="number" min={0} max={100} defaultValue={c.progressPct}
-                    className="w-16 rounded border border-line bg-bg/40 px-2 py-1 text-xs"
-                  />
-                  <button className="rounded border border-line px-2 py-1 text-xs hover:border-amber/50 text-ink2 hover:text-ink">Save</button>
-                </form>
-                <span className={`text-xs rounded border px-2 py-0.5 capitalize ${STATUS_PILL[c.status] ?? "border-line"}`}>
-                  {label(c.status)}
-                </span>
-                <form action={deleteCommitmentAction}>
-                  <input type="hidden" name="id" value={c.id} />
-                  <button className="text-rust text-xs hover:underline">delete</button>
-                </form>
-                {(oppsByCommitment.get(c.id) ?? []).length > 0 && (
-                  <div className="mt-3 border-t border-line pt-3 w-full">
-                    <div className="text-ink3 text-xs uppercase tracking-widest mb-2">
-                      Indigenous suppliers that fit this commitment
-                    </div>
-                    <div className="space-y-2">
-                      {(oppsByCommitment.get(c.id) ?? []).map((o) => (
-                        <div key={o.id} className="flex items-center gap-3 text-sm flex-wrap">
-                          <span className="bg-cedar/20 text-cedar border border-cedar/40 rounded px-1.5 py-0.5 text-xs">
-                            {Math.round(o.score * 100)}% fit
-                          </span>
-                          <a href={`/s/${o.supplierId}`} className="font-serif text-cedar underline">{o.supplierName}</a>
-                          {o.rationale && <span className="text-ink3">— {o.rationale}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
