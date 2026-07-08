@@ -33,28 +33,59 @@ Then open the printed URL (usually <http://localhost:3000>).
 
 ---
 
-## Demo accounts
+## Demo accounts — sign in to test each of the 3 roles
 
-Login is real (email + password). The seed creates one account per demo entity. **All seeded accounts share the same password:**
+Login is real (email + password). **Every account shares the same password:**
 
 ```
 Password:  demo-portal-2026
 ```
 
-| Email | Persona | Portal / starting page |
-|---|---|---|
-| `northway@demo` | Company — Northway Energy | report · coverage |
-| `cedartrust@demo` | Company — Cedar Trust Bank | report · coverage |
-| `mapletel@demo` | Company — Maple Telecom | report · coverage |
-| `eagle@demo` | Supplier — Eagle River Construction | confirm · record · profile |
-| `raven@demo` | Supplier — Raven Logistics | confirm · record · profile |
-| `thunderbird@demo` | Supplier — Thunderbird IT Services | confirm · record · profile |
-| `sweetgrass@demo` | Supplier — Sweetgrass Catering | confirm · record · profile |
-| `cedarsage@demo` | Supplier — Cedar & Sage Consulting | confirm · record · profile |
-| `salish@demo` | Supplier — Salish Office Supplies | confirm · record · profile |
-| `institute@demo` | Indigenomics (institute) | analytics (the Index) · verify |
+Pick any of the three role sections below. The email is always the entity's name, lowercased with spaces → hyphens, ending in `@demo`.
 
-> ⚠️ **Demo accounts are for synthetic data only.** The shared password is obviously not a secret; these accounts exist purely so the team can sign in as a seeded entity during local dev and the showcase. They are seeded only by the local/synthetic seed and must **never** be created against an environment holding real partner data.
+### 1 · Indigenomics institute (the curator / analyst view)
+
+| Email | What you see |
+|---|---|
+| `institute@demo` | RAP Index · Organizations · **Suppliers** directory · Coverage analysis · Verification · **Alignment** radar · Extract |
+
+### 2 · Company (a RAP-committing organization)
+
+Lands on **My commitments** — manage your commitments and see the **AI-matched Indigenous suppliers** for each one. You can sign in as **any of the 103 real RAP-Index companies**; the email is the company name slugified + `@demo`. A few to try:
+
+| Email | Company |
+|---|---|
+| `rbc-royal-bank-of-canada@demo` | RBC (Royal Bank of Canada) |
+| `bell-canada@demo` | Bell Canada |
+| `enbridge@demo` | Enbridge |
+| `sun-life@demo` | Sun Life |
+| `ontario-power-generation@demo` | Ontario Power Generation |
+| `maple-leaf-foods@demo` | Maple Leaf Foods |
+| `translink@demo` | TransLink |
+| `cedar-trust-bank@demo` | Cedar Trust Bank *(synthetic demo co.)* |
+
+> Any of the 103 works — browse the full list at **`/commitments`** (signed in as `institute@demo`); each org's slugified name is its login. e.g. "Maple Leaf Foods" → `maple-leaf-foods@demo`.
+
+### 3 · Indigenous supplier (one of the 10 real Indigenous-owned businesses)
+
+Lands on **Confirm** (approve buyer records) · **Record** · **My profile** (edit + public showcase).
+
+| Email | Supplier |
+|---|---|
+| `peacehills@demo` | Peace Hills Trust |
+| `bouchier@demo` | The Bouchier Group |
+| `kitsaki@demo` | Kitsaki Management LP |
+| `desnedhe@demo` | Des Nedhe Development |
+| `norsask@demo` | NorSask Forest Products |
+| `membertou@demo` | Membertou Development Corporation |
+| `animikii@demo` | Animikii |
+| `ntg@demo` | Nations Translation Group |
+| `3ne@demo` | Three Nations Energy |
+| `fch@demo` | First Canadian Health |
+
+> ⚠️ **Demo accounts are for synthetic/demo data only.** The shared password is obviously not a secret; these accounts exist purely so the team can sign in as a seeded entity for the showcase. Never create them against an environment holding real partner data.
+>
+> **Note (local dev):** `npm run ddb:seed` creates the 10 suppliers, the 3 synthetic companies, and `institute@demo`. The full **103 company** logins are provisioned by the `seed-org-logins` step (run in the deployed demo). To test the whole company set, use the deployed URL or run that seed against DynamoDB Local.
 
 To create your own account instead, use `/register` (company, supplier, or Indigenomics; password ≥ 8 characters).
 
