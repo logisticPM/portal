@@ -16,7 +16,7 @@ export function toDocumentUrl(url: string): string {
   try {
     const u = new URL(url);
     if (u.host !== "decisions.scc-csc.ca") return url;
-    const m = u.pathname.match(/^(.*)\/item\/(\d+)\/index\.do$/);
+    const m = u.pathname.match(/^(.*)\/item\/(\d+)\/index\.do\/?$/);
     if (!m) return url; // already document.do (or an unrecognized shape) → leave as-is
     u.pathname = `${m[1]}/${m[2]}/1/document.do`;
     return u.toString();

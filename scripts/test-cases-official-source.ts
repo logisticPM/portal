@@ -23,6 +23,11 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl } from "../s
     toDocumentUrl("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm"),
     "https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm",
     "non-SCC passes through unchanged");
+  assert.equal(
+    toDocumentUrl("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2189/index.do/"),
+    "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do",
+    "trailing slash normalizes too");
+  assert.equal(toDocumentUrl("not a url"), "not a url", "malformed input → returned unchanged");
 
   // --- htmlToText: strips noise, keeps paragraphs verbatim, decodes entities ---
   const html = `<html><head><title>x</title><style>.a{color:red}</style></head><body>
