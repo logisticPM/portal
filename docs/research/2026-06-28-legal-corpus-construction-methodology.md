@@ -160,3 +160,35 @@ applies it, marks `provenance.source="official_court"`, and promotes inline. Onl
 After a run: re-embed, rebuild the artifact, and refresh the derived layers
 (summaries / figures / nations). The Lexum PDF family (~1,900: SCC/ONCA/FC/FCA/
 tribunals) is deferred to v2 (needs a PDF→text path).
+
+## 2026-07-08 — SCC PDF backfill (backfill v2)
+
+bccourts HTML backfill (v1) is code-correct but its ops run is WAF-blocked (BC-gov
+infrastructure: single fetch OK, sustained bulk → 806/0/0 twice). Pivoted the backfill to
+the **Supreme Court of Canada** (`decisions.scc-csc.ca`, ~1,114 no-text cases) — a
+different (Lexum) platform. Live probe from the run environment confirmed: HTTP 200 / no
+WAF challenge; `robots.txt` permits automated access (only two `/icm/…` publication-ban
+docs disallowed); `…/<id>/1/document.do` returns a direct `application/pdf`.
+
+Extraction stays **verbatim, deterministic, no LLM**: `pdf-parse` → `cleanupPdfText`
+(normalize `\r\n`; de-hyphenate line breaks by removing only the newline and KEEPING the
+hyphen — never fabricate a joined non-word like "selfdetermination"; drop running headers
+and 1–3 digit page-number lines so 4-digit years survive; normalize ligature glyphs to
+identical ASCII; paragraph-join). A page that extracts short/garbage is skipped (宁缺毋滥).
+Stored viewer URLs (`…/item/<id>/index.do`) are normalized to the PDF form. Additive-safe
+(only `!fullTextAvailable`), `provenance.source="official_court"`. The runner takes an
+optional `BACKFILL_HOST` filter so the run targets SCC without re-hitting bccourts.
+
+**Library note:** `pdf-parse@1.1.1` is unmaintained but was verified to parse real SCC
+PDFs in this environment (probe: Haida Nation, id 2189 → 39 pages, ~162k chars of clean
+text). It fails only on *synthetic* PDFs (pdf-lib/hand-written xref-stream files), which
+is why the offline test proves PDF *routing* by content-type rather than parsing a
+synthetic PDF; real-PDF extraction is proven in the ops Phase-0 fidelity gate. If a later
+pass extends to other Lexum courts and hits parse failures, revisit the library
+(`pdfjs-dist`/`unpdf`).
+
+**Fidelity-gate watch-items (from the live probe, for the ops phase):** SCC report PDFs
+are **bilingual** (English + French combined), and their running headers are the
+case-name + citation (e.g. "NATION HAÏDA c. C.-B." / "[2004] 3 R.C.S."), not "SUPREME
+COURT OF CANADA". The Phase-0 fidelity gate decides whether to refine cleanup (EN/FR
+handling, broader header stripping) before the bulk run.

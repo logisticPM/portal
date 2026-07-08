@@ -1,8 +1,8 @@
-// Official-source full-text backfill (spec 2026-07-07 rev). v1: for no-full-text
-// cases whose sourceUrl is an open host (bccourts), fetch verbatim HTML text, apply,
+// Official-source full-text backfill. For no-full-text cases whose sourceUrl is an open
+// host (bccourts HTML or SCC PDF — see official-source.ts), fetch verbatim text, apply,
 // mark provenance official_court, and promote inline. ADDITIVE: only touches
 // !fullTextAvailable cases, so existing full text / vectors are never rewritten.
-// Resumable (re-run skips cases that now have text); disk-cached fetches.
+// Resumable (re-run skips cases that now have text). Optional BACKFILL_HOST scopes the run.
 import "./fetch-polyfill";
 import { BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
@@ -15,6 +15,7 @@ import type { LegalCase } from "../src/lib/cases/types";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 const SLEEP_MS = Number(process.env.BACKFILL_SLEEP_MS ?? 400); // polite delay between official-site fetches
+const HOST = process.env.BACKFILL_HOST; // optional: scope the run to one open host (e.g. decisions.scc-csc.ca)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function flush(batch: LegalCase[]) {
@@ -25,8 +26,12 @@ async function flush(batch: LegalCase[]) {
 
 async function main() {
   const all = await dynamoCaseRepo.listCases({ tier: "all" });
-  const todo = all.filter((c) => !c.fullTextAvailable && isOpenSource(c.provenance.sourceUrl));
-  console.log(`backfill: ${todo.length} open-source no-fulltext cases`);
+  const hostOf = (u: string) => { try { return new URL(u).host; } catch { return ""; } };
+  const todo = all.filter((c) =>
+    !c.fullTextAvailable &&
+    isOpenSource(c.provenance.sourceUrl) &&
+    (!HOST || hostOf(c.provenance.sourceUrl) === HOST));
+  console.log(`backfill: ${todo.length} open-source no-fulltext cases${HOST ? ` (host=${HOST})` : ""}`);
 
   let done = 0, withText = 0, promoted = 0;
   let batch: LegalCase[] = [];
