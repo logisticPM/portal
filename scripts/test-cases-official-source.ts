@@ -1,6 +1,7 @@
 // Official-source backfill v1 (spec 2026-07-07 rev): allowlist + verbatim HTML→text.
 // Async IIFE — this repo is NOT ESM (top-level await is illegal).
 import assert from "node:assert/strict";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfText, pdfToText } from "../src/lib/cases/ingest/official-source";
 
 (async () => {
@@ -43,12 +44,33 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   assert.ok(!/[<>]/.test(text), "no residual tags");
   assert.ok(text.split("\n\n").length >= 2, "paragraph-structured (\\n\\n separated)");
 
-  // --- fetchOfficialText: injected get ---
-  const body = "The reasons for judgment. ".repeat(20); // > 200 chars
-  assert.equal(await fetchOfficialText("https://www.bccourts.ca/a.htm", async () => `<p>${body}</p>`), body.trim(), "open host → extracted text");
-  assert.equal(await fetchOfficialText("https://www.canlii.org/x", async () => "<p>should never fetch</p>"), "", "non-open host → '' (not fetched)");
-  assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => "<p>tiny</p>"), "", "too-short extraction → ''");
+  // --- fetchOfficialText: injected get returns { buf, contentType } (bytes + type) ---
+  const body = "The reasons for judgment. ".repeat(20); // > 200 chars after trim
+  const htmlGet = async () => ({ buf: Buffer.from(`<p>${body}</p>`, "utf8"), contentType: "text/html; charset=utf-8" });
+  assert.equal(await fetchOfficialText("https://www.bccourts.ca/a.htm", htmlGet), body.trim(), "open HTML host → extracted text");
+  assert.equal(await fetchOfficialText("https://www.canlii.org/x", htmlGet), "", "non-open host → '' (not fetched)");
+  assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => ({ buf: Buffer.from("<p>tiny</p>"), contentType: "text/html" })), "", "too-short extraction → ''");
   assert.equal(await fetchOfficialText("https://www.bccourts.ca/e.htm", async () => { throw new Error("net"); }), "", "fetch error → ''");
+
+  // robots.txt deny-list: an /icm/ disallowed document is never fetched.
+  let denyFetched = false;
+  assert.equal(
+    await fetchOfficialText("https://decisions.scc-csc.ca/icm/icm/en/120620/1/document.do", async () => { denyFetched = true; return { buf: Buffer.from("x"), contentType: "application/pdf" }; }),
+    "", "robots-denied URL → '' ");
+  assert.equal(denyFetched, false, "robots-denied URL not fetched");
+
+  // PDF routing: a real (tiny) PDF authored with pdf-lib, injected as bytes → parsed + cleaned.
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage();
+  const pdfBody = "The reasons for judgment of the Court are as follows and they continue at length.";
+  for (let i = 0; i < 6; i++) page.drawText(pdfBody, { x: 40, y: 700 - i * 30, size: 11, font });
+  const pdfBytes = Buffer.from(await doc.save());
+  const scc = await fetchOfficialText(
+    "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2189/index.do",
+    async (u: string) => { assert.ok(u.endsWith("/2189/1/document.do"), "fetched the document.do form"); return { buf: pdfBytes, contentType: "application/pdf" }; },
+  );
+  assert.ok(scc.includes("reasons for judgment of the Court"), "SCC PDF → extracted verbatim text");
 
   // --- cleanupPdfText: deterministic verbatim cleanup (pure string→string) ---
   const raw = [

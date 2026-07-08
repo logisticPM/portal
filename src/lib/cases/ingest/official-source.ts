@@ -6,6 +6,13 @@ import pdfParse from "pdf-parse/lib/pdf-parse.js";
 
 export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca"];
 
+// robots.txt (User-agent: *) disallows exactly these two documents — honor it even
+// though they are /icm/ (not /scc-csc/) and won't appear in our SCC set.
+const ROBOTS_DENY = [
+  "/icm/icm/en/item/120620/", "/icm/icm/en/120620/1/document.do",
+  "/icm/icm/en/item/111322/", "/icm/icm/en/111322/1/document.do",
+];
+
 export function isOpenSource(url: string): boolean {
   try { return OPEN_HOSTS.includes(new URL(url).host); } catch { return false; }
 }
@@ -90,36 +97,42 @@ const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 const MIN_TEXT = 200; // shorter than this = a shell/error page → skip (never store garbage)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Fetch an official page (browser UA — some official sites 403 non-browser agents)
-// and extract verbatim text. Returns "" on a non-open host, network failure, or an
-// implausibly short extraction. `get` is injectable for offline tests.
-export async function fetchOfficialText(url: string, get?: (u: string) => Promise<string>): Promise<string> {
+type Fetched = { buf: Buffer; contentType: string };
+
+// Decode HTML bytes using the declared charset (Content-Type → <meta charset> → default
+// windows-1252, which fixes bccourts' legacy-encoded apostrophes/accents).
+function decodeHtml(buf: Buffer, contentType: string): string {
+  const header = /charset=([^;\s]+)/i.exec(contentType)?.[1];
+  const meta = /<meta[^>]+charset=["']?([\w-]+)/i.exec(buf.toString("latin1").slice(0, 2048))?.[1];
+  let cs = (header ?? meta ?? "windows-1252").toLowerCase();
+  if (cs === "iso-8859-1" || cs === "latin1") cs = "windows-1252";
+  try { return new TextDecoder(cs).decode(buf); }
+  catch { return new TextDecoder("windows-1252").decode(buf); }
+}
+
+// Default fetch: browser UA, retry-once on non-OK (official sites throttle bursts),
+// returns raw bytes + content-type.
+async function defaultFetch(u: string): Promise<Fetched> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(u, { headers: { "User-Agent": BROWSER_UA } });
+    if (res.ok) return { buf: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") ?? "" };
+    if (attempt === 0) await sleep(1500);
+  }
+  return { buf: Buffer.alloc(0), contentType: "" };
+}
+
+// Fetch an official page and extract verbatim text. Returns "" on a robots-denied URL, a
+// non-open host, a network failure, or an implausibly short extraction. `get` is
+// injectable for offline tests.
+export async function fetchOfficialText(url: string, get: (u: string) => Promise<Fetched> = defaultFetch): Promise<string> {
+  if (ROBOTS_DENY.some((d) => url.includes(d))) return "";
   if (!isOpenSource(url)) return "";
-  const doGet = get ?? (async (u: string) => {
-    // Retry once on a non-OK response — official sites rate-limit bursts (429/403);
-    // a short backoff clears a transient throttle. The caller also paces requests.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await fetch(u, { headers: { "User-Agent": BROWSER_UA } });
-      if (res.ok) {
-        const buf = Buffer.from(await res.arrayBuffer());
-        // Decode with the declared charset (Content-Type, else a <meta charset>),
-        // default windows-1252 — bccourts serves legacy-encoded HTML, and UTF-8-
-        // decoding it mangles apostrophes/accents (e.g. nation names like "Tsilhqot'in").
-        const ct = res.headers.get("content-type") ?? "";
-        const header = /charset=([^;\s]+)/i.exec(ct)?.[1];
-        const metaHtml = buf.toString("latin1").slice(0, 2048);
-        const meta = /<meta[^>]+charset=["']?([\w-]+)/i.exec(metaHtml)?.[1];
-        let cs = (header ?? meta ?? "windows-1252").toLowerCase();
-        if (cs === "iso-8859-1" || cs === "latin1") cs = "windows-1252"; // superset, fixes smart quotes
-        try { return new TextDecoder(cs as string).decode(buf); }
-        catch { return new TextDecoder("windows-1252").decode(buf); }
-      }
-      if (attempt === 0) await sleep(1500); // transient throttle → back off once
-    }
-    return "";
-  });
+  const target = toDocumentUrl(url);
   try {
-    const text = htmlToText(await doGet(url));
+    const { buf, contentType } = await get(target);
+    if (buf.length === 0) return "";
+    const isPdf = /application\/pdf/i.test(contentType) || target.endsWith("/document.do");
+    const text = isPdf ? await pdfToText(buf) : htmlToText(decodeHtml(buf, contentType));
     return text.length >= MIN_TEXT ? text : "";
   } catch { return ""; }
 }
