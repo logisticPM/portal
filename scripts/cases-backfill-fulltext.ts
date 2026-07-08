@@ -14,6 +14,8 @@ import { promoteOne } from "./cases-ingest";
 import type { LegalCase } from "../src/lib/cases/types";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
+const SLEEP_MS = Number(process.env.BACKFILL_SLEEP_MS ?? 400); // polite delay between official-site fetches
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function flush(batch: LegalCase[]) {
   const reqs = batch.flatMap((c) => caseToItems(c).map((Item) => ({ PutRequest: { Item } })));
@@ -39,6 +41,7 @@ async function main() {
       if (batch.length >= 100) { await flush(batch); batch = []; }
     }
     if (++done % 100 === 0) console.log(`  ${done}/${todo.length} · text ${withText} · promoted ${promoted}`);
+    await sleep(SLEEP_MS); // pace requests — official sites rate-limit/WAF-block bursts
   }
   if (batch.length) await flush(batch);
   console.log(`✅ backfill: processed ${done} · got text ${withText} · promoted to core ${promoted}`);
