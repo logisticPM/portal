@@ -9,7 +9,8 @@ export default async function AlignmentPage() {
   const session = getSession();
   if (!session || session.kind !== "indigenomics") redirect("/home");
 
-  const opportunities = (await alignmentRepo.listAll()).slice(0, 100);
+  const all = await alignmentRepo.listAll();
+  const opportunities = all.slice(0, 100);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -19,6 +20,7 @@ export default async function AlignmentPage() {
         <h1 className="font-serif text-2xl">Matchmaking opportunities</h1>
         <p className="text-ink2 text-sm">
           Company RAP procurement commitments matched to verified Indigenous suppliers — ranked by fit. Broker the strongest.
+          {all.length > 100 && <span className="text-ink3"> Showing the top 100 of {all.length}.</span>}
         </p>
       </div>
       {opportunities.length === 0 ? (
