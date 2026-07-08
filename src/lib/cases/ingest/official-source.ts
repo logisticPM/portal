@@ -30,6 +30,7 @@ export function htmlToText(html: string): string {
 
 const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const MIN_TEXT = 200; // shorter than this = a shell/error page → skip (never store garbage)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Fetch an official page (browser UA — some official sites 403 non-browser agents)
 // and extract verbatim text. Returns "" on a non-open host, network failure, or an
@@ -37,20 +38,27 @@ const MIN_TEXT = 200; // shorter than this = a shell/error page → skip (never 
 export async function fetchOfficialText(url: string, get?: (u: string) => Promise<string>): Promise<string> {
   if (!isOpenSource(url)) return "";
   const doGet = get ?? (async (u: string) => {
-    const res = await fetch(u, { headers: { "User-Agent": BROWSER_UA } });
-    if (!res.ok) return "";
-    const buf = Buffer.from(await res.arrayBuffer());
-    // Decode with the declared charset (Content-Type, else a <meta charset>), default
-    // windows-1252 — bccourts serves legacy-encoded HTML, and UTF-8-decoding it mangles
-    // apostrophes/accents (e.g. nation names like "Tsilhqot'in").
-    const ct = res.headers.get("content-type") ?? "";
-    const header = /charset=([^;\s]+)/i.exec(ct)?.[1];
-    const metaHtml = buf.toString("latin1").slice(0, 2048);
-    const meta = /<meta[^>]+charset=["']?([\w-]+)/i.exec(metaHtml)?.[1];
-    let cs = (header ?? meta ?? "windows-1252").toLowerCase();
-    if (cs === "iso-8859-1" || cs === "latin1") cs = "windows-1252"; // superset, fixes smart quotes
-    try { return new TextDecoder(cs as string).decode(buf); }
-    catch { return new TextDecoder("windows-1252").decode(buf); }
+    // Retry once on a non-OK response — official sites rate-limit bursts (429/403);
+    // a short backoff clears a transient throttle. The caller also paces requests.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const res = await fetch(u, { headers: { "User-Agent": BROWSER_UA } });
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        // Decode with the declared charset (Content-Type, else a <meta charset>),
+        // default windows-1252 — bccourts serves legacy-encoded HTML, and UTF-8-
+        // decoding it mangles apostrophes/accents (e.g. nation names like "Tsilhqot'in").
+        const ct = res.headers.get("content-type") ?? "";
+        const header = /charset=([^;\s]+)/i.exec(ct)?.[1];
+        const metaHtml = buf.toString("latin1").slice(0, 2048);
+        const meta = /<meta[^>]+charset=["']?([\w-]+)/i.exec(metaHtml)?.[1];
+        let cs = (header ?? meta ?? "windows-1252").toLowerCase();
+        if (cs === "iso-8859-1" || cs === "latin1") cs = "windows-1252"; // superset, fixes smart quotes
+        try { return new TextDecoder(cs as string).decode(buf); }
+        catch { return new TextDecoder("windows-1252").decode(buf); }
+      }
+      if (attempt === 0) await sleep(1500); // transient throttle → back off once
+    }
+    return "";
   });
   try {
     const text = htmlToText(await doGet(url));
