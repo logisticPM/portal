@@ -123,7 +123,7 @@ export default async function SuppliersPage({
                 <th className="text-left font-normal px-4 py-3">Supplier</th>
                 <th className="text-left font-normal px-4 py-3">Sector</th>
                 <th className="text-center font-normal px-4 py-3">Region</th>
-                <th className="text-left font-normal px-4 py-3">Identity</th>
+                <th className="text-center font-normal px-4 py-3">Identity</th>
                 <th className="text-right font-normal px-4 py-3">Indigenous-owned</th>
                 <th className="text-right font-normal px-4 py-3">Confirmed revenue</th>
               </tr>
@@ -137,7 +137,7 @@ export default async function SuppliersPage({
                   </td>
                   <td className="px-4 py-3 capitalize text-ink2">{sector || "—"}</td>
                   <td className="px-4 py-3 text-center text-ink2">{region || "—"}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center">
                     <span className={`inline-block whitespace-nowrap text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${tierStyles[s.identityTier]}`}>
                       {tierLabels[s.identityTier]}
                     </span>
