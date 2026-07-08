@@ -16,11 +16,14 @@ async function main() {
   // --- cosine ---
   check("cosine: identical vectors = 1", Math.abs(cosine(new Float32Array([1, 0]), new Float32Array([1, 0])) - 1) < 1e-6);
   check("cosine: orthogonal = 0", Math.abs(cosine(new Float32Array([1, 0]), new Float32Array([0, 1]))) < 1e-6);
+  check("cosine: zero-vector = 0", cosine(new Float32Array([0, 0]), new Float32Array([1, 0])) === 0);
 
   // --- structured score ---
   const full = structuredScore({ sectorMatch: true, regionMatch: true, identityTier: "nation", ownershipPct: 100 });
   const none = structuredScore({ sectorMatch: false, regionMatch: false, identityTier: "self_declared", ownershipPct: 20 });
-  check("structured: full match > partial > none", full > none && full <= 1 && none >= 0);
+  const partial = structuredScore({ sectorMatch: true, regionMatch: false, identityTier: "ccab", ownershipPct: 80 });
+  check("structured: full > partial > none", full > partial && partial > none && none >= 0);
+  check("structured: full match caps at 1", full <= 1 && Math.abs(full - 1) < 1e-9);
   check("structured: sector+region+nation is high", full >= 0.8);
 
   // --- combine ---

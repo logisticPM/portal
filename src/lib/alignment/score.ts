@@ -39,6 +39,7 @@ export function structuredScore(input: {
   const sector = input.sectorMatch ? 0.45 : 0;
   const region = input.regionMatch ? 0.2 : 0;
   const tier = TIER_WEIGHT[input.identityTier] * 0.25;
+  // ownershipPct defaults to 51 (the bare-majority threshold to qualify as Indigenous-owned)
   const ownership = Math.min(1, (input.ownershipPct ?? 51) / 100) * 0.1;
   return Math.min(1, sector + region + tier + ownership);
 }
