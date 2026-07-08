@@ -7,7 +7,7 @@
 import type { Opportunity } from "../alignment/types";
 
 export const ALIGNMENT_TABLE = process.env.ALIGNMENT_TABLE ?? "Alignment";
-export const GSI1 = "GSI1"; // global ranked radar
+export const ALIGNMENT_GSI1 = "GSI1"; // global ranked radar (index name on the Alignment table)
 
 // e.g. 0.823 -> "08230" so lexicographic order tracks numeric; query descending.
 const padScore = (score: number) => String(Math.round(score * 10000)).padStart(5, "0");
@@ -29,6 +29,9 @@ export function toOpportunityItem(o: Opportunity) {
   };
 }
 
+// Reconstruct field-by-field (DynamoDB doesn't preserve map-key order) so
+// JSON.stringify equality holds vs. the in-memory mock / test fixtures.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function itemToOpportunity(it: any): Opportunity {
   const d = it.data as Opportunity;
   return {
