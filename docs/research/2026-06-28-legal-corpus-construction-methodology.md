@@ -134,3 +134,14 @@ overwritten. `nations` is part of the search `metaText`, so the artifact is rebu
 after a run (no re-embed — chunks/vectors are unchanged). Precision caveat: verbatim
 presence proves a name is in the record, not that it is the party; the style-of-cause
 anchoring keeps this tight, but residual "mentioned, not party" noise is possible.
+
+## Automated monitoring (2026-07-07) — detection-only, additive
+
+A weekly `CaseMonitor` cron (`sst.aws.Cron`) harvests recent A2AJ cases over a
+90-day window and additively inserts only genuinely-new records as substrate
+(conditional `attribute_not_exists(PK)` write — never overwrites or promotes). Each
+run writes a `SCAN#` report (invisible to the corpus: no GSI1PK, GSI2 `SCAN#ALL`
+partition), surfaced at `/cases/monitoring`. The monitor detects and surfaces only;
+promotion, full-text fetch, embedding, and index rebuild remain a reviewed,
+credentialed human step (no unattended LLM, no automatic mutation of the production
+search artifact).
