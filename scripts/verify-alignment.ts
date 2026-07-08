@@ -10,6 +10,8 @@ import type { Opportunity } from "../src/lib/alignment/types";
 import { createSingleTable } from "../src/lib/dynamo/create";
 import { mockAlignmentRepo, _resetMockAlignment } from "../src/lib/alignment/repo.mock";
 import { dynamoAlignmentRepo } from "../src/lib/alignment/repo.dynamo";
+import { computeForCommitment } from "../src/lib/alignment/engine";
+import { alignmentRepo } from "../src/lib/alignment";
 
 let pass = 0;
 let fail = 0;
@@ -73,6 +75,23 @@ async function main() {
     await mockAlignmentRepo.upsert(o2);
     await dynamoAlignmentRepo.upsert(o2);
     check("opp repo: mock ≡ dynamo (listAll, tie-order)", JSON.stringify(await mockAlignmentRepo.listAll()) === JSON.stringify(await dynamoAlignmentRepo.listAll()));
+
+    // --- engine scenario: a procurement commitment matches a same-sector verified supplier ---
+    process.env.EMBED_PROVIDER = "stub"; // deterministic semantic score
+    const scenarioCommit = {
+      id: "cm-test-proc", orgName: "Test Co", orgId: "test-co", sector: "construction" as const,
+      orgSize: "large" as const, type: "procurement" as const, title: "Grow Indigenous construction procurement",
+      targetYear: 2027, status: "committed" as const, progressPct: 10, history: [{ period: "2025", status: "committed" as const, progressPct: 10 }],
+      createdAt: "2025-01-15T00:00:00.000Z", detail: "Buy construction services from Indigenous firms.",
+    };
+    const supplierPool = [
+      { id: "s-eagle", role: "supplier" as const, name: "Eagle River Construction", identityTier: "nation" as const, ownershipPct: 100, sector: "Construction", sectorNorm: "construction" as const, region: "BC", regionNorm: "BC", registered: true, createdAt: "2025-01-15T00:00:00.000Z" },
+      { id: "s-raven", role: "supplier" as const, name: "Raven Logistics", identityTier: "ccab" as const, ownershipPct: 80, sector: "Logistics", sectorNorm: "transport" as const, region: "AB", regionNorm: "AB", registered: true, createdAt: "2025-01-15T00:00:00.000Z" },
+    ];
+    const opps = await computeForCommitment(scenarioCommit as any, supplierPool as any, alignmentRepo);
+    check("engine: top match is the construction supplier", opps[0]?.supplierId === "s-eagle");
+    check("engine: score above threshold + reasons.sectorMatch", (opps[0]?.score ?? 0) >= 0.6 && opps[0]?.reasons.sectorMatch === true);
+    check("engine: upserted to repo", (await alignmentRepo.listForOrg("test-co")).some((x) => x.supplierId === "s-eagle"));
   } else {
     console.warn("⚠️  opp repo parity skipped — set DYNAMO_ENDPOINT (npm run ddb:up)");
   }
