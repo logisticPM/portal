@@ -5,6 +5,8 @@
 // ===========================================================================
 import { cosine, structuredScore, combine } from "../src/lib/alignment/score";
 import { normalizeSector, normalizeRegion } from "../src/lib/alignment/normalize";
+import { opportunityKeys, toOpportunityItem, itemToOpportunity } from "../src/lib/dynamo/alignment-table";
+import type { Opportunity } from "../src/lib/alignment/types";
 
 let pass = 0;
 let fail = 0;
@@ -40,6 +42,18 @@ async function main() {
   check("normalize sector: unknown -> undefined", normalizeSector("basket weaving") === undefined);
   check("normalize region: British Columbia -> BC", normalizeRegion("British Columbia") === "BC");
   check("normalize region: AB stays AB", normalizeRegion("AB") === "AB");
+
+  // --- opportunity marshalling ---
+  const o: Opportunity = {
+    id: "cm-rbc-proc::s-eagle", commitmentId: "cm-rbc-proc", orgId: "rbc-royal-bank-of-canada",
+    supplierId: "s-eagle", supplierName: "Eagle River Construction", commitmentTitle: "Grow Indigenous procurement",
+    score: 0.82, reasons: { sectorMatch: true, regionMatch: false, identityTier: "nation", semantic: 0.71 },
+    rationale: "Fits the construction procurement target.", status: "new", createdAt: "2025-01-15T00:00:00.000Z",
+  };
+  const item = toOpportunityItem(o);
+  check("opp: PK is OPPORTUNITY#<orgId>", item.PK === "OPPORTUNITY#rbc-royal-bank-of-canada");
+  check("opp: GSI1PK groups all (radar)", item.GSI1PK === "OPPORTUNITY");
+  check("opp: round-trips", JSON.stringify(itemToOpportunity(item)) === JSON.stringify(o));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
