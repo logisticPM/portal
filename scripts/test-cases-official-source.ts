@@ -1,14 +1,28 @@
 // Official-source backfill v1 (spec 2026-07-07 rev): allowlist + verbatim HTML→text.
 // Async IIFE — this repo is NOT ESM (top-level await is illegal).
 import assert from "node:assert/strict";
-import { isOpenSource, htmlToText, fetchOfficialText } from "../src/lib/cases/ingest/official-source";
+import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl } from "../src/lib/cases/ingest/official-source";
 
 (async () => {
-  // --- isOpenSource (v1 = bccourts only) ---
+  // --- isOpenSource (v2 = bccourts + SCC) ---
   assert.equal(isOpenSource("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm"), true);
-  assert.equal(isOpenSource("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14246/index.do"), false, "PDF host is v2, not open in v1");
+  assert.equal(isOpenSource("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14246/index.do"), true, "SCC now open in v2");
   assert.equal(isOpenSource("https://www.canlii.org/en/bc/bcsc/doc/x.html"), false, "CanLII excluded");
   assert.equal(isOpenSource("not a url"), false);
+
+  // --- toDocumentUrl: viewer form → direct-PDF form; passthrough otherwise ---
+  assert.equal(
+    toDocumentUrl("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2189/index.do"),
+    "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do",
+    "index.do → document.do");
+  assert.equal(
+    toDocumentUrl("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do"),
+    "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do",
+    "document.do passes through unchanged");
+  assert.equal(
+    toDocumentUrl("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm"),
+    "https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm",
+    "non-SCC passes through unchanged");
 
   // --- htmlToText: strips noise, keeps paragraphs verbatim, decodes entities ---
   const html = `<html><head><title>x</title><style>.a{color:red}</style></head><body>

@@ -1,11 +1,26 @@
 // Official-source full-text backfill (spec 2026-07-07 rev). v1: www.bccourts.ca HTML.
-// Deterministic, VERBATIM HTML→text (no LLM) so downstream summary/figure
-// verbatim-verification stays valid; only allow-listed open hosts are fetched
-// (CanLII and the PDF/Lexum hosts are excluded in v1).
-const OPEN_HOSTS = ["www.bccourts.ca"]; // v1; v2 adds the Lexum PDF hosts
+// v2 adds decisions.scc-csc.ca (SCC/Lexum PDFs). Deterministic, VERBATIM HTML→text
+// (no LLM) so downstream summary/figure verbatim-verification stays valid; only
+// allow-listed open hosts are fetched (CanLII remains excluded).
+export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca"];
 
 export function isOpenSource(url: string): boolean {
   try { return OPEN_HOSTS.includes(new URL(url).host); } catch { return false; }
+}
+
+// SCC (Lexum) stores judgments as PDFs at …/<id>/1/document.do, but the corpus may
+// hold the viewer URL …/item/<id>/index.do. Normalize to the direct-PDF form so we
+// fetch the PDF, not the JS-viewer shell. Non-SCC and already-document.do URLs pass
+// through unchanged.
+export function toDocumentUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.host !== "decisions.scc-csc.ca") return url;
+    const m = u.pathname.match(/^(.*)\/item\/(\d+)\/index\.do$/);
+    if (!m) return url; // already document.do (or an unrecognized shape) → leave as-is
+    u.pathname = `${m[1]}/${m[2]}/1/document.do`;
+    return u.toString();
+  } catch { return url; }
 }
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " " };
