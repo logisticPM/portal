@@ -145,3 +145,18 @@ partition), surfaced at `/cases/monitoring`. The monitor detects and surfaces on
 promotion, full-text fetch, embedding, and index rebuild remain a reviewed,
 credentialed human step (no unattended LLM, no automatic mutation of the production
 search artifact).
+
+## Official-source backfill v1 (2026-07-07) — bccourts HTML, verbatim, additive
+
+A2AJ left 2,821 cases without full text; a Phase 0 probe found they point almost
+entirely to official open court sites (zero CanLII). v1 backfills the **806** whose
+`provenance.sourceUrl` is on `www.bccourts.ca` (clean HTML; a provincial-coverage
+gap). `cases:backfill-fulltext` fetches the official judgment page (browser UA,
+charset-aware decoding so apostrophes/accents in nation names survive), extracts
+text with a deterministic, verbatim HTML→text pass (no LLM — so downstream
+verbatim-verification holds; a page that doesn't extract cleanly is skipped),
+applies it, marks `provenance.source="official_court"`, and promotes inline. Only
+`!fullTextAvailable` cases are touched (existing full text / vectors untouched).
+After a run: re-embed, rebuild the artifact, and refresh the derived layers
+(summaries / figures / nations). The Lexum PDF family (~1,900: SCC/ONCA/FC/FCA/
+tribunals) is deferred to v2 (needs a PDF→text path).
