@@ -205,6 +205,26 @@ export default $config({
       },
     });
 
+    // Scheduled new-case monitor (spec 2026-07-07). Detection-only — additively
+    // records newly-published cases as substrate + writes a scan report; NO Bedrock,
+    // no promotion, no artifact mutation. Enrichment stays a human-run op.
+    new sst.aws.Cron("CaseMonitor", {
+      schedule: "rate(7 days)",
+      function: {
+        handler: "src/functions/case-monitor.handler",
+        timeout: "300 seconds",
+        memory: "512 MB",
+        environment: { CASES_TABLE: "LegalCases", SCAN_WINDOW_DAYS: "90" },
+        permissions: [{
+          actions: ["dynamodb:Query", "dynamodb:PutItem"],
+          resources: [
+            "arn:aws:dynamodb:us-east-1:*:table/LegalCases",
+            "arn:aws:dynamodb:us-east-1:*:table/LegalCases/index/*",
+          ],
+        }],
+      },
+    });
+
     new sst.aws.Nextjs("Web", {
       // Least-privilege access to exactly these resources (tables + GSIs + buckets).
       link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, casesIndex],
