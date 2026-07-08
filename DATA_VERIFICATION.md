@@ -1,58 +1,54 @@
 # Data Verification & Sources — RAP Index (`/commitments`) dataset
 
-**Prepared:** 2026-07-03 · CS7980 capstone · **Owner:** Mengshan (data / backend)
-**Scope:** the full commitments dataset behind the RAP Index dashboard (`/commitments`) and the Organizations pages (`/organizations`).
-**Method:** every record is drawn from the organization's **own public disclosure** (reconciliation / ESG / sustainability / supplier page, or a first-party news release). Each commitment stores a `source {label, url}`. All 102 unique source URLs were HTTP-checked on 2026-07-03.
+**Prepared:** 2026-07-08 · CS7980 capstone · **Owner:** Mengshan (data / backend)
+**Scope:** the commitments dataset behind the RAP Index dashboard (`/commitments`), the Organizations pages (`/organizations`), and company self-service (`/my-commitments`).
+**Method:** sourced records are drawn from the organization's **own public disclosure** (reconciliation / ESG / supplier page, or a first-party news release), each storing a `source {label, url}`. All 102 unique source URLs were HTTP-checked on 2026-07-08.
 
-> **Overall verdict: the dataset is real and fully sourced.** Every one of the 100 organizations is a genuine Canadian entity, and every commitment links to a first-party public page. 102 of 102 source URLs resolve directly; the remainder are real pages that block headless requests (anti-bot) or were momentarily unavailable at check time. **Figures (percentages / dollar amounts / progress) are illustrative snapshots taken from the cited sources** and should be confirmed against the source before being quoted as exact.
+> **Overall verdict: the sourced dataset is real and fully linked.** All 106 sourced commitments (100 genuine Canadian organizations) link to a first-party public page, and 102 of 102 URLs resolve directly. A separate, clearly-labelled set of 9 **company self-submissions** (3 built-in demo login accounts: Northway Energy, Cedar Trust Bank, Maple Telecom) carry no external source — they are entered through the portal by the logged-in company, exactly as the product's self-report flow intends. **Figures are illustrative snapshots** taken from the cited sources; confirm against the source before quoting as exact.
 
 ---
 
 ## 1. Methodology & data-integrity rules
 
-These rules are enforced in `src/lib/commitments/fixtures.ts` and hold for every record:
-
-- **Public disclosures only.** Records come from companies' *own public commitments* (reconciliation / ESG reports, supplier pages). This is deliberately **not** sensitive Indigenous community data, which stays with communities and the client.
-- **Status never exceeds `reported`.** Nothing is marked `confirmed`. Confirmation (verifying with the supplier or Nation) is the layer the portal itself would add and that we do not have for public data, so it is never faked.
-- **`rapType` (Australian RAP tiers) is omitted** — these are Canadian orgs operating under CCAB/CCIB PAIR and TRC Call to Action #92, a different maturity framework.
-- **Figures are illustrative snapshots** drawn from the cited public sources; verify against the source before treating any number as exact.
+- **Sourced records = public disclosures only** (reconciliation / ESG reports, supplier pages). Deliberately **not** sensitive Indigenous community data.
+- **Company self-submissions** (`orgId` present, no `source`) are first-party entries a logged-in company makes in `/my-commitments`; they feed the Index the same way, marked portal-submitted.
+- **Status never exceeds `reported`.** Nothing is `confirmed` — confirmation is the portal's verification layer, never faked.
+- **`rapType` (Australian RAP tiers) omitted** — Canadian orgs use CCAB/CCIB PAIR + TRC Call to Action #92.
+- **Figures are illustrative snapshots**; verify against the source before treating any number as exact.
 - **No fabricated source URLs.** Every `source.url` is a real first-party page (audited below).
 
 ## 2. Dataset at a glance
 
 | Metric | Value |
 |---|---|
-| Commitments | **106** |
-| Organizations | **100** |
+| Commitments (total) | **115** |
+| — sourced (public disclosure) | 106 |
+| — company self-submissions (demo accounts) | 9 |
+| Organizations | **103** (100 sourced + 3 demo login accounts) |
 | Sectors | **15** |
 | Commitment types | 5 |
 | Target-year range | 2017–2030 |
-| Organizations with a profile card | 100 / 100 |
+| Sourced orgs with a profile card | 100 / 100 |
 
-**By sector:** energy (23), finance (16), transport (12), mining (10), education (9), government (7), consulting (6), retail (5), health (5), telecom (4), construction (4), forestry (2), aerospace (1), agriculture (1), media (1).
+**By sector:** energy (26), finance (19), transport (12), mining (10), education (9), government (7), telecom (7), consulting (6), retail (5), health (5), construction (4), forestry (2), aerospace (1), agriculture (1), media (1).
 
-**By commitment type:** procurement (36), relationships (32), governance (18), employment (16), cultural_learning (4).
+**By commitment type:** procurement (39), relationships (34), governance (19), employment (18), cultural_learning (5).
 
-**By current status:** in_progress (77), reported (29). (No `confirmed`, by design.)
+**By current status:** in_progress (83), reported (29), committed (2), stalled (1). (No `confirmed`, by design.)
 
-## 3. Source-URL verification (2026-07-03)
+## 3. Source-URL verification (2026-07-08)
 
 | HTTP status | Count | Meaning |
 |---|---|---|
 | 200 / 302 | 102 | Live, resolves directly |
-| 403 | 0 | Real page; server blocks headless/bot requests (opens fine in a browser) |
-| 000 / 522 | 0 | Real domain; edge-blocked or transient origin error at check time |
+| 403 | 0 | Real page; blocks headless/bot requests |
+| 000 / 522 | 0 | Real domain; edge-blocked / transient |
 
-**Non-direct-resolving URLs (all verified real pages, flagged for transparency):**
+All 102 sourced URLs resolve directly (0 × 403 / 000 / 404). Company self-submissions have no external URL by design.
 
-| Status | Source |
-|---|---|
+## 4. Master source list (all 115 commitments)
 
-> Note: five source links that had moved (RBC, Bell, Canfor, TransAlta, Bruce Power) were re-pointed to confirmed-live canonical pages on 2026-07-03 (commit `fix/commitment-source-urls`). No 404s remain.
-
-## 4. Master source list (all 106 commitments)
-
-Ordered by sector, then organization. Status column = HTTP check result for that source URL.
+Ordered by sector, then organization. "self-report" = portal-submitted by a demo company (no external source).
 
 | Organization | Sector | Type | Due | Status | Progress | Source |
 |---|---|---|---|---|---|---|
@@ -89,6 +85,9 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | Hydro-Québec | energy | procurement | 2025 | reported | 80% | [Hydro-Québec — Indigenous relations](https://www.hydroquebec.com/indigenous-relations/relations.html) (`200`) |
 | Imperial Oil | energy | procurement | 2025 | reported | 85% | [Imperial — Indigenous engagement](https://www.imperialoil.ca/sustainability/indigenous-engagement) (`200`) |
 | Manitoba Hydro | energy | relationships | 2027 | in_progress | 40% | [Manitoba Hydro — Call for Wind Power](https://www.hydro.mb.ca/corporate/call-for-wind-power/) (`200`) |
+| Northway Energy | energy | procurement | 2024 | in_progress | 55% | _self-report (demo account)_ |
+| Northway Energy | energy | employment | 2027 | in_progress | 40% | _self-report (demo account)_ |
+| Northway Energy | energy | relationships | 2026 | in_progress | 45% | _self-report (demo account)_ |
 | Nova Scotia Power | energy | relationships | 2026 | in_progress | 50% | [Nova Scotia Power · NS-NB Reliability Tie](https://www.nspower.ca/cleanandgreen/clean-energy/ns-nb-reliability-tie) (`200`) |
 | Ontario Power Generation | energy | relationships | 2030 | in_progress | 45% | [Ontario Power Generation · Indigenous economic inclusion](https://www.niedb-cndea.ca/success-stories/ontario-power-generation-powering-the-way-for-indigenous-economic-inclusion/) (`200`) |
 | Pembina Pipeline | energy | relationships | 2026 | in_progress | 60% | [Pembina · Indigenous Engagement](https://www.pembina.com/sustainability/indigenous-community-engagement/indigenous-engagement) (`200`) |
@@ -104,6 +103,9 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | BMO (Bank of Montreal) | finance | procurement | 2023 | reported | 100% | [BMO wîcihitowin Indigenous Partnerships & Progress Report](https://www.newswire.ca/news-releases/bmo-releases-wicihitowin-3rd-annual-indigenous-partnerships-and-progress-report-and-announces-new-indigenous-advisory-council-members-872683670.html) (`200`) |
 | BMO (Bank of Montreal) | finance | governance | 2025 | reported | 100% | [BMO wîcihitowin Indigenous Partnerships & Progress Report](https://www.newswire.ca/news-releases/bmo-releases-wicihitowin-3rd-annual-indigenous-partnerships-and-progress-report-and-announces-new-indigenous-advisory-council-members-872683670.html) (`200`) |
 | Canada Life | finance | governance | 2026 | in_progress | 55% | [Canada Life · Who we are](https://www.canadalife.com/about-us/who-we-are.html) (`200`) |
+| Cedar Trust Bank | finance | procurement | 2025 | in_progress | 48% | _self-report (demo account)_ |
+| Cedar Trust Bank | finance | governance | 2026 | in_progress | 70% | _self-report (demo account)_ |
+| Cedar Trust Bank | finance | cultural_learning | 2028 | committed | 20% | _self-report (demo account)_ |
 | CIBC | finance | governance | 2026 | in_progress | 45% | [CIBC Reconciliation](https://www.cibc.com/en/about-cibc/corporate-profile/reconciliation.html) (`200`) |
 | Co-operators | finance | employment | 2026 | in_progress | 50% | [Co-operators · Truth and Reconciliation](https://www.cooperators.ca/en/about-us/reconciliation) (`200`) |
 | Intact Financial | finance | governance | 2026 | in_progress | 45% | [Intact Financial · Diversity, Equity and Inclusion](https://www.intactfc.com/careers/diversity-equity-and-inclusion) (`200`) |
@@ -147,6 +149,9 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 | Sobeys | retail | governance | 2026 | in_progress | 50% | [Sobeys · Diversity, equity & inclusion](https://dei.sobeys.com/en/) (`200`) |
 | The North West Company | retail | relationships | 2026 | in_progress | 50% | [The North West Company · Our Promise to Indigenous Peoples](https://www.northwest.ca/sustainability/our-promise-to-indigenous-peoples) (`200`) |
 | Bell Canada | telecom | relationships | 2030 | in_progress | 40% | [Bell · Bell for Better (reconciliation)](https://www.bell.ca/bell-for-better) (`200`) |
+| Maple Telecom | telecom | relationships | 2023 | stalled | 35% | _self-report (demo account)_ |
+| Maple Telecom | telecom | employment | 2026 | in_progress | 50% | _self-report (demo account)_ |
+| Maple Telecom | telecom | procurement | 2028 | committed | 15% | _self-report (demo account)_ |
 | Northwestel | telecom | relationships | 2026 | in_progress | 60% | [Northwestel · Reconciliation (Our Path Forward)](https://www.nwtel.ca/ourpathforward) (`302`) |
 | Rogers Communications | telecom | employment | 2025 | in_progress | 80% | [Rogers · CCIB member profile](https://www.ccib.ca/main/member/rogers-communications/) (`200`) |
 | TELUS | telecom | procurement | 2026 | reported | 80% | [TELUS · Indigenous Reconciliation](https://www.telus.com/en/social-impact/connecting-canada/indigenous-reconciliation) (`200`) |
@@ -165,18 +170,16 @@ Ordered by sector, then organization. Status column = HTTP check result for that
 
 ## 5. Live seed (production)
 
-The same fixtures are seeded to the production DynamoDB table so the live site and local dev match.
-
 | | |
 |---|---|
 | Table | `indigenomics-portal-production-CommitmentsTable-bbbceuvv` |
 | Region | `us-east-1` |
-| Records seeded | 106 |
-| Seed script | `scripts/seed-commitments.ts` (`COMMITMENTS_TABLE=... npx tsx scripts/seed-commitments.ts`) |
+| Records seeded | 115 |
+| Seed script | `scripts/seed-commitments.ts` |
 | Live dashboard | https://d1hwn8hhp1ytc0.cloudfront.net/commitments |
 
-Local dev reads the fixtures directly; production reads DynamoDB. A golden test (`scripts/verify.ts`) asserts the mock and DynamoDB representations are identical, so adding a field requires symmetric edits and stays consistent across both.
+Local dev reads fixtures; production reads DynamoDB. Company self-submissions are scoped by `orgId` = login party id, so `/my-commitments` shows only that company's own commitments.
 
 ---
 
-*Generated from `src/lib/commitments/fixtures.ts` + `org-profiles.ts`; URL statuses from a live HTTP check on 2026-07-03.*
+*Generated from `src/lib/commitments/fixtures.ts` + `org-profiles.ts`; URL statuses from a live HTTP check on 2026-07-08.*
