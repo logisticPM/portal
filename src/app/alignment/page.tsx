@@ -13,7 +13,7 @@ export default async function AlignmentPage() {
   const opportunities = all.slice(0, 100);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       <InstituteNav active="/alignment" />
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · alignment radar</div>
