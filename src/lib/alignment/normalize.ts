@@ -14,7 +14,7 @@ const SECTOR_MAP: [string, Sector][] = [
   ["catering", "retail"],
   ["food", "retail"],
   ["retail", "retail"],
-  ["it ", "consulting"],
+  [" it ", "consulting"],
   ["information technology", "consulting"],
   ["software", "consulting"],
   ["consulting", "consulting"],
@@ -35,7 +35,7 @@ const SECTOR_MAP: [string, Sector][] = [
 
 export function normalizeSector(freeform?: string): Sector | undefined {
   if (!freeform) return undefined;
-  const s = freeform.toLowerCase();
+  const s = ` ${freeform.toLowerCase()} `; // pad so " it " matches "IT" as a whole word
   for (const [kw, sector] of SECTOR_MAP) if (s.includes(kw)) return sector;
   return undefined;
 }

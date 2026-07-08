@@ -35,6 +35,8 @@ async function main() {
   check("normalize sector: Construction -> construction", normalizeSector("Construction") === "construction");
   check("normalize sector: Logistics -> transport", normalizeSector("Logistics") === "transport");
   check("normalize sector: IT consulting -> consulting", normalizeSector("IT consulting") === "consulting");
+  check("normalize sector: bare IT -> consulting", normalizeSector("IT") === "consulting");
+  check("normalize sector: 'unit' does not match IT", normalizeSector("unit") === undefined);
   check("normalize sector: unknown -> undefined", normalizeSector("basket weaving") === undefined);
   check("normalize region: British Columbia -> BC", normalizeRegion("British Columbia") === "BC");
   check("normalize region: AB stays AB", normalizeRegion("AB") === "AB");
