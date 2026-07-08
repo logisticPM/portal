@@ -1,5 +1,6 @@
 import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
+import { InstituteNav } from "@/components/InstituteNav";
 import type { IdentityTier } from "@/lib/repo/types";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -21,13 +22,21 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-8">
+      <InstituteNav active="/analytics" />
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">
-          Indigenomics · RAP analysis
+          Indigenomics · verification coverage
         </div>
         <h1 className="font-serif text-3xl">
-          The Index <span className="text-ink3 text-base">— a data view, not a rating</span>
+          Spend Coverage{" "}
+          <span className="text-ink3 text-base">· how much reported spend is confirmed</span>
         </h1>
+        <p className="text-ink2 text-sm mt-1">
+          Companies report dollars spent with Indigenous suppliers; the supplier confirms each entry.
+          This is the coverage of confirmed vs reported <em>spend</em>. Distinct from the{" "}
+          <a href="/commitments" className="text-amber hover:underline">RAP Index</a>, which tracks RAP{" "}
+          <em>commitments</em>.
+        </p>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4">
@@ -75,7 +84,7 @@ export default async function AnalyticsPage() {
 
       <div>
         <div className="text-ink3 text-xs uppercase tracking-widest mb-3">
-          Confirmed $ by ownership-certification tier — the equity / integrity lens
+          Confirmed $ by ownership-certification tier · the equity / integrity lens
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
           {(["nation", "ccab", "self_declared"] as const).map((t) => (
@@ -86,8 +95,8 @@ export default async function AnalyticsPage() {
           ))}
         </div>
         <p className="text-ink3 text-sm mt-2">
-          How much confirmed spend sits at each ownership-certification tier — self-declared is
-          where phantom-JV fraud risk concentrates. (Equity isn&apos;t a separate flow — it&apos;s
+          How much confirmed spend sits at each ownership-certification tier: self-declared is
+          where phantom-JV fraud risk concentrates. (Equity isn&apos;t a separate flow; it&apos;s
           this verification layer.)
         </p>
       </div>
@@ -105,7 +114,7 @@ export default async function AnalyticsPage() {
               <div className="text-ink3 text-sm">self-declared · with confirmed spend</div>
             </div>
           </div>
-          <p className="text-ink3 text-sm mt-2">A certification (status) without confirmed activity (substance) — or large spend with no verification — is the shell-company signal. Counts only; routed to human/Nation/CCIB review, never auto-judged.</p>
+          <p className="text-ink3 text-sm mt-2">A certification (status) without confirmed activity (substance), or large spend with no verification, is the shell-company signal. Counts only; routed to human/Nation/CCIB review, never auto-judged.</p>
         </div>
       )}
 

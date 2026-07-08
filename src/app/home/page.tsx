@@ -27,6 +27,9 @@ export default async function HomePage() {
   const session = getSession();
   if (!session) redirect("/");
 
+  // Institute lands directly on the RAP Index (the commitments dashboard).
+  if (session.kind === "indigenomics") redirect("/commitments");
+
   // ---- Company ----
   if (session.kind === "company" && session.partyId) {
     const [company, coverage] = await Promise.all([
@@ -43,6 +46,8 @@ export default async function HomePage() {
         <div className="grid sm:grid-cols-2 gap-4">
           <LinkCard href="/report" title="Report →" desc="Add itemized lines naming each supplier — your questionnaire." />
           <LinkCard href="/coverage" title="Coverage →" desc="Reported vs confirmed, by flow type." />
+          <LinkCard href="/my-commitments" title="My RAP commitments →" desc="Submit & track your RAP commitments — these feed the RAP Index." />
+          <LinkCard href="/cases" title="Legal cases — economic justice →" desc="What consultation, accommodation & treaty obligations look like in practice — 3,485 searchable, citation-anchored cases." />
         </div>
       </Shell>
     );
@@ -66,6 +71,7 @@ export default async function HomePage() {
           <LinkCard href="/record" title="My Record →" desc="Everything claimed about you + export / withdraw." />
           <LinkCard href="/profile" title="My Profile →" desc="Your showcase + linked certifications." />
           <LinkCard href={`/s/${session.partyId}`} title="Public page →" desc="Your verified-supplier showcase (if public)." />
+          <LinkCard href="/cases" title="Legal cases — economic justice →" desc="Precedents that back your negotiations — land rights, revenue sharing & consultation wins, searchable & citation-anchored." />
         </div>
       </Shell>
     );
@@ -77,15 +83,19 @@ export default async function HomePage() {
     repo.listPendingVerifications(),
   ]);
   return (
-    <Shell eyebrow="Indigenomics" title="The RAP Index">
+    <Shell eyebrow="Indigenomics" title="Indigenomics dashboard">
       <div className="grid sm:grid-cols-3 gap-4">
         <Stat value={`${idx.confirmedPct}%`} label="of reported $ confirmed (network-wide)" />
         <Stat value={money(idx.totalConfirmed)} label="confirmed Indigenous economic activity" />
         <Stat value={String(pending.length)} label="certification claims pending review" />
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
+        <LinkCard href="/extract?tab=upload" title="Submit a RAP — AI extraction →" desc="Upload a published RAP PDF; AI extracts commitments for review before they publish." />
+        <LinkCard href="/extract?tab=review" title="Extraction review queue →" desc="QA flagged AI extractions before they publish." />
+        <LinkCard href="/commitments" title="Commitments dashboard →" desc="RAP commitments by sector, size & type, tracked over time." />
         <LinkCard href="/analytics" title="RAP analysis →" desc="The Index: coverage, by flow, by tier, integrity signals." />
         <LinkCard href="/verify" title="Verification queue →" desc="Review pending supplier certification claims." />
+        <LinkCard href="/cases" title="Legal cases — economic justice →" desc="3,485 Indigenous economic-justice cases, searchable & citation-anchored; activation dashboard + methodology." />
       </div>
     </Shell>
   );

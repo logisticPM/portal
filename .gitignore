@@ -15,3 +15,6 @@ sst-env.d.ts
 
 # third-party reference PDFs — kept locally, not committed (bloat + copyright)
 docs/specs/*.pdf
+
+# A2AJ/LLM disk cache produced by cases:ingest — large, ephemeral, not committed
+scripts/.cache/

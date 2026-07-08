@@ -4,6 +4,10 @@ import "./globals.css";
 import { repo } from "@/lib/repo";
 import { getSession } from "@/lib/auth";
 import { signOut } from "@/lib/repo/actions";
+import { ThemeMenu } from "@/components/ThemeMenu";
+
+// Runs before paint to apply the stored mode (avoids a flash of the wrong theme).
+const NO_FLASH = `(function(){try{var t=JSON.parse(localStorage.getItem('portal-theme')||'null');var m=t&&t.mode;var e=document.documentElement;if(m==='dark')e.classList.add('dark');else if(m==='cb')e.classList.add('cb');}catch(e){}})();`;
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -19,8 +23,8 @@ const body = Hanken_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Indigenomics Data Portal — Demo",
-  description: "Consent-based, verified economic data — demo on synthetic data",
+  title: "Indigenomics Data Portal · Demo",
+  description: "Consent-based, verified economic data · demo on synthetic data",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -37,13 +41,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH }} />
+      </head>
       <body className="min-h-screen">
         <header className="border-b border-line px-6 py-4 flex items-center justify-between">
           <a href="/" className="font-serif text-lg">
             Indigenomics <span className="text-amber italic">Data Portal</span>
           </a>
           <div className="flex items-center gap-4 text-xs">
-            <span className="uppercase tracking-[0.18em] text-ink3">demo · synthetic data</span>
+            <span className="uppercase tracking-[0.18em] text-ink3">demo · {process.env.NEXT_PUBLIC_DATA_LABEL ?? "synthetic data"}</span>
+            <a href="/commitments" className="text-ink2 hover:text-ink">
+              RAP Index
+            </a>
+            <a href="/cases" className="text-ink2 hover:text-ink">
+              Legal Cases
+            </a>
+            <ThemeMenu />
             {session && (
               <a href="/home" className="text-ink2 hover:text-ink">
                 Home

@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Indigenomics — PechaKucha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..700&family=Hanken+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14160f;
+    --bg2:#1b1e15;
+    --panel:#20241a;
+    --ink:#f2ebdd;
+    --muted:#a39d8b;
+    --faint:#6f6a5b;
+    --gold:#d9a441;
+    --amber:#ecc06a;
+    --terra:#c25a34;
+    --sage:#93a473;
+    --line:rgba(242,235,221,.14);
+    --line2:rgba(242,235,221,.07);
+    --slide-ms:20000ms;
+    --disp:"Fraunces",Georgia,serif;
+    --body:"Hanken Grotesk",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--body);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Deck frame ---------- */
+  #deck{position:fixed;inset:0;overflow:hidden}
+  .slide{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;justify-content:center;
+    padding:clamp(2.2rem,6vw,7rem);
+    opacity:0;visibility:hidden;
+    transition:opacity .7s ease;
+    background:
+      radial-gradient(120% 90% at 82% 8%, rgba(217,164,65,.10), transparent 55%),
+      radial-gradient(110% 90% at 6% 96%, rgba(194,90,52,.10), transparent 52%),
+      linear-gradient(160deg,var(--bg2),var(--bg));
+  }
+  .slide.active{opacity:1;visibility:visible;z-index:2}
+
+  /* grain */
+  #deck::after{
+    content:"";position:fixed;inset:0;z-index:50;pointer-events:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='.4'/></svg>");
+    opacity:.045;mix-blend-mode:overlay;
+  }
+  /* vignette */
+  #deck::before{
+    content:"";position:fixed;inset:0;z-index:49;pointer-events:none;
+    box-shadow:inset 0 0 220px rgba(0,0,0,.55);
+  }
+
+  /* ---------- Reveal animation (per-slide) ---------- */
+  .slide.active .r{animation:rise .82s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*95ms + .12s)}
+  @keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+  .slide.active .fade{animation:fade 1.1s ease both;animation-delay:calc(var(--i,0)*120ms + .2s)}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .slide.active .grow{animation:grow 1s cubic-bezier(.2,.7,.2,1) both;animation-delay:.35s;transform-origin:left}
+  @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+  /* ---------- Typography ---------- */
+  .kicker{
+    font-family:var(--body);font-weight:600;
+    font-size:clamp(.62rem,1vw,.8rem);
+    letter-spacing:.34em;text-transform:uppercase;color:var(--gold);
+    display:flex;align-items:center;gap:.9rem;
+  }
+  .kicker::before{content:"";width:clamp(24px,4vw,54px);height:1px;background:var(--gold);opacity:.8}
+  .kick-terra{color:var(--terra)}
+  .kick-terra::before{background:var(--terra)}
+  .nfused{border-color:var(--gold)}
+  h1,h2{font-family:var(--disp);font-weight:600;line-height:.98;letter-spacing:-.015em}
+  .display{font-size:clamp(2.6rem,7.2vw,6.2rem);font-weight:640;line-height:.96}
+  .h-lg{font-size:clamp(2rem,5vw,4.1rem);line-height:1.02}
+  .h-md{font-size:clamp(1.5rem,3.4vw,2.7rem);line-height:1.06}
+  .lede{font-size:clamp(1.02rem,1.8vw,1.5rem);line-height:1.5;color:var(--ink);max-width:30ch;font-weight:400}
+  .body{font-size:clamp(.95rem,1.4vw,1.18rem);line-height:1.62;color:var(--muted);max-width:46ch;font-weight:400}
+  .em{color:var(--ink)}
+  .g{color:var(--gold)}
+  .t{color:var(--terra)}
+  .s{color:var(--sage)}
+  em,.it{font-style:italic;font-family:var(--disp);font-weight:420}
+  .num{font-family:var(--disp);font-weight:600;font-variant-numeric:lining-nums tabular-nums;line-height:.85;letter-spacing:-.02em}
+
+  /* ---------- Layout helpers ---------- */
+  .stack>*+*{margin-top:1.3rem}
+  .split{display:grid;grid-template-columns:1.02fr 1.05fr;gap:clamp(1.6rem,4vw,4rem);align-items:center;height:100%}
+  .col{display:flex;flex-direction:column;justify-content:center;gap:1.2rem}
+  .right{justify-self:end}
+  .mono-index{
+    position:absolute;top:clamp(1.6rem,4vw,3.2rem);right:clamp(1.6rem,4vw,3.4rem);
+    font-family:var(--disp);font-size:clamp(3rem,9vw,7.5rem);font-weight:300;
+    color:transparent;-webkit-text-stroke:1px rgba(242,235,221,.16);line-height:1;
+    font-variant-numeric:lining-nums;pointer-events:none;
+  }
+
+  /* stat card */
+  .stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(1rem,2.4vw,2.4rem)}
+  .stat{border-top:1px solid var(--line);padding-top:1rem}
+  .stat .v{font-family:var(--disp);font-weight:600;font-size:clamp(2.1rem,4.6vw,3.6rem);line-height:.9;color:var(--amber)}
+  .stat .l{margin-top:.55rem;font-size:.82rem;letter-spacing:.04em;color:var(--muted);line-height:1.35}
+
+  .rule{height:1px;background:var(--line);width:min(560px,60%)}
+  .pill{display:inline-flex;align-items:center;gap:.55rem;border:1px solid var(--line);border-radius:100px;
+    padding:.45rem 1rem;font-size:.78rem;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+  .pill b{color:var(--ink);font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:.6rem}
+
+  .flow{display:flex;align-items:stretch;gap:.7rem;flex-wrap:wrap}
+  .node{flex:1;min-width:120px;border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;background:rgba(242,235,221,.02)}
+  .node .t1{font-family:var(--disp);font-size:1.15rem;color:var(--ink);margin-bottom:.3rem}
+  .node .t2{font-size:.78rem;color:var(--muted);line-height:1.4}
+  .arrow{align-self:center;color:var(--gold);font-size:1.2rem}
+
+  .list{list-style:none;display:flex;flex-direction:column;gap:1.05rem;max-width:52ch}
+  .list li{display:flex;gap:1rem;align-items:baseline}
+  .list .m{font-family:var(--disp);color:var(--gold);font-size:1rem;min-width:1.6rem}
+  .list .x{font-size:clamp(.95rem,1.4vw,1.15rem);line-height:1.45}
+  .list .x b{color:var(--ink);font-weight:600}
+  .list .x span{color:var(--muted)}
+
+  /* screenshots */
+  .shotframe{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#e9e1cf;
+    box-shadow:0 22px 60px -26px rgba(0,0,0,.75)}
+  .shotframe img{display:block;width:100%;height:auto;max-height:62vh;object-fit:contain;background:#e9e1cf}
+  .shots{display:grid;grid-template-columns:1fr 1fr;gap:1rem;width:100%;margin-top:.2rem}
+  .shots .shotframe img{max-height:44vh}
+  .cap{font-size:.82rem;letter-spacing:.02em;color:var(--muted);margin-top:.7rem;line-height:1.45;max-width:70ch}
+  .cap b{color:var(--ink);font-weight:600}
+
+  /* divider slide */
+  .divider{align-items:flex-start;justify-content:center;
+    background:
+      radial-gradient(120% 120% at 100% 0%, rgba(194,90,52,.18), transparent 50%),
+      linear-gradient(150deg,#191c12,#0f110b)}
+  .divider .part{font-family:var(--disp);font-weight:300;font-size:clamp(1rem,2vw,1.3rem);color:var(--gold);letter-spacing:.2em;text-transform:uppercase}
+  .divider .big{font-family:var(--disp);font-weight:640;font-size:clamp(3rem,10vw,8.5rem);line-height:.92;margin-top:.6rem}
+  .divider .sub{margin-top:1.6rem;font-size:clamp(1rem,1.6vw,1.35rem);color:var(--muted);max-width:40ch;line-height:1.5}
+  .bignum{position:absolute;bottom:clamp(1rem,3vw,2.4rem);right:clamp(1.6rem,4vw,3.4rem);
+    font-family:var(--disp);font-weight:300;font-size:clamp(7rem,26vw,22rem);line-height:.7;
+    color:transparent;-webkit-text-stroke:1.4px rgba(217,164,65,.28)}
+
+  .quote{font-family:var(--disp);font-weight:340;font-style:italic;
+    font-size:clamp(1.7rem,4.4vw,3.6rem);line-height:1.16;max-width:20ch;letter-spacing:-.01em}
+  .attrib{margin-top:1.8rem;font-size:.9rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+  .footnote{position:absolute;bottom:clamp(1.4rem,3.4vw,2.6rem);left:clamp(2.2rem,6vw,7rem);
+    font-size:.72rem;color:var(--faint);letter-spacing:.03em;max-width:60ch}
+
+  /* ---------- HUD ---------- */
+  #progress{position:fixed;top:0;left:0;height:3px;width:100%;background:rgba(242,235,221,.08);z-index:60}
+  #bar{height:100%;width:0;background:linear-gradient(90deg,var(--terra),var(--gold),var(--amber));box-shadow:0 0 14px rgba(217,164,65,.5)}
+  #bar.run{transition:width var(--slide-ms) linear}
+  #hud{position:fixed;bottom:0;left:0;right:0;z-index:60;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:.9rem clamp(1.4rem,4vw,2.6rem);
+    font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    background:linear-gradient(0deg,rgba(15,17,11,.9),transparent);pointer-events:none}
+  #hud .grp{display:flex;align-items:center;gap:1.1rem;pointer-events:auto}
+  #hud b{color:var(--ink);font-weight:600}
+  #hud .block-tag{color:var(--gold)}
+  .btn{cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink);
+    border-radius:100px;padding:.4rem .85rem;font:inherit;font-size:.68rem;letter-spacing:.14em;
+    text-transform:uppercase;transition:.2s}
+  .btn:hover{border-color:var(--gold);color:var(--gold)}
+  #count{font-family:var(--disp);font-size:.95rem;letter-spacing:.05em;color:var(--ink)}
+  #count .tot{color:var(--faint)}
+  .hint{position:fixed;bottom:3.4rem;left:50%;transform:translateX(-50%);z-index:60;
+    font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);
+    transition:opacity .6s;text-align:center}
+  .paused-badge{position:fixed;top:1.4rem;left:50%;transform:translateX(-50%);z-index:61;
+    font-size:.66rem;letter-spacing:.22em;text-transform:uppercase;color:var(--bg);
+    background:var(--gold);padding:.32rem .9rem;border-radius:100px;font-weight:700;
+    opacity:0;transition:opacity .3s}
+  .paused #pbadge{opacity:1}
+
+  .dots{display:flex;gap:5px;align-items:center;pointer-events:auto}
+  .dot{width:6px;height:6px;border-radius:50%;background:rgba(242,235,221,.2);transition:.3s;cursor:pointer}
+  .dot.on{background:var(--gold);transform:scale(1.35)}
+  .dot.blkB.on{background:var(--terra)}
+
+  @media (max-width:820px){
+    .split{grid-template-columns:1fr;gap:1.1rem}
+    .stat-grid{grid-template-columns:1fr 1fr}
+    .right{justify-self:start}
+    .dots{display:none}
+    .mono-index{font-size:2.6rem}
+    .shotframe img{max-height:34vh}
+    .shots{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div id="progress"><div id="bar"></div></div>
+<div id="pbadge" class="paused-badge">Paused</div>
+
+<div id="deck">
+
+  <!-- 1 · TITLE -->
+  <section class="slide" data-block="">
+    <div class="stack">
+      <div class="kicker r" style="--i:0">Indigenomics Institute · Capstone Pitch</div>
+      <h1 class="display r" style="--i:1">The Economic<br>Intelligence Layer<br><span class="g it">for Indigenous justice.</span></h1>
+      <div class="rule grow"></div>
+      <p class="body r" style="--i:3">Two systems, one thesis — turning Indigenous <em>commitments</em> and legal <em>wins</em> into structured, verifiable, investable intelligence.</p>
+    </div>
+    <div class="footnote fade" style="--i:6">A PechaKucha in 20 × 20 — Reconciliation Action Plans &nbsp;·&nbsp; Economic-Justice Case Law</div>
+  </section>
+
+  <!-- 2 · VISION -->
+  <section class="slide" data-block="">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The Client</div>
+        <h2 class="h-lg r" style="--i:1">The Indigenomics<br>Institute wants a seat<br>at the <span class="g">economic table.</span></h2>
+      </div>
+      <div class="col">
+        <p class="lede r" style="--i:2">Carol Anne Hilton's mandate is a <b class="em">$100-billion</b> Indigenous economy — framed as opportunity and empowerment, not grievance.</p>
+        <p class="body r" style="--i:3">Our job: build the infrastructure that makes that economy <em>legible</em> to Bay Street, to communities, and to the corporations who keep making promises.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · DIVIDER A -->
+  <section class="slide divider" data-block="A">
+    <div>
+      <div class="part r" style="--i:0">Part One</div>
+      <div class="big r" style="--i:1">The RAP<br>Platform</div>
+      <p class="sub r" style="--i:2">From a box-ticking logo to a <span class="g">grounded, benchmarkable registry</span> of corporate Indigenous commitments.</p>
+    </div>
+    <div class="bignum fade">01</div>
+  </section>
+
+  <!-- 4 · WHAT IS A RAP -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">Reconciliation Action Plan</div>
+        <h2 class="h-md r" style="--i:1">A published pledge —<br>a maturity ladder<br>from <em>Reflect</em> to <em>Elevate</em>.</h2>
+        <p class="body r" style="--i:2">Proven at scale in Australia: a coveted logo that creates pull without a mandate.</p>
+      </div>
+      <div class="col right">
+        <div class="stat-grid" style="max-width:420px">
+          <div class="stat fade" style="--i:2"><div class="v">2,200+</div><div class="l">organisations with a RAP</div></div>
+          <div class="stat fade" style="--i:3"><div class="v">~3M</div><div class="l">people inside a RAP org</div></div>
+          <div class="stat fade" style="--i:4"><div class="v">41</div><div class="l">annual impact-survey questions</div></div>
+          <div class="stat fade" style="--i:5"><div class="v">4×4</div><div class="l">pillars × plan tiers</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · THE FLAW -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r kick-terra" style="--i:0">The Fatal Flaw</div>
+        <h2 class="h-lg r" style="--i:1">Entirely self-reported.<br><span class="t">Nobody confirms<br>a single number.</span></h2>
+      </div>
+      <div class="col">
+        <ul class="list">
+          <li class="r" style="--i:2"><span class="m">↳</span><span class="x"><b>Rio Tinto</b> <span>held the top "Elevate" RAP the year it destroyed Juukan Gorge.</span></span></li>
+          <li class="r" style="--i:3"><span class="m">↳</span><span class="x"><b>Telstra</b> <span>ran a RAP while being fined <b class="t">$50M</b> for exploiting Indigenous customers.</span></span></li>
+        </ul>
+        <p class="body r" style="--i:4;margin-top:1.4rem">A plan and a logo — nothing confirming behaviour. Box-ticking, widely criticised as PR over outcomes.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · THESIS -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="stack" style="align-items:flex-start">
+      <div class="kicker r" style="--i:0">Our Thesis</div>
+      <h2 class="display r" style="--i:1;font-size:clamp(2.4rem,6.4vw,5.4rem)">Keep the questionnaire.<br>Add the layer it<br>never had: <span class="g it">confirmation.</span></h2>
+      <div class="rule grow"></div>
+      <p class="body r" style="--i:3">Shift from a social-activity lens to a <em>verified economic</em> one. From <span class="t">claimed</span> &nbsp;→&nbsp; <span class="g">confirmed</span>.</p>
+    </div>
+  </section>
+
+  <!-- 7 · INGEST -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="stack">
+      <div class="kicker r" style="--i:0">The Pipeline</div>
+      <h2 class="h-md r" style="--i:1">Drop in a PDF. Get back <span class="g">structured commitments.</span></h2>
+      <div class="flow" style="margin-top:.6rem">
+        <div class="node r" style="--i:2"><div class="t1">Upload</div><div class="t2">Any published RAP, presigned to S3</div></div>
+        <div class="arrow fade" style="--i:3">→</div>
+        <div class="node r" style="--i:3"><div class="t1">Extract</div><div class="t2">Bedrock Data Automation / Claude — pluggable</div></div>
+        <div class="arrow fade" style="--i:4">→</div>
+        <div class="node r" style="--i:4"><div class="t1">Review</div><div class="t2">Human QA gate before publish</div></div>
+      </div>
+      <p class="body r" style="--i:5;max-width:60ch;margin-top:.4rem">Live proof: the Bank of Canada RAP — <b class="em">13 pages, 22 commitments, extracted in 64 seconds.</b></p>
+    </div>
+  </section>
+
+  <!-- 8 · GROUNDING -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The Trust Primitive</div>
+        <h2 class="h-lg r" style="--i:1">Every field carries<br>its <span class="g">receipt.</span></h2>
+        <p class="body r" style="--i:2">No supporting quote found → the value is <b class="em">null</b>. The AI never guesses a commitment into existence.</p>
+      </div>
+      <div class="col right">
+        <div class="node fade" style="--i:2;max-width:400px;border-color:var(--line)">
+          <div class="t2" style="color:var(--gold);letter-spacing:.1em;margin-bottom:.6rem">FIELD = &#123;</div>
+          <div class="t1" style="font-size:1rem;color:var(--amber)">value <span style="color:var(--muted)">"50 Indigenous hires by 2027"</span></div>
+          <div class="t1" style="font-size:1rem;color:var(--amber)">quote <span style="color:var(--muted)">verbatim source span</span></div>
+          <div class="t1" style="font-size:1rem;color:var(--amber)">page <span style="color:var(--muted)">7</span></div>
+          <div class="t1" style="font-size:1rem;color:var(--amber)">confidence <span style="color:var(--muted)">0.91</span></div>
+          <div class="t2" style="color:var(--gold);margin-top:.4rem">&#125;</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · RAP INDEX, LIVE (screenshot) -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The RAP Index — live</div>
+        <h2 class="h-md r" style="--i:1">Every organisation,<br>scored across the network.</h2>
+        <p class="body r" style="--i:2">Ranked by average commitment progress — and note the <b class="em">Confirmed</b> column: the accountability that self-report never had.</p>
+      </div>
+      <div class="col">
+        <div class="shotframe r" style="--i:3"><img src="img/organizations.png" alt="Organizations — RAP scorecards across the network (BMO, Suncor, Syncrude…) with commitments, avg progress, confirmed %"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · COMMITMENTS, QUANTIFIED (screenshots) -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="stack">
+      <div class="kicker r" style="--i:0">The Commitments — quantified</div>
+      <h2 class="h-md r" style="--i:1">From pledge to <span class="g">tracked line item</span> — sliced, searched, exported.</h2>
+      <div class="shots r" style="--i:2">
+        <div class="shotframe"><img src="img/sector-chart.png" alt="Commitments by sector — bar chart: Energy 23, finance 16, Transport 12, mining 10…"></div>
+        <div class="shotframe"><img src="img/commitments.png" alt="All commitments list with sector/type/year filters, progress % and status, CSV export"></div>
+      </div>
+      <p class="cap r" style="--i:3">Commitments by sector, and the full list behind them — e.g. <b>"Reach C$3B cumulative Indigenous procurement spend by 2030"</b> — each progress-tracked and CSV-exportable.</p>
+    </div>
+  </section>
+
+  <!-- 11 · THE VERIFICATION LOOP -->
+  <section class="slide" data-block="A">
+    <div class="mono-index"></div>
+    <div class="stack">
+      <div class="kicker r" style="--i:0">The Confirmation Loop — what RAP never had</div>
+      <h2 class="h-md r" style="--i:1">A claim isn't a number until the<br><span class="g">named counterparty confirms it.</span></h2>
+      <div class="flow" style="margin-top:.4rem">
+        <div class="node r" style="--i:2"><div class="t1">Report</div><div class="t2">Company files $ lines — one per named counterparty</div></div>
+        <div class="arrow fade" style="--i:3">→</div>
+        <div class="node r" style="--i:3"><div class="t1">Confirm</div><div class="t2">Supplier confirms, disputes, or withdraws</div></div>
+        <div class="arrow fade" style="--i:4">→</div>
+        <div class="node r" style="--i:4"><div class="t1">Coverage</div><div class="t2">% of reported $ actually confirmed</div></div>
+        <div class="arrow fade" style="--i:5">→</div>
+        <div class="node r nfused" style="--i:5"><div class="t1 g">Verify</div><div class="t2">Indigenomics certifies the claim</div></div>
+      </div>
+      <p class="body r" style="--i:6;max-width:64ch;margin-top:.2rem"><em>"Silence is never confirmed."</em> Each line carries its supplier's identity tier — CCAB-certified vs self-declared — and a public <b class="em">supplier showcase</b> makes it visible. OCAP by design.</p>
+    </div>
+  </section>
+
+  <!-- 12 · DIVIDER B -->
+  <section class="slide divider" data-block="B" style="background:radial-gradient(120% 120% at 0% 0%, rgba(147,164,115,.16), transparent 50%),linear-gradient(150deg,#171a11,#0f110b)">
+    <div>
+      <div class="part r" style="--i:0" style="color:var(--terra)">Part Two</div>
+      <div class="big r" style="--i:1">The Legal Cases<br>Activation Hub</div>
+      <p class="sub r" style="--i:2">Turning Indigenous legal wins into <span class="t">investable, searchable economic intelligence.</span></p>
+    </div>
+    <div class="bignum fade" style="-webkit-text-stroke-color:rgba(194,90,52,.3)">02</div>
+  </section>
+
+  <!-- 13 · 350 WINS -->
+  <section class="slide" data-block="B">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The Opportunity</div>
+        <h2 class="h-md r" style="--i:1">Indigenous Peoples in Canada have won <span class="t">hundreds</span> of cases of direct economic consequence.</h2>
+        <p class="body r" style="--i:2">Land rights · resource revenue · duty to consult · treaty · fiduciary duty · self-determination.</p>
+      </div>
+      <div class="col right">
+        <div class="num t fade" style="font-size:clamp(6rem,20vw,15rem);color:var(--terra)">350<span class="g" style="font-size:.5em">+</span></div>
+        <p class="body fade" style="--i:3">Wins on the books — <em>attributed and scoped,</em> never a triumphalist tally.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 · WHITE SPACE, FILLED (screenshot) -->
+  <section class="slide" data-block="B">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The White Space — filled</div>
+        <h2 class="h-md r" style="--i:1">The analytic + economic layer<br><span class="t it">nobody built.</span></h2>
+        <p class="body r" style="--i:2">General DBs hold the cases with no economic structuring; LexisNexis "Aboriginal Law" is content with <b class="em">zero analytics</b>. We built the missing layer — searchable and citation-anchored.</p>
+      </div>
+      <div class="col">
+        <div class="shotframe r" style="--i:3"><img src="img/legal-search.png" alt="Legal cases search — economic justice, with View-as persona lens and rich filters"></div>
+        <p class="cap r" style="--i:4"><b>"View as"</b> re-orders the same public record for Indigenous-government, legal, or corporate readers — anyone can switch, <b class="em">nothing is hidden.</b></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 · THE CORPUS, IN THE OPEN (screenshot + updated numbers) -->
+  <section class="slide" data-block="B">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The Corpus — in the open</div>
+        <h2 class="h-md r" style="--i:1">Production-grade, and<br><span class="g">transparent by design.</span></h2>
+        <div class="stat-grid r" style="--i:2;grid-template-columns:1fr 1fr;max-width:440px">
+          <div class="stat"><div class="v">5,049</div><div class="l">total cases</div></div>
+          <div class="stat"><div class="v">452</div><div class="l">curated core</div></div>
+          <div class="stat"><div class="v">4,597</div><div class="l">substrate</div></div>
+          <div class="stat"><div class="v">2,228</div><div class="l">full text</div></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="shotframe r" style="--i:3"><img src="img/methodology.png" alt="Methodology page — corpus counts and breakdowns by court level and by decade"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16 · ENGINE -->
+  <section class="slide" data-block="B">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The Engine</div>
+        <h2 class="h-lg r" style="--i:1">Hybrid retrieval.<br>Meaning <span class="g">and</span> keyword.</h2>
+        <p class="body r" style="--i:2">A query router sends citations and case names to lexical lookup, and plain-language questions to semantics.</p>
+      </div>
+      <div class="col right">
+        <div class="flow" style="flex-direction:column;max-width:360px">
+          <div class="node fade" style="--i:2"><div class="t1">BM25</div><div class="t2">lexical full-text</div></div>
+          <div class="node fade" style="--i:3"><div class="t1">Dense · Titan v2</div><div class="t2">1,024-d, L2-normalised vectors</div></div>
+          <div class="node fade nfused" style="--i:4"><div class="t1 g">Fused with RRF</div><div class="t2">reciprocal-rank fusion, k=60</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 17 · PROOF -->
+  <section class="slide" data-block="B">
+    <div class="mono-index"></div>
+    <div class="stack">
+      <div class="kicker r" style="--i:0">The Proof — Retrieval Eval</div>
+      <h2 class="h-md r" style="--i:1">Dense didn't just feel better.<br>We <span class="g">measured</span> it.</h2>
+      <div class="stat-grid r" style="--i:2;grid-template-columns:repeat(3,1fr);max-width:720px;margin-top:.5rem">
+        <div class="stat"><div class="v">0.47<span style="color:var(--muted)">→</span>0.62</div><div class="l">conceptual nDCG@10 &nbsp;<b style="color:var(--sage)">+0.15</b></div></div>
+        <div class="stat"><div class="v">→1.00</div><div class="l">conceptual MRR — right answer, rank one</div></div>
+        <div class="stat"><div class="v">LLM</div><div class="l">Claude-as-judge gold set, non-circular</div></div>
+      </div>
+      <p class="body r" style="--i:3;margin-top:.3rem">Exactly where keyword search is weakest — plain-language questions — dense retrieval lifts quality most.</p>
+    </div>
+  </section>
+
+  <!-- 18 · VALUE REALIZATION -->
+  <section class="slide" data-block="B">
+    <div class="mono-index"></div>
+    <div class="split">
+      <div class="col">
+        <div class="kicker r" style="--i:0">The Differentiator</div>
+        <h2 class="h-lg r" style="--i:1">Not "who won."<br><span class="g it">Did the win<br>become dollars?</span></h2>
+      </div>
+      <div class="col">
+        <p class="lede r" style="--i:2">A <b class="em">value-realization</b> lens: did a legal win convert into a settlement, resource revenue, equity stake or agreement?</p>
+        <p class="body r" style="--i:3">The most defensible economic-justice claim there is — and unoccupied by any competitor. Framed in Indigenomics' language of <em>value</em>, not grievance.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 19 · BRIEFINGS + CREDIBILITY -->
+  <section class="slide" data-block="B">
+    <div class="mono-index"></div>
+    <div class="stack">
+      <div class="kicker r" style="--i:0">From Search to Answer</div>
+      <h2 class="h-md r" style="--i:1">AI briefings that <span class="g">cite their sources</span> — and survive due diligence.</h2>
+      <ul class="list r" style="--i:2;margin-top:.4rem;max-width:64ch">
+        <li><span class="m">›</span><span class="x"><b>BriefGen</b><span> synthesises case clusters into grounded briefing notes for negotiations — now powered by the dense engine.</span></span></li>
+        <li><span class="m">›</span><span class="x"><b>Transparent by construction</b><span> — explicit outcome taxonomy, provenance on every record, no bare "wins" counter.</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 20 · CLOSE -->
+  <section class="slide divider" data-block="" style="background:radial-gradient(120% 120% at 100% 100%, rgba(217,164,65,.18), transparent 55%),linear-gradient(150deg,#191c12,#0d0f09)">
+    <div>
+      <div class="part r" style="--i:0">The Through-Line</div>
+      <h2 class="display r" style="--i:1;font-size:clamp(2.6rem,8vw,6.5rem);margin-top:.4rem">Confirmed<br>beats <span class="t it">claimed.</span></h2>
+      <p class="sub r" style="--i:2;max-width:44ch">One platform, two focus areas — the economic intelligence layer that makes Indigenous commitments and legal wins <span class="g">legible, verifiable, and investable.</span></p>
+      <div class="chips r" style="--i:3;margin-top:1.8rem">
+        <span class="pill"><b>Next.js</b> · AWS</span>
+        <span class="pill"><b>DynamoDB</b> · S3</span>
+        <span class="pill"><b>Bedrock</b> · Claude · Titan v2</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="grp">
+    <span id="count">01<span class="tot"> / 20</span></span>
+    <span class="block-tag" id="blocktag"></span>
+  </div>
+  <div class="dots" id="dots"></div>
+  <div class="grp">
+    <button class="btn" id="playbtn">Pause</button>
+    <span>← → navigate · space pause</span>
+  </div>
+</div>
+<div class="hint" id="hint">Auto-advancing · 20 seconds a slide · click to pause</div>
+
+<script>
+(function(){
+  const slides=[...document.querySelectorAll('.slide')];
+  const N=slides.length;
+  const bar=document.getElementById('bar');
+  const count=document.getElementById('count');
+  const blocktag=document.getElementById('blocktag');
+  const playbtn=document.getElementById('playbtn');
+  const dotsWrap=document.getElementById('dots');
+  const hint=document.getElementById('hint');
+  const DUR=20000;
+  let cur=0, paused=false, timer=null;
+
+  // build dots + auto-number the decorative slide index
+  slides.forEach((s,i)=>{
+    const mi=s.querySelector('.mono-index');
+    if(mi) mi.textContent=String(i+1).padStart(2,'0');
+    const d=document.createElement('span');
+    const b=s.dataset.block;
+    d.className='dot'+(b==='B'?' blkB':'');
+    d.addEventListener('click',()=>go(i));
+    dotsWrap.appendChild(d);
+  });
+  const dots=[...dotsWrap.children];
+
+  function armBar(){
+    bar.classList.remove('run');
+    bar.style.width='0%';
+    void bar.offsetWidth;            // reflow
+    if(!paused){
+      bar.classList.add('run');
+      bar.style.width='100%';
+    }
+  }
+  function schedule(){
+    clearTimeout(timer);
+    if(!paused) timer=setTimeout(next,DUR);
+  }
+  function pad(n){return String(n+1).padStart(2,'0');}
+
+  function render(){
+    slides.forEach((s,i)=>s.classList.toggle('active',i===cur));
+    dots.forEach((d,i)=>d.classList.toggle('on',i===cur));
+    count.innerHTML=pad(cur)+'<span class="tot"> / '+N+'</span>';
+    const b=slides[cur].dataset.block;
+    blocktag.textContent=b==='A'?'· RAP Platform':b==='B'?'· Legal Cases Hub':'';
+    armBar(); schedule();
+  }
+  function go(i){ cur=(i+N)%N; render(); }
+  function next(){ go(cur+1); }
+  function prev(){ go(cur-1); }
+
+  function setPaused(p){
+    paused=p;
+    document.body.classList.toggle('paused',p);
+    playbtn.textContent=p?'Play':'Pause';
+    if(p){
+      clearTimeout(timer);
+      const w=getComputedStyle(bar).width;
+      bar.classList.remove('run'); bar.style.width=w;
+    }else{
+      armBar(); schedule();
+    }
+  }
+  function toggle(){ setPaused(!paused); }
+
+  playbtn.addEventListener('click',toggle);
+  document.getElementById('deck').addEventListener('click',e=>{ toggle(); });
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'){next();}
+    else if(e.key==='ArrowLeft'){prev();}
+    else if(e.code==='Space'){e.preventDefault();toggle();}
+    else if(e.key==='f'||e.key==='F'){
+      if(!document.fullscreenElement)document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+    else if(e.key==='Home'){go(0);}
+    else if(e.key==='End'){go(N-1);}
+  });
+
+  setTimeout(()=>hint.style.opacity='0',5200);
+  render();
+})();
+</script>
+</body>
+</html>

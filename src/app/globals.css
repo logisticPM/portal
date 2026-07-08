@@ -2,8 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Palette as "R G B" channels so Tailwind's rgb(var(--x) / <alpha>) works.
+   Light defaults live on :root; .dark (toggled on <html>) overrides them.
+   --bg and --amber are the two the theme menu lets the user override. */
 :root {
   color-scheme: light;
+  --bg: 239 231 213; /* #EFE7D5 parchment */
+  --panel: 251 247 239; /* #FBF7EF */
+  --ink: 43 38 32; /* #2B2620 */
+  --ink2: 107 98 84; /* #6B6254 */
+  --ink3: 153 142 123; /* #998E7B */
+  --line: 224 213 192; /* #E0D5C0 */
+  --amber: 160 106 18; /* #A06A12 accent */
+  --cedar: 76 106 64; /* #4C6A40 */
+  --rust: 166 69 43; /* #A6452B */
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: 24 22 19; /* #181613 deep warm near-black */
+  --panel: 32 29 25; /* #201D19 subtly lifted card */
+  --ink: 242 236 224; /* #F2ECE0 warm off-white */
+  --ink2: 199 189 171; /* #C7BDAB */
+  --ink3: 143 132 114; /* #8F8472 muted */
+  --line: 58 52 44; /* #3A342C hairline */
+  --amber: 226 168 74; /* #E2A84A warm gold, pops on dark */
+  --cedar: 143 178 118; /* #8FB276 */
+  --rust: 210 120 90; /* #D2785A */
+}
+
+/* Accessible (colorblind-safe) mode: keep the paper neutrals, but swap the three
+   semantic accents to an Okabe-Ito palette so confirmed vs stalled (green vs red
+   today) become blue vs vermillion — distinguishable under red-green colorblindness. */
+.cb {
+  color-scheme: light;
+  --amber: 230 159 0; /* #E69F00 orange — in-progress / primary */
+  --cedar: 0 114 178; /* #0072B2 blue — confirmed / positive */
+  --rust: 213 94 0; /* #D55E00 vermillion — stalled / negative */
 }
 
 html,
@@ -15,9 +50,9 @@ body {
 body {
   @apply bg-bg text-ink font-sans;
   min-height: 100vh;
-  /* warm editorial atmosphere: soft amber glow at the top + faint paper grain */
+  /* warm editorial atmosphere: soft accent glow at the top + faint paper grain */
   background-image:
-    radial-gradient(1100px 480px at 50% -12%, rgba(160, 106, 18, 0.08), transparent 70%),
+    radial-gradient(1100px 480px at 50% -12%, rgb(var(--amber) / 0.08), transparent 70%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
   background-repeat: no-repeat, repeat;
   background-attachment: fixed, fixed;
