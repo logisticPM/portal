@@ -31,6 +31,7 @@ import type {
   PartyRole,
   ReportedLine,
   Supplier,
+  User,
   Verification,
 } from "../repo/types";
 
@@ -39,7 +40,7 @@ export const GSI1 = "GSI1"; // supplier-centric reads (pending inbox, my-record,
 export const GSI2 = "GSI2"; // role-centric reads (party picker / role-switcher)
 
 // --- entity-type discriminator (a GSI1 query returns Lines AND Confs; filter on this) ---
-export type EntityType = "Party" | "Line" | "Conf";
+export type EntityType = "Party" | "Line" | "Conf" | "User";
 
 // --- key builders (the single source of truth for how keys are shaped) -------
 export const keys = {
@@ -48,6 +49,8 @@ export const keys = {
     PK: `COMPANY#${companyId}`,
     SK: `LINE#${lineId}`,
   }),
+  // an auth account, keyed entirely by (lowercased) email
+  user: (email: string) => ({ PK: `USER#${email.toLowerCase()}`, SK: "USER" }),
   // a line's GSI1 sort key encodes status, so the pending inbox is a begins_with query.
   // NOTE for writers: when status changes (recordConfirmation / withdraw) you MUST
   // rewrite GSI1SK too, or the pending inbox will read stale.
@@ -187,5 +190,28 @@ export function itemToConf(it: any): Confirmation {
     byPartyId: it.byPartyId,
     respondedAt: it.respondedAt,
     withdrawn: it.withdrawn || undefined,
+  };
+}
+
+// --- User (auth account) ---
+export function toUserItem(u: User) {
+  return {
+    ...keys.user(u.email),
+    et: "User" as EntityType,
+    email: u.email.toLowerCase(),
+    passwordHash: u.passwordHash,
+    kind: u.kind,
+    partyId: u.partyId,
+    createdAt: u.createdAt,
+  };
+}
+
+export function itemToUser(it: Record<string, any>): User {
+  return {
+    email: it.email,
+    passwordHash: it.passwordHash,
+    kind: it.kind,
+    partyId: it.partyId,
+    createdAt: it.createdAt,
   };
 }

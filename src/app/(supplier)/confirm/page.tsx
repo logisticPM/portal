@@ -5,12 +5,8 @@ import { money, TierBadge, FlowBadge, flowClaim, TagChip } from "@/components/ui
 
 export const dynamic = "force-dynamic";
 
-export default async function ConfirmPage({
-  searchParams,
-}: {
-  searchParams: { as?: string };
-}) {
-  const supplierId = partyIdFrom(searchParams);
+export default async function ConfirmPage() {
+  const supplierId = partyIdFrom();
   const suppliers = await repo.listParties("supplier");
 
   if (!supplierId) {

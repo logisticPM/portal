@@ -4,12 +4,8 @@ import { money } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function CoveragePage({
-  searchParams,
-}: {
-  searchParams: { as?: string };
-}) {
-  const companyId = partyIdFrom(searchParams);
+export default async function CoveragePage() {
+  const companyId = partyIdFrom();
   const companies = await repo.listParties("company");
 
   // No company chosen yet → pick one (mirrors report/confirm/record).

@@ -1,10 +1,15 @@
 import { repo } from "@/lib/repo";
 import { resolveVerificationAction } from "@/lib/repo/actions";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { InstituteNav } from "@/components/InstituteNav";
 
 export const dynamic = "force-dynamic";
 
 export default async function VerifyPage() {
+  const session = getSession();
+  if (!session || session.kind !== "indigenomics") redirect("/home");
+
   const pending = await repo.listPendingVerifications();
   return (
     <div className="max-w-2xl space-y-6">

@@ -28,7 +28,7 @@ async function main() {
 
   const p = await seedAll();
   console.log(
-    `✅ portal → ${process.env.DYNAMO_TABLE}: ${p.parties} parties, ${p.lines} lines, ${p.confirmations} confirmations`,
+    `✅ portal → ${process.env.DYNAMO_TABLE}: ${p.parties} parties, ${p.lines} lines, ${p.confirmations} confirmations, ${p.users} users`,
   );
 
   const s = await seedSurvey();

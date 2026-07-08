@@ -14,6 +14,7 @@ import {
   itemToConf,
   itemToLine,
   itemToParty,
+  itemToUser,
   keys,
   prefix,
 } from "../../dynamo/single-table";
@@ -30,6 +31,7 @@ import type {
   Supplier,
   SupplierRecord,
   SupplierShowcase,
+  User,
   Verification,
 } from "../types";
 
@@ -296,6 +298,14 @@ export async function listPendingVerifications(): Promise<{ supplier: Supplier; 
     }
   }
   return out;
+}
+
+// AUTH — fetch an account by email (single GetItem; email is the key)
+export async function getUserByEmail(email: string): Promise<User | null> {
+  const res = await ddbDoc.send(
+    new GetCommand({ TableName: TABLE, Key: keys.user(email) }),
+  );
+  return res.Item ? itemToUser(res.Item as Record<string, any>) : null;
 }
 
 // AP9 — export everything about a party (OCAP Access). Full record, incl. withdrawn items.

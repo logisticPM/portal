@@ -4,35 +4,40 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { repo } from "./index";
-import { SESSION_COOKIE, type Session, type SessionKind } from "@/lib/auth";
+import { SESSION_COOKIE, SESSION_TTL_SECONDS, signSession, getSession, type Session } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { assertNotLocked, clearFailures, recordFailure } from "@/lib/auth/rate-limit";
 import type { FlowType, FlowTag, VerificationSource } from "./types";
 
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
-
 function writeSession(session: Session) {
-  const value = session.partyId ? `${session.kind}:${session.partyId}` : session.kind;
+  const value = signSession(session, Math.floor(Date.now() / 1000));
   cookies().set(SESSION_COOKIE, value, {
     path: "/",
-    sameSite: "lax",
-    maxAge: SESSION_MAX_AGE,
+    httpOnly: true, // JS can't read it → mitigates XSS token theft
+    secure: process.env.NODE_ENV === "production", // HTTPS-only in prod
+    sameSite: "lax", // CSRF mitigation; lax keeps top-level nav working
+    maxAge: SESSION_TTL_SECONDS, // tracks the signed token's exp
   });
 }
 
-// Mock login: the chosen account determines the persona, which determines the
-// portal we route to. Value is "company:<id>" / "supplier:<id>" / "indigenomics".
+// Real login: email + password. Rate-limit gate runs BEFORE the lookup/hash so a
+// locked-out or attacker request never triggers the expensive scrypt verify.
 export async function signIn(formData: FormData) {
-  const account = String(formData.get("account") ?? "");
-  let session: Session | null = null;
-  if (account === "indigenomics") {
-    session = { kind: "indigenomics" };
-  } else {
-    const [kind, partyId] = account.split(":");
-    if ((kind === "company" || kind === "supplier") && partyId) {
-      session = { kind: kind as SessionKind, partyId };
-    }
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  if (!email || !password) redirect("/login?error=invalid");
+
+  if (!(await assertNotLocked(email))) redirect("/login?error=throttled");
+
+  const user = await repo.getUserByEmail(email);
+  const ok = user ? await verifyPassword(password, user.passwordHash) : false;
+  if (!user || !ok) {
+    await recordFailure(email);
+    redirect("/login?error=invalid");
   }
-  if (!session) return; // invalid → no-op, login page re-renders
-  writeSession(session);
+
+  await clearFailures(email);
+  writeSession({ kind: user.kind, partyId: user.partyId, email: user.email });
   redirect("/home");
 }
 
@@ -43,8 +48,10 @@ export async function signOut() {
 
 // Supplier responds to a claim naming them (confirm / dispute / correct).
 export async function respondToLine(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const byPartyId = session.partyId; // actor is the logged-in supplier, not a client-supplied id
   const lineId = String(formData.get("lineId"));
-  const byPartyId = String(formData.get("byPartyId"));
   const status = String(formData.get("status")) as "confirmed" | "disputed" | "corrected";
   const correctedRaw = formData.get("correctedAmount");
   const correctedAmount = correctedRaw ? Number(correctedRaw) : undefined;
@@ -60,7 +67,9 @@ export async function respondToLine(formData: FormData) {
 // Australia collects only an aggregate total; we itemize per named supplier so each
 // line is confirmable. New lines start 'pending' until the supplier acts.
 export async function createLineAction(formData: FormData) {
-  const companyId = String(formData.get("companyId") ?? "").trim();
+  const session = getSession();
+  if (session?.kind !== "company" || !session.partyId) return;
+  const companyId = session.partyId; // actor is the logged-in company
   const supplierId = String(formData.get("supplierId") ?? "").trim();
   const amount = Number(formData.get("amount"));
   const flowType = String(formData.get("flowType") || "procurement") as FlowType;
@@ -77,12 +86,14 @@ export async function createLineAction(formData: FormData) {
   revalidatePath("/coverage");
   revalidatePath("/confirm"); // a new line appears in the named supplier's inbox
   revalidatePath("/analytics");
-  redirect(`/report?as=${companyId}`);
+  redirect("/report");
 }
 
 // OCAP: supplier withdraws their confirmations → lines revert to 'pending'.
 export async function withdrawConfirmations(formData: FormData) {
-  const supplierId = String(formData.get("supplierId"));
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const supplierId = session.partyId;
   await repo.withdraw(supplierId);
 
   revalidatePath("/record");
@@ -90,37 +101,52 @@ export async function withdrawConfirmations(formData: FormData) {
   revalidatePath("/analytics");
 }
 
-// Self-registration for any role. company/supplier create a party (new suppliers
-// start self_declared; tier rises only via verified certifications); indigenomics
-// is the singleton institute (no entity). Auto-signs-in and routes to that portal.
+// Self-registration for any role. Creates the entity (company/supplier) or the
+// singleton institute, then a 1:1 User account with a hashed password, then signs in.
 export async function registerAction(formData: FormData) {
   const role = String(formData.get("role") ?? "");
   const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
 
+  if (!email || !email.includes("@") || password.length < 8) redirect("/register?error=weak");
+  if ((role === "company" || role === "supplier") && !name) redirect("/register?error=name");
+  // NOTE: check-then-create is not atomic — concurrent same-email registrations could race.
+  // Acceptable at demo scale; harden with a DynamoDB ConditionalPut before production.
+  if (await repo.getUserByEmail(email)) redirect("/register?error=exists");
+
+  const passwordHash = await hashPassword(password);
+  const createdAt = new Date().toISOString();
+
+  // NOTE: the institute is conceptually a singleton, but that invariant is not enforced —
+  // a second indigenomics registration with a fresh email is accepted (acceptable for the demo).
   if (role === "indigenomics") {
-    writeSession({ kind: "indigenomics" });
+    await repo.createUser({ email, passwordHash, kind: "indigenomics", createdAt });
+    writeSession({ kind: "indigenomics", email });
     redirect("/home");
   }
-
-  if (!name) return; // company/supplier need a name
+  // NOTE: entity-then-account is not transactional — if createUser throws after registerCompany/
+  // registerSupplier, an orphan party with no account remains (acceptable for the demo).
   if (role === "company") {
     const company = await repo.registerCompany({ name });
-    writeSession({ kind: "company", partyId: company.id });
-    revalidatePath("/analytics");
+    await repo.createUser({ email, passwordHash, kind: "company", partyId: company.id, createdAt });
+    writeSession({ kind: "company", partyId: company.id, email });
     redirect("/home");
   }
   if (role === "supplier") {
     const supplier = await repo.registerSupplier({ name });
-    writeSession({ kind: "supplier", partyId: supplier.id });
-    revalidatePath("/analytics");
+    await repo.createUser({ email, passwordHash, kind: "supplier", partyId: supplier.id, createdAt });
+    writeSession({ kind: "supplier", partyId: supplier.id, email });
     redirect("/home");
   }
-  // unknown role → no-op (form re-renders)
+  redirect("/register?error=role");
 }
 
 // Supplier links an external certification (claim → pending; reviewer resolves to verified/revoked).
 export async function claimVerificationAction(formData: FormData) {
-  const supplierId = String(formData.get("supplierId") ?? "").trim();
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const supplierId = session.partyId;
   const source = String(formData.get("source") ?? "") as VerificationSource;
   const reference = String(formData.get("reference") ?? "").trim() || undefined;
   if (!supplierId || !source) return;
@@ -130,6 +156,7 @@ export async function claimVerificationAction(formData: FormData) {
 
 // Reviewer resolves a pending certification claim (verified → tier rises; revoked → stays self_declared).
 export async function resolveVerificationAction(formData: FormData) {
+  if (getSession()?.kind !== "indigenomics") return;
   const supplierId = String(formData.get("supplierId") ?? "").trim();
   const source = String(formData.get("source") ?? "") as VerificationSource;
   const status = String(formData.get("status") ?? "") as "verified" | "revoked";
@@ -145,8 +172,9 @@ export async function resolveVerificationAction(formData: FormData) {
 
 // Supplier edits their showcase profile (self-described fields + the public toggle).
 export async function updateSupplierProfileAction(formData: FormData) {
-  const supplierId = String(formData.get("supplierId") ?? "").trim();
-  if (!supplierId) return;
+  const session = getSession();
+  if (session?.kind !== "supplier" || !session.partyId) return;
+  const supplierId = session.partyId;
   await repo.updateSupplierProfile(supplierId, {
     sector: String(formData.get("sector") ?? "").trim(),
     region: String(formData.get("region") ?? "").trim(),
@@ -156,5 +184,5 @@ export async function updateSupplierProfileAction(formData: FormData) {
   });
   revalidatePath("/profile");
   revalidatePath(`/s/${supplierId}`);
-  redirect(`/profile?as=${supplierId}`);
+  redirect("/profile");
 }

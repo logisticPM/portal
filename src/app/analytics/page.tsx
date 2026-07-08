@@ -2,6 +2,8 @@ import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
 import { InstituteNav } from "@/components/InstituteNav";
 import type { IdentityTier } from "@/lib/repo/types";
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,9 @@ const tierLabels: Record<IdentityTier, string> = {
 };
 
 export default async function AnalyticsPage() {
+  const session = getSession();
+  if (!session) redirect("/login");
+
   const idx = await repo.getIndexSummary();
   const flows = Object.entries(idx.byFlow);
 

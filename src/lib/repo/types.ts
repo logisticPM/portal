@@ -144,12 +144,26 @@ export interface ExportBundle {
   confirmations: Confirmation[];
 }
 
+// An authentication account. 1:1 with an entity: company/supplier carry partyId;
+// indigenomics is the singleton institute (no partyId). Keyed by email.
+export interface User {
+  email: string; // lowercased; the identity key
+  passwordHash: string; // "<salt-hex>:<hash-hex>" (see auth/password.ts)
+  kind: "company" | "supplier" | "indigenomics";
+  partyId?: string;
+  createdAt: string; // ISO 8601
+}
+
 export interface PortalRepo {
   // --- parties / registry ---
   getParty(id: string): Promise<Party | null>;
   listParties(role?: PartyRole): Promise<Party[]>;
   registerSupplier(input: { name: string }): Promise<Supplier>;
   registerCompany(input: { name: string }): Promise<Company>;
+
+  // --- auth / accounts ---
+  getUserByEmail(email: string): Promise<User | null>;
+  createUser(input: User): Promise<User>;
 
   // --- company side ---
   createReportedLine(input: {

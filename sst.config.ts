@@ -225,6 +225,10 @@ export default $config({
       },
     });
 
+    // HMAC key for signing session cookies (auth.ts). Set per stage with:
+    //   npx sst secret set AuthSecret <random-string> --stage <stage>
+    const authSecret = new sst.Secret("AuthSecret");
+
     new sst.aws.Nextjs("Web", {
       // Least-privilege access to exactly these resources (tables + GSIs + buckets).
       link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, casesIndex],
@@ -261,6 +265,7 @@ export default $config({
         // table.ts + rap-table.ts + commitments-table.ts), not the SST Resource object.
         DYNAMO_TABLE: dataPortal.name,
         SURVEY_TABLE: rapSurvey.name,
+        AUTH_SECRET: authSecret.value, // HMAC session-signing key (server-side; never NEXT_PUBLIC_)
         COMMITMENTS_TABLE: commitments.name,
         // Legal-cases corpus: literal table name (created/seeded out-of-band by the
         // cases:*:cloud pipeline — see the IAM grant in transform.server above).
