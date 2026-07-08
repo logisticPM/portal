@@ -11,9 +11,11 @@ export const SESSION_COOKIE = "portal_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export type SessionKind = "company" | "supplier" | "indigenomics";
-export type Session = { kind: SessionKind; partyId?: string; email: string };
+// email is auxiliary (audit/display); authz runs on kind + partyId (HMAC-signed).
+// Optional so kind-only Session consumers (e.g. cases lens resolution) stay valid.
+export type Session = { kind: SessionKind; partyId?: string; email?: string };
 
-type Payload = { kind: SessionKind; partyId?: string; email: string; iat: number; exp: number };
+type Payload = { kind: SessionKind; partyId?: string; email?: string; iat: number; exp: number };
 
 // Server secret. Required in production; a clearly-fake fallback keeps local dev
 // (`npm run dev`, `npm run verify:auth`) working without SST.
