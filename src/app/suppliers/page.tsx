@@ -161,7 +161,7 @@ export default async function SuppliersPage({
               <tr className="text-ink3 text-xs uppercase tracking-widest border-b border-line">
                 <th className="text-left font-normal px-4 py-3 w-10">#</th>
                 {COLS.map((c) => (
-                  <th key={c.key} className={`font-normal px-4 py-3 ${c.align}`}>
+                  <th key={c.key} className={`font-normal px-4 py-3 whitespace-nowrap ${c.align}`}>
                     <ScrollLink
                       href={qs(nextSort(c.key, c.primary))}
                       className={`inline-flex items-center gap-0.5 hover:text-ink ${
