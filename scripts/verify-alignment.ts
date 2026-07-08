@@ -13,6 +13,16 @@ import { dynamoAlignmentRepo } from "../src/lib/alignment/repo.dynamo";
 import { computeForCommitment } from "../src/lib/alignment/engine";
 import { alignmentRepo } from "../src/lib/alignment";
 
+async function resetAlignmentTable() {
+  const { ddbDoc } = await import("../src/lib/dynamo/client");
+  const { ScanCommand, BatchWriteCommand } = await import("@aws-sdk/lib-dynamodb");
+  const r = await ddbDoc.send(new ScanCommand({ TableName: "Alignment", ProjectionExpression: "PK, SK" }));
+  const keys = (r.Items ?? []) as { PK: string; SK: string }[];
+  for (let i = 0; i < keys.length; i += 25) {
+    await ddbDoc.send(new BatchWriteCommand({ RequestItems: { Alignment: keys.slice(i, i + 25).map((Key) => ({ DeleteRequest: { Key } })) } }));
+  }
+}
+
 let pass = 0;
 let fail = 0;
 function check(name: string, ok: boolean, extra = "") {
@@ -64,6 +74,7 @@ async function main() {
   if (process.env.DYNAMO_ENDPOINT) {
     process.env.ALIGNMENT_TABLE = "Alignment";
     await createSingleTable("Alignment");
+    await resetAlignmentTable();
     _resetMockAlignment();
     await mockAlignmentRepo.upsert(o);
     await dynamoAlignmentRepo.upsert(o);
@@ -71,6 +82,13 @@ async function main() {
     const d = await dynamoAlignmentRepo.listForOrg(o.orgId);
     check("opp repo: mock ≡ dynamo (listForOrg)", JSON.stringify(m) === JSON.stringify(d));
     check("opp repo: listAll returns it", (await dynamoAlignmentRepo.listAll()).some((x) => x.id === o.id));
+    await dynamoAlignmentRepo.upsert({ ...o, score: 0.5 }); // same id, different score
+    check("opp repo: upsert idempotent on score change", (await dynamoAlignmentRepo.listForOrg(o.orgId)).filter((x) => x.id === o.id).length === 1);
+    // restore original score in both repos so tie-order check below starts from a clean state
+    _resetMockAlignment();
+    await resetAlignmentTable();
+    await mockAlignmentRepo.upsert(o);
+    await dynamoAlignmentRepo.upsert(o);
     const o2 = { ...o, id: "cm-rbc-proc::s-raven", supplierId: "s-raven", supplierName: "Raven Logistics" };
     await mockAlignmentRepo.upsert(o2);
     await dynamoAlignmentRepo.upsert(o2);

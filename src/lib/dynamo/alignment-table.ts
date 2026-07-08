@@ -1,8 +1,9 @@
 // ===========================================================================
 // Single-table marshalling for Opportunity (its own `Alignment` table).
-//   AP-company:  PK=OPPORTUNITY#<orgId>  SK=SCORE#<pad>#<id>   (a company's, ranked)
+//   AP-company:  PK=OPPORTUNITY#<orgId>  SK=OPP#<id>            (a company's, stable)
 //   AP-radar:    GSI1PK=OPPORTUNITY      GSI1SK=SCORE#<pad>#<id> (global, ranked)
-// Score is zero-padded so lexicographic SK order == descending score.
+// Score is zero-padded so lexicographic GSI1SK order == descending score.
+// Main SK is score-independent so upsert (PutItem) overwrites idempotently.
 // ===========================================================================
 import type { Opportunity } from "../alignment/types";
 
@@ -13,15 +14,15 @@ export const ALIGNMENT_GSI1 = "GSI1"; // global ranked radar (index name on the 
 const padScore = (score: number) => String(Math.round(score * 10000)).padStart(5, "0");
 
 export const opportunityKeys = {
-  profile: (orgId: string, score: number, id: string) => ({
+  profile: (orgId: string, id: string) => ({
     PK: `OPPORTUNITY#${orgId}`,
-    SK: `SCORE#${padScore(score)}#${id}`,
+    SK: `OPP#${id}`,
   }),
 };
 
 export function toOpportunityItem(o: Opportunity) {
   return {
-    ...opportunityKeys.profile(o.orgId, o.score, o.id),
+    ...opportunityKeys.profile(o.orgId, o.id),
     et: "Opportunity",
     GSI1PK: "OPPORTUNITY",
     GSI1SK: `SCORE#${padScore(o.score)}#${o.id}`,

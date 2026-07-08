@@ -12,10 +12,11 @@ export const dynamoAlignmentRepo: OpportunityRepo = {
         TableName: TABLE,
         KeyConditionExpression: "PK = :pk",
         ExpressionAttributeValues: { ":pk": `OPPORTUNITY#${orgId}` },
-        ScanIndexForward: false, // padded score → descending
       }),
     );
-    return ((res.Items ?? []) as any[]).map(itemToOpportunity);
+    return ((res.Items ?? []) as any[])
+      .map(itemToOpportunity)
+      .sort((a, b) => b.score - a.score || b.id.localeCompare(a.id));
   },
   async listAll() {
     const res = await ddbDoc.send(
@@ -35,7 +36,7 @@ export const dynamoAlignmentRepo: OpportunityRepo = {
   },
   async remove(id) {
     const found = await findById(id);
-    if (found) await ddbDoc.send(new DeleteCommand({ TableName: TABLE, Key: opportunityKeys.profile(found.orgId, found.score, found.id) }));
+    if (found) await ddbDoc.send(new DeleteCommand({ TableName: TABLE, Key: opportunityKeys.profile(found.orgId, found.id) }));
   },
   async setStatus(id: string, status: OpportunityStatus) {
     const found = await findById(id);
