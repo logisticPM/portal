@@ -2,6 +2,8 @@
 // v2 adds decisions.scc-csc.ca (SCC/Lexum PDFs). Deterministic, VERBATIM HTML→text
 // (no LLM) so downstream summary/figure verbatim-verification stays valid; only
 // allow-listed open hosts are fetched (CanLII remains excluded).
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
+
 export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca"];
 
 export function isOpenSource(url: string): boolean {
@@ -41,6 +43,43 @@ export function htmlToText(html: string): string {
     .map((p) => p.replace(/\s+/g, " ").trim())
     .filter(Boolean);
   return paras.join("\n\n");
+}
+
+// Common PDF ligature glyphs → their ASCII letters (verbatim: same letters, one glyph).
+const LIGATURES: Record<string, string> = {
+  "ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st",
+};
+// A running header/footer line we deterministically drop for SCC PDFs.
+const RUNNING_HEADER_RE = /^\s*SUPREME COURT OF CANADA\s*$/i;
+
+// Deterministic, VERBATIM cleanup of raw pdf-parse text. Only removes artifacts
+// (running headers, page-number lines, line-break hyphenation) and normalizes ligature
+// glyphs to the identical ASCII letters — never alters or invents word content.
+export function cleanupPdfText(raw: string): string {
+  let s = raw;
+  for (const [k, v] of Object.entries(LIGATURES)) s = s.split(k).join(v);
+  // Join hyphenated line breaks: "word-\nrest" → "wordrest" (letter-hyphen-newline-letter).
+  s = s.replace(/([A-Za-z])-\n([A-Za-z])/g, "$1$2");
+  const lines = s.split("\n").filter((ln) => {
+    const t = ln.trim();
+    if (RUNNING_HEADER_RE.test(t)) return false; // running header
+    if (/^\d{1,4}$/.test(t)) return false;        // page-number-only line
+    return true;
+  });
+  // Re-join, collapse intra-line whitespace, paragraph-join on blank lines.
+  const paras = lines.join("\n").split(/\n{2,}/)
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return paras.join("\n\n");
+}
+
+// Verbatim PDF → text. `parse` is injectable for offline tests. SCC PDFs are
+// digitally generated (text, not scanned), so pdf-parse yields clean text.
+export async function pdfToText(buf: Buffer, parse: (b: Buffer) => Promise<{ text: string }> = pdfParse): Promise<string> {
+  try {
+    const { text } = await parse(buf);
+    return cleanupPdfText(text || "");
+  } catch { return ""; }
 }
 
 const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";

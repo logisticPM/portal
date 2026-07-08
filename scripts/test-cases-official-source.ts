@@ -1,7 +1,7 @@
 // Official-source backfill v1 (spec 2026-07-07 rev): allowlist + verbatim HTML→text.
 // Async IIFE — this repo is NOT ESM (top-level await is illegal).
 import assert from "node:assert/strict";
-import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl } from "../src/lib/cases/ingest/official-source";
+import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfText, pdfToText } from "../src/lib/cases/ingest/official-source";
 
 (async () => {
   // --- isOpenSource (v2 = bccourts + SCC) ---
@@ -49,6 +49,32 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl } from "../s
   assert.equal(await fetchOfficialText("https://www.canlii.org/x", async () => "<p>should never fetch</p>"), "", "non-open host → '' (not fetched)");
   assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => "<p>tiny</p>"), "", "too-short extraction → ''");
   assert.equal(await fetchOfficialText("https://www.bccourts.ca/e.htm", async () => { throw new Error("net"); }), "", "fetch error → ''");
+
+  // --- cleanupPdfText: deterministic verbatim cleanup (pure string→string) ---
+  const raw = [
+    "SUPREME COURT OF CANADA",                 // running header (dropped)
+    "The Nation sought compensa-",             // hyphenated line break (joined)
+    "tion for the taking of its land.",
+    "",
+    "12",                                       // page-number-only line (dropped)
+    "",
+    "The oﬀice granted the declaration.", // ligature ﬀ → ff
+  ].join("\n");
+  const cleaned = cleanupPdfText(raw);
+  assert.ok(cleaned.includes("compensation for the taking of its land."), "de-hyphenated across line break");
+  assert.ok(cleaned.includes("The office granted the declaration."), "ligature normalized");
+  assert.ok(!/SUPREME COURT OF CANADA/.test(cleaned), "running header dropped");
+  assert.ok(!/^\s*12\s*$/m.test(cleaned), "page-number-only line dropped");
+  assert.ok(!/compensa-\s*\n/.test(cleaned), "no dangling hyphen");
+
+  // --- pdfToText: delegates to the injected parser then cleans ---
+  const fakeParse = async (_buf: Buffer) => ({
+    text: "SUPREME COURT OF CANADA\nHello world of judg-\nment reasoning here.",
+    numpages: 1, numrender: 1, info: null, metadata: null, version: "x",
+  });
+  const pt = await pdfToText(Buffer.from("%PDF-fake"), fakeParse);
+  assert.ok(pt.includes("Hello world of judgment reasoning here."), "pdfToText cleans parser output");
+  assert.ok(!/SUPREME COURT OF CANADA/.test(pt), "pdfToText drops running header");
 
   console.log("✅ test-cases-official-source passed");
 })().catch((e) => { console.error(e); process.exit(1); });
