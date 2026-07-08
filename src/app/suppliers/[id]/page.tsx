@@ -87,8 +87,8 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
         <section className="bg-panel rounded border border-line shadow-card p-5">
           <div className="text-ink3 text-xs uppercase tracking-widest mb-3">Certifications</div>
           <div className="space-y-2 text-sm">
-            {(party.verifications ?? []).map((v) => (
-              <div key={`${v.source}-${v.reference ?? ""}`} className="flex flex-wrap items-center gap-2">
+            {(party.verifications ?? []).map((v, i) => (
+              <div key={`${v.source}-${v.reference ?? ""}-${i}`} className="flex flex-wrap items-center gap-2">
                 <span className="uppercase tracking-wider text-xs border border-line rounded px-1.5 py-0.5">{v.source.replace(/_/g, " ")}</span>
                 <span className="text-ink2">{v.reference}</span>
                 {v.verifiedBy && <span className="text-ink3">· {v.verifiedBy}</span>}
