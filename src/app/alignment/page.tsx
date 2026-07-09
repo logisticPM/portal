@@ -57,7 +57,7 @@ export default async function AlignmentPage() {
             // the same as Opportunity.orgId (fixture companies use a `c-…` party id).
             const companyKey = slugifyOrg(companyName);
             return (
-              <div key={first.commitmentId} className="rounded border border-line bg-bg/30 p-4 space-y-3">
+              <div key={first.commitmentId} className="rounded border border-line bg-panel shadow-card p-4 space-y-3">
                 {/* company + its commitment */}
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <a href={`/organizations/${companyKey}`} className="font-serif text-amber hover:underline">
