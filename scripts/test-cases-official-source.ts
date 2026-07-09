@@ -4,9 +4,10 @@ import assert from "node:assert/strict";
 import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfText, pdfToText } from "../src/lib/cases/ingest/official-source";
 
 (async () => {
-  // --- isOpenSource (v2 = bccourts + SCC) ---
+  // --- isOpenSource (v3 = bccourts + SCC + ONCA) ---
   assert.equal(isOpenSource("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm"), true);
-  assert.equal(isOpenSource("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14246/index.do"), true, "SCC now open in v2");
+  assert.equal(isOpenSource("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14246/index.do"), true, "SCC open");
+  assert.equal(isOpenSource("https://coadecisions.ontariocourts.ca/coa/coa/en/item/1234/index.do"), true, "ONCA open in v3");
   assert.equal(isOpenSource("https://www.canlii.org/en/bc/bcsc/doc/x.html"), false, "CanLII excluded");
   assert.equal(isOpenSource("not a url"), false);
 
@@ -15,6 +16,10 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
     toDocumentUrl("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2189/index.do"),
     "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do",
     "index.do → document.do");
+  assert.equal(
+    toDocumentUrl("https://coadecisions.ontariocourts.ca/coa/coa/en/item/1234/index.do"),
+    "https://coadecisions.ontariocourts.ca/coa/coa/en/1234/1/document.do",
+    "ONCA viewer → document.do (generalized transform)");
   assert.equal(
     toDocumentUrl("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do"),
     "https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do",
