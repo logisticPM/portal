@@ -4,7 +4,7 @@
 // allow-listed open hosts are fetched (CanLII remains excluded).
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 
-export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca"];
+export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca", "coadecisions.ontariocourts.ca"];
 
 // robots.txt (User-agent: *) disallows exactly these two documents — honor it even
 // though they are /icm/ (not /scc-csc/) and won't appear in our SCC set.
@@ -17,16 +17,16 @@ export function isOpenSource(url: string): boolean {
   try { return OPEN_HOSTS.includes(new URL(url).host); } catch { return false; }
 }
 
-// SCC (Lexum) stores judgments as PDFs at …/<id>/1/document.do, but the corpus may
-// hold the viewer URL …/item/<id>/index.do. Normalize to the direct-PDF form so we
-// fetch the PDF, not the JS-viewer shell. Non-SCC and already-document.do URLs pass
-// through unchanged.
+// Lexum/Decisia courts (SCC, ONCA, and future additions) store judgments as PDFs at
+// …/<id>/1/document.do, but the corpus may hold the viewer URL …/item/<id>/index.do.
+// Normalize to the direct-PDF form so we fetch the PDF, not the JS-viewer shell. This
+// transform applies to any host by URL shape; non-matching URLs (e.g. bccourts .htm,
+// or already-document.do) pass through unchanged.
 export function toDocumentUrl(url: string): string {
   try {
     const u = new URL(url);
-    if (u.host !== "decisions.scc-csc.ca") return url;
     const m = u.pathname.match(/^(.*)\/item\/(\d+)\/index\.do\/?$/);
-    if (!m) return url; // already document.do (or an unrecognized shape) → leave as-is
+    if (!m) return url; // not a Lexum viewer URL (e.g. bccourts .htm) → unchanged
     u.pathname = `${m[1]}/${m[2]}/1/document.do`;
     return u.toString();
   } catch { return url; }
