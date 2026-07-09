@@ -118,3 +118,37 @@ Extend `scripts/test-cases-official-source.ts`:
 - **The rest of the Lexum family** (FC / FCA / federal tribunals / `decisia.lexum.com`):
   same one-line generalization now covers their URL form; add each host to `OPEN_HOSTS` and
   run per host once ONCA confirms the Decisia captcha permits paced access.
+
+## Result — ops run (2026-07-08, credentialed)
+
+Merged as PR #139 (`0aaa140`). Offline gate green; Phase-0 probe passed; bulk run was
+**partially captcha-limited**, exactly as the SCC lesson predicted.
+
+**Phase-0 captcha/fidelity gate — PASS.** Of the 207 no-text ONCA cases, all are stored as
+the viewer form `…/coa/coa/en/item/<id>/index.do` (so `toDocumentUrl` is required). Three
+real `document.do` fetches returned clean English PDFs, no captcha: *Comfort Capital v.
+Yeretsian* (15,038 chars), *R. v. Schoer* (59,265), 2019 ONCA 39 (56,791).
+
+**Backfill (inline promote — `LABEL_MODELS` set + `BACKFILL_SLEEP_MS=2500`, so only the 207
+new cases were labeled, not the whole substrate):** `processed 207 · got text 109 ·
+promoted to core 6`. The first ~100 fetches were clean; then ONCA's **Decisia captcha gate
+tripped** (~100 requests in, despite 2.5 s pacing — the same external bot gate that SCC hit,
+and `fetchOfficialText` swallows the 403 into `""`, so the only visible signal was the text
+count plateauing 100 → 109). ~98 cases remain captcha-blocked.
+
+**Derived refresh + index (over 541 core):** summarize +6, figures +5 (persistent ~42
+failures = the known ~8% "LLM emits unparseable JSON" rate, **not** throttling), nations
+filled +3. Search artifact rebuilt and uploaded (`buildId 1783575163347-lgxbu6eh`, units
+243,948 = +3,751 chunks, cases 5,049, bm25 155.6 MB + vectors 301.4 MB) — the 109 new ONCA
+full texts are now **BM25-searchable** and the 6 new core are activated.
+
+**Outcome:** core 535 → **541**; ONCA 109/207 full text. Dense vectors for the new chunks
+remain throttle-deferred (BM25 only), as with the bccourts run.
+
+**Strategic ceiling (confirmed across SCC + ONCA):** the Lexum/Decisia family
+(SCC 1,114 + ONCA ~98 remaining + FC/FCA/tribunals) is **captcha-limited for bulk from this
+environment** — paced access still trips the gate after ~100 requests. Getting the rest
+needs either a very slow multi-session trickle or the **official CanLII API** (key + ToS;
+note CanLII's site is DataDome-gated and its API may return metadata rather than full text —
+verify before committing). The genuinely-missing provinces (AB/SK/MB/QC/ONSC) are a separate
+harvest + data-source sub-project (those cases are not in the corpus).
