@@ -11,11 +11,15 @@ export default async function BriefingsPage({ searchParams }: { searchParams?: {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <div className="text-amber text-xs uppercase tracking-widest mb-1">Precedent → policy</div>
-        <h1 className="font-serif text-3xl">Briefing notes</h1>
+        <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenous economic justice · ask the case law</div>
+        <h1 className="font-serif text-3xl">Legal information assistant</h1>
         <p className="mt-1 text-sm text-ink3">
-          Ask a policy or business question; get a structured note grounded in the curated case
-          library. Generates in ~30–60 seconds. <strong>AI-generated · not legal advice.</strong>
+          Ask what Canadian courts have decided on Indigenous economic-justice questions —
+          duty to consult, treaty and land rights, resource revenue, equitable compensation.
+          You get a plain-language answer grounded in the curated case record, with every
+          point linked to its source. Generates in ~30–60 seconds.{" "}
+          <strong>This is legal information, not legal advice</strong> — for advice about a
+          specific situation, consult qualified counsel or an Indigenous legal clinic.
         </p>
       </div>
       {searchParams?.err === "quota" && (
@@ -27,7 +31,7 @@ export default async function BriefingsPage({ searchParams }: { searchParams?: {
       {session ? (
         <form action={requestBriefing} className="space-y-2">
           <textarea name="question" rows={3} required minLength={10} maxLength={500}
-            placeholder="e.g. What obligations does a mining company have before operating on treaty land?"
+            placeholder="e.g. What have courts required before approving resource development on treaty land?"
             className="w-full rounded border border-line bg-panel p-3 text-sm" />
           <button className="rounded bg-ink px-4 py-2 text-bg hover:bg-ink/90">Generate briefing →</button>
         </form>

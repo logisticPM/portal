@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { casesRepo } from "@/lib/cases";
 import { getBrief } from "@/lib/cases/briefs/repo";
 import type { LegalCase } from "@/lib/cases";
+import { isAdviceSeeking } from "@/lib/cases/briefs/advice";
 
 export const dynamic = "force-dynamic";
 const STALE_MS = 5 * 60_000;
@@ -10,6 +11,13 @@ const STALE_MS = 5 * 60_000;
 export default async function BriefingPage({ params }: { params: { id: string } }) {
   const b = await getBrief(params.id);
   if (!b) notFound();
+  const adviceBanner = isAdviceSeeking(b.question) ? (
+    <p className="rounded border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-ink2">
+      This question reads as asking about a specific situation. The assistant provides{" "}
+      <strong>general legal information, not advice</strong> — for advice, consult qualified
+      counsel or an Indigenous legal clinic.
+    </p>
+  ) : null;
   // Display-only stale cutoff: a brief whose worker died without writing status
   // stays "pending" in Dynamo (quota already spent, not refunded) but renders as
   // unavailable after 5 min. A real build would add a TTL sweep / status write.
@@ -19,6 +27,7 @@ export default async function BriefingPage({ params }: { params: { id: string } 
     return (
       <div className="mx-auto max-w-3xl space-y-3">
         <meta httpEquiv="refresh" content="4" />
+        {adviceBanner}
         <h1 className="font-serif text-2xl">Generating briefing…</h1>
         <p className="text-sm text-ink3">&ldquo;{b.question}&rdquo;</p>
         <p className="text-sm text-ink3">Retrieving precedents and drafting — this usually takes 30–60 seconds. The page refreshes automatically.</p>
@@ -28,6 +37,7 @@ export default async function BriefingPage({ params }: { params: { id: string } 
   if (b.status === "failed" || stalePending) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
+        {adviceBanner}
         <h1 className="font-serif text-2xl">Briefing unavailable</h1>
         <p className="text-sm text-ink3">&ldquo;{b.question}&rdquo;</p>
         <p className="rounded border border-line bg-amber/10 px-3 py-2 text-sm text-ink2">{b.failReason ?? "Generation did not complete."}</p>
@@ -44,12 +54,15 @@ export default async function BriefingPage({ params }: { params: { id: string } 
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {adviceBanner}
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Briefing note</div>
         <h1 className="font-serif text-2xl">{b.question}</h1>
         <p className="mt-2 rounded border border-line bg-amber/10 px-3 py-2 text-xs text-ink2">
-          <strong>AI-generated briefing · not legal advice.</strong> Every precedent below links to
-          its case page — verify each point there (case summaries carry paragraph-level anchors).
+          <strong>AI-generated legal information · not legal advice.</strong> For advice about
+          a specific situation, consult qualified counsel or an Indigenous legal clinic. Every
+          precedent below links to its case page — verify each point there (case summaries
+          carry paragraph-level anchors).
         </p>
       </div>
       <section>
