@@ -4,10 +4,9 @@ import { commitmentsToFacts } from "./commitments-to-facts";
 import { commitmentsRepo } from "@/lib/commitments";
 import { rapRepo } from "@/lib/rap";
 import type { Sector } from "@/lib/rap";
+import { CANONICAL_SECTORS } from "@/lib/taxonomy";
 
-const RAP_SECTORS: Sector[] = [
-  "mining_extractive", "finance_banking", "telecom", "energy", "government", "retail", "transport", "other",
-];
+const RAP_SECTORS: Sector[] = CANONICAL_SECTORS;
 
 // Explore reads its facts through this seam; the Table page (/commitments/page.tsx)
 // reads the commitments domain directly today. Both show the same domain now — the
