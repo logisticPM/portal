@@ -192,3 +192,17 @@ are **bilingual** (English + French combined), and their running headers are the
 case-name + citation (e.g. "NATION HAÏDA c. C.-B." / "[2004] 3 R.C.S."), not "SUPREME
 COURT OF CANADA". The Phase-0 fidelity gate decides whether to refine cleanup (EN/FR
 handling, broader header stripping) before the bulk run.
+
+## 2026-07-08 — ONCA backfill (backfill v3)
+
+Extended the official-source backfill to the Ontario Court of Appeal
+(`coadecisions.ontariocourts.ca`, ~207 in-corpus no-text cases) — Lexum/Decisia infra
+(same as SCC), so the existing PDF path (`pdfToText`/`cleanupPdfText`) applies unchanged.
+Code change was minimal: add the ONCA host to `OPEN_HOSTS` and generalize `toDocumentUrl`
+(drop the SCC-only host guard) so the `…/item/<id>/index.do → …/<id>/1/document.do`
+transform covers any Lexum viewer URL; non-Lexum URLs (bccourts `.htm`) don't match the
+pattern and pass through unchanged. ONCA judgments are English-only (cleaner than SCC's
+bilingual PDFs). Bulk ops is gated on a Phase-0 captcha/fidelity probe (ONCA shares SCC's
+Decisia infra, which captcha-gated under a burst) and runs with slow pacing
+(`BACKFILL_SLEEP_MS≈2500`), stopping on any captcha 403. Governance unchanged: verbatim,
+no LLM, additive-safe, `provenance.source="official_court"`, robots deny-list.
