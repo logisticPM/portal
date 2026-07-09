@@ -38,6 +38,10 @@ import assert from "node:assert/strict";
   assert.ok(prompt.includes("CTX-SENTINEL"));
   assert.ok(prompt.includes('"precedents"'));
   assert.ok(/do NOT give advice/i.test(prompt));
+  // reframed as an Indigenous economic-justice legal-INFORMATION assistant (spec 2026-07-09)
+  assert.ok(/legal information/i.test(prompt), "prompt frames as legal information");
+  assert.ok(/indigenous economic-justice/i.test(prompt), "prompt has Indigenous-law framing");
+  assert.ok(/consult qualified counsel|indigenous legal clinic/i.test(prompt), "prompt has advice-deflection");
 
   // --- parser ---
   const goodBody = {
@@ -162,6 +166,25 @@ import assert from "node:assert/strict";
   assert.deepEqual(briefKeys.brief("abc"), { PK: "BRIEF#abc", SK: "BRIEF" });
   assert.deepEqual(briefKeys.qhash("h1"), { PK: "QHASH#h1", SK: "QHASH" });
   assert.deepEqual(briefKeys.quota("2026-07-05", "company:c-1"), { PK: "BQUOTA#2026-07-05#company:c-1", SK: "BQUOTA" });
+
+  // --- advice-deflection classifier (spec 2026-07-09) ---
+  const { isAdviceSeeking } = await import("../src/lib/cases/briefs/advice");
+  const adviceSeeking = [
+    "What should we do before starting a mine on our territory?",
+    "Can I sue the Crown for failure to consult?",
+    "Do we have a claim if the province approved the project without us?",
+    "What are my options if my Nation wasn't consulted?",
+    "Will we win a duty-to-consult case?",
+    "How do I file an Aboriginal title claim for our land?",
+  ];
+  const informational = [
+    "What is the duty to consult?",
+    "What have courts required before approving mining on treaty land?",
+    "How has the Supreme Court interpreted equitable compensation?",
+    "Which cases discuss resource revenue sharing?",
+  ];
+  for (const q of adviceSeeking) assert.ok(isAdviceSeeking(q), `should flag advice: ${q}`);
+  for (const q of informational) assert.ok(!isAdviceSeeking(q), `should NOT flag info: ${q}`);
 
   console.log("✅ test-cases-briefs passed");
 })().catch((e) => { console.error(e); process.exit(1); });
