@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { casesRepo } from "@/lib/cases";
 import type { Theme, CourtLevel, WinType, CorpusTier } from "@/lib/cases";
-import { CaseListItem, LensSwitcher } from "./ui";
+import { CaseListItem, LensSwitcher, Pagination } from "./ui";
 import { getSession } from "@/lib/auth";
 import { resolveLens, applyLens } from "@/lib/cases/lenses";
+import { PAGE_SIZE, clampPage } from "@/lib/cases/pagination";
 
 const THEMES: Theme[] = ["land_rights", "resource_revenue", "duty_to_consult", "treaty", "fiduciary", "self_determination"];
 const LEVELS: CourtLevel[] = ["scc", "fca", "fc", "provincial_appeal", "provincial_superior", "tribunal"];
@@ -30,6 +31,11 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
   // Lens reorders the BROWSE list only. When there's a search query, retrieval
   // ranking (dense/BM25) is authoritative — the lens contributes framing, not order.
   const ordered = q ? cases : applyLens(cases, lens);
+  const total = ordered.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = clampPage(searchParams.page, totalPages);
+  const start = (page - 1) * PAGE_SIZE;
+  const pageItems = ordered.slice(start, start + PAGE_SIZE);
 
   const sel = "rounded border border-line bg-panel px-2 py-1";
   return (
@@ -68,12 +74,12 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
       </form>
 
       <div className="mt-3 text-xs text-ink3">
-        {cases.length} result{cases.length === 1 ? "" : "s"} · {q ? "ranked by relevance" : "browse"} · tier: {tier}
+        {total} result{total === 1 ? "" : "s"} · {total > 0 ? `showing ${start + 1}–${Math.min(start + PAGE_SIZE, total)} · ` : ""}{q ? "ranked by relevance" : "browse"} · tier: {tier}
       </div>
 
       <ul className="mt-3 divide-y divide-line">
-        {ordered.map((c) => <CaseListItem key={c.id} c={c} q={q} />)}
-        {ordered.length === 0 && (
+        {pageItems.map((c) => <CaseListItem key={c.id} c={c} q={q} />)}
+        {total === 0 && (
           <li className="py-3 text-ink3">
             {q
               ? "No cases match."
@@ -81,6 +87,8 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
           </li>
         )}
       </ul>
+
+      <Pagination page={page} totalPages={totalPages} params={searchParams} />
     </div>
   );
 }
