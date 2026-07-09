@@ -17,6 +17,15 @@ const TYPE_MAP: Record<string, string> = {
 export function remapSector(s: string): string { return SECTOR_MAP[s] ?? s; }
 export function remapType(t: string): string { return TYPE_MAP[t] ?? t; }
 
+// GSI2SK for a commitment is `COMMIT#<commitmentType>#<id>` — remap the type segment.
+export function remapGsi2Sk(sk: string): string {
+  if (!sk.startsWith("COMMIT#")) return sk;
+  const parts = sk.split("#"); // ["COMMIT", <type>, ...idParts]
+  if (parts.length < 3) return sk;
+  parts[1] = remapType(parts[1]);
+  return parts.join("#");
+}
+
 async function main() {
   let scanned = 0, updated = 0;
   let ExclusiveStartKey: Record<string, unknown> | undefined;
@@ -37,6 +46,10 @@ async function main() {
         const raw = item.GSI2PK.slice("SECTOR#".length);
         const ng = `SECTOR#${remapSector(raw)}`;
         if (ng !== item.GSI2PK) { item.GSI2PK = ng; changed = true; }
+      }
+      if (typeof item.GSI2SK === "string" && item.GSI2SK.startsWith("COMMIT#")) {
+        const nsk = remapGsi2Sk(item.GSI2SK);
+        if (nsk !== item.GSI2SK) { item.GSI2SK = nsk; changed = true; }
       }
       if (changed) {
         await ddbDoc.send(new PutCommand({ TableName: RAP_TABLE, Item: item }));
