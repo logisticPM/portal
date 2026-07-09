@@ -178,3 +178,58 @@ Extend `scripts/test-cases-official-source.ts` (node:assert/strict):
 The rest of the Lexum family (ONCA / FC / FCA / federal tribunals / `decisia.lexum.com`,
 ~900): add each host to `OPEN_HOSTS`, confirm its `document.do` URL form and robots.txt,
 and re-run with `BACKFILL_HOST` per host. Built once SCC proves the PDF path end-to-end.
+
+## Result — ops run (2026-07-08, credentialed)
+
+Merged as PR #128 (`c623d70`). The bulk run surfaced a **latent bug and a correction**,
+then delivered real corpus growth.
+
+**Root-cause find — `fetch-polyfill.ts` (fixed in PR #132, `6f5a8f7`).** The first SCC bulk
+run returned **1114 processed · 0 text · 0 promoted**, despite the Phase-0 fidelity gate
+extracting 467k / 14k / 172k chars from the same cases minutes earlier. Cause: the
+`node:https` fetch shim installed by every ingest script **dropped `init.headers`** (no
+`User-Agent` → the SCC site 403s UA-less requests) **and returned a Response with no
+`arrayBuffer()`/`headers`** — so `defaultFetch` threw and every fetch collapsed to "".
+This also explains the earlier **"bccourts WAF block" — it was a misdiagnosis of this same
+polyfill bug** (the offline tests inject a fake `get`, bypassing the polyfill, so it was
+never exercised). Fixed to a faithful subset of `fetch` (UA passthrough, redirect
+following, `arrayBuffer()`/`headers.get()`; backward-compatible with `harvest`/`a2aj`),
+plus a regression test `scripts/test-fetch-polyfill.ts`.
+
+**Backfill (with fixed polyfill):**
+- **bccourts: 806/806 got text** → now **1,740/1,740 full text (no-text = 0)**. The
+  official-source backfill mechanism works end-to-end; the prior WAF conclusion is void.
+- **SCC: 0.** After the 1,114-request burst, `decisions.scc-csc.ca`'s `document.do`
+  endpoint began serving a **Decisia robocop/captcha gate (403) to all clients** (native
+  `fetch` included, multiple IDs) — an external bot gate, tripped by the burst (it served
+  clean PDFs ~2h earlier). SCC stays 166/1,280 full text; deferred to a cooldown + slow
+  retry, or a CanLII-API adapter.
+
+**Promotion (`cases-promote` with `LABEL_MODELS`, dual-LLM):** **core 452 → 535 (+83)**.
+Of 4,597 substrate, the relevance gate excluded 4,514 (`no_indigenous_signal` 4,075 /
+`no_economic_theme` 110 / `no_model_consensus` 329) and promoted 83. All 522 signal-bearing
+candidates got explicit label verdicts (not a credential-expiry artifact) — converged, no
+re-run needed. Most bccourts cases are general BC litigation and correctly did **not**
+promote; the gate prevents dilution (宁缺毋滥).
+
+**Derived-layer refresh (over 535 core):** summarize +78 (8 failed — over-long bilingual
+SCC texts), figures +73 (41 failed — Bedrock throttling / long texts), nations filled 66 /
+empty 55 / failed 0. Search artifact rebuilt and uploaded (`buildId
+1783549739381-h3lxs89t`, cases 5,049, bm25 151.6 MB + vectors 298.4 MB) — the 806 new
+bccourts full texts and 83 new core are now **BM25-searchable**.
+
+**Deferred (throttle/bot-gate, resumable — not blocking):**
+- **Dense vectors for the new chunks:** `cases:embed:bedrock:cloud` failed with
+  `ThrottlingException` (Titan embed quota saturated by the preceding promote + summarize +
+  figures + nations calls; default concurrency 16). New content is in BM25 but not dense.
+  Fix: a quiet window with `EMBED_CONCURRENCY=2–4` + `AWS_RETRY_MODE=adaptive` /
+  `AWS_MAX_ATTEMPTS=10`, then re-run `cases:index-build:cloud` (vectors only enter the
+  artifact after embed).
+- Retryable: the 8 summarize + 41 figures failures (safe-fail — no bad output), and the
+  SCC 166 pre-existing-full-text summarize failures (context overflow on bilingual PDFs).
+
+**Verbatim/governance held:** extraction stayed deterministic, no LLM; de-hyphenation kept
+the hyphen (no fabricated joins); additive-safe (0 text → 0 writes on the failed SCC run,
+corpus untouched); `provenance.source="official_court"`. SCC PDFs confirmed **bilingual
+(EN+FR interleaved)** and kept whole (deterministic EN/FR split too risky — would drop real
+English reasons).
