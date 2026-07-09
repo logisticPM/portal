@@ -2,8 +2,10 @@
 // Pure functions, parameterized by `currentYear` (kept out of buildSummary so the
 // golden mock≡dynamo summary stays time-independent). The dashboard calls these.
 import type { Commitment, CommitmentSummary } from "./types";
+import { labelFor } from "@/lib/taxonomy";
 
-const labelize = (s: string) => s.replace(/_/g, " ");
+// RapType (reflect/innovate/stretch/elevate) is out of taxonomy scope — keep a
+// tiny local capitalizer for it.
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export interface Integrity {
@@ -98,7 +100,7 @@ export function buildInsights(
     const most = types.reduce((a, b) => (b[1].count > a[1].count ? b : a));
     const weakest = types.reduce((a, b) => (b[1].avgProgress < a[1].avgProgress ? b : a));
     out.push(
-      `${cap(labelize(most[0]))} is the most common commitment type (${most[1].count}), while ${labelize(weakest[0])} lags on delivery at ${weakest[1].avgProgress}% average progress.`,
+      `${labelFor("commitmentType", most[0])} is the most common commitment type (${most[1].count}), while ${labelFor("commitmentType", weakest[0])} lags on delivery at ${weakest[1].avgProgress}% average progress.`,
     );
   }
 

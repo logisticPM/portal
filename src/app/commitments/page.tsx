@@ -9,6 +9,7 @@ import { RapIndexTabs } from "@/components/RapIndexTabs";
 import { CommitmentSearch } from "./CommitmentSearch";
 import { PageJump } from "./PageJump";
 import { FilterRow } from "@/components/FilterRow";
+import { labelFor } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +35,6 @@ const TYPES: CommitmentType[] = [
 const SIZES: OrgSize[] = ["small", "medium", "large", "enterprise"];
 const RAP_TYPES: RapType[] = ["reflect", "innovate", "stretch", "elevate"];
 const STATUSES: CommitmentStatus[] = ["committed", "in_progress", "reported", "confirmed", "stalled"];
-
-const label = (s: string) => s.replace(/_/g, " ");
 
 // status → bar fill + pill classes (palette unchanged: ink / amber / cedar / rust)
 const STATUS_BG: Record<CommitmentStatus, string> = {
@@ -126,10 +125,12 @@ function GroupSection({
   title,
   keys,
   map,
+  dim,
 }: {
   title: string;
   keys: string[];
   map: Record<string, { count: number; avgProgress: number }>;
+  dim: "sector" | "commitmentType" | "sizeBand";
 }) {
   const max = Math.max(1, ...keys.map((k) => map[k]?.count ?? 0));
   return (
@@ -141,7 +142,7 @@ function GroupSection({
           const count = s?.count ?? 0;
           return (
             <div key={k} className={`flex items-center gap-3 text-sm ${count ? "" : "opacity-40"}`}>
-              <div className="w-32 shrink-0 capitalize text-ink2">{label(k)}</div>
+              <div className="w-32 shrink-0 text-ink2">{labelFor(dim, k)}</div>
               <div className="h-3 flex-1 rounded bg-ink/10 overflow-hidden">
                 <div className="h-full bg-amber" style={{ width: `${(count / max) * 100}%` }} />
               </div>
@@ -245,7 +246,7 @@ export default async function CommitmentsPage({
   const flagById = new Map(risk.flags.map((f) => [f.commitment.id, f]));
   const riskRows = list.map((c) => {
     const f = flagById.get(c.id);
-    return { commitment: c, kind: f?.kind ?? "on_track", reason: f?.reason ?? `${label(c.status)} · ${c.progressPct}%` };
+    return { commitment: c, kind: f?.kind ?? "on_track", reason: f?.reason ?? `${labelFor("status", c.status)} · ${c.progressPct}%` };
   });
   const rfilter = searchParams.rfilter;
   const rsector = searchParams.rsector;
@@ -364,7 +365,7 @@ export default async function CommitmentsPage({
               return (
                 <div key={status} className={`flex items-center gap-3 text-sm ${count ? "" : "opacity-40"}`}>
                   <span className={`inline-block h-3 w-3 rounded-sm ${STATUS_BG[status]}`} />
-                  <span className="capitalize flex-1">{label(status)}</span>
+                  <span className="flex-1">{labelFor("status", status)}</span>
                   <span className="tabular-nums text-ink2">{count}</span>
                   <span className="tabular-nums text-ink3 w-10 text-right">{pct}%</span>
                 </div>
@@ -429,9 +430,9 @@ export default async function CommitmentsPage({
         <div className="flex flex-wrap items-baseline justify-end gap-2 mb-3">
           <div className="flex flex-wrap gap-3 text-xs text-ink3">
             {STATUSES.map((s) => (
-              <span key={s} className="inline-flex items-center gap-1 capitalize">
+              <span key={s} className="inline-flex items-center gap-1">
                 <span className={`inline-block h-2.5 w-2.5 rounded-sm ${STATUS_BG[s]}`} />
-                {label(s)}
+                {labelFor("status", s)}
               </span>
             ))}
           </div>
@@ -451,7 +452,7 @@ export default async function CommitmentsPage({
                         key={s}
                         className={STATUS_BG[s]}
                         style={{ width: `${(n / total) * 100}%` }}
-                        title={`${label(s)}: ${n}`}
+                        title={`${labelFor("status", s)}: ${n}`}
                       />
                     );
                   })}
@@ -493,11 +494,11 @@ export default async function CommitmentsPage({
                 key={s}
                 scroll={false}
                 href={rqs({ rsector: rsector === s ? undefined : s, rpage: undefined })}
-                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                className={`rounded-full border px-2.5 py-0.5 hover:border-amber/50 ${
                   rsector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
-                {label(s)}
+                {labelFor("sector", s)}
               </Link>
             ))}
           </FilterRow>
@@ -530,12 +531,12 @@ export default async function CommitmentsPage({
               {riskPageItems.map((r) => (
                 <div key={r.commitment.id} className="flex items-center gap-3 py-2 text-sm">
                   <span className={`w-16 shrink-0 text-xs rounded border px-2 py-0.5 text-center capitalize ${RISK_BADGE[r.kind]}`}>
-                    {label(r.kind)}
+                    {r.kind.replace(/_/g, " ")}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="truncate">{r.commitment.title}</div>
                     <div className="text-ink3 text-xs">
-                      {r.commitment.orgName} · <span className="capitalize">{label(r.commitment.sector)}</span>
+                      {r.commitment.orgName} · <span>{labelFor("sector", r.commitment.sector)}</span>
                     </div>
                   </div>
                   <span className="text-ink3 text-xs whitespace-nowrap">{r.reason}</span>
@@ -586,9 +587,9 @@ export default async function CommitmentsPage({
           Commitment counts and average progress by sector, commitment type, and organization size.
         </SectionLead>
         <div className="grid lg:grid-cols-3 gap-4">
-        <GroupSection title="By sector" keys={SECTORS} map={summary.bySector} />
-        <GroupSection title="By commitment type" keys={TYPES} map={summary.byType} />
-        <GroupSection title="By organization size" keys={SIZES} map={summary.bySize} />
+        <GroupSection title="By sector" keys={SECTORS} map={summary.bySector} dim="sector" />
+        <GroupSection title="By commitment type" keys={TYPES} map={summary.byType} dim="commitmentType" />
+        <GroupSection title="By organization size" keys={SIZES} map={summary.bySize} dim="sizeBand" />
         </div>
       </div>
 
@@ -632,8 +633,8 @@ export default async function CommitmentsPage({
             <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: `120px repeat(${TYPES.length}, 1fr)` }}>
               <div />
               {TYPES.map((t) => (
-                <div key={t} className="text-ink3 text-[10px] uppercase tracking-wide text-center leading-tight capitalize">
-                  {label(t)}
+                <div key={t} className="text-ink3 text-[10px] uppercase tracking-wide text-center leading-tight">
+                  {labelFor("commitmentType", t)}
                 </div>
               ))}
             </div>
@@ -643,7 +644,7 @@ export default async function CommitmentsPage({
                 className="grid gap-1 mb-1 items-center"
                 style={{ gridTemplateColumns: `120px repeat(${TYPES.length}, 1fr)` }}
               >
-                <div className="text-ink2 text-xs capitalize pr-2">{label(s)}</div>
+                <div className="text-ink2 text-xs pr-2">{labelFor("sector", s)}</div>
                 {TYPES.map((t) => {
                   const n = summary.matrix[s]?.[t] ?? 0;
                   const alpha = n ? (0.14 + 0.62 * (n / maxCell)).toFixed(3) : "0";
@@ -655,7 +656,7 @@ export default async function CommitmentsPage({
                         backgroundColor: n ? `rgb(var(--amber) / ${alpha})` : "rgb(var(--ink) / 0.04)",
                         color: n ? "rgb(var(--ink))" : "transparent",
                       }}
-                      title={`${label(s)} · ${label(t)}: ${n}`}
+                      title={`${labelFor("sector", s)} · ${labelFor("commitmentType", t)}: ${n}`}
                     >
                       {n || ""}
                     </div>
@@ -696,11 +697,11 @@ export default async function CommitmentsPage({
                 key={s}
                 scroll={false}
                 href={qs({ sector: searchParams.sector === s ? undefined : s })}
-                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                className={`rounded-full border px-2.5 py-0.5 hover:border-amber/50 ${
                   searchParams.sector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
-                {label(s)}
+                {labelFor("sector", s)}
               </Link>
             ))}
           </FilterRow>
@@ -712,11 +713,11 @@ export default async function CommitmentsPage({
                 key={t}
                 scroll={false}
                 href={qs({ type: searchParams.type === t ? undefined : t })}
-                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                className={`rounded-full border px-2.5 py-0.5 hover:border-amber/50 ${
                   searchParams.type === t ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
-                {label(t)}
+                {labelFor("commitmentType", t)}
               </Link>
             ))}
           </FilterRow>
@@ -746,16 +747,16 @@ export default async function CommitmentsPage({
                 <div className="flex-1 min-w-0">
                   <div className="truncate">{c.title}</div>
                   <div className="text-ink3 text-xs">
-                    {c.orgName} · <span className="capitalize">{label(c.sector)}</span> ·{" "}
-                    <span className="capitalize">{c.orgSize}</span> ·{" "}
-                    <span className="capitalize">{label(c.type)}</span> · target {c.targetYear}
+                    {c.orgName} · <span>{labelFor("sector", c.sector)}</span> ·{" "}
+                    <span>{labelFor("sizeBand", c.orgSize)}</span> ·{" "}
+                    <span>{labelFor("commitmentType", c.type)}</span> · target {c.targetYear}
                   </div>
                 </div>
                 <span className="font-serif w-12 text-right tabular-nums">{c.progressPct}%</span>
                 <span
-                  className={`text-xs rounded border px-2 py-0.5 capitalize w-24 text-center ${STATUS_PILL[c.status]}`}
+                  className={`text-xs rounded border px-2 py-0.5 w-24 text-center ${STATUS_PILL[c.status]}`}
                 >
-                  {label(c.status)}
+                  {labelFor("status", c.status)}
                 </span>
               </summary>
 
@@ -773,7 +774,7 @@ export default async function CommitmentsPage({
                   <div className="h-2 flex-1 rounded bg-ink/10 overflow-hidden">
                     <div className={`h-full ${STATUS_BG[c.status]}`} style={{ width: `${c.progressPct}%` }} />
                   </div>
-                  <span className="text-xs text-ink3 w-28 text-right capitalize">{label(c.status)} · {c.progressPct}%</span>
+                  <span className="text-xs text-ink3 w-28 text-right">{labelFor("status", c.status)} · {c.progressPct}%</span>
                 </div>
 
                 {/* provenance + source */}

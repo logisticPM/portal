@@ -12,6 +12,7 @@ import {
   updateCommitmentAction,
   deleteCommitmentAction,
 } from "@/lib/commitments/actions";
+import { labelFor } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,6 @@ const TYPES: CommitmentType[] = [
 ];
 const SIZES: OrgSize[] = ["small", "medium", "large", "enterprise"];
 const STATUSES: CommitmentStatus[] = ["committed", "in_progress", "reported", "stalled"];
-const label = (s: string) => s.replace(/_/g, " ");
 
 const STATUS_PILL: Record<string, string> = {
   committed: "text-ink3 border-ink/15",
@@ -121,20 +121,20 @@ export default async function MyCommitmentsPage() {
           </label>
           <label className="text-sm">
             <span className="text-ink2">Sector</span>
-            <select name="sector" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2 capitalize">
-              {SECTORS.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+            <select name="sector" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2">
+              {SECTORS.map((s) => <option key={s} value={s}>{labelFor("sector", s)}</option>)}
             </select>
           </label>
           <label className="text-sm">
             <span className="text-ink2">Commitment type</span>
-            <select name="type" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2 capitalize">
-              {TYPES.map((t) => <option key={t} value={t}>{label(t)}</option>)}
+            <select name="type" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2">
+              {TYPES.map((t) => <option key={t} value={t}>{labelFor("commitmentType", t)}</option>)}
             </select>
           </label>
           <label className="text-sm">
             <span className="text-ink2">Organization size</span>
-            <select name="orgSize" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2 capitalize">
-              {SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+            <select name="orgSize" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2">
+              {SIZES.map((s) => <option key={s} value={s}>{labelFor("sizeBand", s)}</option>)}
             </select>
           </label>
           <label className="text-sm">
@@ -146,8 +146,8 @@ export default async function MyCommitmentsPage() {
           </label>
           <label className="text-sm">
             <span className="text-ink2">Status</span>
-            <select name="status" defaultValue="committed" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2 capitalize">
-              {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+            <select name="status" defaultValue="committed" className="mt-1 w-full rounded border border-line bg-bg/40 px-3 py-2">
+              {STATUSES.map((s) => <option key={s} value={s}>{labelFor("status", s)}</option>)}
             </select>
           </label>
           <label className="text-sm">
@@ -180,15 +180,16 @@ export default async function MyCommitmentsPage() {
                   <div className="flex flex-wrap items-center gap-3 text-sm">
                     <div className="flex-1 min-w-[220px]">
                       <div className="font-medium text-ink">{c.title}</div>
-                      <div className="text-ink3 text-xs capitalize">
-                        {label(c.sector)} · {label(c.type)} · {c.orgSize} · target {c.targetYear}
+                      <div className="text-ink3 text-xs">
+                        {labelFor("sector", c.sector)} · {labelFor("commitmentType", c.type)} ·{" "}
+                        {labelFor("sizeBand", c.orgSize)} · target {c.targetYear}
                       </div>
                     </div>
                     {/* inline update */}
                     <form action={updateCommitmentAction} className="flex items-center gap-2">
                       <input type="hidden" name="id" value={c.id} />
-                      <select name="status" defaultValue={c.status} className="rounded border border-line bg-bg/40 px-2 py-1 text-xs capitalize">
-                        {STATUSES.map((s) => <option key={s} value={s}>{label(s)}</option>)}
+                      <select name="status" defaultValue={c.status} className="rounded border border-line bg-bg/40 px-2 py-1 text-xs">
+                        {STATUSES.map((s) => <option key={s} value={s}>{labelFor("status", s)}</option>)}
                       </select>
                       <input
                         name="progressPct" type="number" min={0} max={100} defaultValue={c.progressPct}
@@ -196,8 +197,8 @@ export default async function MyCommitmentsPage() {
                       />
                       <button className="rounded border border-line px-2 py-1 text-xs hover:border-amber/50 text-ink2 hover:text-ink">Save</button>
                     </form>
-                    <span className={`text-xs rounded border px-2 py-0.5 capitalize ${STATUS_PILL[c.status] ?? "border-line"}`}>
-                      {label(c.status)}
+                    <span className={`text-xs rounded border px-2 py-0.5 ${STATUS_PILL[c.status] ?? "border-line"}`}>
+                      {labelFor("status", c.status)}
                     </span>
                     <form action={deleteCommitmentAction}>
                       <input type="hidden" name="id" value={c.id} />
