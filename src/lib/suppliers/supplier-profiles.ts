@@ -39,7 +39,7 @@ export const supplierProfiles: Record<string, SupplierProfile> = {
     industry: "Logistics & industrial services",
     employees: "~1,300",
     website: "https://bouchier.ca/",
-    owner: "Bouchier family — Fort McKay First Nation & Mikisew Cree First Nation (CCAB-certified)",
+    owner: "Bouchier family — Fort McKay First Nation & Mikisew Cree First Nation (CCIB-certified)",
     about: "100% Indigenous-owned provider of civil contracting, facility maintenance and logistics to Alberta's oil sands and industrial sectors.",
   },
   // desnedhe.com/about ; linkedin.com/company/des-nedhe
@@ -79,7 +79,7 @@ export const supplierProfiles: Record<string, SupplierProfile> = {
     industry: "Indigenous technology / software",
     employees: "~30–50",
     website: "https://animikii.com/",
-    owner: "Indigenous-owned (Jeff Ward, Ojibwe/Métis) — CCAB-certified, Certified B Corp",
+    owner: "Indigenous-owned (Jeff Ward, Ojibwe/Métis) — CCIB-certified, Certified B Corp",
     about: "A 100% Indigenous-owned technology company building custom software and web applications guided by Indigenous data-sovereignty principles.",
   },
   // nationstranslation.com/about ; ccib.ca (member)
@@ -89,7 +89,7 @@ export const supplierProfiles: Record<string, SupplierProfile> = {
     industry: "Translation & language services",
     employees: "~51–200",
     website: "https://www.nationstranslation.com/",
-    owner: "CCAB-certified, 100% First Nations-owned",
+    owner: "CCIB-certified, 100% First Nations-owned",
     about: "A 100% Indigenous-owned language-services provider offering enterprise translation in 100+ languages, including 30+ Indigenous languages.",
   },
   // 3ne.ca/about-3ne ; 3ne.ca/founding
