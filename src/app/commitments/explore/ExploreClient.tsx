@@ -191,6 +191,7 @@ function Treemap({ facts, primary, secondary, measure, onPick, color }: ViewProp
           id: `${col.key}::${s.key}`,
           name: labelFor(secondary, s.key),
           tkey: s.key,
+          ppkey: col.key,   // parent (primary) key, for parent+leaf drill
           pname: pLabel,
           value: s.value,
         })),
@@ -201,7 +202,11 @@ function Treemap({ facts, primary, secondary, measure, onPick, color }: ViewProp
     <div>
       <Caption>{`${measureLabel(measure)}: tile area = ${measureLabel(measure).toLowerCase()} · grouped by ${dimLabel(primary)}, colored by ${dimLabel(secondary)}. Hover for detail, click to drill in.`}</Caption>
       <TreemapChart data={data} colorOf={(k) => color(secondary, k)}
-        onDrill={(level, key) => onPick(level === "primary" ? primary : secondary, key)} />
+        onDrill={(level, key, parentKey) => {
+          if (level === "primary") { onPick(primary, key); return; }
+          if (parentKey) onPick(primary, parentKey);   // the sector this leaf sits in
+          onPick(secondary, key);                        // the type
+        }} />
       <Legend dim={secondary} facts={facts} measure={measure} onPick={onPick} color={color} />
     </div>
   );
