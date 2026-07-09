@@ -1,17 +1,12 @@
-import type { Commitment, CommitmentStatus, OrgSize } from "@/lib/commitments";
+import type { Commitment } from "@/lib/commitments";
 import type { Fact } from "@/lib/rap/analytics";
 
-const SIZE_BAND: Record<OrgSize, Fact["sizeBand"]> = {
-  small: "lt_50", medium: "50_249", large: "250_999", enterprise: "1000_plus",
-};
-const STATUS: Record<CommitmentStatus, Fact["status"]> = {
-  committed: "not_started", in_progress: "on_track", reported: "met", confirmed: "met", stalled: "delayed",
-};
-
-// Map a commitments-domain Commitment onto the Explore Fact shape. Fields the
-// commitments domain doesn't carry (pillar, claimBasis, region, jurisdiction)
-// take honest defaults and read as degenerate dimensions in Explore until the
-// RAP_INDEX_SOURCE flag flips to the (grounded) rap domain.
+// Map a commitments-domain Commitment onto the Explore Fact shape. Sector/type
+// are already canonical (verbatim). Status + org size stay the NATIVE commitments
+// vocabulary (Fact.status is CommitmentStatus, Fact.sizeBand is the canonical
+// org-size union). Pillar/claimBasis/region/jurisdiction the commitments domain
+// doesn't carry take honest constants and are hidden as degenerate dimensions
+// in Explore (Task 7).
 export function commitmentsToFacts(commitments: Commitment[]): Fact[] {
   return commitments.map((c) => ({
     commitId: c.id,
@@ -19,16 +14,16 @@ export function commitmentsToFacts(commitments: Commitment[]): Fact[] {
     deliverable: c.detail ?? "",
     orgId: c.orgId ?? c.orgName,
     orgName: c.orgName,
-    sector: c.sector as Fact["sector"],
-    sizeBand: SIZE_BAND[c.orgSize] ?? "unknown",
+    sector: c.sector,
+    sizeBand: c.orgSize,
     region: "—",
-    jurisdiction: "CA" as Fact["jurisdiction"],
+    jurisdiction: "CA",
     rapId: c.id,
     rapTitle: c.title,
-    pillar: "other" as Fact["pillar"],
-    commitmentType: c.type as Fact["commitmentType"],
+    pillar: "other",
+    commitmentType: c.type,
     claimBasis: "self_reported",
-    status: STATUS[c.status] ?? "not_started",
+    status: c.status,
     percentComplete: c.progressPct,
     targetText: c.targetText ?? null,
     targetValue: null,
