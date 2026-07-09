@@ -10,7 +10,7 @@ import {
   MEASURES, reduceMeasure,
 } from "@/lib/rap/analytics";
 import type { Dimension, Fact, Measure } from "@/lib/rap/analytics";
-import type { ProgressStatus } from "@/lib/rap/types";
+import { labelFor } from "@/lib/taxonomy";
 import { textOn } from "@/lib/rap/palette";
 import type { Theme } from "@/lib/rap/palette";
 import { PaletteSelect, useRapTheme } from "@/lib/rap/use-rap-theme";
@@ -28,25 +28,6 @@ const TreemapChart = dynamic(() => import("./TreemapChart"), { ssr: false, loadi
 const BarChart = dynamic(() => import("./BarChart"), { ssr: false, loading: chartLoading });
 const HeatmapChart = dynamic(() => import("./HeatmapChart"), { ssr: false, loading: chartLoading });
 const NetworkChart = dynamic(() => import("./NetworkChart"), { ssr: false, loading: chartLoading });
-
-// ---- labels ---------------------------------------------------------------
-const LABELS: Record<string, Record<string, string>> = {
-  sector: {
-    mining_extractive: "Mining / extractive", finance_banking: "Finance / banking", telecom: "Telecom",
-    energy: "Energy", government: "Government", retail: "Retail", transport: "Transport", other: "Other",
-  },
-  commitmentType: {
-    procurement: "Procurement", employment: "Employment", education_training: "Education / training",
-    cultural_awareness: "Cultural awareness", community_investment: "Community investment",
-    governance: "Governance", environmental: "Environmental", partnership: "Partnership", other: "Other",
-  },
-  status: { not_started: "Not started", on_track: "On track", delayed: "Delayed", met: "Met", missed: "Missed" },
-  claimBasis: { self_reported: "Self-reported", statutory: "Statutory", independently_verified: "Independently verified" },
-  sizeBand: { lt_50: "< 50", "50_249": "50–249", "250_999": "250–999", "1000_plus": "1000+", unknown: "Unknown" },
-};
-function labelFor(dim: Dimension, key: string): string {
-  return LABELS[dim]?.[key] ?? key;
-}
 
 // Assign colors by each category's position in its dimension's FULL domain (not
 // a hash) → every visible category gets a DISTINCT palette color, and it stays
@@ -79,13 +60,23 @@ export function ExploreClient({ facts }: { facts: Fact[] }) {
 
   const colorIndex = useMemo(() => buildColorIndex(facts), [facts]);
   const color = (dim: Dimension, key: string): string => {
-    if (dim === "status") return theme.status[key as ProgressStatus] ?? theme.categorical[0];
+    if (dim === "status") return theme.status[key as keyof typeof theme.status] ?? theme.categorical[0];
     return theme.categorical[(colorIndex.get(dim)?.get(key) ?? 0) % theme.categorical.length];
   };
 
   const filtered = useMemo(
     () => facts.filter((f) => filters.every((fl) => dimValue(f, fl.dim) === fl.key)),
     [facts, filters],
+  );
+
+  // Hide dimensions that are a single constant across the data (e.g. pillar/
+  // region/jurisdiction/claimBasis for the commitments source) — grouping by
+  // them yields one meaningless tile. Data-driven so it self-adjusts per source.
+  const activeDimensions = useMemo(
+    () => DIMENSIONS.filter(
+      (d) => new Set(facts.map((f) => dimValue(f, d.key))).size >= 2,
+    ),
+    [facts],
   );
 
   const addFilter = (dim: Dimension, key: string) =>
@@ -115,10 +106,10 @@ export function ExploreClient({ facts }: { facts: Fact[] }) {
       {/* controls */}
       <div className="bg-panel rounded border border-line p-4 flex flex-wrap items-end gap-4">
         <Select label="Group by" value={primary} onChange={(v) => setPrimary(v as Dimension)}
-          options={DIMENSIONS.map((d) => ({ value: d.key, label: d.label }))} />
+          options={activeDimensions.map((d) => ({ value: d.key, label: d.label }))} />
         <Select label={view === "contribution" ? "Then (unused)" : "Against"} value={secondary}
           onChange={(v) => setSecondary(v as Dimension)} disabled={view === "contribution"}
-          options={DIMENSIONS.map((d) => ({ value: d.key, label: d.label }))} />
+          options={activeDimensions.map((d) => ({ value: d.key, label: d.label }))} />
         <Select label="Measure" value={measure} onChange={(v) => setMeasure(v as Measure)}
           options={MEASURES.map((m) => ({ value: m.key, label: m.label }))} />
         <PaletteSelect themeKey={themeKey} setTheme={setTheme} theme={theme} />
