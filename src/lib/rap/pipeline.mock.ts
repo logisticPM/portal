@@ -22,10 +22,10 @@ function cleanResult(): ExtractionResult {
   return {
     engine: "bda",
     schemaVersion: RAP_SCHEMA_VERSION,
-    classification: { jurisdiction: "CA", sector: "finance_banking", rapType: null, confidence: 0.96 },
+    classification: { jurisdiction: "CA", sector: "finance", rapType: null, confidence: 0.96 },
     extracted: {
       orgName: g("Royal Bank of Canada", "Royal Bank of Canada (RBC)", 1, 0.99),
-      sector: g("finance_banking", "financial services", 2, 0.97),
+      sector: g("finance", "financial services", 2, 0.97),
       jurisdiction: g("CA", "Canada", 1, 0.99),
       rapTitle: g("Pathways to Economic Prosperity", "Pathways to Economic Prosperity", 1, 0.98),
       publicationDate: g("2025-06-20", "June 2025", 1, 0.92),
