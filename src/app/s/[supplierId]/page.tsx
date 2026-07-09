@@ -1,5 +1,6 @@
 import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
+import { labelFor } from "@/lib/taxonomy";
 import type { IdentityTier } from "@/lib/repo/types";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export default async function ShowcasePage({ params }: { params: { supplierId: s
         )}
         {s.blurb && <p className="text-ink2 mt-2">{s.blurb}</p>}
         <div className="text-ink3 text-sm mt-1">
-          {[s.sector, s.region].filter(Boolean).join(" · ")}
+          {[labelFor("sector", s.sectorNorm ?? s.sector ?? ""), s.region].filter(Boolean).join(" · ")}
           {s.website && (
             <>
               {" · "}

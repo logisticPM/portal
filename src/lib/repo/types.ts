@@ -107,6 +107,7 @@ export interface SupplierShowcase {
   ownershipPct?: number;
   verifications: Verification[]; // active (verified, non-expired) certs, for provenance display
   sector?: string;
+  sectorNorm?: import("../commitments/types").Sector; // normalized RAP sector (alignment)
   blurb?: string;
   region?: string;
   website?: string;

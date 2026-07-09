@@ -6,6 +6,7 @@ import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
 import { InstituteNav } from "@/components/InstituteNav";
 import { getSupplierProfile } from "@/lib/suppliers/supplier-profiles";
+import { labelFor } from "@/lib/taxonomy";
 import type { IdentityTier } from "@/lib/repo/types";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +61,7 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
             <span className="text-ink3 text-sm">{party.ownershipPct}% Indigenous-owned</span>
           )}
         </div>
-        <p className="text-ink2 text-sm mt-1 capitalize">{party.sectorNorm ?? party.sector ?? ""}{party.regionNorm ? ` · ${party.regionNorm}` : ""}</p>
+        <p className="text-ink2 text-sm mt-1">{labelFor("sector", party.sectorNorm ?? party.sector ?? "")}{party.regionNorm ? ` · ${party.regionNorm}` : ""}</p>
       </div>
 
       {/* about — real reference info (Wikipedia-style) */}

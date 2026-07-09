@@ -9,6 +9,7 @@ import { InstituteNav } from "@/components/InstituteNav";
 import { FilterRow } from "@/components/FilterRow";
 import { ScrollLink } from "@/components/ScrollLink";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
+import { labelFor } from "@/lib/taxonomy";
 import type { IdentityTier, Supplier } from "@/lib/repo/types";
 
 export const dynamic = "force-dynamic";
@@ -132,11 +133,11 @@ export default async function SuppliersPage({
               <ScrollLink
                 key={s}
                 href={qs({ sector: searchParams.sector === s ? undefined : s })}
-                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                className={`rounded-full border px-2.5 py-0.5 hover:border-amber/50 ${
                   searchParams.sector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
-                {s}
+                {labelFor("sector", s)}
               </ScrollLink>
             ))}
           </FilterRow>
@@ -182,7 +183,7 @@ export default async function SuppliersPage({
                   <td className="px-4 py-3">
                     <a href={`/suppliers/${s.id}`} className="font-serif text-cedar hover:underline">{s.name}</a>
                   </td>
-                  <td className="px-4 py-3 capitalize text-ink2">{sector || "—"}</td>
+                  <td className="px-4 py-3 text-ink2">{sector ? labelFor("sector", sector) : "—"}</td>
                   <td className="px-4 py-3 text-center text-ink2">{region || "—"}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`inline-block whitespace-nowrap text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${tierStyles[s.identityTier]}`}>
