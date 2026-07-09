@@ -9,10 +9,16 @@ import { getSearchIndex } from "./search/build-index";
 import { rankWithSearcher } from "./search/hybrid";
 import { getEmbedder } from "./search/embedder";
 import { routeQuery } from "./search/route";
+import { cache } from "react";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
-async function scanAll(): Promise<LegalCase[]> {
+// Request-memoized: React cache() dedupes scanAll within a single RSC render, so a browse
+// page that needs both the list (listCases) and the filter facets (listFacets) does ONE
+// Scan, not two. Scoped to the request — no cross-request staleness. Its only runtime
+// callers are the RSC case pages; hybridSearch (the briefing Lambda's path) uses the S3
+// index and getCase uses a key GetCommand, so neither invokes this in a non-request context.
+const scanAll = cache(async (): Promise<LegalCase[]> => {
   const out: LegalCase[] = [];
   let start: Record<string, any> | undefined;
   do {
@@ -26,7 +32,7 @@ async function scanAll(): Promise<LegalCase[]> {
     start = r.LastEvaluatedKey;
   } while (start);
   return out;
-}
+});
 
 /** Build BatchWrite PutRequest items for a case (PROFILE + CHUNK# items). */
 export function caseWriteRequests(c: LegalCase) {
