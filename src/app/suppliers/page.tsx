@@ -10,18 +10,10 @@ import { FilterRow } from "@/components/FilterRow";
 import { ScrollLink } from "@/components/ScrollLink";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
 import { labelFor } from "@/lib/taxonomy";
-import type { IdentityTier, Supplier } from "@/lib/repo/types";
+import type { Supplier } from "@/lib/repo/types";
+import { TIER_LABELS, TIER_STYLES, TIER_RANK } from "@/lib/repo/labels";
 
 export const dynamic = "force-dynamic";
-
-const tierLabels: Record<IdentityTier, string> = { nation: "Nation-verified", ccab: "CCAB-certified", self_declared: "Self-declared" };
-const tierStyles: Record<IdentityTier, string> = {
-  nation: "border-cedar/30 bg-cedar/10 text-cedar",
-  ccab: "border-amber/30 bg-amber/10 text-amber",
-  self_declared: "border-rust/30 bg-rust/10 text-rust",
-};
-
-const identityRank: Record<IdentityTier, number> = { nation: 0, ccab: 1, self_declared: 2 };
 
 export default async function SuppliersPage({
   searchParams,
@@ -66,7 +58,7 @@ export default async function SuppliersPage({
     { key: "name", label: "Supplier", primary: "asc", align: "text-left", val: (r: (typeof rows)[number]) => r.s.name.toLowerCase() },
     { key: "sector", label: "Sector", primary: "asc", align: "text-left", val: (r: (typeof rows)[number]) => r.sector },
     { key: "region", label: "Region", primary: "asc", align: "text-center", val: (r: (typeof rows)[number]) => r.region },
-    { key: "identity", label: "Identity", primary: "asc", align: "text-center", val: (r: (typeof rows)[number]) => identityRank[r.s.identityTier] },
+    { key: "identity", label: "Identity", primary: "asc", align: "text-center", val: (r: (typeof rows)[number]) => TIER_RANK[r.s.identityTier] },
     { key: "ownership", label: "Indigenous-owned", primary: "desc", align: "text-right", val: (r: (typeof rows)[number]) => r.s.ownershipPct ?? -1 },
     { key: "revenue", label: "Confirmed revenue", primary: "desc", align: "text-right", val: (r: (typeof rows)[number]) => r.revenue },
   ] as const;
@@ -186,8 +178,8 @@ export default async function SuppliersPage({
                   <td className="px-4 py-3 text-ink2">{sector ? labelFor("sector", sector) : "—"}</td>
                   <td className="px-4 py-3 text-center text-ink2">{region || "—"}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`inline-block whitespace-nowrap text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${tierStyles[s.identityTier]}`}>
-                      {tierLabels[s.identityTier]}
+                    <span className={`inline-block whitespace-nowrap text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${TIER_STYLES[s.identityTier]}`}>
+                      {TIER_LABELS[s.identityTier]}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-ink2">{s.ownershipPct != null ? `${s.ownershipPct}%` : "—"}</td>

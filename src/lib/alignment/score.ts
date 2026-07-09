@@ -15,7 +15,7 @@ const W_SEMANTIC = 0.3;
 
 const TIER_WEIGHT: Record<IdentityTier, number> = {
   nation: 1,
-  ccab: 0.9,
+  ccib: 0.9,
   self_declared: 0.4,
 };
 

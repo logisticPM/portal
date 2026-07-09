@@ -38,7 +38,7 @@ import type {
 type Item = Record<string, any>;
 
 const FLOWS: FlowType[] = ["procurement", "capital"];
-const TIERS: IdentityTier[] = ["nation", "ccab", "self_declared"];
+const TIERS: IdentityTier[] = ["nation", "ccib", "self_declared"];
 
 function emptyFlowMap() {
   return FLOWS.reduce(

@@ -1,20 +1,9 @@
 import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
 import { labelFor } from "@/lib/taxonomy";
-import type { IdentityTier } from "@/lib/repo/types";
+import { TIER_LABELS, TIER_STYLES } from "@/lib/repo/labels";
 
 export const dynamic = "force-dynamic";
-
-const tierLabels: Record<IdentityTier, string> = {
-  nation: "Nation-verified",
-  ccab: "CCAB-certified",
-  self_declared: "Self-declared",
-};
-const tierStyles: Record<IdentityTier, string> = {
-  nation: "border-cedar/30 bg-cedar/10 text-cedar",
-  ccab: "border-amber/30 bg-amber/10 text-amber",
-  self_declared: "border-rust/30 bg-rust/10 text-rust",
-};
 
 export default async function ShowcasePage({ params }: { params: { supplierId: string } }) {
   const s = await repo.getSupplierShowcase(params.supplierId);
@@ -35,8 +24,8 @@ export default async function ShowcasePage({ params }: { params: { supplierId: s
       <div>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-serif text-3xl">{s.name}</h1>
-          <span className={`text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${tierStyles[s.identityTier]}`}>
-            {tierLabels[s.identityTier]}
+          <span className={`text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${TIER_STYLES[s.identityTier]}`}>
+            {TIER_LABELS[s.identityTier]}
           </span>
           {s.ownershipPct != null && (
             <span className="text-ink3 text-sm">{s.ownershipPct}% Indigenous-owned</span>
