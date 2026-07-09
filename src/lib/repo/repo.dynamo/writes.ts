@@ -162,7 +162,7 @@ function isActive(v: Verification): boolean {
 function tierFromVerifications(vs: Verification[] | undefined): IdentityTier {
   const active = (vs ?? []).filter(isActive);
   if (active.some((v) => v.source === "nation")) return "nation";
-  if (active.length > 0) return "ccab";
+  if (active.length > 0) return "ccib";
   return "self_declared";
 }
 

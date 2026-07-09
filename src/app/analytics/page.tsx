@@ -1,17 +1,11 @@
 import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
 import { InstituteNav } from "@/components/InstituteNav";
-import type { IdentityTier } from "@/lib/repo/types";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { TIER_LABELS } from "@/lib/repo/labels";
 
 export const dynamic = "force-dynamic";
-
-const tierLabels: Record<IdentityTier, string> = {
-  nation: "Nation-verified",
-  ccab: "CCAB-certified",
-  self_declared: "Self-declared",
-};
 
 export default async function AnalyticsPage() {
   const session = getSession();
@@ -87,10 +81,10 @@ export default async function AnalyticsPage() {
           Confirmed $ by ownership-certification tier · the equity / integrity lens
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
-          {(["nation", "ccab", "self_declared"] as const).map((t) => (
+          {(["nation", "ccib", "self_declared"] as const).map((t) => (
             <div key={t} className="bg-panel rounded border border-line shadow-card p-4">
               <div className="font-serif text-xl">{money(idx.byTier[t].confirmed)}</div>
-              <div className="text-ink3 text-sm">{tierLabels[t]}</div>
+              <div className="text-ink3 text-sm">{TIER_LABELS[t]}</div>
             </div>
           ))}
         </div>

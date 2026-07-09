@@ -2,13 +2,8 @@
 
 import { useState } from "react";
 import { createLineAction } from "@/lib/repo/actions";
-import type { IdentityTier, Party } from "@/lib/repo/types";
-
-const tierLabels: Record<IdentityTier, string> = {
-  nation: "Nation-verified",
-  ccab: "CCAB-certified",
-  self_declared: "Self-declared",
-};
+import type { Party } from "@/lib/repo/types";
+import { TIER_LABELS } from "@/lib/repo/labels";
 
 // The two confirmable FLOW TYPES. procurement = company buys FROM an Indigenous supplier
 // (RAP core, MVP); capital = company invests equity INTO an Indigenous business (ownership
@@ -80,7 +75,7 @@ export function ReportLineForm({
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
-                {s.role === "supplier" ? ` — ${tierLabels[s.identityTier]}` : ""}
+                {s.role === "supplier" ? ` — ${TIER_LABELS[s.identityTier]}` : ""}
               </option>
             ))}
           </select>

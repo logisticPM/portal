@@ -5,7 +5,8 @@
 export type CanonicalSector =
   | "finance" | "mining" | "energy" | "consulting" | "retail" | "health"
   | "government" | "education" | "transport" | "telecom" | "forestry"
-  | "construction" | "aerospace" | "agriculture" | "media" | "other";
+  | "construction" | "aerospace" | "agriculture" | "media"
+  | "technology" | "professional_services" | "other";
 
 export type CanonicalCommitmentType =
   | "employment" | "procurement" | "cultural_learning" | "governance"
@@ -15,7 +16,7 @@ export type CanonicalCommitmentType =
 export const CANONICAL_SECTORS: CanonicalSector[] = [
   "finance", "mining", "energy", "consulting", "retail", "health", "government",
   "education", "transport", "telecom", "forestry", "construction", "aerospace",
-  "agriculture", "media", "other",
+  "agriculture", "media", "technology", "professional_services", "other",
 ];
 
 export const CANONICAL_TYPES: CanonicalCommitmentType[] = [
@@ -29,7 +30,7 @@ export const SECTOR_LABELS: Record<CanonicalSector, string> = {
   retail: "Retail", health: "Health", government: "Government", education: "Education",
   transport: "Transport", telecom: "Telecom", forestry: "Forestry",
   construction: "Construction", aerospace: "Aerospace", agriculture: "Agriculture",
-  media: "Media", other: "Other",
+  media: "Media", technology: "Technology", professional_services: "Professional services", other: "Other",
 };
 
 export const TYPE_LABELS: Record<CanonicalCommitmentType, string> = {

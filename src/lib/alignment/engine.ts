@@ -20,7 +20,7 @@ function commitmentText(c: Commitment): string {
 function supplierText(s: Supplier): string {
   return [s.name, s.sector, s.blurb].filter(Boolean).join(" · ");
 }
-const isVerifiedSupplier = (s: Supplier) => s.identityTier === "nation" || s.identityTier === "ccab";
+const isVerifiedSupplier = (s: Supplier) => s.identityTier === "nation" || s.identityTier === "ccib";
 
 // Score one commitment against the pool; keep Top-N >= threshold; upsert; prune the rest.
 export async function computeForCommitment(

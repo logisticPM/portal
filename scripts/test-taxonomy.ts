@@ -26,6 +26,6 @@ assert.equal(labelFor("commitmentType", "cultural_learning"), "Cultural learning
 assert.equal(labelFor("status", "in_progress"), "In progress");
 assert.equal(labelFor("sizeBand", "enterprise"), "Enterprise");
 assert.equal(labelFor("unknownDim", "some_raw_value"), "Some raw value"); // humanizing fallback
-assert.equal(CANONICAL_SECTORS.length, 16);
+assert.equal(CANONICAL_SECTORS.length, 18);
 assert.equal(CANONICAL_TYPES.length, 11);
 console.log("✅ test-taxonomy passed");

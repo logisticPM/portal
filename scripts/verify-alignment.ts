@@ -40,7 +40,7 @@ async function main() {
   // --- structured score ---
   const full = structuredScore({ sectorMatch: true, regionMatch: true, identityTier: "nation", ownershipPct: 100 });
   const none = structuredScore({ sectorMatch: false, regionMatch: false, identityTier: "self_declared", ownershipPct: 20 });
-  const partial = structuredScore({ sectorMatch: true, regionMatch: false, identityTier: "ccab", ownershipPct: 80 });
+  const partial = structuredScore({ sectorMatch: true, regionMatch: false, identityTier: "ccib", ownershipPct: 80 });
   check("structured: full > partial > none", full > partial && partial > none && none >= 0);
   check("structured: full match caps at 1", full <= 1 && Math.abs(full - 1) < 1e-9);
   check("structured: sector+region+nation is high", full >= 0.8);
@@ -105,7 +105,7 @@ async function main() {
     };
     const supplierPool = [
       { id: "s-eagle", role: "supplier" as const, name: "Eagle River Construction", identityTier: "nation" as const, ownershipPct: 100, sector: "Construction", sectorNorm: "construction" as const, region: "BC", regionNorm: "BC", registered: true, createdAt: "2025-01-15T00:00:00.000Z" },
-      { id: "s-raven", role: "supplier" as const, name: "Raven Logistics", identityTier: "ccab" as const, ownershipPct: 80, sector: "Logistics", sectorNorm: "transport" as const, region: "AB", regionNorm: "AB", registered: true, createdAt: "2025-01-15T00:00:00.000Z" },
+      { id: "s-raven", role: "supplier" as const, name: "Raven Logistics", identityTier: "ccib" as const, ownershipPct: 80, sector: "Logistics", sectorNorm: "transport" as const, region: "AB", regionNorm: "AB", registered: true, createdAt: "2025-01-15T00:00:00.000Z" },
     ];
     const opps = await computeForCommitment(scenarioCommit as any, supplierPool as any, alignmentRepo);
     check("engine: top match is the construction supplier", opps[0]?.supplierId === "s-eagle");

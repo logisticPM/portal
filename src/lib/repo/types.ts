@@ -7,7 +7,7 @@
 
 // How strongly a supplier's Indigenous status is verified.
 // 'self_declared' is the weakest tier — and the one fraud exploits — so it is shown explicitly.
-export type IdentityTier = "nation" | "ccab" | "self_declared";
+export type IdentityTier = "nation" | "ccib" | "self_declared";
 
 export type VerificationSource = "nation" | "ccib" | "isc_ibd" | "regional";
 export type VerificationStatus = "verified" | "pending" | "expired" | "revoked";
@@ -107,6 +107,7 @@ export interface SupplierShowcase {
   ownershipPct?: number;
   verifications: Verification[]; // active (verified, non-expired) certs, for provenance display
   sector?: string;
+  sectorNorm?: import("../commitments/types").Sector; // normalized RAP sector (alignment)
   blurb?: string;
   region?: string;
   website?: string;

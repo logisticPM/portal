@@ -6,16 +6,10 @@ import { repo } from "@/lib/repo";
 import { money } from "@/components/ui";
 import { InstituteNav } from "@/components/InstituteNav";
 import { getSupplierProfile } from "@/lib/suppliers/supplier-profiles";
-import type { IdentityTier } from "@/lib/repo/types";
+import { labelFor } from "@/lib/taxonomy";
+import { TIER_LABELS, TIER_STYLES } from "@/lib/repo/labels";
 
 export const dynamic = "force-dynamic";
-
-const tierLabels: Record<IdentityTier, string> = { nation: "Nation-verified", ccab: "CCAB-certified", self_declared: "Self-declared" };
-const tierStyles: Record<IdentityTier, string> = {
-  nation: "border-cedar/30 bg-cedar/10 text-cedar",
-  ccab: "border-amber/30 bg-amber/10 text-amber",
-  self_declared: "border-rust/30 bg-rust/10 text-rust",
-};
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -53,14 +47,14 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
         <a href="/suppliers" className="text-sm text-ink3 hover:text-amber hover:underline">← all suppliers</a>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="font-serif text-3xl">{party.name}</h1>
-          <span className={`text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${tierStyles[party.identityTier]}`}>
-            {tierLabels[party.identityTier]}
+          <span className={`text-xs uppercase tracking-wider border rounded-full px-2 py-0.5 ${TIER_STYLES[party.identityTier]}`}>
+            {TIER_LABELS[party.identityTier]}
           </span>
           {party.ownershipPct != null && (
             <span className="text-ink3 text-sm">{party.ownershipPct}% Indigenous-owned</span>
           )}
         </div>
-        <p className="text-ink2 text-sm mt-1 capitalize">{party.sectorNorm ?? party.sector ?? ""}{party.regionNorm ? ` · ${party.regionNorm}` : ""}</p>
+        <p className="text-ink2 text-sm mt-1">{labelFor("sector", party.sectorNorm ?? party.sector ?? "")}{party.regionNorm ? ` · ${party.regionNorm}` : ""}</p>
       </div>
 
       {/* about — real reference info (Wikipedia-style) */}

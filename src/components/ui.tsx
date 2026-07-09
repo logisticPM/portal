@@ -1,4 +1,5 @@
-import type { IdentityTier, ConfirmationStatus, Party, FlowType, FlowTag } from "@/lib/repo/types";
+import type { ConfirmationStatus, Party, FlowType, FlowTag } from "@/lib/repo/types";
+import { TIER_LABELS, TIER_STYLES } from "@/lib/repo/labels";
 
 export function money(n: number): string {
   return new Intl.NumberFormat("en-CA", {
@@ -8,26 +9,15 @@ export function money(n: number): string {
   }).format(n);
 }
 
-const tierStyles: Record<IdentityTier, string> = {
-  nation: "border-cedar/30 bg-cedar/10 text-cedar",
-  ccab: "border-amber/30 bg-amber/10 text-amber",
-  self_declared: "border-rust/30 bg-rust/10 text-rust",
-};
-const tierLabels: Record<IdentityTier, string> = {
-  nation: "Nation-verified",
-  ccab: "CCAB-certified",
-  self_declared: "Self-declared",
-};
-
 // Only suppliers carry a tier — pass the whole party and let the badge narrow by role.
 export function TierBadge({ party }: { party?: Party | null }) {
   if (!party || party.role !== "supplier") return null;
   const tier = party.identityTier;
   return (
     <span
-      className={`text-[0.65rem] uppercase tracking-wider border rounded-full px-2 py-0.5 ${tierStyles[tier]}`}
+      className={`text-[0.65rem] uppercase tracking-wider border rounded-full px-2 py-0.5 ${TIER_STYLES[tier]}`}
     >
-      {tierLabels[tier]}
+      {TIER_LABELS[tier]}
     </span>
   );
 }
