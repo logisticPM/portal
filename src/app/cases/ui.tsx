@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { LegalCase, CaseChunk } from "@/lib/cases";
 import { splitHighlight } from "./highlight";
 import { LENSES, lensConfig, lensHref, type Lens } from "@/lib/cases/lenses";
+import { paginationWindow, pageHref } from "@/lib/cases/pagination";
 
 export function TierBadge({ tier, fullTextAvailable }: { tier: "core" | "substrate"; fullTextAvailable: boolean }) {
   if (tier === "core") return <span className="rounded bg-cedar/15 px-2 py-0.5 text-xs text-cedar">core</span>;
@@ -107,5 +108,31 @@ export function FullTextReader({ chunks, q }: { chunks: CaseChunk[]; q: string }
         )}
       </div>
     </section>
+  );
+}
+
+export function Pagination({ page, totalPages, params }: {
+  page: number; totalPages: number; params: Record<string, string | undefined>;
+}) {
+  if (totalPages <= 1) return null;
+  const cell = "rounded border border-line px-3 py-1 text-sm";
+  const link = `${cell} text-ink2 hover:border-amber/50 hover:text-amber`;
+  const muted = `${cell} text-ink3/50`;
+  const current = `${cell} bg-amber/20 text-amber`;
+  return (
+    <nav className="mt-4 flex flex-wrap items-center gap-1.5" aria-label="Pagination">
+      {page > 1
+        ? <Link href={pageHref(params, page - 1)} className={link}>« Prev</Link>
+        : <span className={muted} aria-disabled="true">« Prev</span>}
+      {paginationWindow(page, totalPages).map((p, i) =>
+        p === "ellipsis"
+          ? <span key={`e${i}`} className="px-1 text-ink3">…</span>
+          : p === page
+            ? <span key={p} aria-current="page" className={current}>{p}</span>
+            : <Link key={p} href={pageHref(params, p)} className={link}>{p}</Link>)}
+      {page < totalPages
+        ? <Link href={pageHref(params, page + 1)} className={link}>Next »</Link>
+        : <span className={muted} aria-disabled="true">Next »</span>}
+    </nav>
   );
 }
