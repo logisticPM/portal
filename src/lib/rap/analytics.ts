@@ -14,10 +14,34 @@ import type {
   ClaimBasis, Commitment, CommitmentRollup, CommitmentType, Jurisdiction,
   Pillar, ProgressStatus, RapDocument, RapOrganization, Sector, SizeBand,
 } from "./types";
+import type { CommitmentStatus } from "@/lib/commitments/types";
 
 // A target magnitude is unit-typed so we never sum apples (dollars) and oranges
 // (percentages / head-counts). Derived from targetText since targetValue is raw.
 export type TargetUnit = "currency" | "percent" | "count" | "none";
+
+// --- crosswalk: rap-native vocabulary -> canonical display vocabulary -----
+export type CanonicalSize = "small" | "medium" | "large" | "enterprise" | "unknown";
+
+export function statusToCanonical(s: ProgressStatus): CommitmentStatus {
+  switch (s) {
+    case "not_started": return "committed";
+    case "on_track": return "in_progress";
+    case "delayed": return "in_progress";
+    case "met": return "reported";
+    case "missed": return "stalled";
+  }
+}
+
+export function sizeToCanonical(b: SizeBand): CanonicalSize {
+  switch (b) {
+    case "lt_50": return "small";
+    case "50_249": return "medium";
+    case "250_999": return "large";
+    case "1000_plus": return "enterprise";
+    case "unknown": return "unknown";
+  }
+}
 
 // One denormalized row per commitment — the atom of exploration.
 export interface Fact {
@@ -27,7 +51,7 @@ export interface Fact {
   orgId: string;
   orgName: string;
   sector: Sector;
-  sizeBand: SizeBand;
+  sizeBand: CanonicalSize;
   region: string;
   jurisdiction: Jurisdiction;
   rapId: string;
@@ -35,7 +59,7 @@ export interface Fact {
   pillar: Pillar;
   commitmentType: CommitmentType;
   claimBasis: ClaimBasis;
-  status: ProgressStatus;
+  status: CommitmentStatus;
   percentComplete: number;
   targetText: string | null;
   targetValue: number | null;
@@ -99,7 +123,7 @@ export function buildFacts(
       orgId: c.orgId,
       orgName: org?.name ?? c.orgId,
       sector: c.sector,
-      sizeBand: org?.sizeBand ?? "unknown",
+      sizeBand: org ? sizeToCanonical(org.sizeBand) : "unknown",
       region: org?.region ?? "—",
       jurisdiction: rap?.jurisdiction ?? "other",
       rapId: c.rapId,
@@ -107,7 +131,7 @@ export function buildFacts(
       pillar: c.pillar,
       commitmentType: c.commitmentType,
       claimBasis: c.provenance.claimBasis,
-      status: roll?.latestStatus ?? "not_started",
+      status: statusToCanonical(roll?.latestStatus ?? "not_started"),
       percentComplete: roll?.percentComplete ?? 0,
       targetText: c.targetText,
       targetValue: c.targetValue,

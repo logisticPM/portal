@@ -10,14 +10,12 @@
 // but the palette itself is now distinguishable. Text-on-fill contrast is chosen
 // per fill via textOn() so light swatches (e.g. yellow) stay readable.
 // ===========================================================================
-import type { ProgressStatus } from "./types";
-
 export interface Theme {
   key: string;
   label: string;
   note: string;
   categorical: string[]; // distinct hues for nominal dimensions (sector, org, type…)
-  status: Record<ProgressStatus, string>; // ordinal progress ramp (CB-safe, no red/green pair)
+  status: Record<"committed" | "in_progress" | "reported" | "confirmed" | "stalled", string>; // ordinal progress ramp (CB-safe, no red/green pair)
   accentHex: string; // sequential base (heatmap) + page accent
 }
 
@@ -30,7 +28,7 @@ export const THEMES: Theme[] = [
       "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00",
       "#CC79A7", "#661100", "#999999", "#117733", "#882255", "#44AA99",
     ],
-    status: { not_started: "#999999", on_track: "#56B4E9", delayed: "#E69F00", met: "#009E73", missed: "#CC79A7" },
+    status: { committed: "#999999", in_progress: "#56B4E9", reported: "#E69F00", confirmed: "#009E73", stalled: "#CC79A7" },
     accentHex: "#0072B2",
   },
   {
@@ -41,7 +39,7 @@ export const THEMES: Theme[] = [
       "#332288", "#88CCEE", "#44AA99", "#117733", "#999933", "#DDCC77",
       "#CC6677", "#882255", "#AA4499", "#661100", "#6699CC", "#888888",
     ],
-    status: { not_started: "#BBBBBB", on_track: "#88CCEE", delayed: "#DDCC77", met: "#117733", missed: "#882255" },
+    status: { committed: "#BBBBBB", in_progress: "#88CCEE", reported: "#DDCC77", confirmed: "#117733", stalled: "#882255" },
     accentHex: "#44AA99",
   },
   {
@@ -52,7 +50,7 @@ export const THEMES: Theme[] = [
       "#648FFF", "#DC267F", "#FFB000", "#785EF0", "#FE6100", "#009E73",
       "#1192E8", "#9F1853", "#005D5D", "#B28600", "#6929C4", "#8A3800",
     ],
-    status: { not_started: "#8D8D8D", on_track: "#648FFF", delayed: "#FFB000", met: "#009E73", missed: "#DC267F" },
+    status: { committed: "#8D8D8D", in_progress: "#648FFF", reported: "#FFB000", confirmed: "#009E73", stalled: "#DC267F" },
     accentHex: "#648FFF",
   },
 ];
