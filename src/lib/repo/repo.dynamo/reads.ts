@@ -274,7 +274,7 @@ export async function getSupplierShowcase(supplierId: string): Promise<SupplierS
   return {
     supplierId, name: p.name, identityTier: p.identityTier, ownershipPct: p.ownershipPct,
     verifications: (p.verifications ?? []).filter(isActive),
-    sector: p.sector, blurb: p.blurb, region: p.region, website: p.website,
+    sector: p.sector, sectorNorm: p.sectorNorm, blurb: p.blurb, region: p.region, website: p.website,
     confirmedRevenue, byFlow, confirmedBuyerCount: buyers.size, tags: [...tagSet], asOf,
   };
 }
