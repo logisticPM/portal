@@ -38,6 +38,10 @@ import assert from "node:assert/strict";
   assert.ok(prompt.includes("CTX-SENTINEL"));
   assert.ok(prompt.includes('"precedents"'));
   assert.ok(/do NOT give advice/i.test(prompt));
+  // reframed as an Indigenous economic-justice legal-INFORMATION assistant (spec 2026-07-09)
+  assert.ok(/legal information/i.test(prompt), "prompt frames as legal information");
+  assert.ok(/indigenous economic-justice/i.test(prompt), "prompt has Indigenous-law framing");
+  assert.ok(/consult qualified counsel|indigenous legal clinic/i.test(prompt), "prompt has advice-deflection");
 
   // --- parser ---
   const goodBody = {
