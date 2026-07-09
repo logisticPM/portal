@@ -203,16 +203,20 @@ git commit -m "refactor(types): point rap + commitments Sector/CommitmentType at
 
 ---
 
-### Task 3: Migrate RAP fixtures to canonical values
+### Task 3: Migrate RAP fixtures + mock data to canonical values
 
 **Files:**
 - Modify: `src/lib/rap/fixtures.ts` (org `sector`, commitment `sector` + `commitmentType` literals)
+- Modify: `src/lib/rap/real-fixtures.ts` (same legacy literals — real-data seeder source; ~15 occurrences)
+- Modify: `src/lib/rap/pipeline.mock.ts` (2 `finance_banking` occurrences in the mock extraction job)
 
 **Interfaces:**
 - Consumes: canonical `Sector`/`CommitmentType` (Task 2).
-- Produces: fixtures that only use canonical literals (no `finance_banking`/`mining_extractive`/`cultural_awareness`).
+- Produces: these three files use only canonical literals (no `finance_banking`/`mining_extractive`/`cultural_awareness`).
 
-- [ ] **Step 1: Rewrite the sector literals** — in `src/lib/rap/fixtures.ts`, apply these exact replacements everywhere they appear (org rows AND commitment rows):
+Scope note: Task 2's compile-driven retype surfaced that `real-fixtures.ts` and `pipeline.mock.ts` carry the same legacy literals as `fixtures.ts` (all are live code — `real-fixtures.ts` feeds `scripts/seed-rap-real.ts`; `pipeline.mock.ts` is on the extraction-job path). They take the identical remap.
+
+- [ ] **Step 1: Rewrite the sector/type literals** — in `src/lib/rap/fixtures.ts`, `src/lib/rap/real-fixtures.ts`, and `src/lib/rap/pipeline.mock.ts`, apply these exact replacements everywhere they appear (org rows, commitment rows, mock classification/extraction fields):
 
 ```
 "finance_banking"   -> "finance"
@@ -224,32 +228,33 @@ All other RAP sector/type values (`telecom, energy, government, retail, transpor
 
 - [ ] **Step 2: Verify no legacy literals remain**
 
-Run: `grep -nE "finance_banking|mining_extractive|cultural_awareness" src/lib/rap/fixtures.ts`
+Run: `grep -rnE "finance_banking|mining_extractive|cultural_awareness" src/lib/rap/fixtures.ts src/lib/rap/real-fixtures.ts src/lib/rap/pipeline.mock.ts`
 Expected: no output.
 
 - [ ] **Step 3: Run typecheck**
 
 Run: `npm run typecheck`
-Expected: fixtures errors gone; remaining errors only in `src/lib/rap/extraction-schema.ts` (Task 4).
+Expected: fixtures/real-fixtures/pipeline.mock errors gone; remaining errors only in `src/lib/rap/extraction-schema.ts` and `src/lib/rap-index/facts-source.ts` (Task 4).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/lib/rap/fixtures.ts
-git commit -m "refactor(rap): migrate fixtures to canonical sector/type values"
+git add src/lib/rap/fixtures.ts src/lib/rap/real-fixtures.ts src/lib/rap/pipeline.mock.ts
+git commit -m "refactor(rap): migrate fixtures + mock data to canonical sector/type values"
 ```
 
 ---
 
-### Task 4: Widen the extraction schema + BDA blueprint (D3)
+### Task 4: Widen the extraction schema + BDA blueprint + facts-source (D3)
 
 **Files:**
 - Modify: `src/lib/rap/extraction-schema.ts` (`SECTORS`, `COMMITMENT_TYPES` arrays)
 - Modify: `src/lib/rap/bda-blueprint.json` (sector + commitmentType `instruction` strings)
+- Modify: `src/lib/rap-index/facts-source.ts` (`RAP_SECTORS` array — legacy literals; drives the `RAP_INDEX_SOURCE="rap"` read path)
 
 **Interfaces:**
 - Consumes: `CANONICAL_SECTORS`, `CANONICAL_TYPES` (Task 1).
-- Produces: extraction enum = canonical; the Claude tool `enum` and BDA prompt offer the full 16 sectors / 11 types.
+- Produces: extraction enum = canonical; the Claude tool `enum` and BDA prompt offer the full 16 sectors / 11 types; `RAP_SECTORS` = canonical sector list.
 
 - [ ] **Step 1: Replace the arrays** — in `src/lib/rap/extraction-schema.ts`, replace the `SECTORS` and `COMMITMENT_TYPES` declarations with re-exports of the canonical arrays:
 
@@ -260,6 +265,15 @@ export const COMMITMENT_TYPES: CommitmentType[] = CANONICAL_TYPES;
 ```
 
 (Keep the existing `import type { … Sector … CommitmentType … } from "./types"`; remove the old inline array literals. `PILLARS`, `FRAMEWORK_REFS`, `JURISDICTIONS`, `RAP_TYPES`, `PAIR_LEVELS` are unchanged.)
+
+- [ ] **Step 1b: Point `RAP_SECTORS` at the canonical list** — in `src/lib/rap-index/facts-source.ts`, replace the hardcoded legacy `RAP_SECTORS` array (`["mining_extractive", "finance_banking", …]`) with the canonical list:
+
+```ts
+import { CANONICAL_SECTORS } from "@/lib/taxonomy";
+const RAP_SECTORS: Sector[] = CANONICAL_SECTORS;
+```
+
+(Keep the existing `import type { Sector } from "@/lib/rap";`. This array is iterated to fetch commitments per sector under the `RAP_INDEX_SOURCE="rap"` path; canonical values keep it in sync with the widened enum.)
 
 - [ ] **Step 2: Update the BDA blueprint instructions** — in `src/lib/rap/bda-blueprint.json`, set the two `instruction` strings:
 
@@ -280,8 +294,8 @@ Expected: PASS (0 errors) — all enum literals now canonical.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add src/lib/rap/extraction-schema.ts src/lib/rap/bda-blueprint.json
-git commit -m "feat(extract): widen extraction sector/type enum to canonical (D3)"
+git add src/lib/rap/extraction-schema.ts src/lib/rap/bda-blueprint.json src/lib/rap-index/facts-source.ts
+git commit -m "feat(extract): widen extraction sector/type enum to canonical + RAP_SECTORS (D3)"
 ```
 
 ---
