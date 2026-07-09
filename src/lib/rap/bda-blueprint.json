@@ -14,7 +14,7 @@
         "timeline": { "type": "string", "inferenceType": "explicit", "instruction": "The due date, quarter, or year for the deliverable, as written (the 'when')." },
         "owner": { "type": "string", "inferenceType": "explicit", "instruction": "The role/position/team accountable for the commitment (the 'who'). Leave empty if not stated." },
         "metric": { "type": "string", "inferenceType": "explicit", "instruction": "The target, KPI, or measurable figure, copied verbatim (e.g. '$100 million annually', '1.5%', '85 communities'). Do not compute." },
-        "commitmentType": { "type": "string", "inferenceType": "inferred", "instruction": "Classify as one of: procurement, employment, education_training, cultural_awareness, community_investment, governance, environmental, partnership, other." }
+        "commitmentType": { "type": "string", "inferenceType": "inferred", "instruction": "Classify as one of: employment, procurement, cultural_learning, governance, relationships, anti_racism, education_training, community_investment, environmental, partnership, other." }
       }
     },
     "Extra": {
@@ -34,7 +34,7 @@
   },
   "properties": {
     "orgName": { "type": "string", "inferenceType": "explicit", "instruction": "The full legal name of the organization that published this RAP." },
-    "sector": { "type": "string", "inferenceType": "inferred", "instruction": "The organization's sector, one of: mining_extractive, finance_banking, telecom, energy, government, retail, transport, other." },
+    "sector": { "type": "string", "inferenceType": "inferred", "instruction": "The organization's sector, one of: finance, mining, energy, consulting, retail, health, government, education, transport, telecom, forestry, construction, aerospace, agriculture, media, other." },
     "jurisdiction": { "type": "string", "inferenceType": "inferred", "instruction": "Country/jurisdiction context: AU, CA, or other." },
     "rapTitle": { "type": "string", "inferenceType": "explicit", "instruction": "The title of the RAP document (e.g. 'Pathways to Economic Prosperity')." },
     "publicationDate": { "type": "string", "inferenceType": "explicit", "instruction": "The date the RAP was published, as an ISO date if determinable." },

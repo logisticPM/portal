@@ -8,10 +8,10 @@ import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
 import { PageJump } from "@/app/commitments/PageJump";
 import { FilterRow } from "@/components/FilterRow";
+import { labelFor } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 
-const label = (s: string) => s.replace(/_/g, " ");
 const PAGE_SIZE = 20;
 
 export default async function OrganizationsPage({
@@ -121,11 +121,11 @@ export default async function OrganizationsPage({
                 key={s}
                
                 href={qs({ sector: searchParams.sector === s ? undefined : s, page: undefined })}
-                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                className={`rounded-full border px-2.5 py-0.5 hover:border-amber/50 ${
                   searchParams.sector === s ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
-                {label(s)}
+                {labelFor("sector", s)}
               </ScrollLink>
             ))}
           </FilterRow>
@@ -184,7 +184,7 @@ export default async function OrganizationsPage({
                       {o.orgName}
                     </a>
                   </td>
-                  <td className="py-2 px-3 capitalize text-ink2 truncate">{o.sectors.map(label).join(", ")}</td>
+                  <td className="py-2 px-3 text-ink2 truncate">{o.sectors.map((s) => labelFor("sector", s)).join(", ")}</td>
                   <td className="py-2 px-3 text-center tabular-nums text-ink2">{o.total}</td>
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">

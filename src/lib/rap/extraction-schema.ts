@@ -14,16 +14,13 @@
 // the same Grounded<T> shape instead of using this tool schema.
 // ===========================================================================
 import type { CommitmentType, FrameworkRef, Jurisdiction, PairLevel, Pillar, Sector } from "./types";
+import { CANONICAL_SECTORS, CANONICAL_TYPES } from "@/lib/taxonomy";
 
-export const SECTORS: Sector[] = [
-  "mining_extractive", "finance_banking", "telecom", "energy", "government", "retail", "transport", "other",
-];
+export const SECTORS: Sector[] = CANONICAL_SECTORS;
 export const PILLARS: Pillar[] = [
   "relationships", "respect", "opportunities", "governance", "employment", "community", "environment", "economy", "education", "other",
 ];
-export const COMMITMENT_TYPES: CommitmentType[] = [
-  "procurement", "employment", "education_training", "cultural_awareness", "community_investment", "governance", "environmental", "partnership", "other",
-];
+export const COMMITMENT_TYPES: CommitmentType[] = CANONICAL_TYPES;
 const FRAMEWORK_REFS: FrameworkRef[] = ["undrip", "trc_cta_92", "ocap", "pair", "other"];
 const JURISDICTIONS: Jurisdiction[] = ["AU", "CA", "other"];
 const RAP_TYPES = ["reflect", "innovate", "stretch", "elevate"];

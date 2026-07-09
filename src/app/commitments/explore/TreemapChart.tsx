@@ -11,6 +11,7 @@ export type TreeNode = {
   name: string;
   pkey?: string; // primary (parent) key — present on parent nodes
   tkey?: string; // secondary (leaf) key — present on leaf nodes
+  ppkey?: string; // parent (primary) key, denormalized onto leaves for parent+leaf drill
   pname?: string; // parent label, denormalized onto leaves for the tooltip
   value?: number;
   children?: TreeNode[];
@@ -19,7 +20,7 @@ export type TreeNode = {
 export default function TreemapChart({ data, colorOf, onDrill }: {
   data: TreeNode;
   colorOf: (secondaryKey: string) => string;
-  onDrill: (level: "primary" | "secondary", key: string) => void;
+  onDrill: (level: "primary" | "leaf", key: string, parentKey?: string) => void;
 }) {
   return (
     <div style={{ height: 560 }}>
@@ -39,7 +40,7 @@ export default function TreemapChart({ data, colorOf, onDrill }: {
         borderColor="#FFFFFF"
         colors={((node: { data: TreeNode }) => (node.data.tkey ? colorOf(node.data.tkey) : "#FFFFFF")) as never}
         onClick={((node: { data: TreeNode }) => {
-          if (node.data.tkey) onDrill("secondary", node.data.tkey);
+          if (node.data.tkey) onDrill("leaf", node.data.tkey, node.data.ppkey);
           else if (node.data.pkey) onDrill("primary", node.data.pkey);
         }) as never}
         tooltip={(({ node }: { node: { data: TreeNode; formattedValue: string | number; value: number } }) => (

@@ -13,10 +13,10 @@ import type { CommitmentStatus, CommitmentType, RapType } from "@/lib/commitment
 import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
 import { FilterRow } from "@/components/FilterRow";
+import { labelFor } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
 
-const label = (s: string) => s.replace(/_/g, " ");
 const RAP_TYPES: RapType[] = ["reflect", "innovate", "stretch", "elevate"];
 const TYPES: CommitmentType[] = [
   "employment", "procurement", "cultural_learning", "governance", "relationships", "anti_racism",
@@ -116,7 +116,7 @@ export default async function OrgScorecardPage({
           ← all organizations
         </a>
         <h1 className="mt-2 font-serif text-3xl">{org.orgName}</h1>
-        <p className="text-ink2 text-sm mt-1 capitalize">{org.sectors.map(label).join(" · ")}</p>
+        <p className="text-ink2 text-sm mt-1">{org.sectors.map((s) => labelFor("sector", s)).join(" · ")}</p>
       </div>
 
       {/* about — public reference info (Wikipedia-style) */}
@@ -156,7 +156,7 @@ export default async function OrgScorecardPage({
             avg progress{" "}
             <span className={delta >= 0 ? "text-cedar" : "text-rust"}>
               ({delta >= 0 ? "+" : ""}
-              {delta} vs {label(sector)})
+              {delta} vs {labelFor("sector", sector)})
             </span>
           </div>
         </div>
@@ -236,11 +236,11 @@ export default async function OrgScorecardPage({
                 key={t}
                 scroll={false}
                 href={listQs({ type: searchParams.type === t ? undefined : t })}
-                className={`rounded-full border px-2.5 py-0.5 capitalize hover:border-amber/50 ${
+                className={`rounded-full border px-2.5 py-0.5 hover:border-amber/50 ${
                   searchParams.type === t ? "border-amber/60 text-amber bg-amber/10" : "border-line text-ink2"
                 }`}
               >
-                {label(t)}
+                {labelFor("commitmentType", t)}
               </Link>
             ))}
           </FilterRow>
@@ -272,15 +272,15 @@ export default async function OrgScorecardPage({
                     {c.title}
                     {flagged.has(c.id) && <span className="text-rust text-xs ml-2">● at risk</span>}
                   </div>
-                  <div className="text-ink3 text-xs capitalize">
-                    {label(c.type)} · target {c.targetYear}
+                  <div className="text-ink3 text-xs">
+                    {labelFor("commitmentType", c.type)} · target {c.targetYear}
                   </div>
                 </div>
                 <span className="font-serif w-12 text-right tabular-nums">{c.progressPct}%</span>
                 <span
-                  className={`text-xs rounded border px-2 py-0.5 capitalize w-24 text-center ${STATUS_PILL[c.status]}`}
+                  className={`text-xs rounded border px-2 py-0.5 w-24 text-center ${STATUS_PILL[c.status]}`}
                 >
-                  {label(c.status)}
+                  {labelFor("status", c.status)}
                 </span>
               </summary>
 
@@ -296,7 +296,7 @@ export default async function OrgScorecardPage({
                   <div className="h-2 flex-1 rounded bg-ink/10 overflow-hidden">
                     <div className={`h-full ${STATUS_BG[c.status]}`} style={{ width: `${c.progressPct}%` }} />
                   </div>
-                  <span className="text-xs text-ink3 w-28 text-right capitalize">{label(c.status)} · {c.progressPct}%</span>
+                  <span className="text-xs text-ink3 w-28 text-right">{labelFor("status", c.status)} · {c.progressPct}%</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="rounded-full border border-line text-ink3 px-2 py-0.5">Self-reported</span>

@@ -6,6 +6,7 @@
 import { extractionRepo } from "@/lib/rap";
 import { confirmExtractionAction, rejectExtractionAction } from "@/lib/rap/actions";
 import type { ExtractedRap, Grounded } from "@/lib/rap";
+import { labelFor } from "@/lib/taxonomy";
 
 export async function ReviewPanel() {
   const jobs = await extractionRepo.listByStatus("PENDING_REVIEW");
@@ -35,7 +36,7 @@ export async function ReviewPanel() {
             <div>
               <div className="font-medium">{job.fileName}</div>
               <div className="text-ink3 text-sm">
-                {job.classification?.sector} · {job.classification?.jurisdiction} · engine: {job.engine} · overall confidence {Math.round((job.classification?.confidence ?? 0) * 100)}%
+                {job.classification && labelFor("sector", job.classification.sector)} · {job.classification?.jurisdiction} · engine: {job.engine} · overall confidence {Math.round((job.classification?.confidence ?? 0) * 100)}%
               </div>
             </div>
           </div>
@@ -78,7 +79,10 @@ function ExtractedView({ e }: { e: ExtractedRap }) {
       <div className="grid sm:grid-cols-2 gap-3">
         <Field label="Organization" g={e.orgName} />
         <Field label="RAP title" g={e.rapTitle} />
-        <Field label="Sector" g={e.sector} />
+        <Field
+          label="Sector"
+          g={e.sector.value ? { ...e.sector, value: labelFor("sector", e.sector.value) } : e.sector}
+        />
         <Field label="Jurisdiction" g={e.jurisdiction} />
         <Field label="Published" g={e.publicationDate} />
         <Field label="Governance body" g={e.governanceBody} />
@@ -94,7 +98,10 @@ function ExtractedView({ e }: { e: ExtractedRap }) {
               <Field label="Timeline" g={c.timeline} />
               <Field label="Owner" g={c.owner} />
               <Field label="Metric / target" g={c.metric} />
-              <Field label="Type" g={c.commitmentType} />
+              <Field
+                label="Type"
+                g={c.commitmentType.value ? { ...c.commitmentType, value: labelFor("commitmentType", c.commitmentType.value) } : c.commitmentType}
+              />
             </div>
           ))}
         </div>

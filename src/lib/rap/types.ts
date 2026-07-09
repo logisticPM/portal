@@ -17,6 +17,8 @@
 //     CONFIRMED. Aggregation/percentages are computed in code, not by the LLM.
 // ===========================================================================
 
+import type { CanonicalSector, CanonicalCommitmentType } from "@/lib/taxonomy";
+
 // Bump when the extraction schema changes; stored on every job for traceability
 // so re-runs and schema-evolution diffs are auditable.
 export const RAP_SCHEMA_VERSION = "1.0.0";
@@ -27,15 +29,7 @@ export type Jurisdiction = "AU" | "CA" | "other";
 // RAP maturity tier — reliably present for Australian RAPs, rare for Canadian
 export type RapType = "reflect" | "innovate" | "stretch" | "elevate";
 
-export type Sector =
-  | "mining_extractive"
-  | "finance_banking"
-  | "telecom"
-  | "energy"
-  | "government"
-  | "retail"
-  | "transport"
-  | "other";
+export type Sector = CanonicalSector;
 
 // Normalized pillar/theme set. Each document's idiosyncratic theme names are
 // mapped onto this canonical list; the raw name is also retained per commitment.
@@ -51,16 +45,7 @@ export type Pillar =
   | "education"
   | "other";
 
-export type CommitmentType =
-  | "procurement"
-  | "employment"
-  | "education_training"
-  | "cultural_awareness"
-  | "community_investment"
-  | "governance"
-  | "environmental"
-  | "partnership"
-  | "other";
+export type CommitmentType = CanonicalCommitmentType;
 
 // Canadian framing instruments / accreditations the extractor flags
 export type FrameworkRef = "undrip" | "trc_cta_92" | "ocap" | "pair" | "other";

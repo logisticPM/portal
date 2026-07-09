@@ -3,32 +3,13 @@
 // each carries its own sector / org-size / type (denormalized) so the dashboard
 // is pure scan-and-reduce, and a `history` of period snapshots for progress over time.
 
-export type Sector =
-  | "finance"
-  | "mining"
-  | "energy"
-  | "consulting"
-  | "retail"
-  | "health"
-  | "government"
-  | "education"
-  | "transport"
-  | "telecom"
-  | "forestry"
-  | "construction"
-  | "aerospace"
-  | "agriculture"
-  | "media";
+import type { CanonicalSector, CanonicalCommitmentType } from "@/lib/taxonomy";
+
+export type Sector = CanonicalSector;
 
 export type OrgSize = "small" | "medium" | "large" | "enterprise"; // bucketed from employee count
 
-export type CommitmentType =
-  | "employment"
-  | "procurement"
-  | "cultural_learning"
-  | "governance"
-  | "relationships"
-  | "anti_racism";
+export type CommitmentType = CanonicalCommitmentType;
 
 export type CommitmentStatus = "committed" | "in_progress" | "reported" | "confirmed" | "stalled";
 
