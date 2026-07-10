@@ -18,6 +18,7 @@ import type {
   ExtractionStatus,
   NewExtractionJob,
   Observation,
+  OrgClaim,
   RapDocument,
   RapOrganization,
   RapRepo,
@@ -33,6 +34,7 @@ type RapStore = {
   commitments: Commitment[];
   observations: Observation[];
   rollups: CommitmentRollup[];
+  claims: OrgClaim[];
 };
 
 const g = globalThis as typeof globalThis & { __rapStore?: RapStore };
@@ -45,6 +47,7 @@ const store: RapStore =
     commitments: seed.commitments.map((c) => ({ ...c })),
     observations: seed.observations.map((o) => ({ ...o })),
     rollups: seed.rollups.map((r) => ({ ...r })),
+    claims: [],
   });
 
 const now = () => new Date().toISOString();
@@ -230,5 +233,22 @@ export const mockRapRepo: RapRepo = {
   async hasCompanyProgress(rapId) {
     const ids = new Set(store.commitments.filter((c) => c.rapId === rapId).map((c) => c.id));
     return store.observations.some((o) => ids.has(o.commitId) && o.recordedBy !== "system");
+  },
+
+  async putClaim(c) {
+    const i = store.claims.findIndex(
+      (x) => x.businessNumber === c.businessNumber && x.partyId === c.partyId,
+    );
+    if (i >= 0) store.claims[i] = c;
+    else store.claims.push(c);
+    return c;
+  },
+
+  async getClaim(bn, partyId) {
+    return store.claims.find((c) => c.businessNumber === bn && c.partyId === partyId) ?? null;
+  },
+
+  async listClaimsByParty(partyId) {
+    return store.claims.filter((c) => c.partyId === partyId);
   },
 };

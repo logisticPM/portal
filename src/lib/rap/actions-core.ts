@@ -5,7 +5,7 @@
 // real dependencies (e.g. getRegistryProvider()). Server Actions can't accept
 // non-serializable arguments like a RegistryProvider instance, so the
 // resolvable, unit-testable logic lives here instead.
-import { extractionRepo } from "./index";
+import { extractionRepo, rapRepo } from "./index";
 import { isValidBN } from "./bn";
 import type { RegistryProvider } from "./registry";
 
@@ -36,4 +36,26 @@ export async function resolveOrgForJob(
 // both the Server Action (actions.ts) and unit tests without an async wrapper.
 export function canPublish(job: { businessNumber: string | null }): boolean {
   return job.businessNumber != null;
+}
+
+// Company-side self-claim: a logged-in company party claims the right to post
+// progress on a BN'd org. Requires BOTH an explicit attestation of authorization
+// AND a registry-verified BN — never grants on the strength of either alone.
+export async function claimOrgForParty(
+  reg: RegistryProvider,
+  input: { partyId: string; bnRaw: string; attested: boolean },
+): Promise<{ ok: true; legalName: string | null } | { ok: false; error: string }> {
+  if (!input.attested) return { ok: false, error: "You must attest authorization" };
+  const v = isValidBN(input.bnRaw);
+  if (!v) return { ok: false, error: "Invalid Business Number" };
+  const entity = await reg.verifyBN(v.bn9);
+  if (!entity) return { ok: false, error: "BN not found in the federal registry" };
+  await rapRepo.putClaim({
+    businessNumber: v.bn9,
+    partyId: input.partyId,
+    status: "granted",
+    attestedAt: new Date().toISOString(),
+    grantedBy: "system:bn-verify",
+  });
+  return { ok: true, legalName: entity.legalName };
 }

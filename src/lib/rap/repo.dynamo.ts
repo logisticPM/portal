@@ -10,6 +10,7 @@ import {
   RAP_GSI1,
   RAP_GSI2,
   RAP_TABLE,
+  itemToClaim,
   itemToCommitment,
   itemToJob,
   itemToObservation,
@@ -17,6 +18,7 @@ import {
   itemToRap,
   itemToRollup,
   keys,
+  toClaimItem,
   toCommitmentItem,
   toJobItem,
   toObservationItem,
@@ -307,5 +309,31 @@ export const dynamoRapRepo: RapRepo = {
       if (observations.some((o) => o.recordedBy !== "system")) return true;
     }
     return false;
+  },
+
+  async putClaim(c) {
+    await ddbDoc.send(new PutCommand({ TableName: RAP_TABLE, Item: toClaimItem(c) }));
+    return c;
+  },
+
+  async getClaim(bn, partyId) {
+    const res = await ddbDoc.send(
+      new GetCommand({ TableName: RAP_TABLE, Key: keys.claim(bn, partyId) }),
+    );
+    return res.Item ? itemToClaim(res.Item) : null;
+  },
+
+  // claims for a party: GSI1PK = PARTY#<partyId> (GSI1 is overloaded with
+  // STATUS#/RAP#/PARTY# partition keys — standard single-table heterogeneity).
+  async listClaimsByParty(partyId) {
+    const res = await ddbDoc.send(
+      new QueryCommand({
+        TableName: RAP_TABLE,
+        IndexName: RAP_GSI1,
+        KeyConditionExpression: "GSI1PK = :pk",
+        ExpressionAttributeValues: { ":pk": `PARTY#${partyId}` },
+      }),
+    );
+    return ((res.Items ?? []) as Record<string, any>[]).map(itemToClaim);
   },
 };
