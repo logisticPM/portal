@@ -392,6 +392,9 @@ export interface RapRepo {
   listRapsByOrg(orgId: string): Promise<RapDocument[]>;
 
   putCommitment(c: Commitment): Promise<Commitment>;
+  // direct read keyed by (rapId, commitId) — the /my-rap UI always has both, so
+  // this is a plain GetItem (main-table key), never a new GSI.
+  getCommitment(rapId: string, commitId: string): Promise<Commitment | null>;
   listCommitmentsByRap(rapId: string): Promise<Commitment[]>;
   listCommitmentsBySector(sector: Sector): Promise<Commitment[]>; // GSI slice
 

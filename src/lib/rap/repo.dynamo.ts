@@ -201,6 +201,13 @@ export const dynamoRapRepo: RapRepo = {
     return c;
   },
 
+  async getCommitment(rapId, commitId) {
+    const res = await ddbDoc.send(
+      new GetCommand({ TableName: RAP_TABLE, Key: keys.commitment(rapId, commitId) }),
+    );
+    return res.Item ? itemToCommitment(res.Item) : null;
+  },
+
   async listCommitmentsByRap(rapId) {
     const res = await ddbDoc.send(
       new QueryCommand({

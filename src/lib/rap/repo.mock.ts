@@ -187,6 +187,10 @@ export const mockRapRepo: RapRepo = {
     return c;
   },
 
+  async getCommitment(rapId, commitId) {
+    return store.commitments.find((c) => c.rapId === rapId && c.id === commitId) ?? null;
+  },
+
   async listCommitmentsByRap(rapId) {
     return store.commitments.filter((c) => c.rapId === rapId);
   },

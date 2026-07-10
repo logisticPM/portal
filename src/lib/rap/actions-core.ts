@@ -8,6 +8,7 @@
 import { extractionRepo, rapRepo } from "./index";
 import { isValidBN } from "./bn";
 import type { RegistryProvider } from "./registry";
+import type { ProgressStatus } from "./types";
 
 // Review-time BN resolution: validate the BN, verify it against the registry,
 // and persist the result on the job. Never silently self-asserts — an unknown
@@ -58,4 +59,36 @@ export async function claimOrgForParty(
     grantedBy: "system:bn-verify",
   });
   return { ok: true, legalName: entity.legalName };
+}
+
+// Company-side progress append: a claimed party posts an Observation against
+// one of their org's commitments. Append-only — never edits the commitment's
+// grounded fields, only adds a time-stamped progress record (the
+// RollupAggregator recomputes rollups off the write). Guarded by the same
+// claim that gates claimOrgForParty: the commitment's orgId must resolve to a
+// BN root (`org-bn-<bn>`), and the calling party must hold a granted OrgClaim
+// on that BN. Direct (rapId, commitId) read — no new GSI.
+export async function recordRapProgressForParty(input: {
+  partyId: string;
+  rapId: string;
+  commitId: string;
+  status: ProgressStatus;
+  observedValue: number | null;
+  note: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const c = await rapRepo.getCommitment(input.rapId, input.commitId);
+  if (!c) return { ok: false, error: "Unknown commitment" };
+  const bn = c.orgId.startsWith("org-bn-") ? c.orgId.slice("org-bn-".length) : null;
+  if (!bn) return { ok: false, error: "Org has no Business Number" };
+  const claim = await rapRepo.getClaim(bn, input.partyId);
+  if (!claim || claim.status !== "granted") return { ok: false, error: "Not authorized for this organization" };
+  await rapRepo.putObservation({
+    commitId: input.commitId,
+    observedAt: new Date().toISOString(),
+    status: input.status,
+    observedValue: input.observedValue,
+    note: input.note,
+    recordedBy: input.partyId,
+  });
+  return { ok: true };
 }
