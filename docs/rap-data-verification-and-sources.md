@@ -11,6 +11,8 @@
 
 ## 1. Fix list (do these before publishing)
 
+> **Status (2026-07-10):** Every fix below that touches a **seeded** org is already applied in `src/lib/rap/real-fixtures.ts` (the raptest 10-org seed) — federal 5%→6.11% (#1), Enbridge $757M cumulative (#5,#12), TELUS 500 ha (#14), Teck "in development" (#15), Suncor 14.25%, TC Energy 92% (2023), Agnico $4.6M. The remaining items (Cedar LNG partner #2/#3, Northern Courier #7, AIOC $393M→$745M #8, FNFA rating #9, FNFMB #10, NACCA #17, and the equity/financing minors) target orgs **not yet seeded anywhere** — they live only in the source workbook. Treat this list as the **corrections-to-apply checklist** for if/when those equity/financing orgs are added to the RAP-extraction seed. (Ref: issue #96 closed — the two source docs cover different domains and were intentionally kept separate.)
+
 ### High-impact — wrong / reversed
 | # | Sheet | Issue | Correction |
 |---|-------|-------|-----------|
