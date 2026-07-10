@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractionRepo } from "./index";
-import { resolveOrgForJob } from "./actions-core";
+import { canPublish, resolveOrgForJob } from "./actions-core";
 import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
 import { contentTypeFor, isUploadConfigured, putDocument, uploadKey } from "./storage";
@@ -90,6 +90,10 @@ export async function confirmExtractionAction(formData: FormData) {
 
   const job = await extractionRepo.getJob(jobId);
   if (!job || !job.extracted) return;
+  if (!canPublish(job)) {
+    revalidatePath("/extract");
+    return;
+  }
 
   await publishAndConfirm(job, job.extracted, reviewedBy);
   revalidatePath("/commitments");

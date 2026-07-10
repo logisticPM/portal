@@ -29,3 +29,11 @@ export async function resolveOrgForJob(
   }
   return { ok: false, error: "BN not found in the federal registry. Mark self-asserted to proceed." };
 }
+
+// Publish gate: a job can only be published once its org identity (Business
+// Number) has been resolved — either verified against the registry or
+// explicitly self-asserted by a reviewer. Pure/sync so it can be called from
+// both the Server Action (actions.ts) and unit tests without an async wrapper.
+export function canPublish(job: { businessNumber: string | null }): boolean {
+  return job.businessNumber != null;
+}
