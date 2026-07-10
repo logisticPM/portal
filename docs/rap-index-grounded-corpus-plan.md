@@ -1,8 +1,25 @@
 # Plan — Grounded RAP Index: building toward a credible corpus
 
 **Owner:** Nate (En-Ping) · **Prepared:** 2026-07-06 · CS7980 capstone
-**Status:** proposed
+**Status:** SUPERSEDED (2026-07-10) — full cutover de-scoped. No replacement plan: grounding is already enforced + displayed; the actionable work was verifying + hardening the extraction pipeline (see the note below).
 **Context:** [PR #56](https://github.com/logisticPM/portal/pull/56) held — see its closing comment. Live `/commitments` is on the illustrative `@/lib/commitments` domain (106 rows, 0% supplier-confirmed). The grounded `@/lib/rap` domain is the intended backbone but has only ~25 hand-curated rows and a 3-PDF corpus. This plan gets us from there to a credible, honestly-grounded RAP Index without shipping a regression or faking grounding.
+
+---
+
+> ## ⚠️ Superseded — read this first (2026-07-10)
+>
+> The full plan below (grind a corpus to **≥80 grounded rows / ≥40 orgs**, then flip `RAP_INDEX_SOURCE=rap` to replace the live index) is **no longer being pursued as written.** Reasons:
+>
+> 1. **Two of the seven phases are already done.** Phase 0 (the `RAP_INDEX_SOURCE` flag + isolation) shipped — it's in `src/lib/rap-index/facts-source.ts`. Phase 4 (expand rap `Sector`, taxonomy reconciliation) is superseded by the canonical-taxonomy work in PR #145 (`rap/types.ts` now `Sector = CanonicalSector`; `extraction-schema.ts` uses `CANONICAL_SECTORS`).
+> 2. **The value delta is marginal for the cost.** Per §8 of this doc, the grounded pipeline buys **grounding** (quote+page faithfulness), not **confirmation** (the actual product value, explicitly out of scope here). The live page already has **provenance** (every row a real, HTTP-checked source URL). 7–9 weeks would move the index from "sourced to a real page" → "quoted from that same page" — a change users and the client won't see.
+> 3. **The live page is now genuinely good.** PRs #145–148 (canonical labels, working treemap drill, real dollar KPIs ~$23.8B, suppliers normalization, analytics fixes) closed most of the "reads thin/illustrative" gap that motivated the cutover.
+> 4. **The ground is moving.** The repo split is live — this whole domain is migrating to `indigenomics-data-platform` (snapshot PRs; portal still the active repo). Betting 7–9 weeks against `logisticPM/portal` paths mid-split is risky.
+>
+> **What replaces it:** nothing large. We considered a "proof-of-grounding" capability demo but concluded it's unnecessary — **grounding is already a property the pipeline enforces, not an artifact to build.** `validateAndFlag(requireQuote:true)` (`pipeline.bedrock.ts`) rejects any commitment whose verbatim quote doesn't verify against the source, and the `/extract` review UI (`ReviewPanel.tsx`) already displays each row's source quote. Nothing downstream consumes grounded rows today (the illustrative page stays as the credible-looking live index, §7.4), so a bespoke showcase would have no consumer.
+>
+> **What we actually did:** verified the PDF extraction → publish path end-to-end (mock engine + the full dedup/persistence logic both real engines share) and **hardened the dedup key so re-uploads never duplicate canonical rows** — org-name normalization + a source-document content hash replacing the fragile model-extracted `title|period` key (**PR #151**, `scripts/test-rap-dedup.ts`). A live BDA/Bedrock cloud smoke test (`aws sso login --profile isb`, then `EXTRACTION_IMPL=bda`) remains an optional follow-up.
+>
+> The phase detail below is retained as reference — the corpus-acquisition, HTML-capture, and grounding-QA thinking (Phases 1–3) is the input if a grounded corpus is ever revived.
 
 ---
 
