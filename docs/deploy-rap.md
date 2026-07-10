@@ -67,6 +67,8 @@ RAP_TABLE=<sst-generated-RapData-name> AWS_REGION=<region> REPO_IMPL=dynamo \
 
 ### Option A — BDA (managed, multi-page native, **runs in `us-east-1`**)
 
+> **Now wired by default on the `production` stage** (`sst.config.ts`): `EXTRACTION_IMPL=bda`, `BEDROCK_REGION=us-east-1`, `BDA_PROJECT_ARN=…/rap-extraction-use1`, `BDA_PROFILE_ARN=…/us.data-automation-v1`. A normal production redeploy activates real extraction — you no longer need to pass these env vars by hand. Other stages still default to `mock`. The manual steps below remain the reference for standing up a *new* project or overriding per-deploy.
+
 1. **Create the blueprint** from `src/lib/rap/bda-blueprint.json` **in `us-east-1`** (`aws bedrock-data-automation create-blueprint --type DOCUMENT --blueprint-stage LIVE --schema file://... --region us-east-1`). Keep the field names — `pipeline.bda.ts` maps from them.
 2. **Create a Data Automation project** referencing the blueprint (`create-data-automation-project` with `--standard-output-configuration` + `--custom-output-configuration`); note its **project ARN**.
 3. **Config:**
