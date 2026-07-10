@@ -30,6 +30,25 @@ import { runExtraction } from "../src/lib/rap/pipeline.mock";
   assert.equal(ok.ok, true);
   const obs = await rapRepo.listObservations(commit.id);
   assert.ok(obs.some((o) => o.recordedBy === "p1" && o.observedValue === 55), "company observation appended");
+
+  // claimed party submitting an out-of-union status is rejected, and no
+  // observation carrying that bogus status is appended (Server Actions are
+  // directly POST-able, so this can't rely on the eventual <select> to gate it)
+  const bad = await recordRapProgressForParty({
+    partyId: "p1",
+    rapId,
+    commitId: commit.id,
+    status: "bogus" as any,
+    observedValue: 99,
+    note: "invalid",
+  });
+  assert.equal(bad.ok, false, "invalid status rejected");
+  const obsAfterBad = await rapRepo.listObservations(commit.id);
+  assert.ok(
+    !obsAfterBad.some((o) => (o.status as any) === "bogus"),
+    "no observation with invalid status was appended",
+  );
+
   console.log("OK test-rap-progress");
 })().catch((e) => {
   console.error(e);

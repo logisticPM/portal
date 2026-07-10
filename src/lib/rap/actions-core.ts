@@ -10,6 +10,13 @@ import { isValidBN } from "./bn";
 import type { RegistryProvider } from "./registry";
 import type { ProgressStatus } from "./types";
 
+// Guards against an out-of-union status reaching the store: recordRapProgressForParty
+// is a Next.js Server Action and therefore directly POST-able, bypassing whatever
+// <select> the UI eventually offers. An invalid status would make
+// STATUS_PERCENT[latest.status] (src/lib/rap/rollup.ts) undefined and corrupt the
+// append-only (unrecoverable) rollup row the dashboard + Task 6's publish lock read.
+const VALID_STATUS = new Set<ProgressStatus>(["not_started", "on_track", "delayed", "met", "missed"]);
+
 // Review-time BN resolution: validate the BN, verify it against the registry,
 // and persist the result on the job. Never silently self-asserts — an unknown
 // BN is an error unless the caller explicitly sets `selfAsserted`.
@@ -82,6 +89,7 @@ export async function recordRapProgressForParty(input: {
   if (!bn) return { ok: false, error: "Org has no Business Number" };
   const claim = await rapRepo.getClaim(bn, input.partyId);
   if (!claim || claim.status !== "granted") return { ok: false, error: "Not authorized for this organization" };
+  if (!VALID_STATUS.has(input.status)) return { ok: false, error: "Invalid status" };
   await rapRepo.putObservation({
     commitId: input.commitId,
     observedAt: new Date().toISOString(),
