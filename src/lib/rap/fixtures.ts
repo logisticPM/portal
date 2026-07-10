@@ -23,18 +23,28 @@ const g = <T>(value: T | null, quote: string | null, page: number | null, confid
   value, quote, page, confidence, flagged: confidence < 0.85 || (value !== null && quote === null),
 });
 
+// registry fields default to null across all seed orgs — none of the demo data
+// has been BN-verified; they're name-keyed exactly like a real self-asserted org.
+const noRegistry = {
+  businessNumber: null,
+  legalName: null,
+  registryStatus: null,
+  registrySource: null,
+  verifiedAt: null,
+} as const;
+
 export const orgs: RapOrganization[] = [
-  { id: "org-rbc", name: "Royal Bank of Canada", sector: "finance", sizeBand: "1000_plus", region: "CA", createdAt: "2025-06-20T00:00:00.000Z" },
-  { id: "org-agnico", name: "Agnico Eagle Mines", sector: "mining", sizeBand: "1000_plus", region: "CA", createdAt: "2024-07-10T00:00:00.000Z" },
-  { id: "org-telus", name: "TELUS Communications", sector: "telecom", sizeBand: "1000_plus", region: "CA", createdAt: "2021-11-29T00:00:00.000Z" },
+  { id: "org-rbc", name: "Royal Bank of Canada", sector: "finance", sizeBand: "1000_plus", region: "CA", createdAt: "2025-06-20T00:00:00.000Z", ...noRegistry },
+  { id: "org-agnico", name: "Agnico Eagle Mines", sector: "mining", sizeBand: "1000_plus", region: "CA", createdAt: "2024-07-10T00:00:00.000Z", ...noRegistry },
+  { id: "org-telus", name: "TELUS Communications", sector: "telecom", sizeBand: "1000_plus", region: "CA", createdAt: "2021-11-29T00:00:00.000Z", ...noRegistry },
   // --- additional demo orgs (fabricated; broaden sectors / size bands / claim basis for the exploratory dashboard) ---
-  { id: "org-td", name: "TD Bank Group", sector: "finance", sizeBand: "1000_plus", region: "ON", createdAt: "2024-03-04T00:00:00.000Z" },
-  { id: "org-vancity", name: "Vancity Credit Union", sector: "finance", sizeBand: "250_999", region: "BC", createdAt: "2024-05-14T00:00:00.000Z" },
-  { id: "org-suncor", name: "Suncor Energy", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2024-02-20T00:00:00.000Z" },
-  { id: "org-gc", name: "Government of Canada (PSPC)", sector: "government", sizeBand: "1000_plus", region: "CA", createdAt: "2024-01-15T00:00:00.000Z" },
-  { id: "org-cn", name: "Canadian National Railway", sector: "transport", sizeBand: "1000_plus", region: "QC", createdAt: "2024-04-09T00:00:00.000Z" },
-  { id: "org-ctc", name: "Canadian Tire Corporation", sector: "retail", sizeBand: "1000_plus", region: "ON", createdAt: "2025-01-22T00:00:00.000Z" },
-  { id: "org-teck", name: "Teck Resources", sector: "mining", sizeBand: "1000_plus", region: "BC", createdAt: "2024-06-30T00:00:00.000Z" },
+  { id: "org-td", name: "TD Bank Group", sector: "finance", sizeBand: "1000_plus", region: "ON", createdAt: "2024-03-04T00:00:00.000Z", ...noRegistry },
+  { id: "org-vancity", name: "Vancity Credit Union", sector: "finance", sizeBand: "250_999", region: "BC", createdAt: "2024-05-14T00:00:00.000Z", ...noRegistry },
+  { id: "org-suncor", name: "Suncor Energy", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2024-02-20T00:00:00.000Z", ...noRegistry },
+  { id: "org-gc", name: "Government of Canada (PSPC)", sector: "government", sizeBand: "1000_plus", region: "CA", createdAt: "2024-01-15T00:00:00.000Z", ...noRegistry },
+  { id: "org-cn", name: "Canadian National Railway", sector: "transport", sizeBand: "1000_plus", region: "QC", createdAt: "2024-04-09T00:00:00.000Z", ...noRegistry },
+  { id: "org-ctc", name: "Canadian Tire Corporation", sector: "retail", sizeBand: "1000_plus", region: "ON", createdAt: "2025-01-22T00:00:00.000Z", ...noRegistry },
+  { id: "org-teck", name: "Teck Resources", sector: "mining", sizeBand: "1000_plus", region: "BC", createdAt: "2024-06-30T00:00:00.000Z", ...noRegistry },
 ];
 
 export const raps: RapDocument[] = [
@@ -164,5 +174,9 @@ export const jobs: ExtractionJob[] = [
     rapId: null,
     createdAt: "2025-11-20T00:00:00.000Z",
     updatedAt: "2025-11-20T00:00:00.000Z",
+    businessNumber: null,
+    businessNumberSource: null,
+    registryLegalName: null,
+    registryStatus: null,
   },
 ];
