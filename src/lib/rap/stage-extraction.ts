@@ -75,6 +75,14 @@ export async function publishAndConfirm(job: ExtractionJob, extracted: Extracted
   const contentHash = await documentContentHash(job.sourceS3Key, job.fileName);
   const rapId = stableRapId(orgId, contentHash);
 
+  // Option-A guarantee: once a company has recorded any progress on this RAP,
+  // re-extraction is locked — deleteRapGraph below would otherwise silently
+  // wipe or mis-attribute that progress. Upload a corrected version as a new
+  // document instead (it gets its own rapId).
+  if (await rapRepo.hasCompanyProgress(rapId)) {
+    throw new Error("RAP is locked: company progress recorded — upload a corrected version as a new document");
+  }
+
   const { org, rap, commitments, observations, rollups } = buildCanonical(
     extracted,
     { orgId, rapId, commitId: () => uuid() },

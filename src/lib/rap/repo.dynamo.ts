@@ -282,4 +282,30 @@ export const dynamoRapRepo: RapRepo = {
     );
     return res.Item ? itemToRollup(res.Item) : null;
   },
+
+  // Option-A re-extraction lock: query commitments by rapId, then each
+  // commitment's observations, short-circuiting true on the first
+  // recordedBy !== "system" (same key patterns as deleteRapGraph above).
+  async hasCompanyProgress(rapId) {
+    const cres = await ddbDoc.send(
+      new QueryCommand({
+        TableName: RAP_TABLE,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+        ExpressionAttributeValues: { ":pk": `RAP#${rapId}`, ":sk": "COMMIT#" },
+      }),
+    );
+    const commits = ((cres.Items ?? []) as Record<string, any>[]).map(itemToCommitment);
+    for (const c of commits) {
+      const ores = await ddbDoc.send(
+        new QueryCommand({
+          TableName: RAP_TABLE,
+          KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+          ExpressionAttributeValues: { ":pk": `COMMIT#${c.id}`, ":sk": "OBS#" },
+        }),
+      );
+      const observations = ((ores.Items ?? []) as Record<string, any>[]).map(itemToObservation);
+      if (observations.some((o) => o.recordedBy !== "system")) return true;
+    }
+    return false;
+  },
 };

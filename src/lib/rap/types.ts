@@ -395,4 +395,11 @@ export interface RapRepo {
 
   putRollup(r: CommitmentRollup): Promise<CommitmentRollup>;
   getRollup(commitId: string): Promise<CommitmentRollup | null>;
+
+  // Option-A re-extraction lock: true iff any Observation on this RAP's
+  // commitments was recorded by a party OTHER than the pipeline's baseline
+  // writer ("system"). Once true, publishAndConfirm refuses to overwrite the
+  // RAP graph — company-recorded progress must never be silently wiped or
+  // mis-attributed by a later re-extraction of the same document.
+  hasCompanyProgress(rapId: string): Promise<boolean>;
 }

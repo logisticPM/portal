@@ -226,4 +226,9 @@ export const mockRapRepo: RapRepo = {
   async getRollup(commitId) {
     return store.rollups.find((r) => r.commitId === commitId) ?? null;
   },
+
+  async hasCompanyProgress(rapId) {
+    const ids = new Set(store.commitments.filter((c) => c.rapId === rapId).map((c) => c.id));
+    return store.observations.some((o) => ids.has(o.commitId) && o.recordedBy !== "system");
+  },
 };
