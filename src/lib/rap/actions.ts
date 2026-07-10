@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractionRepo } from "./index";
-import { canPublish, claimOrgForParty, recordRapProgressForParty, resolveOrgForJob } from "./actions-core";
+import { canPublish, claimOrgForParty, recordRapProgressForParty, resolveOrgForJob, uploadBNForSession } from "./actions-core";
 import type { ProgressStatus } from "./types";
 import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
@@ -26,10 +26,19 @@ async function invokeExtractor(functionName: string, payload: { jobId: string; f
   );
 }
 
-// FLOW: (optional login) → upload → AI extract → auto-publish if clean,
-// else route to the review queue. No Indigenomics truth-verification — the only
-// human touch is extraction QA on FLAGGED documents.
+// FLOW: staff OR a claimed company uploads → AI extract → auto-publish if
+// clean, else route to the review queue. A company's claimed BN is
+// auto-tagged on the job below so it doesn't get re-resolved at review; staff
+// uploads leave the BN null (resolved at review, as before). The only human
+// touch beyond that is extraction QA on FLAGGED documents.
 export async function uploadRapAction(formData: FormData) {
+  // Hybrid ownership: staff (indigenomics) and companies may both upload —
+  // only claimed companies additionally get to post progress (gated
+  // separately in recordRapProgressAction). Any other/no session is a silent
+  // no-op, matching this file's other identity guards.
+  const session = getSession();
+  if (!session || (session.kind !== "indigenomics" && session.kind !== "company")) return;
+
   // Three entry shapes, in priority order:
   //   1. s3Key present  → browser already uploaded via presigned URL (primary;
   //      no 6 MB Lambda limit). The action just records the key.
@@ -56,6 +65,14 @@ export async function uploadRapAction(formData: FormData) {
   }
 
   const job = await extractionRepo.createJob({ id: docId, fileName, sourceS3Key });
+
+  // Company self-upload: auto-tag the job with the uploader's (single) claimed
+  // BN so it isn't re-resolved at review. Staff uploads (or an ambiguous/no
+  // claim) leave the job's BN null, resolved at review as before.
+  const bn = await uploadBNForSession(session);
+  if (bn) {
+    await extractionRepo.setJobOrg(job.id, { ...bn, registryLegalName: null, registryStatus: null });
+  }
 
   // ASYNC path (deployed): BDA takes ~60-80s — beyond the request Lambda's
   // timeout — so hand extraction to a long-timeout worker and return to the
