@@ -350,10 +350,14 @@ export const mockRepo: PortalRepo = {
     const integrity = { certifiedNoActivity: 0, selfDeclaredWithActivity: 0 };
     for (const p of parties) {
       if (p.role !== "supplier") continue;
-      const confirmed = active
-        .filter((l) => l.supplierId === p.id)
-        .reduce((s, l) => s + confirmedAmount(l), 0);
-      if (p.identityTier !== "self_declared" && confirmed === 0) integrity.certifiedNoActivity++;
+      // The shell-company signal is "status without substance": a supplier that
+      // was NAMED on ≥1 reported line but has NOTHING confirmed. Registry-only
+      // suppliers (never on any line) are inert, not suspicious — require
+      // reported > 0 so they don't inflate the fraud count.
+      const lines = active.filter((l) => l.supplierId === p.id);
+      const reported = lines.reduce((s, l) => s + l.amount, 0);
+      const confirmed = lines.reduce((s, l) => s + confirmedAmount(l), 0);
+      if (p.identityTier !== "self_declared" && reported > 0 && confirmed === 0) integrity.certifiedNoActivity++;
       if (p.identityTier === "self_declared" && confirmed > 0) integrity.selfDeclaredWithActivity++;
     }
     return {
