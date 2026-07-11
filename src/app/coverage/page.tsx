@@ -1,32 +1,16 @@
+import { redirect } from "next/navigation";
 import { repo } from "@/lib/repo";
-import { partyIdFrom } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { money } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function CoveragePage() {
-  const companyId = partyIdFrom();
-  const companies = await repo.listParties("company");
-
-  // No company chosen yet → pick one (mirrors report/confirm/record).
-  if (!companyId) {
-    return (
-      <div className="space-y-4">
-        <h1 className="font-serif text-2xl">Coverage — pick a company</h1>
-        <div className="grid gap-2">
-          {companies.map((c) => (
-            <a
-              key={c.id}
-              className="bg-panel rounded border border-line px-4 py-3 hover:text-amber"
-              href={`/coverage?as=${c.id}`}
-            >
-              {c.name}
-            </a>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  // Identity comes solely from the verified session (?as= override was removed).
+  // Middleware already gates /coverage to company sessions; this guards in depth.
+  const session = getSession();
+  if (!session || session.kind !== "company" || !session.partyId) redirect("/home");
+  const companyId = session.partyId;
 
   const company = await repo.getParty(companyId);
   const coverage = await repo.getCoverage(companyId);
@@ -44,7 +28,7 @@ export default async function CoveragePage() {
             <span className="text-ink3 text-base">— how much of what I reported is confirmed?</span>
           </h1>
         </div>
-        <a className="ml-auto text-ink3 underline text-sm" href={`/report?as=${companyId}`}>
+        <a className="ml-auto text-ink3 underline text-sm" href="/report">
           ← report
         </a>
       </div>
@@ -72,7 +56,8 @@ export default async function CoveragePage() {
         </div>
         <div className="space-y-3">
           {flows.map(([flow, v]) => {
-            const pct = v.reported ? Math.round((v.confirmed / v.reported) * 100) : 0;
+            // Clamp: a corrected-up line can push confirmed > reported → >100% bar overflow.
+            const pct = v.reported ? Math.min(100, Math.max(0, Math.round((v.confirmed / v.reported) * 100))) : 0;
             return (
               <div key={flow}>
                 <div className="flex justify-between text-sm mb-1">

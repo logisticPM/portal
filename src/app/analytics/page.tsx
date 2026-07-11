@@ -58,7 +58,8 @@ export default async function AnalyticsPage() {
         </div>
         <div className="space-y-3">
           {flows.map(([flow, v]) => {
-            const pct = v.reported ? Math.round((v.confirmed / v.reported) * 100) : 0;
+            // Clamp: a corrected-up line can push confirmed > reported → >100% bar overflow.
+            const pct = v.reported ? Math.min(100, Math.max(0, Math.round((v.confirmed / v.reported) * 100))) : 0;
             return (
               <div key={flow}>
                 <div className="flex justify-between text-sm mb-1">
@@ -81,12 +82,19 @@ export default async function AnalyticsPage() {
           Confirmed $ by ownership-certification tier · the equity / integrity lens
         </div>
         <div className="grid sm:grid-cols-3 gap-4">
-          {(["nation", "ccib", "self_declared"] as const).map((t) => (
-            <div key={t} className="bg-panel rounded border border-line shadow-card p-4">
-              <div className="font-serif text-xl">{money(idx.byTier[t].confirmed)}</div>
-              <div className="text-ink3 text-sm">{TIER_LABELS[t]}</div>
-            </div>
-          ))}
+          {(["nation", "ccib", "self_declared"] as const).map((t) => {
+            const confirmed = idx.byTier[t].confirmed;
+            return (
+              <div key={t} className="bg-panel rounded border border-line shadow-card p-4">
+                {confirmed > 0 ? (
+                  <div className="font-serif text-xl">{money(confirmed)}</div>
+                ) : (
+                  <div className="font-serif text-xl text-ink3">— <span className="text-sm not-italic">no confirmed spend</span></div>
+                )}
+                <div className="text-ink3 text-sm">{TIER_LABELS[t]}</div>
+              </div>
+            );
+          })}
         </div>
         <p className="text-ink3 text-sm mt-2">
           How much confirmed spend sits at each ownership-certification tier: self-declared is

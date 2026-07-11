@@ -45,9 +45,10 @@ export function itemToOpportunity(it: any): Opportunity {
     score: d.score,
     reasons: {
       sectorMatch: d.reasons.sectorMatch,
-      regionMatch: d.reasons.regionMatch,
+      // legacy rows (pre-#149) lack `relevance`; default to 0 so reads don't NaN.
+      relevance: d.reasons.relevance ?? 0,
       identityTier: d.reasons.identityTier,
-      semantic: d.reasons.semantic,
+      ...(d.reasons.semantic !== undefined ? { semantic: d.reasons.semantic } : {}),
     },
     ...(d.rationale !== undefined ? { rationale: d.rationale } : {}),
     status: d.status,

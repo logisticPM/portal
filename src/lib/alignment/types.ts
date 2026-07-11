@@ -8,9 +8,9 @@ export type OpportunityStatus = "new" | "seen" | "acted" | "dismissed";
 
 export interface OpportunityReasons {
   sectorMatch: boolean;
-  regionMatch: boolean;
+  relevance: number; // 0..1 deterministic BM25 capability overlap (blended w/ real embedding cosine when configured)
   identityTier: IdentityTier;
-  semantic: number; // 0..1 cosine similarity
+  semantic?: number; // 0..1 real-embedder cosine — present ONLY when a real EMBED_PROVIDER is configured
 }
 
 export interface Opportunity {

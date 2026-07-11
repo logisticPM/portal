@@ -4,7 +4,8 @@
 // sections (added in later tasks) need DynamoDB Local (`npm run ddb:up`).
 // ===========================================================================
 import { getSupplierProfile } from "../src/lib/suppliers/supplier-profiles";
-import { cosine, structuredScore, combine, THRESHOLD } from "../src/lib/alignment/score";
+import { cosine, fitScore, THRESHOLD } from "../src/lib/alignment/score";
+import { bm25Relevance } from "../src/lib/alignment/relevance";
 import { normalizeSector, normalizeRegion } from "../src/lib/alignment/normalize";
 import { opportunityKeys, toOpportunityItem, itemToOpportunity } from "../src/lib/dynamo/alignment-table";
 import type { Opportunity } from "../src/lib/alignment/types";
@@ -37,17 +38,24 @@ async function main() {
   check("cosine: orthogonal = 0", Math.abs(cosine(new Float32Array([1, 0]), new Float32Array([0, 1]))) < 1e-6);
   check("cosine: zero-vector = 0", cosine(new Float32Array([0, 0]), new Float32Array([1, 0])) === 0);
 
-  // --- structured score ---
-  const full = structuredScore({ sectorMatch: true, regionMatch: true, identityTier: "nation", ownershipPct: 100 });
-  const none = structuredScore({ sectorMatch: false, regionMatch: false, identityTier: "self_declared", ownershipPct: 20 });
-  const partial = structuredScore({ sectorMatch: true, regionMatch: false, identityTier: "ccib", ownershipPct: 80 });
-  check("structured: full > partial > none", full > partial && partial > none && none >= 0);
-  check("structured: full match caps at 1", full <= 1 && Math.abs(full - 1) < 1e-9);
-  check("structured: sector+region+nation is high", full >= 0.8);
+  // --- fit score (real signals only: sector + relevance + tier + ownership) ---
+  const full = fitScore({ sectorMatch: true, relevance: 1, identityTier: "nation", ownershipPct: 100 });
+  const none = fitScore({ sectorMatch: false, relevance: 0, identityTier: "self_declared", ownershipPct: 20 });
+  const partial = fitScore({ sectorMatch: true, relevance: 0.3, identityTier: "ccib", ownershipPct: 80 });
+  check("fit: full > partial > none", full > partial && partial > none && none >= 0);
+  check("fit: full match caps at 1", full <= 1 && Math.abs(full - 1) < 1e-9);
+  check("fit: sector match alone clears threshold", fitScore({ sectorMatch: true, relevance: 0, identityTier: "nation", ownershipPct: 51 }) >= THRESHOLD);
+  check("fit: monotonic in relevance", fitScore({ sectorMatch: false, relevance: 0.9, identityTier: "nation" }) > fitScore({ sectorMatch: false, relevance: 0.1, identityTier: "nation" }));
+  check("fit: sector term dominates relevance", fitScore({ sectorMatch: true, relevance: 0, identityTier: "ccib" }) > fitScore({ sectorMatch: false, relevance: 1, identityTier: "ccib" }) - 0.05);
 
-  // --- combine ---
-  check("combine: weights structured + semantic", Math.abs(combine(1, 1) - 1) < 1e-6 && combine(0, 0) === 0);
-  check("combine: monotonic in semantic", combine(0.5, 0.9) > combine(0.5, 0.1));
+  // --- BM25 relevance (real, deterministic, offline) ---
+  const rel = bm25Relevance("Grow Indigenous construction procurement", [
+    { id: "match", text: "Eagle River Construction · Construction services" },
+    { id: "nomatch", text: "Raven Logistics · freight and warehousing" },
+  ]);
+  check("relevance: capability-overlap supplier scores higher", rel[0] > rel[1]);
+  check("relevance: best match normalizes to 1", Math.abs(rel[0] - 1) < 1e-9);
+  check("relevance: no-overlap pool is all zero", bm25Relevance("construction", [{ id: "x", text: "totally unrelated widgets" }]).every((v) => v === 0));
 
   // --- normalization (deterministic map) ---
   check("normalize sector: Construction -> construction", normalizeSector("Construction") === "construction");
@@ -63,7 +71,7 @@ async function main() {
   const o: Opportunity = {
     id: "cm-rbc-proc::s-eagle", commitmentId: "cm-rbc-proc", orgId: "rbc-royal-bank-of-canada",
     supplierId: "s-eagle", supplierName: "Eagle River Construction", commitmentTitle: "Grow Indigenous procurement",
-    score: 0.82, reasons: { sectorMatch: true, regionMatch: false, identityTier: "nation", semantic: 0.71 },
+    score: 0.82, reasons: { sectorMatch: true, relevance: 0.71, identityTier: "nation", semantic: 0.71 },
     rationale: "Fits the construction procurement target.", status: "new", createdAt: "2025-01-15T00:00:00.000Z",
   };
   const item = toOpportunityItem(o);
@@ -110,6 +118,11 @@ async function main() {
     const opps = await computeForCommitment(scenarioCommit as any, supplierPool as any, alignmentRepo);
     check("engine: top match is the construction supplier", opps[0]?.supplierId === "s-eagle");
     check("engine: score above threshold + reasons.sectorMatch", (opps[0]?.score ?? 0) >= THRESHOLD && opps[0]?.reasons.sectorMatch === true);
+    check("engine: stub embedder leaves no semantic term (score is real signal only)", opps[0]?.reasons.semantic === undefined);
+    check("engine: reasons carry a real BM25 relevance", typeof opps[0]?.reasons.relevance === "number" && opps[0]!.reasons.relevance > 0);
+    const r = opps[0]?.rationale ?? "";
+    check("engine: rationale is a real sentence, NOT a stub theme-array", r.length > 0 && !r.trim().startsWith("["));
+    check("engine: rationale states real facts (tier + sector)", r.includes("Nation-verified") && /construction/i.test(r));
     check("engine: upserted to repo", (await alignmentRepo.listForOrg("test-co")).some((x) => x.supplierId === "s-eagle"));
     const noOrgCommit = { ...scenarioCommit, id: "cm-noorg", orgId: undefined };
     check("engine: skips commitment without orgId", (await computeForCommitment(noOrgCommit as any, supplierPool as any, alignmentRepo)).length === 0);
