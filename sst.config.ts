@@ -136,19 +136,38 @@ export default $config({
     // extraction worker. Scoped to "*" for the capstone; tighten to specific
     // model/blueprint ARNs for production. AWS_REGION is a reserved Lambda env
     // var (auto-set to the function's region) — do not set it here.
+    // Real RAP extraction wiring. The BDA/Bedrock engines exist in code, but the
+    // deployed extractor ran EXTRACTION_IMPL=mock because these values were only
+    // settable via ambient deploy-time env vars, which CI never sets — so a live
+    // /extract upload returned canned mock output, not a real extraction. Wire
+    // the PRODUCTION stage to real BDA by default (other stages stay on the mock
+    // unless explicitly overridden), so uploads actually extract the document.
+    //
+    // BDA runtime lives ONLY in us-east-1: the ca-central-1 control plane can
+    // create a project, but InvokeDataAutomationAsync there fails with an invalid
+    // profile ARN (see docs/rap-extraction-findings.md). So prod pins us-east-1
+    // and uses the runtime project `rap-extraction-use1` + the standard us
+    // data-automation profile. These are resource ARNs (not secrets); a deploy
+    // can still override any of them via env (or SST Secrets) — see docs/deploy-rap.md.
+    const isProd = $app.stage === "production";
+    const RAP_BDA_PROJECT_ARN =
+      "arn:aws:bedrock:us-east-1:106189426706:data-automation-project/c8c9dfbd3f8e"; // rap-extraction-use1 (LIVE)
+    const RAP_BDA_PROFILE_ARN =
+      "arn:aws:bedrock:us-east-1:106189426706:data-automation-profile/us.data-automation-v1";
+
     const extractionEnv = {
       REPO_IMPL: "dynamo",
       RAP_TABLE: rapData.name,
       RAP_UPLOAD_BUCKET: rapUploads.name,
       RAP_ANALYTICS_BUCKET: rapAnalytics.name,
       BDA_OUTPUT_BUCKET: rapAnalytics.name,
-      // "mock" (default) / "bda" (multi-page native, primary) / "bedrock"
-      // (Textract→Claude, fallback). BEDROCK_REGION pins Bedrock/BDA.
-      EXTRACTION_IMPL: process.env.EXTRACTION_IMPL ?? "mock",
-      BEDROCK_REGION: process.env.BEDROCK_REGION ?? "ca-central-1",
+      // "mock" / "bda" (multi-page native, primary) / "bedrock" (Textract→Claude).
+      EXTRACTION_IMPL: process.env.EXTRACTION_IMPL ?? (isProd ? "bda" : "mock"),
+      // BDA runtime is us-east-1 only; non-prod keeps ca-central-1 (Claude/bedrock).
+      BEDROCK_REGION: process.env.BEDROCK_REGION ?? (isProd ? "us-east-1" : "ca-central-1"),
       REVIEW_MODE: process.env.REVIEW_MODE ?? "indigenomics",
-      BDA_PROJECT_ARN: process.env.BDA_PROJECT_ARN ?? "",
-      BDA_PROFILE_ARN: process.env.BDA_PROFILE_ARN ?? "",
+      BDA_PROJECT_ARN: process.env.BDA_PROJECT_ARN ?? (isProd ? RAP_BDA_PROJECT_ARN : ""),
+      BDA_PROFILE_ARN: process.env.BDA_PROFILE_ARN ?? (isProd ? RAP_BDA_PROFILE_ARN : ""),
       BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID ?? "",
     };
     const bedrockPerms = [
