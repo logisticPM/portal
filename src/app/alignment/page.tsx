@@ -40,7 +40,7 @@ export default async function AlignmentPage() {
         <h1 className="font-serif text-2xl">Matchmaking opportunities</h1>
         <p className="text-ink2 text-sm">
           Each card is one company&apos;s RAP procurement commitment and the verified Indigenous suppliers that
-          fit it — ranked by a combined sector/tier/ownership + semantic score. Broker the strongest.
+          fit it — ranked by sector match, capability relevance, and verified Indigenous ownership. Broker the strongest.
           {groups.size > MAX_COMMITMENTS && (
             <span className="text-ink3"> Showing the top {MAX_COMMITMENTS} of {groups.size} commitments.</span>
           )}
