@@ -261,6 +261,17 @@ export interface Provenance {
 
 export type SizeBand = "lt_50" | "50_249" | "250_999" | "1000_plus" | "unknown";
 
+// Grants a company login (`partyId`) the right to post progress on a BN'd
+// org. Created by `claimOrgForParty` once the BN is registry-verified AND the
+// party has attested authorization — never silently, never unattested.
+export interface OrgClaim {
+  businessNumber: string; // 9-digit BN root
+  partyId: string; // the company session's party id
+  status: "granted";
+  attestedAt: string; // ISO 8601 — when the party attested authorization
+  grantedBy: string; // e.g. "system:bn-verify"
+}
+
 export interface RapOrganization {
   id: string;
   name: string;
@@ -381,6 +392,9 @@ export interface RapRepo {
   listRapsByOrg(orgId: string): Promise<RapDocument[]>;
 
   putCommitment(c: Commitment): Promise<Commitment>;
+  // direct read keyed by (rapId, commitId) — the /my-rap UI always has both, so
+  // this is a plain GetItem (main-table key), never a new GSI.
+  getCommitment(rapId: string, commitId: string): Promise<Commitment | null>;
   listCommitmentsByRap(rapId: string): Promise<Commitment[]>;
   listCommitmentsBySector(sector: Sector): Promise<Commitment[]>; // GSI slice
 
@@ -395,4 +409,16 @@ export interface RapRepo {
 
   putRollup(r: CommitmentRollup): Promise<CommitmentRollup>;
   getRollup(commitId: string): Promise<CommitmentRollup | null>;
+
+  // Option-A re-extraction lock: true iff any Observation on this RAP's
+  // commitments was recorded by a party OTHER than the pipeline's baseline
+  // writer ("system"). Once true, publishAndConfirm refuses to overwrite the
+  // RAP graph — company-recorded progress must never be silently wiped or
+  // mis-attributed by a later re-extraction of the same document.
+  hasCompanyProgress(rapId: string): Promise<boolean>;
+
+  // OrgClaim — links a company login to a BN'd org (Task 7).
+  putClaim(c: OrgClaim): Promise<OrgClaim>;
+  getClaim(bn: string, partyId: string): Promise<OrgClaim | null>;
+  listClaimsByParty(partyId: string): Promise<OrgClaim[]>;
 }

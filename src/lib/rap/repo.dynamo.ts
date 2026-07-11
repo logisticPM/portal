@@ -10,6 +10,7 @@ import {
   RAP_GSI1,
   RAP_GSI2,
   RAP_TABLE,
+  itemToClaim,
   itemToCommitment,
   itemToJob,
   itemToObservation,
@@ -17,6 +18,7 @@ import {
   itemToRap,
   itemToRollup,
   keys,
+  toClaimItem,
   toCommitmentItem,
   toJobItem,
   toObservationItem,
@@ -199,6 +201,13 @@ export const dynamoRapRepo: RapRepo = {
     return c;
   },
 
+  async getCommitment(rapId, commitId) {
+    const res = await ddbDoc.send(
+      new GetCommand({ TableName: RAP_TABLE, Key: keys.commitment(rapId, commitId) }),
+    );
+    return res.Item ? itemToCommitment(res.Item) : null;
+  },
+
   async listCommitmentsByRap(rapId) {
     const res = await ddbDoc.send(
       new QueryCommand({
@@ -281,5 +290,57 @@ export const dynamoRapRepo: RapRepo = {
       new GetCommand({ TableName: RAP_TABLE, Key: keys.rollup(commitId) }),
     );
     return res.Item ? itemToRollup(res.Item) : null;
+  },
+
+  // Option-A re-extraction lock: query commitments by rapId, then each
+  // commitment's observations, short-circuiting true on the first
+  // recordedBy !== "system" (same key patterns as deleteRapGraph above).
+  async hasCompanyProgress(rapId) {
+    const cres = await ddbDoc.send(
+      new QueryCommand({
+        TableName: RAP_TABLE,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+        ExpressionAttributeValues: { ":pk": `RAP#${rapId}`, ":sk": "COMMIT#" },
+      }),
+    );
+    const commits = ((cres.Items ?? []) as Record<string, any>[]).map(itemToCommitment);
+    for (const c of commits) {
+      const ores = await ddbDoc.send(
+        new QueryCommand({
+          TableName: RAP_TABLE,
+          KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+          ExpressionAttributeValues: { ":pk": `COMMIT#${c.id}`, ":sk": "OBS#" },
+        }),
+      );
+      const observations = ((ores.Items ?? []) as Record<string, any>[]).map(itemToObservation);
+      if (observations.some((o) => o.recordedBy !== "system")) return true;
+    }
+    return false;
+  },
+
+  async putClaim(c) {
+    await ddbDoc.send(new PutCommand({ TableName: RAP_TABLE, Item: toClaimItem(c) }));
+    return c;
+  },
+
+  async getClaim(bn, partyId) {
+    const res = await ddbDoc.send(
+      new GetCommand({ TableName: RAP_TABLE, Key: keys.claim(bn, partyId) }),
+    );
+    return res.Item ? itemToClaim(res.Item) : null;
+  },
+
+  // claims for a party: GSI1PK = PARTY#<partyId> (GSI1 is overloaded with
+  // STATUS#/RAP#/PARTY# partition keys — standard single-table heterogeneity).
+  async listClaimsByParty(partyId) {
+    const res = await ddbDoc.send(
+      new QueryCommand({
+        TableName: RAP_TABLE,
+        IndexName: RAP_GSI1,
+        KeyConditionExpression: "GSI1PK = :pk",
+        ExpressionAttributeValues: { ":pk": `PARTY#${partyId}` },
+      }),
+    );
+    return ((res.Items ?? []) as Record<string, any>[]).map(itemToClaim);
   },
 };

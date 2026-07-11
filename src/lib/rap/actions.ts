@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractionRepo } from "./index";
-import { canPublish, resolveOrgForJob } from "./actions-core";
+import { canPublish, claimOrgForParty, recordRapProgressForParty, resolveOrgForJob } from "./actions-core";
+import type { ProgressStatus } from "./types";
 import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
 import { contentTypeFor, isUploadConfigured, putDocument, uploadKey } from "./storage";
+import { getSession } from "@/lib/auth";
 
 const uuid = () => globalThis.crypto.randomUUID();
 
@@ -122,5 +124,37 @@ export async function resolveOrgAction(formData: FormData) {
     jobId: String(formData.get("jobId") ?? ""),
     bnRaw: String(formData.get("bn") ?? ""),
     selfAsserted: formData.get("selfAsserted") === "on",
+  });
+}
+
+// Company self-claim: a logged-in company party claims the right to post
+// progress on a BN'd org. Identity comes SOLELY from the verified session
+// (never a form field) — a non-company session (or no session) is a no-op, so
+// this can't be used to claim on someone else's behalf.
+export async function claimOrgAction(formData: FormData) {
+  const session = getSession();
+  if (!session || session.kind !== "company" || !session.partyId) return;
+  return claimOrgForParty(getRegistryProvider(), {
+    partyId: session.partyId,
+    bnRaw: String(formData.get("bn") ?? ""),
+    attested: formData.get("attested") === "on",
+  });
+}
+
+// Company progress append: a logged-in company party posts an Observation
+// against one of their claimed org's commitments. Identity comes SOLELY from
+// the verified session (never a form field) — a non-company session (or no
+// session) is a no-op, matching claimOrgAction's guard above.
+export async function recordRapProgressAction(formData: FormData) {
+  const session = getSession();
+  if (!session || session.kind !== "company" || !session.partyId) return;
+  const observedValueRaw = String(formData.get("observedValue") ?? "").trim();
+  return recordRapProgressForParty({
+    partyId: session.partyId,
+    rapId: String(formData.get("rapId") ?? ""),
+    commitId: String(formData.get("commitId") ?? ""),
+    status: String(formData.get("status") ?? "") as ProgressStatus,
+    observedValue: observedValueRaw ? Number(observedValueRaw) : null,
+    note: (formData.get("note") ? String(formData.get("note")) : null),
   });
 }

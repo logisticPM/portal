@@ -23,6 +23,7 @@ import type {
   CommitmentRollup,
   ExtractionJob,
   Observation,
+  OrgClaim,
   RapDocument,
   RapOrganization,
 } from "../rap/types";
@@ -38,9 +39,10 @@ export const keys = {
   commitment: (rapId: string, commitId: string) => ({ PK: `RAP#${rapId}`, SK: `COMMIT#${commitId}` }),
   observation: (commitId: string, observedAt: string) => ({ PK: `COMMIT#${commitId}`, SK: `OBS#${observedAt}` }),
   rollup: (commitId: string) => ({ PK: `COMMIT#${commitId}`, SK: "META" }),
+  claim: (bn: string, partyId: string) => ({ PK: `ORGCLAIM#${bn}`, SK: `PARTY#${partyId}` }),
 };
 
-export type RapEntityType = "Job" | "Org" | "Rap" | "Commitment" | "Observation" | "Rollup";
+export type RapEntityType = "Job" | "Org" | "Rap" | "Commitment" | "Observation" | "Rollup" | "Claim";
 
 // --- marshalling: domain object → table item -------------------------------
 export function toJobItem(j: ExtractionJob) {
@@ -85,6 +87,16 @@ export function toRollupItem(r: CommitmentRollup) {
   return { ...keys.rollup(r.commitId), et: "Rollup" as RapEntityType, ...r };
 }
 
+export function toClaimItem(c: OrgClaim) {
+  return {
+    ...keys.claim(c.businessNumber, c.partyId),
+    et: "Claim" as RapEntityType,
+    GSI1PK: `PARTY#${c.partyId}`,
+    GSI1SK: `ORGCLAIM#${c.businessNumber}`,
+    ...c,
+  };
+}
+
 // --- unmarshalling: table item → domain object (strip the key attributes) ---
 /* eslint-disable @typescript-eslint/no-unused-vars */
 function strip<T>(it: Record<string, any>): T {
@@ -98,3 +110,4 @@ export const itemToRap = (it: Record<string, any>) => strip<RapDocument>(it);
 export const itemToCommitment = (it: Record<string, any>) => strip<Commitment>(it);
 export const itemToObservation = (it: Record<string, any>) => strip<Observation>(it);
 export const itemToRollup = (it: Record<string, any>) => strip<CommitmentRollup>(it);
+export const itemToClaim = (it: Record<string, any>) => strip<OrgClaim>(it);
