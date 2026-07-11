@@ -4,9 +4,21 @@
 // the reviewer's eye goes straight to what the AI was unsure about. This is
 // extraction QA, NOT Indigenomics truth-verification.
 import { extractionRepo } from "@/lib/rap";
-import { confirmExtractionAction, rejectExtractionAction } from "@/lib/rap/actions";
-import type { ExtractedRap, Grounded } from "@/lib/rap";
+import { confirmExtractionAction, rejectExtractionAction, resolveOrgAction } from "@/lib/rap/actions";
+import { cbrSearchUrl } from "@/lib/rap/registry";
+import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
 import { labelFor } from "@/lib/taxonomy";
+
+// `<form action>` requires a function returning void | Promise<void>, but
+// resolveOrgAction (a thin shim over the testable resolveOrgForJob core)
+// returns an { ok, ... } result for programmatic/test callers. Discard it
+// here via an inline Server Action — the confirmation line and the Approve
+// button's disabled state re-derive from job.businessNumber/registryLegalName
+// once Next.js refreshes this route's Server Components after the action.
+async function resolveOrgFormAction(formData: FormData) {
+  "use server";
+  await resolveOrgAction(formData);
+}
 
 export async function ReviewPanel() {
   const jobs = await extractionRepo.listByStatus("PENDING_REVIEW");
@@ -54,11 +66,18 @@ export async function ReviewPanel() {
 
           {job.extracted && <ExtractedView e={job.extracted} />}
 
+          <OrgBlock job={job} />
+
           <div className="flex gap-3 pt-2">
             <form action={confirmExtractionAction}>
               <input type="hidden" name="jobId" value={job.id} />
               <input type="hidden" name="reviewedBy" value="admin" />
-              <button className="px-4 py-2 rounded bg-cedar text-white text-sm">Approve &amp; publish</button>
+              <button
+                disabled={job.businessNumber == null}
+                className="px-4 py-2 rounded bg-cedar text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Approve &amp; publish
+              </button>
             </form>
             <form action={rejectExtractionAction} className="flex gap-2">
               <input type="hidden" name="jobId" value={job.id} />
@@ -69,6 +88,53 @@ export async function ReviewPanel() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// BN-keyed org identity, resolved by the reviewer before a job can publish
+// (mirrors `canPublish` in actions-core.ts: businessNumber must be non-null).
+function OrgBlock({ job }: { job: ExtractionJob }) {
+  const orgName = job.extracted?.orgName?.value ?? job.fileName;
+  return (
+    <div className="rounded border border-line p-4 space-y-3">
+      <div className="text-ink3 text-xs uppercase tracking-widest">Organization</div>
+
+      <div className="flex flex-wrap justify-between items-center gap-3">
+        <div className="text-sm font-medium">{orgName}</div>
+        <a
+          href={cbrSearchUrl(orgName)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cedar text-sm underline"
+        >
+          Look up in Canada&apos;s Business Registries ↗
+        </a>
+      </div>
+
+      {job.registryLegalName ? (
+        <div className="text-sm rounded border border-cedar/40 bg-cedar/5 p-2">
+          Resolved: <span className="font-medium">{job.registryLegalName}</span>
+          {job.registryStatus ? ` · ${job.registryStatus}` : ""}
+        </div>
+      ) : (
+        <div className="text-rust text-xs">Not yet resolved — required before publish.</div>
+      )}
+
+      <form action={resolveOrgFormAction} className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="jobId" value={job.id} />
+        <input
+          name="bn"
+          placeholder="Business Number (9 digits)"
+          defaultValue={job.businessNumber ?? ""}
+          className="px-3 py-2 rounded border border-line text-sm"
+        />
+        <label className="text-ink3 text-xs flex items-center gap-1">
+          <input type="checkbox" name="selfAsserted" />
+          Self-asserted (no registry match)
+        </label>
+        <button className="px-4 py-2 rounded border border-line text-sm">Resolve</button>
+      </form>
     </div>
   );
 }
