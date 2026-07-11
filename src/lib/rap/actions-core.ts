@@ -108,11 +108,15 @@ export async function recordRapProgressForParty(input: {
   const claim = await rapRepo.getClaim(bn, input.partyId);
   if (!claim || claim.status !== "granted") return { ok: false, error: "Not authorized for this organization" };
   if (!VALID_STATUS.has(input.status)) return { ok: false, error: "Invalid status" };
+  // Server Actions are directly POST-able, so a raw form value like
+  // observedValue=abc (wrapper does Number(...), which is NaN for that input)
+  // can reach here. Guard against storing a non-finite value.
+  const observedValue = Number.isFinite(input.observedValue) ? input.observedValue : null;
   await rapRepo.putObservation({
     commitId: input.commitId,
     observedAt: new Date().toISOString(),
     status: input.status,
-    observedValue: input.observedValue,
+    observedValue,
     note: input.note,
     recordedBy: input.partyId,
   });

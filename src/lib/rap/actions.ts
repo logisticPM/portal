@@ -103,6 +103,8 @@ export async function uploadRapAction(formData: FormData) {
 // reviewer. (A fuller build parses reviewer field-edits from the form here; for
 // now the approved payload is the staged extraction as-is.)
 export async function confirmExtractionAction(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return;
   const jobId = String(formData.get("jobId") ?? "").trim();
   const reviewedBy = String(formData.get("reviewedBy") ?? "admin").trim();
   if (!jobId) return;
@@ -121,6 +123,8 @@ export async function confirmExtractionAction(formData: FormData) {
 }
 
 export async function rejectExtractionAction(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return;
   const jobId = String(formData.get("jobId") ?? "").trim();
   const reviewedBy = String(formData.get("reviewedBy") ?? "admin").trim();
   const reason = String(formData.get("reason") ?? "Rejected by reviewer").trim();
@@ -137,6 +141,8 @@ export async function rejectExtractionAction(formData: FormData) {
 // file-level "use server" already makes this a Server Action, so no
 // function-level directive is added here.
 export async function resolveOrgAction(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return;
   return resolveOrgForJob(getRegistryProvider(), {
     jobId: String(formData.get("jobId") ?? ""),
     bnRaw: String(formData.get("bn") ?? ""),

@@ -49,6 +49,23 @@ import { runExtraction } from "../src/lib/rap/pipeline.mock";
     "no observation with invalid status was appended",
   );
 
+  // NaN observedValue (e.g. a direct POST of observedValue=abc, which the
+  // Number(...) wrapper turns into NaN) must be coerced to null, not stored
+  // as NaN — the core guards against this regardless of caller.
+  const nanResult = await recordRapProgressForParty({
+    partyId: "p1",
+    rapId,
+    commitId: commit.id,
+    status: "on_track",
+    observedValue: Number("abc"),
+    note: "bad numeric input",
+  });
+  assert.equal(nanResult.ok, true, "NaN observedValue still succeeds");
+  const obsAfterNaN = await rapRepo.listObservations(commit.id);
+  const nanObs = obsAfterNaN.find((o) => o.note === "bad numeric input");
+  assert.ok(nanObs, "NaN-value observation was appended");
+  assert.equal(nanObs!.observedValue, null, "observedValue coerced to null, not NaN");
+
   console.log("OK test-rap-progress");
 })().catch((e) => {
   console.error(e);
