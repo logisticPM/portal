@@ -205,6 +205,12 @@ export interface ExtractionJob {
   rapId: string | null; // set once confirmed → links to RapDocument
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
+
+  // --- BN-keyed identity resolution (set at review, before publish) ---
+  businessNumber: string | null; // 9-digit BN root, once resolved
+  businessNumberSource: "ised" | "self_asserted" | null;
+  registryLegalName: string | null; // registry-confirmed legal name
+  registryStatus: string | null; // e.g. "Active"
 }
 
 // input to start a job (pre-extraction)
@@ -262,6 +268,13 @@ export interface RapOrganization {
   sizeBand: SizeBand;
   region: string; // province/state or country
   createdAt: string;
+
+  // --- registry-backed identity (null until BN-verified) ---
+  businessNumber: string | null; // 9-digit BN root
+  legalName: string | null; // registry-confirmed legal name (may differ from `name`)
+  registryStatus: string | null; // e.g. "Active"
+  registrySource: "ised" | "self_asserted" | null;
+  verifiedAt: string | null; // ISO 8601 — when the registry match was recorded
 }
 
 export interface RapDocument {
@@ -344,6 +357,18 @@ export interface ExtractionRepo {
   // responsibility: this repo owns the staging table only).
   confirmJob(id: string, reviewedBy: string, edited: ExtractedRap, rapId: string): Promise<ExtractionJob>;
   rejectJob(id: string, reviewedBy: string, reason: string): Promise<ExtractionJob>;
+
+  // resolve (or clear) the job's BN-backed org identity ahead of publish (Task 4
+  // sets this at review time). `null` clears back to self-asserted/name-keyed.
+  setJobOrg(
+    id: string,
+    org: {
+      businessNumber: string;
+      businessNumberSource: "ised" | "self_asserted";
+      registryLegalName: string | null;
+      registryStatus: string | null;
+    } | null,
+  ): Promise<ExtractionJob>;
 }
 
 // Canonical RAP/commitment/observation store (Idea 2 dashboard).

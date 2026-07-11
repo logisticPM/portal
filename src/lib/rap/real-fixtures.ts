@@ -16,18 +16,28 @@ import type {
   ProgressStatus, RapDocument, RapOrganization,
 } from "./types";
 
+// registry fields default to null — none of this real seed data has been
+// BN-verified against the registry yet; they're name-keyed like a self-asserted org.
+const noRegistry = {
+  businessNumber: null,
+  legalName: null,
+  registryStatus: null,
+  registrySource: null,
+  verifiedAt: null,
+} as const;
+
 // --- organizations ---------------------------------------------------------
 export const orgs: RapOrganization[] = [
-  { id: "org-boc", name: "Bank of Canada", sector: "finance", sizeBand: "1000_plus", region: "ON", createdAt: "2024-09-01T00:00:00.000Z" },
-  { id: "org-rbc", name: "Royal Bank of Canada", sector: "finance", sizeBand: "1000_plus", region: "ON", createdAt: "2025-06-20T00:00:00.000Z" },
-  { id: "org-telus", name: "TELUS Communications", sector: "telecom", sizeBand: "1000_plus", region: "BC", createdAt: "2021-11-29T00:00:00.000Z" },
-  { id: "org-agnico", name: "Agnico Eagle Mines", sector: "mining", sizeBand: "1000_plus", region: "ON", createdAt: "2024-07-10T00:00:00.000Z" },
-  { id: "org-enbridge", name: "Enbridge", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2022-01-01T00:00:00.000Z" },
-  { id: "org-suncor", name: "Suncor Energy", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2023-01-01T00:00:00.000Z" },
-  { id: "org-tcenergy", name: "TC Energy", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2023-01-01T00:00:00.000Z" },
-  { id: "org-cnq", name: "Canadian Natural Resources", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2024-01-01T00:00:00.000Z" },
-  { id: "org-teck", name: "Teck Resources", sector: "mining", sizeBand: "1000_plus", region: "BC", createdAt: "2024-01-01T00:00:00.000Z" },
-  { id: "org-gc", name: "Government of Canada", sector: "government", sizeBand: "1000_plus", region: "CA", createdAt: "2024-01-01T00:00:00.000Z" },
+  { id: "org-boc", name: "Bank of Canada", sector: "finance", sizeBand: "1000_plus", region: "ON", createdAt: "2024-09-01T00:00:00.000Z", ...noRegistry },
+  { id: "org-rbc", name: "Royal Bank of Canada", sector: "finance", sizeBand: "1000_plus", region: "ON", createdAt: "2025-06-20T00:00:00.000Z", ...noRegistry },
+  { id: "org-telus", name: "TELUS Communications", sector: "telecom", sizeBand: "1000_plus", region: "BC", createdAt: "2021-11-29T00:00:00.000Z", ...noRegistry },
+  { id: "org-agnico", name: "Agnico Eagle Mines", sector: "mining", sizeBand: "1000_plus", region: "ON", createdAt: "2024-07-10T00:00:00.000Z", ...noRegistry },
+  { id: "org-enbridge", name: "Enbridge", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2022-01-01T00:00:00.000Z", ...noRegistry },
+  { id: "org-suncor", name: "Suncor Energy", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2023-01-01T00:00:00.000Z", ...noRegistry },
+  { id: "org-tcenergy", name: "TC Energy", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2023-01-01T00:00:00.000Z", ...noRegistry },
+  { id: "org-cnq", name: "Canadian Natural Resources", sector: "energy", sizeBand: "1000_plus", region: "AB", createdAt: "2024-01-01T00:00:00.000Z", ...noRegistry },
+  { id: "org-teck", name: "Teck Resources", sector: "mining", sizeBand: "1000_plus", region: "BC", createdAt: "2024-01-01T00:00:00.000Z", ...noRegistry },
+  { id: "org-gc", name: "Government of Canada", sector: "government", sizeBand: "1000_plus", region: "CA", createdAt: "2024-01-01T00:00:00.000Z", ...noRegistry },
 ];
 
 // --- RAP documents ---------------------------------------------------------

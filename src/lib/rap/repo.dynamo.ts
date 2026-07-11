@@ -70,6 +70,10 @@ export const dynamoExtractionRepo: ExtractionRepo = {
       rapId: null,
       createdAt: now(),
       updatedAt: now(),
+      businessNumber: null,
+      businessNumberSource: null,
+      registryLegalName: null,
+      registryStatus: null,
     };
     return putJob(job);
   },
@@ -131,6 +135,18 @@ export const dynamoExtractionRepo: ExtractionRepo = {
   async rejectJob(id, reviewedBy, reason) {
     const job = await getJobOrThrow(id);
     return putJob({ ...job, status: "REJECTED", reviewedBy, reviewNote: reason, updatedAt: now() });
+  },
+
+  async setJobOrg(id, org) {
+    const job = await getJobOrThrow(id);
+    return putJob({
+      ...job,
+      businessNumber: org?.businessNumber ?? null,
+      businessNumberSource: org?.businessNumberSource ?? null,
+      registryLegalName: org?.registryLegalName ?? null,
+      registryStatus: org?.registryStatus ?? null,
+      updatedAt: now(),
+    });
   },
 };
 

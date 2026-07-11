@@ -33,6 +33,11 @@ export function normalizeOrgName(name: string): string {
 export const orgIdFor = (orgName: string): string =>
   "org-" + normalizeOrgName(orgName).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 
+// BN-keyed org identity: the 9-digit BN root is the authoritative identity for a
+// registry-verified business, so program accounts of the SAME business (and
+// name-spelling variance) all collapse onto one org row.
+export const orgIdForBN = (bn9: string): string => `org-bn-${bn9}`;
+
 // The document's stable identity: a content hash of the SOURCE bytes when S3 is
 // configured, else a hash of the file name (dev/mock/test — same file name =
 // same logical document). Keyed on the source document, so a re-extraction that
@@ -64,14 +69,30 @@ export function stableRapId(orgId: string, contentHash: string): string {
 // document replaces the prior canonical graph (no duplicate double-counting).
 export async function publishAndConfirm(job: ExtractionJob, extracted: ExtractedRap, reviewedBy: string) {
   const now = new Date().toISOString();
-  const orgId = orgIdFor(extracted.orgName.value || job.id);
+  const orgId = job.businessNumber
+    ? orgIdForBN(job.businessNumber)
+    : orgIdFor(extracted.orgName.value || job.id);
   const contentHash = await documentContentHash(job.sourceS3Key, job.fileName);
   const rapId = stableRapId(orgId, contentHash);
 
   const { org, rap, commitments, observations, rollups } = buildCanonical(
     extracted,
     { orgId, rapId, commitId: () => uuid() },
-    { sourceS3Key: job.sourceS3Key, extractionId: job.id, now, reviewedBy },
+    {
+      sourceS3Key: job.sourceS3Key,
+      extractionId: job.id,
+      now,
+      reviewedBy,
+      registry: job.businessNumber
+        ? {
+            businessNumber: job.businessNumber,
+            legalName: job.registryLegalName,
+            registryStatus: job.registryStatus,
+            registrySource: job.businessNumberSource!,
+            verifiedAt: now,
+          }
+        : null,
+    },
   );
 
   await rapRepo.putOrganization(org);

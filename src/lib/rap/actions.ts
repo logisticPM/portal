@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractionRepo } from "./index";
+import { canPublish, resolveOrgForJob } from "./actions-core";
+import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
 import { contentTypeFor, isUploadConfigured, putDocument, uploadKey } from "./storage";
 
@@ -88,6 +90,10 @@ export async function confirmExtractionAction(formData: FormData) {
 
   const job = await extractionRepo.getJob(jobId);
   if (!job || !job.extracted) return;
+  if (!canPublish(job)) {
+    revalidatePath("/extract");
+    return;
+  }
 
   await publishAndConfirm(job, job.extracted, reviewedBy);
   revalidatePath("/commitments");
@@ -104,4 +110,17 @@ export async function rejectExtractionAction(formData: FormData) {
   await extractionRepo.rejectJob(jobId, reviewedBy, reason);
   revalidatePath("/extract");
   redirect("/extract?tab=review");
+}
+
+// Human resolves a job's org identity at review time (BN lookup, with an
+// explicit self-asserted fallback when the registry has no match). Thin
+// FormData shim over the testable core in actions-core.ts — this file's
+// file-level "use server" already makes this a Server Action, so no
+// function-level directive is added here.
+export async function resolveOrgAction(formData: FormData) {
+  return resolveOrgForJob(getRegistryProvider(), {
+    jobId: String(formData.get("jobId") ?? ""),
+    bnRaw: String(formData.get("bn") ?? ""),
+    selfAsserted: formData.get("selfAsserted") === "on",
+  });
 }

@@ -178,6 +178,15 @@ export function buildCanonical(
     now: string;
     reviewedBy: string | null; // "system:auto" | reviewer id
     claimBasis?: ClaimBasis; // default: self_reported (RAPs are self-published)
+    // registry-backed identity (Task 3: BN-keyed org). null/absent ⇒ self-asserted,
+    // name-keyed org — every field on the org defaults to null.
+    registry?: {
+      businessNumber: string;
+      legalName: string | null;
+      registryStatus: string | null;
+      registrySource: "ised" | "self_asserted";
+      verifiedAt: string;
+    } | null;
   },
 ): PublishResult {
   const claimBasis: ClaimBasis = meta.claimBasis ?? "self_reported";
@@ -186,11 +195,16 @@ export function buildCanonical(
 
   const org: RapOrganization = {
     id: ids.orgId,
-    name: orgName,
+    name: meta.registry?.legalName ?? orgName,
     sector,
     sizeBand: deriveSizeBand(),
     region: val(extracted.jurisdiction) ?? "unknown",
     createdAt: meta.now,
+    businessNumber: meta.registry?.businessNumber ?? null,
+    legalName: meta.registry?.legalName ?? null,
+    registryStatus: meta.registry?.registryStatus ?? null,
+    registrySource: meta.registry?.registrySource ?? null,
+    verifiedAt: meta.registry?.verifiedAt ?? null,
   };
 
   const period = val(extracted.periodCovered);

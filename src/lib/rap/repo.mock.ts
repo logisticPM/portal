@@ -74,6 +74,10 @@ export const mockExtractionRepo: ExtractionRepo = {
       rapId: null,
       createdAt: now(),
       updatedAt: now(),
+      businessNumber: null,
+      businessNumberSource: null,
+      registryLegalName: null,
+      registryStatus: null,
     };
     store.jobs.push(job);
     return job;
@@ -130,6 +134,16 @@ export const mockExtractionRepo: ExtractionRepo = {
     job.status = "REJECTED";
     job.reviewedBy = reviewedBy;
     job.reviewNote = reason;
+    job.updatedAt = now();
+    return job;
+  },
+
+  async setJobOrg(id, org) {
+    const job = findJob(id);
+    job.businessNumber = org?.businessNumber ?? null;
+    job.businessNumberSource = org?.businessNumberSource ?? null;
+    job.registryLegalName = org?.registryLegalName ?? null;
+    job.registryStatus = org?.registryStatus ?? null;
     job.updatedAt = now();
     return job;
   },
