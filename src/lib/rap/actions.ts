@@ -166,7 +166,7 @@ export async function recordRapProgressAction(formData: FormData) {
   const session = getSession();
   if (!session || session.kind !== "company" || !session.partyId) return;
   const observedValueRaw = String(formData.get("observedValue") ?? "").trim();
-  return recordRapProgressForParty({
+  const result = await recordRapProgressForParty({
     partyId: session.partyId,
     rapId: String(formData.get("rapId") ?? ""),
     commitId: String(formData.get("commitId") ?? ""),
@@ -174,4 +174,6 @@ export async function recordRapProgressAction(formData: FormData) {
     observedValue: observedValueRaw ? Number(observedValueRaw) : null,
     note: (formData.get("note") ? String(formData.get("note")) : null),
   });
+  if (result.ok) revalidatePath("/my-rap");
+  return result;
 }

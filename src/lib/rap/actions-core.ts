@@ -9,6 +9,7 @@ import { extractionRepo, rapRepo } from "./index";
 import { isValidBN } from "./bn";
 import type { RegistryProvider } from "./registry";
 import type { ProgressStatus } from "./types";
+import { computeRollup } from "./rollup";
 import type { Session } from "@/lib/auth";
 
 // Guards against an out-of-union status reaching the store: recordRapProgressForParty
@@ -115,5 +116,12 @@ export async function recordRapProgressForParty(input: {
     note: input.note,
     recordedBy: input.partyId,
   });
+  // Deployed, the rollup is recomputed asynchronously by the DynamoDB Streams
+  // Lambda (src/functions/rap-rollup.ts). That Lambda never fires against the
+  // in-memory mock (no Streams locally), so recompute synchronously here too —
+  // same pure function, so it's a harmless no-op re-derivation when the stream
+  // Lambda *does* also run against real Dynamo.
+  const observations = await rapRepo.listObservations(input.commitId);
+  await rapRepo.putRollup(computeRollup(input.commitId, observations));
   return { ok: true };
 }
