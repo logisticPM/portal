@@ -59,12 +59,14 @@ export interface SimilarityBreakdown {
   themeOverlap: number;      // |selected ∩ case.themes| / |selected|; 0 when no themes chosen
   jurisdictionMatch: number; // 1 if level matches, else 0; 0 when no level chosen
   composite: number;         // renormalized weighted blend (see below), [0,1]
+  strength: "strong" | "moderate" | "weak"; // strengthLabel(composite) — surfaced in the UI
   matchedThemes: Theme[];
   sameJurisdiction: boolean;
 }
 export interface ScoredCase { case: LegalCase; breakdown: SimilarityBreakdown }
 
 export function assembleProfileText(c: LegalCase): string;
+export function strengthLabel(composite: number): "strong" | "moderate" | "weak";
 export function scoreSituation(
   input: SituationInput,
   cases: LegalCase[],
@@ -85,6 +87,11 @@ export function scoreSituation(
   vector, its semantic term is 0.
 - Returns cases sorted by `composite` desc (tie-break: `citingCount` desc, then `year`
   desc, then `id` asc for determinism), sliced to `topN`.
+- **Match strength (honesty mechanism #1):** `strengthLabel(composite)` buckets each result
+  into `strong` (≥ `STRONG_MIN` = 0.55), `moderate` (≥ `MODERATE_MIN` = 0.40), else `weak`.
+  Thresholds are documented, heuristic constants (tunable via the post-merge mini-eval; same
+  "not learned" caveat as the weights). Surfaced per-result in the UI so a loose match reads
+  as loose, not confident.
 
 ### 3. Repo method (the seam) — mirrors `hybridSearch`
 
@@ -106,13 +113,27 @@ Add to `CaseRepo` (`types.ts`): `findSimilarCases(input: SituationInput): Promis
   (`theme` repeated), `level` select, and a `<textarea name="s">` for the narrative. Submitting
   puts everything in `searchParams` (narrative in `?s=`; long but within URL limits — MVP).
 - **On render with `s` present:** parse → `casesRepo.findSimilarCases({ themes, level, narrative })`
-  (embeds internally, like search) → render top-10 `ScoredCase`s.
+  (embeds internally, like search) → render top-10 `ScoredCase`s under the header
+  **"Closest cases to explore"** (not "your matches").
+- **Framing (honesty mechanism #2):** the page is positioned as a **research starting point,
+  not a match to rely on**. Title/intro copy, e.g. *"Describe your situation to find prior
+  cases in the same territory — a starting point for reading and research, not a legal match
+  or prediction."* The result header and per-case copy use "closest to explore" / "read it",
+  never "your match" / "your case".
 - **Each result** (new `SimilarCaseCard` in `ui.tsx`): case link + court/year + tier badge;
-  a one-line descriptor ("Closest on: duty to consult · BC"); matched-theme chips;
-  "same jurisdiction" flag; and the case's **`outcome.holding`** as the extractive anchor
-  ("What it established") — no passage re-ranking needed, holding is already verified/extractive.
-  No score number shown by default (avoid false precision); "why similar" is the dimension list.
-- **Empty state (no `s`):** the form + a short explainer.
+  a **match-strength chip** (`Strong` / `Moderate` / `Weak` from `breakdown.strength`, with a
+  muted style for weak); a one-line descriptor ("Closest on: duty to consult · BC");
+  matched-theme chips; "same jurisdiction" flag; and the case's **`outcome.holding`** as the
+  extractive anchor ("What it established") — no passage re-ranking needed, holding is already
+  verified/extractive. The strength chip (not a raw percentage) surfaces uncertainty without
+  implying false precision.
+- **Weak-match caution (honesty mechanism #1, cont.):** when the **top** result's `strength`
+  is `weak` (i.e. best `composite < MODERATE_MIN`), render a prominent notice above the list:
+  *"No strongly comparable case in the ~541-case core. The following are the closest we
+  found — read them with caution; a close precedent for your situation may simply not be in
+  this corpus."* Results are still shown (a discovery aid stays useful), but the weakness is
+  explicit — the briefing feature's "宁缺毋滥" discipline adapted to a non-refusing surface.
+- **Empty state (no `s`):** the form + a short explainer of what the tool does and does not do.
 - **Governance UI:** always show the not-advice + small-corpus disclaimer
   ("Matches are within our curated ~541-case core; no match ≠ no precedent exists. This is
   legal information, not advice — consult qualified counsel or an Indigenous legal clinic.").
@@ -143,6 +164,10 @@ Unchanged: chunk `vec`, hybridSearch, briefing, storage schema (pvec is an addit
 
 - **Descriptive, not predictive/advisory.** No win/lose, no recommendations. Disclaimer +
   advice-deflection banner + small-corpus honesty, on every result view.
+- **Surfaces its own uncertainty (research starting point, not a match oracle).** Per-result
+  match-strength chips and a weak-match caution when the best result is only `weak` — the
+  tool never presents a loose or absent match as a confident one. Positioned as a reading/
+  research aid, judged by the post-merge mini-eval, not asserted as accurate.
 - **Extractive & mechanical.** The "why similar" is real matched dimensions + the verified
   `holding`; the composite score is deterministic from real fields + real vectors (no black
   box, no fabrication).
@@ -163,6 +188,9 @@ New `scripts/test-cases-similarity.ts`:
   - `situationVec = null` → semantic 0, still ranks by structured dims.
   - ranking desc + tie-break (citingCount → year → id); `topN` slice.
   - empty `caseVecs` → semantic 0 for all (no crash).
+  - `breakdown.strength` set via `strengthLabel`.
+- `strengthLabel`: `0.7→"strong"`, `0.55→"strong"` (boundary), `0.45→"moderate"`,
+  `0.40→"moderate"` (boundary), `0.3→"weak"`, `0→"weak"`.
 
 Gate: `npx tsx scripts/test-cases-similarity.ts` passes; `npm run typecheck` clean;
 `npm run build` compiles. `verify` (dynamo≡mock) stays green (findSimilarCases excluded from
@@ -173,8 +201,14 @@ credentialed embed-profiles run first, so it's verified on prod after the ops st
 
 1. `cases:embed-profiles:cloud` — embed ~541 core profiles (Titan v2), write `pvec`. Low
    `EMBED_CONCURRENCY` + adaptive retry (Bedrock throttle discipline).
-2. Spot-check `/cases/similar` on prod with 2–3 real situations; confirm sensible neighbors +
-   extractive "why similar" + no advice leakage. Record a short Result note.
+2. **Mini-eval (accuracy verification — the honest answer to "is it accurate"):** assemble
+   5–10 realistic situations spanning covered themes (duty to consult, land rights, treaty)
+   and thin ones (resource_revenue, a weak-coverage province). For each, adjudicate whether
+   the top-5 are genuinely comparable (self- or Kay-adjudicated, rel-v1 rubric). Record:
+   top-5 relevance hit-rate, whether the weak-match caution fires when it should (thin/
+   off-corpus situations), and any advice leakage. Use the results to tune the weights and
+   the `STRONG_MIN`/`MODERATE_MIN` thresholds if needed. Write a short Result note; if quality
+   is poor in a theme, say so honestly (coverage limit, not a silent failure).
    (No search-artifact rebuild needed — `pvec` is read directly from the profile item, not
    from the S3 index.)
 
@@ -192,6 +226,9 @@ credentialed embed-profiles run first, so it's verified on prod after the ops st
 
 - Offline: `similarity` unit tests green; typecheck + build clean; parity/verify unaffected.
 - After the credentialed embed-profiles run: `/cases/similar` takes a themes+jurisdiction+
-  narrative situation and returns sensible, ranked core precedents with an extractive
-  "why similar" breakdown and the standing not-advice framing; structured-only degradation
-  works when vectors are absent.
+  narrative situation and returns ranked core precedents with an extractive "why similar"
+  breakdown, **per-result match-strength chips**, a **weak-match caution when the best match
+  is only weak**, and the standing "research starting point, not a match/prediction" framing;
+  structured-only degradation works when vectors are absent.
+- The mini-eval produces an honest top-5 relevance read (and threshold/weight tuning) rather
+  than an asserted accuracy — coverage-limited themes are reported as such.
