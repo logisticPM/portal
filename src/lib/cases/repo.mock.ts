@@ -1,6 +1,7 @@
 import type { CaseRepo } from "./types";
 import { caseFixtures } from "./fixtures";
 import { filterCases, searchCases, buildFacets, buildActivation, buildGraph, buildCorpusStats } from "./query";
+import { scoreSituation } from "./similarity";
 
 export const mockCaseRepo: CaseRepo = {
   async listCases(filter) {
@@ -17,6 +18,13 @@ export const mockCaseRepo: CaseRepo = {
   // method is excluded from the dynamo ≡ mock golden checks (spec §8).
   async hybridSearch(query, filter) {
     return searchCases(caseFixtures, query, filter);
+  },
+  // Fixtures have no vectors → structured-only (semantic component is always 0).
+  // INTENTIONALLY NOT equal to dynamo's pvec-backed result — this method is
+  // excluded from the dynamo ≡ mock golden checks, exactly like hybridSearch.
+  async findSimilarCases(input) {
+    const cases = [...filterCases(caseFixtures, { tier: "core" })];
+    return scoreSituation(input, cases, null, new Map());
   },
   async listFacets(filter) {
     return buildFacets(filterCases(caseFixtures, filter));

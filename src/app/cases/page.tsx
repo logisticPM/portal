@@ -42,6 +42,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
     <div className="mx-auto max-w-4xl">
       <h1 className="font-serif text-2xl">Legal cases — economic justice</h1>
       <p className="mt-1 text-sm text-ink3">Canada&apos;s Indigenous economic-justice case law, searchable and citation-anchored.</p>
+      <p className="mt-1 text-sm"><Link href="/cases/similar" className="text-amber hover:underline">Describe your situation to find similar cases →</Link></p>
 
       <LensSwitcher active={lens} params={searchParams} searching={!!q} />
 

@@ -56,6 +56,10 @@ export default async function MethodologyPage() {
           <p>The legal-information assistant answers questions on demand: a question retrieves the most relevant curated cases (the same ranked search used across the site), and the model may cite <strong>only those retrieved cases</strong> — any invented case reference is mechanically discarded, and an answer with fewer than two verifiable precedents is refused rather than published. It describes what precedents establish, not what a reader should do. When a question reads as asking about a specific situation, a mechanical guard surfaces a reminder to consult qualified counsel or an Indigenous legal clinic. Answers are AI-generated, badged, rate-limited, and provide <strong>legal information, not legal advice</strong>.</p>
         </div>
         <div>
+          <h2 className="font-serif text-lg">Find similar cases</h2>
+          <p>The similar-cases tool ranks curated cases against a described situation by a <strong>deterministic, explainable</strong> blend of semantic closeness (a case-level embedding), theme overlap, and jurisdiction — never a trained predictor. Each result shows a match-strength label and <em>why</em> it matched; when nothing is strongly comparable it says so. It is a <strong>research starting point, not a legal match or prediction</strong>, and not legal advice.</p>
+        </div>
+        <div>
           <h2 className="font-serif text-lg">Retrieval evaluation</h2>
           <p>Search quality is measured (nDCG@10 / recall@10 / MRR) on a graded gold set, comparing lexical (BM25) against hybrid retrieval, so ranking changes are evidence-based, not asserted.</p>
         </div>

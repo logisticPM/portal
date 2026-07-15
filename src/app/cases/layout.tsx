@@ -9,6 +9,7 @@ export default function CasesLayout({ children }: { children: ReactNode }) {
           <Link href="/cases" className="font-serif text-base">Legal Cases</Link>
           <nav className="flex gap-4 text-ink3">
             <Link href="/cases" className="hover:text-amber">Cases</Link>
+            <Link href="/cases/similar" className="hover:text-amber">Find similar</Link>
             <Link href="/cases/activation" className="hover:text-amber">Activation</Link>
             <Link href="/cases/briefings" className="hover:text-amber">Legal info</Link>
             <Link href="/cases/monitoring" className="hover:text-amber">Monitoring</Link>
