@@ -19,6 +19,7 @@ export interface ProgressPoint {
   period: string; // reporting period, e.g. "2024"
   status: CommitmentStatus;
   progressPct: number; // 0–100
+  authoredBy?: string; // partyId of the claiming company, or "public-research" for seeded points
 }
 
 export interface Commitment {
@@ -41,6 +42,7 @@ export interface Commitment {
   // Longer description + concrete target, shown when a row is expanded.
   detail?: string;
   targetText?: string;
+  businessNumber?: string; // 9-digit BN root; the crosswalk key. Absent ⇒ not yet attributed.
 }
 
 export interface CommitmentFilter {
@@ -51,6 +53,7 @@ export interface CommitmentFilter {
   orgId?: string; // a company's own commitments (portal-submitted)
   targetYear?: number; // due year
   q?: string; // free-text search over title / org / detail / target
+  businessNumber?: string; // exact-match on the BN crosswalk key
 }
 
 // Fields a company edits on an existing commitment (self-report, capped at

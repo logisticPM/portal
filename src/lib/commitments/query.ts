@@ -27,6 +27,7 @@ export function filterCommitments(items: Commitment[], f?: CommitmentFilter): Co
       (!f?.status || c.status === f.status) &&
       (!f?.orgId || c.orgId === f.orgId) &&
       (!f?.targetYear || c.targetYear === f.targetYear) &&
+      (!f?.businessNumber || c.businessNumber === f.businessNumber) &&
       (!q ||
         [c.title, c.orgName, c.detail, c.targetText, c.sector, c.type]
           .filter(Boolean)
