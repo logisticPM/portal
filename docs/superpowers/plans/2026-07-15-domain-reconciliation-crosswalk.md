@@ -517,8 +517,10 @@ Create `src/lib/commitments/org-bn-map.ts`:
 import { slugifyOrg } from "./orgs";
 
 export const ORG_BN_MAP: Record<string, string> = {
-  // demo companies (already have platform accounts) — synthetic-but-valid until curated:
-  "northway-industries": "123456782",
+  // Starter entry — a REAL seeded org (Cameco Corporation, cm-cameco-proc) with a
+  // synthetic Luhn-valid BN standing in until curated. Cameco is an unambiguous
+  // single legal entity, so it satisfies the confidence rule.
+  "cameco": "123456782",
   // add ~15–25 high-confidence seeded orgs here, slug: realBN9
 };
 
@@ -526,7 +528,7 @@ export function bnForOrgName(orgName: string): string | undefined {
   return ORG_BN_MAP[slugifyOrg(orgName)];
 }
 ```
-> The starter key must be a real seeded org slug — verify against the fixtures (`slugifyOrg(orgName)` of an actual seeded `orgName`). Adjust the placeholder key/name to a genuine demo org before committing.
+> `"cameco"` is `slugifyOrg("Cameco")` for the seeded row `orgName: "Cameco"` (confirmed in `src/lib/commitments/fixtures.ts`). Its BN value here is a synthetic placeholder — replace with Cameco's real Corporations Canada BN before the prod migration.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -563,7 +565,7 @@ let pass = 0, fail = 0;
 const check = (name: string, ok: boolean) => { console.log(`${ok ? "✅" : "❌"} ${name}`); ok ? pass++ : fail++; };
 
 function make(over: Partial<Commitment>): Commitment {
-  return { id: "cm", orgName: "Northway Industries", sector: "finance", orgSize: "large",
+  return { id: "cm", orgName: "Cameco", sector: "mining", orgSize: "large",
     type: "procurement", title: "t", targetYear: 2027, status: "committed", progressPct: 0,
     history: [{ period: "2026", status: "committed", progressPct: 0 }],
     createdAt: "2026-01-01T00:00:00.000Z", ...over };
