@@ -779,7 +779,9 @@ export default async function CommitmentsPage({
 
                 {/* provenance + source */}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full border border-line text-ink3 px-2 py-0.5">Self-reported</span>
+                  <span className="rounded-full border border-line text-ink3 px-2 py-0.5">
+                    {c.source ? "Research" : "Self-reported"}
+                  </span>
                   {c.source && (
                     <a href={c.source.url} target="_blank" rel="noreferrer" className="text-amber hover:underline">
                       Source: {c.source.label} ↗

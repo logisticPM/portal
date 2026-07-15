@@ -343,4 +343,13 @@ export const dynamoRapRepo: RapRepo = {
     );
     return ((res.Items ?? []) as Record<string, any>[]).map(itemToClaim);
   },
+
+  async listClaimsByBN(bn: string) {
+    const res = await ddbDoc.send(new QueryCommand({
+      TableName: RAP_TABLE,
+      KeyConditionExpression: "PK = :pk",
+      ExpressionAttributeValues: { ":pk": `ORGCLAIM#${bn}` },
+    }));
+    return ((res.Items ?? []) as Record<string, any>[]).map(itemToClaim).filter((c) => c.status === "granted");
+  },
 };
