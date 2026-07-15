@@ -5,9 +5,8 @@ import { CaseListItem, LensSwitcher, Pagination } from "./ui";
 import { getSession } from "@/lib/auth";
 import { resolveLens, applyLens } from "@/lib/cases/lenses";
 import { PAGE_SIZE, clampPage } from "@/lib/cases/pagination";
-import { COURT_LEVELS, courtLevelLabel } from "@/lib/cases/labels";
+import { COURT_LEVELS, courtLevelLabel, THEMES, themeLabel } from "@/lib/cases/labels";
 
-const THEMES: Theme[] = ["land_rights", "resource_revenue", "duty_to_consult", "treaty", "fiduciary", "self_determination"];
 const WINTYPES: WinType[] = ["doctrine_win", "party_win", "mixed", "loss", "unclassified"];
 
 export default async function CasesPage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
@@ -57,7 +56,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
             <option value="">Tier: auto</option><option value="core">Core only</option><option value="all">All tiers</option>
           </select>
           <select name="theme" defaultValue={searchParams.theme ?? ""} className={sel} aria-label="Theme">
-            <option value="">All themes</option>{THEMES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+            <option value="">All themes</option>{THEMES.map((t) => <option key={t} value={t}>{themeLabel(t)}</option>)}
           </select>
           <select name="level" defaultValue={searchParams.level ?? ""} className={sel} aria-label="Court level">
             <option value="">All courts</option>{COURT_LEVELS.map((l) => <option key={l} value={l}>{courtLevelLabel(l)}</option>)}

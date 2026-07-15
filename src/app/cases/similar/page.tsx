@@ -3,11 +3,9 @@ import { casesRepo } from "@/lib/cases";
 import type { Theme, CourtLevel } from "@/lib/cases";
 import { SimilarCaseCard } from "../ui";
 import { isAdviceSeeking } from "@/lib/cases/briefs/advice";
-import { COURT_LEVELS, courtLevelLabel } from "@/lib/cases/labels";
+import { COURT_LEVELS, courtLevelLabel, THEMES, themeLabel } from "@/lib/cases/labels";
 
 export const dynamic = "force-dynamic";
-
-const THEMES: Theme[] = ["land_rights", "resource_revenue", "duty_to_consult", "treaty", "fiduciary", "self_determination"];
 
 export default async function SimilarPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   const narrative = String(searchParams.s ?? "").trim();
@@ -34,7 +32,7 @@ export default async function SimilarPage({ searchParams }: { searchParams: Reco
         <div className="flex flex-wrap gap-3 text-sm">
           {THEMES.map((t) => (
             <label key={t} className="flex items-center gap-1">
-              <input type="checkbox" name="theme" value={t} defaultChecked={themes.includes(t)} /> {t.replace(/_/g, " ")}
+              <input type="checkbox" name="theme" value={t} defaultChecked={themes.includes(t)} /> {themeLabel(t)}
             </label>
           ))}
         </div>

@@ -4,6 +4,7 @@ import { casesRepo } from "@/lib/cases";
 import { getBrief } from "@/lib/cases/briefs/repo";
 import type { LegalCase } from "@/lib/cases";
 import { isAdviceSeeking } from "@/lib/cases/briefs/advice";
+import { themeLabel } from "@/lib/cases/labels";
 
 export const dynamic = "force-dynamic";
 const STALE_MS = 5 * 60_000;
@@ -79,7 +80,7 @@ export default async function BriefingPage({ params }: { params: { id: string } 
                 <Link href={`/cases/${p.caseId}`} className="font-serif hover:text-amber hover:underline">
                   {c ? `${c.styleOfCause} (${c.court}, ${c.year})` : p.caseId}
                 </Link>
-                {c && c.themes.length > 0 && <span className="ml-2 text-xs text-ink3">{c.themes.join(" · ")}</span>}
+                {c && c.themes.length > 0 && <span className="ml-2 text-xs text-ink3">{c.themes.map(themeLabel).join(" · ")}</span>}
                 <p className="mt-1 text-sm text-ink2">{p.establishes}</p>
                 <p className="mt-1 text-xs text-ink3">Why it matters here: {p.relevance}</p>
               </div>

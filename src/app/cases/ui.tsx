@@ -3,6 +3,7 @@ import type { LegalCase, CaseChunk, ScoredCase } from "@/lib/cases";
 import { splitHighlight } from "./highlight";
 import { LENSES, lensConfig, lensHref, type Lens } from "@/lib/cases/lenses";
 import { paginationWindow, pageHref } from "@/lib/cases/pagination";
+import { themeLabel } from "@/lib/cases/labels";
 
 export function TierBadge({ tier, fullTextAvailable }: { tier: "core" | "substrate"; fullTextAvailable: boolean }) {
   if (tier === "core") return <span className="rounded bg-cedar/15 px-2 py-0.5 text-xs text-cedar">core</span>;
@@ -144,7 +145,7 @@ export function SimilarCaseCard({ scored }: { scored: ScoredCase }) {
     : b.strength === "moderate" ? "bg-amber/15 text-amber"
     : "bg-ink/10 text-ink3";
   const closestOn = [
-    ...b.matchedThemes.map((t) => t.replace(/_/g, " ")),
+    ...b.matchedThemes.map(themeLabel),
     b.sameJurisdiction ? c.court : null,
   ].filter(Boolean).join(" · ");
   return (
