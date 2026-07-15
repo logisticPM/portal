@@ -255,4 +255,8 @@ export const mockRapRepo: RapRepo = {
   async listClaimsByParty(partyId) {
     return store.claims.filter((c) => c.partyId === partyId);
   },
+
+  async listClaimsByBN(bn) {
+    return store.claims.filter((c) => c.businessNumber === bn && c.status === "granted");
+  },
 };

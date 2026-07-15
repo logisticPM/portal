@@ -270,6 +270,8 @@ export interface OrgClaim {
   status: "granted";
   attestedAt: string; // ISO 8601 — when the party attested authorization
   grantedBy: string; // e.g. "system:bn-verify"
+  showcaseOptIn?: boolean;   // company opted this org in to public-Index surfacing
+  showcaseOptInAt?: string;  // ISO 8601 — when the opt-in was last set
 }
 
 export interface RapOrganization {
@@ -421,4 +423,5 @@ export interface RapRepo {
   putClaim(c: OrgClaim): Promise<OrgClaim>;
   getClaim(bn: string, partyId: string): Promise<OrgClaim | null>;
   listClaimsByParty(partyId: string): Promise<OrgClaim[]>;
+  listClaimsByBN(bn: string): Promise<OrgClaim[]>;
 }
