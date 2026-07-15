@@ -12,12 +12,14 @@ function make(over: Partial<Commitment>): Commitment {
 }
 
 async function main() {
+  // Cameco's real curated BN (Corporations Canada, CAMECO CORPORATION corp 332981-0)
+  const CAMECO_BN = "890561467";
   const mapped = planCommitmentBN(make({}));
-  check("sets BN for a mapped org", mapped?.businessNumber === "123456782");
+  check("sets BN for a mapped org", mapped?.businessNumber === CAMECO_BN);
   check("stamps public-research authorship on existing history",
     mapped?.history.every((h) => h.authoredBy === "public-research") === true);
 
-  const already = planCommitmentBN(make({ businessNumber: "123456782",
+  const already = planCommitmentBN(make({ businessNumber: CAMECO_BN,
     history: [{ period: "2026", status: "committed", progressPct: 0, authoredBy: "public-research" }] }));
   check("idempotent: already-migrated row ⇒ null", already === null);
 

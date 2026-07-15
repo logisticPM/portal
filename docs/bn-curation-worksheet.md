@@ -1,94 +1,67 @@
-# BN curation worksheet — `org-bn-map.ts`
+# BN curation — `org-bn-map.ts`
 
-**Purpose:** fill in verified 9-digit CRA Business Numbers for the seeded orgs most likely to
-claim, then transcribe them into `src/lib/commitments/org-bn-map.ts` and run the prod migration.
-This is a **human step** — the code can *validate* a BN but cannot *find* one (there is no
-name→BN search; `verifyBN` only goes BN→entity). Sourcing each number is a registry lookup.
+**Status:** first pass done 2026-07-15. **8 federally-incorporated orgs curated** (in the map),
+sourced from Corporations Canada's federal registry (`ised-isde.canada.ca/cc`) and matched to each
+org's **Active parent** entity. The rest are categorized below by *why* they're not (yet) in the map.
 
-## Workflow
+Curation is a **human/registry step** — the code can *validate* a BN but not *find* one (there's no
+name→BN search; `verifyBN` only goes BN→entity). These were read from the live registry by hand.
 
-1. For each org below, find its **legal entity** and **9-digit CRA Business Number root** in the
-   registry (Corporations Canada / ISED search, or the entity's public registration). Write it in
-   the BN column. Leave any org you can't pin to one unambiguous entity **blank** (it stays
-   display-only — that's the confidence gate working).
-2. Transcribe the filled rows into `ORG_BN_MAP` in `src/lib/commitments/org-bn-map.ts` as
-   `"<slug>": "<bn9>",` and delete the `cameco` synthetic placeholder (or give Cameco its real BN).
-3. Validate: `npx tsx scripts/validate-org-bn-map.ts` (format + key checks). Once the ISED
-   integration is activated, `REGISTRY_IMPL=ised npx tsx scripts/validate-org-bn-map.ts` adds a
-   live cross-check that each BN's registry `legalName` matches the seeded org (wrong-entity guard).
-4. Run the migration (see the plan, `docs/superpowers/plans/2026-07-15-domain-reconciliation-crosswalk.md` §Task 7 Step 5).
+## ✅ Curated (in `ORG_BN_MAP` — verify before the prod migration)
 
-## ⚠️ Read before filling
+Each is the **Active parent** among that name's registry hits (corp # recorded for audit). All 8 pass
+`validate-org-bn-map.ts` (Luhn format + key matches a real seeded org).
 
-- **The key is the CRA Business Number** (9-digit root, Luhn-valid — the script enforces this),
-  which is distinct from a Corporations Canada *corporation number*. Don't confuse them.
-- **`verifyBN` (ISED) covers FEDERALLY-incorporated corps only.** Banks and most national
-  companies are federal (validatable); **provincial crown corps** (BC Hydro, Hydro-Québec,
-  SaskPower, OPG, Manitoba Hydro, Nova Scotia Power) are provincially incorporated — their BN must
-  be sourced separately and won't validate through the federal path. They're listed apart below.
-- **Confidence-gate:** include an org only when its legal entity is unambiguous. Multi-entity
-  brands (e.g. **Enbridge** — many federal subsidiaries) stay **out** until resolved.
-- The slug is `slugifyOrg(orgName)` — already computed for you; use it verbatim as the map key.
-
----
-
-## Section A — Demo orgs (synthetic BNs, not curation)
-
-These three are **fictional** demo companies with platform accounts. Give each a Luhn-valid
-**synthetic** BN (e.g. the map's existing `123456782`, or `100000009`) so the demo end-to-end works
-— and add the same BN to the demo company's claim + the stub registry's canned set so
-`/my-rap/claim` succeeds for that account. These are NOT real-world curation.
-
-| Slug | Demo org | Demo account | Synthetic BN (Luhn-valid) |
+| Slug | Registry legal entity (Active) | Corp # | BN root |
 |---|---|---|---|
-| `northway-energy` | Northway Energy | `c-northway` | `________` |
-| `cedar-trust-bank` | Cedar Trust Bank | `c-cedartrust` | `________` |
-| `maple-telecom` | Maple Telecom | `c-mapletel` | `________` |
+| `cameco` | CAMECO CORPORATION | 332981-0 | `890561467` |
+| `nutrien` | Nutrien Ltd. | 1026366-4 | `710477720` |
+| `suncor-energy` | Suncor Energy Inc. | 1562504-1 | `104168083` |
+| `cenovus-energy` | Cenovus Energy Inc. | 1756759-6 | `873215610` |
+| `imperial-oil` | IMPERIAL OIL LIMITED | 029646-5 | `102465879` |
+| `cn-canadian-national-railway` | Canadian National Railway Company | 010533-3 | `100768779` |
+| `loblaw-companies` | LOBLAW COMPANIES LIMITED | 012676-4 | `103363693` |
+| `enbridge` | Enbridge Inc. *(parent of 62 entities — see note)* | 227602-0 | `119653384` |
 
----
+> **Enbridge** returned 62 registry entities; `Enbridge Inc.` is the publicly-traded parent that
+> publishes the RAP, so it was included despite the spec's earlier "leave out" default. Re-confirm if
+> the team wants a different Enbridge entity.
 
-## Section B — Real orgs to curate (federal, unambiguous, procurement-relevant first)
+**Before running the migration:** spot-check each BN against the registry (transcribed by hand from a
+screen), and once the ISED integration is live, run `REGISTRY_IMPL=ised npx tsx
+scripts/validate-org-bn-map.ts` for an automated legal-name cross-check.
 
-Verify each BN against the registry. Prioritized toward orgs with **procurement** commitments
-(these light up the confirmation bridge later) and household-name federal corps most likely to claim.
+## ✋ Not in this registry — source separately (not guessed)
 
-| Slug | Seeded org name | CRA BN (9-digit) | Verified? |
-|---|---|---|---|
-| `cameco` | Cameco | `________` | ☐ |
-| `nutrien` | Nutrien | `________` | ☐ |
-| `teck-resources` | Teck Resources | `________` | ☐ |
-| `agnico-eagle` | Agnico Eagle | `________` | ☐ |
-| `newmont` | Newmont | `________` | ☐ |
-| `cenovus-energy` | Cenovus Energy | `________` | ☐ |
-| `suncor-energy` | Suncor Energy | `________` | ☐ |
-| `imperial-oil` | Imperial Oil | `________` | ☐ |
-| `rbc-royal-bank-of-canada` | RBC (Royal Bank of Canada) | `________` | ☐ |
-| `bmo-bank-of-montreal` | BMO (Bank of Montreal) | `________` | ☐ |
-| `scotiabank` | Scotiabank | `________` | ☐ |
-| `td-bank-group` | TD Bank Group | `________` | ☐ |
-| `national-bank-of-canada` | National Bank of Canada | `________` | ☐ |
-| `sun-life` | Sun Life | `________` | ☐ |
-| `manulife` | Manulife | `________` | ☐ |
-| `cn-canadian-national-railway` | CN (Canadian National Railway) | `________` | ☐ |
-| `canada-post` | Canada Post | `________` | ☐ |
-| `loblaw-companies` | Loblaw Companies | `________` | ☐ |
-| `canfor` | Canfor | `________` | ☐ |
-| `federated-co-operatives` | Federated Co-operatives | `________` | ☐ |
+The Corporations Canada **federal** database explicitly **excludes** financial institutions and
+provincial/foreign corporations, so these can't be curated from it:
 
-> Confirm each slug against `src/lib/commitments/fixtures.ts` before transcribing — the script's
-> KEY check will reject any key that doesn't match a seeded org (so a typo migrates 0 rows and
-> fails validation rather than silently doing nothing).
+- **Financial institutions → OSFI, not CBCA.** `rbc-royal-bank-of-canada`, `bmo-bank-of-montreal`,
+  `scotiabank`, `td-bank-group`, `national-bank-of-canada`, `sun-life`, `manulife`. *(Confirmed: an
+  "Royal Bank of Canada" search returns only a **discontinued** shell + a dissolved pension society —
+  the operating Bank Act entity isn't in this DB.)* Source their BN from OSFI / the entity directly.
+- **Special-Act Crown corp.** `canada-post` — Canada Post Corporation (Canada Post Corporation Act) is
+  not in the CBCA database (search returns only dissolved subsidiaries). Source separately.
+- **Provincial crown utilities → provincial registries.** `bc-hydro`, `hydro-qu-bec` (`slugifyOrg`
+  strips the é in Hydro-Québec), `saskpower`, `ontario-power-generation`, `manitoba-hydro`,
+  `nova-scotia-power`.
+- **Provincial / foreign incorporation (verify before assuming).** `teck-resources` (BC),
+  `agnico-eagle` (ON), `newmont` (US parent), `canfor` (BC), `federated-co-operatives` (Sask co-op).
+  Search "Canada's Business Registries" (provincial) for these; not searched here.
 
-### Provincial crown corps — source BN separately (won't validate via ISED federal)
-`bc-hydro` · `hydro-qu-bec` (note: `slugifyOrg` strips the `é` in Hydro-Québec) · `saskpower` ·
-`ontario-power-generation` · `manitoba-hydro` · `nova-scotia-power`. Procurement-heavy and worth curating, but their BN comes from the provincial
-registry and the federal `verifyBN` cross-check will report them "not found" — verify by hand.
+## Demo orgs — no map entry needed
 
-### Explicitly excluded (ambiguous — leave blank)
-`enbridge` (multiple federal subsidiaries — no single unambiguous entity). Add only if the team
-decides which legal entity the seeded commitments belong to.
+`northway-energy` (`c-northway`), `cedar-trust-bank` (`c-cedartrust`), `maple-telecom` (`c-mapletel`)
+are fictional demo accounts. Their commitments already carry `orgId`, so the company edits them via
+the `orgId === partyId` path — they **don't need** the BN crosswalk. (If you want the demo to also
+exercise the *claim-by-BN* path, give each a Luhn-valid synthetic BN and add it to the demo account's
+claim + the stub registry's canned set — a demo-setup step, not curation.)
 
----
+## How to expand later
 
-*Full seeded set = 103 orgs (`grep -oE 'orgName: "[^"]+"' src/lib/commitments/fixtures.ts | sort -u`).
-This worksheet covers the top-N to start; the map is additive, so expand it over time.*
+Add a row to `ORG_BN_MAP` as `"<slug>": "<bn9>",` (slug = `slugifyOrg(orgName)`), then
+`npx tsx scripts/validate-org-bn-map.ts` (format + key). The map is additive — the migration
+(`docs/superpowers/plans/2026-07-15-domain-reconciliation-crosswalk.md` §Task 7 Step 5) only touches
+mapped orgs, so expanding it and re-running is safe and idempotent.
+
+*Full seeded set = 103 orgs: `grep -oE 'orgName: "[^"]+"' src/lib/commitments/fixtures.ts | sort -u`.*
