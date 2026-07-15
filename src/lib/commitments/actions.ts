@@ -5,7 +5,9 @@
 // "reported" — "confirmed" is the portal's verification layer, not self-serve.
 import { revalidatePath } from "next/cache";
 import { getSession } from "@/lib/auth";
+import { resolveOrgForParty } from "@/lib/identity";
 import { repo } from "@/lib/repo";
+import { SUBMITTABLE_STATUS, updateCommitmentCore } from "./actions-core";
 import { commitmentsRepo } from "./index";
 import { slugifyOrg } from "./orgs";
 import type {
@@ -15,8 +17,6 @@ import type {
   OrgSize,
   Sector,
 } from "./types";
-
-const SUBMITTABLE_STATUS: CommitmentStatus[] = ["committed", "in_progress", "reported", "stalled"];
 
 function revalidate() {
   revalidatePath("/my-commitments");
@@ -51,6 +51,9 @@ export async function createCommitmentAction(formData: FormData) {
   if (!SUBMITTABLE_STATUS.includes(status)) return;
   if (!Number.isFinite(targetYear)) return;
 
+  const { bns } = await resolveOrgForParty(ctx.orgId);
+  const businessNumber = bns.length === 1 ? bns[0] : undefined; // exactly-one-claim rule
+
   const period = String(new Date().getFullYear());
   const c: Commitment = {
     id: `cm-${slugifyOrg(ctx.orgName)}-${type}-${Date.now().toString(36)}`,
@@ -63,7 +66,8 @@ export async function createCommitmentAction(formData: FormData) {
     targetYear,
     status,
     progressPct,
-    history: [{ period, status, progressPct }],
+    businessNumber,
+    history: [{ period, status, progressPct, authoredBy: ctx.orgId }],
     createdAt: new Date().toISOString(),
   };
   await commitmentsRepo.createCommitment(c);
@@ -73,24 +77,22 @@ export async function createCommitmentAction(formData: FormData) {
 export async function updateCommitmentAction(formData: FormData) {
   const ctx = await companyContext();
   if (!ctx) return;
-  const id = String(formData.get("id") ?? "");
-  const cur = await commitmentsRepo.getCommitment(id);
-  if (!cur || cur.orgId !== ctx.orgId) return; // only your own
-
-  const status = String(formData.get("status")) as CommitmentStatus;
-  const progressPct = clampPct(formData.get("progressPct"));
-  if (!SUBMITTABLE_STATUS.includes(status)) return;
-
-  // update the current-year history point (append if this year isn't tracked yet)
-  const year = String(new Date().getFullYear());
-  const hist = [...cur.history];
-  const last = hist[hist.length - 1];
-  const point = { period: year, status, progressPct };
-  if (last && last.period === year) hist[hist.length - 1] = point;
-  else hist.push(point);
-
-  await commitmentsRepo.updateCommitment(id, { status, progressPct, history: hist });
-  revalidate();
+  const { bns } = await resolveOrgForParty(ctx.orgId);
+  const res = await updateCommitmentCore(
+    {
+      getCommitment: (id) => commitmentsRepo.getCommitment(id),
+      updateCommitment: (id, patch) => commitmentsRepo.updateCommitment(id, patch),
+      orgId: ctx.orgId,
+      claimedBNs: new Set(bns),
+      now: new Date().toISOString(),
+    },
+    {
+      id: String(formData.get("id") ?? ""),
+      status: String(formData.get("status")) as CommitmentStatus,
+      progressPct: clampPct(formData.get("progressPct")),
+    },
+  );
+  if (res.ok) revalidate();
 }
 
 export async function deleteCommitmentAction(formData: FormData) {
