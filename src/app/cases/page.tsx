@@ -5,9 +5,9 @@ import { CaseListItem, LensSwitcher, Pagination } from "./ui";
 import { getSession } from "@/lib/auth";
 import { resolveLens, applyLens } from "@/lib/cases/lenses";
 import { PAGE_SIZE, clampPage } from "@/lib/cases/pagination";
+import { COURT_LEVELS, courtLevelLabel } from "@/lib/cases/labels";
 
 const THEMES: Theme[] = ["land_rights", "resource_revenue", "duty_to_consult", "treaty", "fiduciary", "self_determination"];
-const LEVELS: CourtLevel[] = ["scc", "fca", "fc", "provincial_appeal", "provincial_superior", "tribunal"];
 const WINTYPES: WinType[] = ["doctrine_win", "party_win", "mixed", "loss", "unclassified"];
 
 export default async function CasesPage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
@@ -60,7 +60,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
             <option value="">All themes</option>{THEMES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
           </select>
           <select name="level" defaultValue={searchParams.level ?? ""} className={sel} aria-label="Court level">
-            <option value="">All courts</option>{LEVELS.map((l) => <option key={l} value={l}>{l.replace(/_/g, " ")}</option>)}
+            <option value="">All courts</option>{COURT_LEVELS.map((l) => <option key={l} value={l}>{courtLevelLabel(l)}</option>)}
           </select>
           <select name="winType" defaultValue={searchParams.winType ?? ""} className={sel} aria-label="Outcome">
             <option value="">All outcomes</option>{WINTYPES.map((w) => <option key={w} value={w}>{w.replace(/_/g, " ")}</option>)}

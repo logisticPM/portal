@@ -1,5 +1,6 @@
 import { casesRepo } from "@/lib/cases";
 import { StatCard, Bar } from "../ui";
+import { courtLevelLabel } from "@/lib/cases/labels";
 
 export default async function MethodologyPage() {
   const st = await casesRepo.getCorpusStats();
@@ -22,7 +23,7 @@ export default async function MethodologyPage() {
 
       <section className="mt-6">
         <h2 className="font-serif text-lg">By court level</h2>
-        <div className="mt-2 space-y-1">{levels.map(([l, n]) => <Bar key={l} label={l.replace(/_/g, " ")} n={n} max={maxLevel} />)}</div>
+        <div className="mt-2 space-y-1">{levels.map(([l, n]) => <Bar key={l} label={courtLevelLabel(l)} n={n} max={maxLevel} />)}</div>
       </section>
 
       <section className="mt-6">
