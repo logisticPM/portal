@@ -3,6 +3,7 @@ import { casesRepo } from "@/lib/cases";
 import { StatCard, Bar } from "../ui";
 import { getSession } from "@/lib/auth";
 import { resolveLens, lensConfig } from "@/lib/cases/lenses";
+import { themeLabel } from "@/lib/cases/labels";
 
 const cad = (n: number) => new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(n);
 
@@ -45,7 +46,7 @@ export default async function ActivationPage({ searchParams }: { searchParams: R
       <section className="mt-6">
         <h2 className="font-serif text-lg">By theme</h2>
         <div className="mt-2 space-y-1">
-          {themes.map(([t, n]) => <Bar key={t} label={t.replace(/_/g, " ")} n={n} max={maxTheme} />)}
+          {themes.map(([t, n]) => <Bar key={t} label={themeLabel(t)} n={n} max={maxTheme} />)}
         </div>
       </section>
 

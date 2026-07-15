@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { casesRepo } from "@/lib/cases";
 import { TierBadge, FullTextReader, ProvenanceFooter } from "../ui";
+import { themeLabel } from "@/lib/cases/labels";
 
 export default async function CaseDetail({
   params, searchParams,
@@ -21,7 +22,7 @@ export default async function CaseDetail({
       <div className="text-sm text-ink3">{c.citation}{c.citation2 ? ` · ${c.citation2}` : ""} · {c.court} · {c.year}</div>
       {c.themes.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1 text-xs">
-          {c.themes.map((t) => <span key={t} className="rounded border border-line bg-ink/5 px-2 py-0.5">{t.replace(/_/g, " ")}</span>)}
+          {c.themes.map((t) => <span key={t} className="rounded border border-line bg-ink/5 px-2 py-0.5">{themeLabel(t)}</span>)}
         </div>
       )}
 
