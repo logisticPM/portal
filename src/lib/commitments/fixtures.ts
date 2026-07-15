@@ -1030,71 +1030,8 @@ export const commitmentFixtures: Commitment[] = [
     targetText: "Indigenous Procurement Policy + PAR Gold",
   }),
 
-  // ── Demo company self-submissions (portal-submitted, NOT scraped public data).
-  //    These carry orgId = the login party id so /my-commitments shows only your
-  //    own, and each company has at least one overdue milestone to demo the alert.
-  //    No `source` (self-reported through the portal), status capped at reported.
-  mk({
-    id: "cm-northway-proc", orgName: "Northway Energy", orgId: "c-northway", sector: "energy", orgSize: "large", type: "procurement",
-    title: "Direct 5% of annual procurement to Indigenous-owned suppliers", targetYear: 2024,
-    history: [h("2023", "committed", 30), h("2024", "in_progress", 55)],
-    detail: "Self-reported target to grow spend with Indigenous-owned suppliers across operations.",
-    targetText: "5% of annual procurement",
-  }),
-  mk({
-    id: "cm-northway-emp", orgName: "Northway Energy", orgId: "c-northway", sector: "energy", orgSize: "large", type: "employment",
-    title: "Grow Indigenous workforce representation to 6% by 2027", targetYear: 2027,
-    history: [h("2025", "committed", 20), h("2026", "in_progress", 40)],
-    detail: "Self-reported recruitment and retention target.",
-    targetText: "6% Indigenous workforce by 2027",
-  }),
-  mk({
-    id: "cm-northway-rel", orgName: "Northway Energy", orgId: "c-northway", sector: "energy", orgSize: "large", type: "relationships",
-    title: "Sign community benefit agreements with two affected First Nations", targetYear: 2026,
-    history: [h("2025", "committed", 25), h("2026", "in_progress", 45)],
-    detail: "Self-reported relationship-building milestone.",
-    targetText: "2 community benefit agreements",
-  }),
-  mk({
-    id: "cm-cedartrust-proc", orgName: "Cedar Trust Bank", orgId: "c-cedartrust", sector: "finance", orgSize: "enterprise", type: "procurement",
-    title: "Reach $5M annual spend with Indigenous suppliers", targetYear: 2025,
-    history: [h("2024", "committed", 30), h("2025", "in_progress", 48)],
-    detail: "Self-reported supplier-diversity target.",
-    targetText: "$5M annual Indigenous spend",
-  }),
-  mk({
-    id: "cm-cedartrust-gov", orgName: "Cedar Trust Bank", orgId: "c-cedartrust", sector: "finance", orgSize: "enterprise", type: "governance",
-    title: "Establish a Reconciliation Committee and report KPIs annually", targetYear: 2026,
-    history: [h("2025", "in_progress", 50), h("2026", "in_progress", 70)],
-    detail: "Self-reported governance milestone.",
-    targetText: "committee + annual KPIs",
-  }),
-  mk({
-    id: "cm-cedartrust-cul", orgName: "Cedar Trust Bank", orgId: "c-cedartrust", sector: "finance", orgSize: "enterprise", type: "cultural_learning",
-    title: "Deliver Indigenous cultural-awareness training to all staff", targetYear: 2028,
-    history: [h("2026", "committed", 20)],
-    detail: "Self-reported education milestone.",
-    targetText: "all-staff training by 2028",
-  }),
-  mk({
-    id: "cm-mapletel-rel", orgName: "Maple Telecom", orgId: "c-mapletel", sector: "telecom", orgSize: "large", type: "relationships",
-    title: "Expand broadband access to three remote First Nations communities", targetYear: 2023,
-    history: [h("2022", "committed", 30), h("2023", "stalled", 35)],
-    detail: "Self-reported connectivity milestone; currently stalled.",
-    targetText: "3 communities connected",
-  }),
-  mk({
-    id: "cm-mapletel-emp", orgName: "Maple Telecom", orgId: "c-mapletel", sector: "telecom", orgSize: "large", type: "employment",
-    title: "Double Indigenous representation among team members", targetYear: 2026,
-    history: [h("2025", "committed", 30), h("2026", "in_progress", 50)],
-    detail: "Self-reported employment target.",
-    targetText: "double Indigenous representation",
-  }),
-  mk({
-    id: "cm-mapletel-proc", orgName: "Maple Telecom", orgId: "c-mapletel", sector: "telecom", orgSize: "large", type: "procurement",
-    title: "Add Indigenous-owned vendors to the supply chain", targetYear: 2028,
-    history: [h("2026", "committed", 15)],
-    detail: "Self-reported procurement milestone.",
-    targetText: "grow Indigenous vendors",
-  }),
+  // NB: the 3 fictional demo-company self-submissions (Northway Energy, Cedar Trust
+  // Bank, Maple Telecom) were removed 2026-07-15 — they were seeded onto the public
+  // RAP Index and shouldn't carry fictional orgs there. The demo login accounts +
+  // their econ-flow data (report/confirm) live in the seed/ fixtures, unaffected.
 ];
