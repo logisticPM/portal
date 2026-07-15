@@ -9,11 +9,18 @@ import {
   confirmationIntegrity,
   getOrgProfile,
 } from "@/lib/commitments";
+import { orgConfirmedPct } from "@/lib/commitments/orgs";
 import type { CommitmentStatus, CommitmentType, RapType } from "@/lib/commitments";
+import { resolveOrgEvidence, evidenceDeps } from "@/lib/index-evidence";
 import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
 import { FilterRow } from "@/components/FilterRow";
 import { labelFor } from "@/lib/taxonomy";
+
+// $ formatting for confirmed procurement spend — matches the cad() convention
+// used elsewhere (e.g. cases/activation): whole-dollar CAD, no cents.
+const cad = (n: number) =>
+  new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(n);
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +64,20 @@ export default async function OrgScorecardPage({
   const currentYear = new Date().getFullYear();
   const card = orgScorecard(items, params.id, currentYear);
   if (!card) notFound();
-  const { org, commitments } = card;
+  const { commitments } = card;
+
+  // Evidence-driven provenance: resolve once per org. For a BN-less org (the
+  // common case), resolveOrgEvidence short-circuits — no confirmed-procurement
+  // lookup, no opt-in check, no projected-rows read — so this org renders
+  // exactly as it did before (research badges only, no self-reported group,
+  // confirmedPct computed the same way rollupOrgsWithEvidence would give).
+  const evidence = await resolveOrgEvidence(commitments, evidenceDeps);
+  const evidenceByCommitmentId = new Map(
+    evidence.filter((e) => e.tier !== "self_reported").map((e) => [e.commitmentId, e]),
+  );
+  const selfReportedRows = evidence.filter((e) => e.tier === "self_reported");
+  const confirmableIds = new Set(commitments.filter((c) => c.type === "procurement").map((c) => c.id));
+  const org = { ...card.org, confirmedPct: orgConfirmedPct(evidence, confirmableIds) };
 
   const integ = confirmationIntegrity(commitments);
   const risk = computeRisk(commitments, currentYear);
@@ -299,7 +319,16 @@ export default async function OrgScorecardPage({
                   <span className="text-xs text-ink3 w-28 text-right">{labelFor("status", c.status)} · {c.progressPct}%</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded-full border border-line text-ink3 px-2 py-0.5">Self-reported</span>
+                  {(() => {
+                    const ev = evidenceByCommitmentId.get(c.id);
+                    return ev?.tier === "confirmed" ? (
+                      <span className="rounded-full border border-cedar/50 bg-cedar/20 text-cedar px-2 py-0.5">
+                        Independently confirmed — {cad(ev.confirmedAmount ?? 0)} supplier-attested
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-line text-ink3 px-2 py-0.5">Research</span>
+                    );
+                  })()}
                   {c.source && (
                     <a href={c.source.url} target="_blank" rel="noreferrer" className="text-amber hover:underline">
                       Source: {c.source.label} ↗
@@ -312,6 +341,41 @@ export default async function OrgScorecardPage({
           {filtered.length === 0 && <p className="text-ink3 py-2 text-sm">No commitments match.</p>}
         </div>
       </section>
+
+      {/* opted-in self-reported RAP rows — projected from the company's uploaded
+          RAP, NOT independently verified. Kept in a clearly separate, non-ranking
+          group: these never appear in confirmedPct/avgProgress above (they aren't
+          part of orgItems in the resolver — display-only by construction). */}
+      {selfReportedRows.length > 0 && (
+        <section className="bg-panel rounded border border-line shadow-card p-5 space-y-3">
+          <div>
+            <div className="text-ink3 text-xs uppercase tracking-widest">
+              Company-reported — uploaded RAP, not independently verified
+            </div>
+            <p className="text-ink2 text-sm mt-1">
+              This organization opted in to show progress from its uploaded RAP. These rows are
+              self-reported and do not count toward the confirmed % or ranking above.
+            </p>
+          </div>
+          <div className="divide-y divide-ink/10">
+            {selfReportedRows.map((row) => (
+              <div key={row.commitmentId} className="flex items-center gap-3 py-2 text-sm">
+                <span className="rounded-full border border-amber/40 bg-amber/10 text-amber px-2 py-0.5 text-xs shrink-0">
+                  Company-reported
+                </span>
+                <span className="text-ink2 flex-1 min-w-0 truncate font-mono text-xs">
+                  {row.commitmentId}
+                </span>
+                <span
+                  className={`text-xs rounded border px-2 py-0.5 w-24 text-center shrink-0 ${STATUS_PILL[row.displayStatus]}`}
+                >
+                  {labelFor("status", row.displayStatus)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -2,7 +2,8 @@
 // filterable by sector, paginated (20/page + go-to). Companies/suppliers only
 // ever see their own data via /report and /confirm; guarded in middleware.
 import { ScrollLink } from "@/components/ScrollLink";
-import { commitmentsRepo, rollupOrgs } from "@/lib/commitments";
+import { commitmentsRepo } from "@/lib/commitments";
+import { rollupOrgsWithEvidence } from "@/lib/commitments/orgs";
 import type { Sector } from "@/lib/commitments";
 import { InstituteNav } from "@/components/InstituteNav";
 import { CommitmentSearch } from "@/app/commitments/CommitmentSearch";
@@ -21,7 +22,7 @@ export default async function OrganizationsPage({
 }) {
   const items = await commitmentsRepo.listCommitments();
   const currentYear = new Date().getFullYear();
-  const orgs = rollupOrgs(items, currentYear);
+  const orgs = await rollupOrgsWithEvidence(items, currentYear);
 
   const sectorFacets = [...new Set(orgs.flatMap((o) => o.sectors))].sort();
   const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
