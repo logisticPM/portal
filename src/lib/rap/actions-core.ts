@@ -129,3 +129,14 @@ export async function recordRapProgressForParty(input: {
   await rapRepo.putRollup(computeRollup(input.commitId, observations));
   return { ok: true };
 }
+
+// Company toggles public-Index surfacing for a claimed org. Only a party holding
+// a granted OrgClaim on the BN may change it (same gate as recordRapProgressForParty).
+export async function setShowcaseOptInForParty(input: {
+  partyId: string; bn: string; optIn: boolean; now: string;
+}): Promise<{ ok: boolean }> {
+  const claim = await rapRepo.getClaim(input.bn, input.partyId);
+  if (!claim || claim.status !== "granted") return { ok: false };
+  await rapRepo.putClaim({ ...claim, showcaseOptIn: input.optIn, showcaseOptInAt: input.now });
+  return { ok: true };
+}

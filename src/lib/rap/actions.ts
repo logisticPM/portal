@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractionRepo } from "./index";
-import { canPublish, claimOrgForParty, recordRapProgressForParty, resolveOrgForJob, uploadBNForSession } from "./actions-core";
+import { canPublish, claimOrgForParty, recordRapProgressForParty, resolveOrgForJob, setShowcaseOptInForParty, uploadBNForSession } from "./actions-core";
 import type { ProgressStatus } from "./types";
 import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
@@ -196,4 +196,18 @@ export async function recordRapProgressAction(formData: FormData) {
   });
   if (result.ok) revalidatePath("/my-rap");
   return result;
+}
+
+// Company toggles public-Index surfacing for a claimed org. Identity comes
+// SOLELY from the verified session (never a form field) — a non-company session
+// (or no session) is a no-op, matching claimOrgAction's guard.
+export async function setShowcaseOptInAction(formData: FormData) {
+  const session = getSession();
+  if (!session || session.kind !== "company" || !session.partyId) return;
+  return setShowcaseOptInForParty({
+    partyId: session.partyId,
+    bn: String(formData.get("bn") ?? ""),
+    optIn: formData.get("optIn") === "on",
+    now: new Date().toISOString(),
+  });
 }
