@@ -48,4 +48,6 @@ async function main() {
   console.log(`scanned ${scanned}, updated ${updated}`);
 }
 
-if (process.argv[1]?.includes("migrate-commitment-bn")) main();
+if (process.argv[1] && process.argv[1].endsWith("/migrate-commitment-bn.ts")) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
