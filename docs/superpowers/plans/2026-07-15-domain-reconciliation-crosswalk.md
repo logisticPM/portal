@@ -806,7 +806,7 @@ gh pr create --repo logisticPM/portal --base main \
 
 ```bash
 aws sso login --profile isb
-AWS_PROFILE=isb DYNAMO_TABLE=<Commitments-physical-name> npx tsx scripts/migrate-commitment-bn.ts   # run twice; second = "updated 0"
+AWS_PROFILE=isb COMMITMENTS_TABLE=<Commitments-physical-name> npx tsx scripts/migrate-commitment-bn.ts   # run twice; second = "updated 0"
 ```
 
 ---

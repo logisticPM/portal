@@ -26,8 +26,9 @@ export async function listCommitmentsForBNs(
 
 // Unified company view (Task 6): a company's own self-created rows PLUS the
 // seeded public commitments matching its granted Business Numbers, de-duplicated
-// by id (own rows win on collision — first into the map). No claims ⇒ own rows
-// only, so a company with no BN claims sees exactly what it saw before.
+// by id (last write wins — a colliding id is the identical stored row, so which one
+// wins is immaterial). No claims ⇒ own rows only, so a company with no BN claims sees
+// exactly what it saw before.
 export async function listCommitmentsForCompany(
   partyId: string,
   bns: string[],

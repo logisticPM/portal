@@ -48,6 +48,18 @@ async function main() {
   const r4 = await updateCommitmentCore(d.d, { id: "cm-1", status: "confirmed" as any, progressPct: 100 });
   check("status past 'reported' cap rejected", r4.ok === false && d.saved() === null);
 
+  // 5. same-year in-place replace: history period matches current year
+  const e = deps(
+    seed({ history: [{ period: "2026", status: "committed", progressPct: 0, authoredBy: "public-research" }] }),
+    "c-northway",
+    ["123456782"]
+  );
+  const r5 = await updateCommitmentCore(e.d, { id: "cm-1", status: "in_progress", progressPct: 50 });
+  check("same-year replace: update succeeds", r5.ok === true);
+  check("same-year replace: history length unchanged", e.saved()?.patch.history.length === 1);
+  check("same-year replace: last point updated with new progressPct", e.saved()?.patch.history.at(-1).progressPct === 50);
+  check("same-year replace: authoredBy is orgId", e.saved()?.patch.history.at(-1).authoredBy === "c-northway");
+
   process.exit(fail ? 1 : 0);
 }
 main();
