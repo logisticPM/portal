@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { LegalCase, CaseChunk } from "@/lib/cases";
+import type { LegalCase, CaseChunk, ScoredCase } from "@/lib/cases";
 import { splitHighlight } from "./highlight";
 import { LENSES, lensConfig, lensHref, type Lens } from "@/lib/cases/lenses";
 import { paginationWindow, pageHref } from "@/lib/cases/pagination";
@@ -134,5 +134,30 @@ export function Pagination({ page, totalPages, params }: {
         ? <Link href={pageHref(params, page + 1)} className={link}>Next »</Link>
         : <span className={muted} aria-disabled="true">Next »</span>}
     </nav>
+  );
+}
+
+export function SimilarCaseCard({ scored }: { scored: ScoredCase }) {
+  const { case: c, breakdown: b } = scored;
+  const chip =
+    b.strength === "strong" ? "bg-cedar/15 text-cedar"
+    : b.strength === "moderate" ? "bg-amber/15 text-amber"
+    : "bg-ink/10 text-ink3";
+  const closestOn = [
+    ...b.matchedThemes.map((t) => t.replace(/_/g, " ")),
+    b.sameJurisdiction ? c.court : null,
+  ].filter(Boolean).join(" · ");
+  return (
+    <div className="rounded border border-line bg-panel p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href={`/cases/${c.id}`} className="font-serif hover:text-amber hover:underline">
+          {c.styleOfCause} ({c.court}, {c.year})
+        </Link>
+        <span className={`rounded px-2 py-0.5 text-xs ${chip}`}>{b.strength} match</span>
+        <TierBadge tier={c.corpusTier} fullTextAvailable={c.fullTextAvailable} />
+      </div>
+      {closestOn && <div className="mt-1 text-xs text-ink3">Closest on: {closestOn}</div>}
+      {c.outcome.holding && <p className="mt-1 text-sm text-ink2">What it established: {c.outcome.holding}</p>}
+    </div>
   );
 }
