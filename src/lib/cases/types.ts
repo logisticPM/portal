@@ -155,6 +155,7 @@ export interface CaseRepo {
   getCase(id: string): Promise<LegalCase | null>;
   searchCases(query: string, filter?: CaseFilter): Promise<LegalCase[]>;
   hybridSearch(query: string, filter?: CaseFilter): Promise<LegalCase[]>;
+  findSimilarCases(input: SituationInput): Promise<ScoredCase[]>;
   listFacets(filter?: CaseFilter): Promise<Facets>;
   getActivationSummary(): Promise<ActivationSummary>;
   getCorpusStats(): Promise<CorpusStats>;

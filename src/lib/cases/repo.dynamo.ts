@@ -9,6 +9,8 @@ import { getSearchIndex } from "./search/build-index";
 import { rankWithSearcher } from "./search/hybrid";
 import { getEmbedder } from "./search/embedder";
 import { routeQuery } from "./search/route";
+import { unpackF32 } from "./search/pack";
+import { scoreSituation } from "./similarity";
 import { cache } from "react";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
@@ -32,6 +34,31 @@ const scanAll = cache(async (): Promise<LegalCase[]> => {
     start = r.LastEvaluatedKey;
   } while (start);
   return out;
+});
+
+// Request-memoized core cases + their profile vectors (pvec) for similarity. One GSI1 scan.
+const coreSimilarityData = cache(async (): Promise<{
+  cases: LegalCase[]; vecs: Map<string, Float32Array>; embedderId: string | null;
+}> => {
+  const cases: LegalCase[] = [];
+  const vecs = new Map<string, Float32Array>();
+  let embedderId: string | null = null;
+  let start: Record<string, any> | undefined;
+  do {
+    const r = await ddbDoc.send(new ScanCommand({ TableName: TABLE, IndexName: "GSI1", ExclusiveStartKey: start }));
+    for (const it of r.Items ?? []) {
+      if (it.et !== "Case") continue;
+      const c = itemToCase(it);
+      if (c.corpusTier !== "core") continue;
+      cases.push(c);
+      if (it.pvec && it.pvecDim) {
+        vecs.set(c.id, unpackF32(it.pvec as Uint8Array, Number(it.pvecDim)));
+        if (!embedderId) embedderId = (it.pvecEmbedderId as string | undefined) ?? null;
+      }
+    }
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return { cases, vecs, embedderId };
 });
 
 /** Build BatchWrite PutRequest items for a case (PROFILE + CHUNK# items). */
@@ -94,6 +121,18 @@ export const dynamoCaseRepo: CaseRepo = {
       .map((r) => idx.cases.get(r.caseId))
       .filter((c): c is LegalCase => !!c);
     return filterCases(ordered, filter); // Array.filter preserves rank order
+  },
+  async findSimilarCases(input) {
+    const { cases, vecs, embedderId } = await coreSimilarityData();
+    const embedder = getEmbedder();
+    let situationVec: Float32Array | null = null;
+    if (vecs.size > 0 && embedderId === embedder.id && input.narrative.trim()) {
+      const q = `${input.narrative} ${input.themes.join(" ")}`.trim();
+      situationVec = (await embedder.embed([q]))[0];
+    } else if (vecs.size > 0 && embedderId !== embedder.id) {
+      console.warn(`[similar] embedder mismatch active=${embedder.id} stored=${embedderId} → structured-only`);
+    }
+    return scoreSituation(input, cases, situationVec, vecs);
   },
   async listFacets(filter) {
     return buildFacets(filterCases(await scanAll(), filter));
