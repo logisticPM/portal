@@ -91,12 +91,16 @@ export async function uploadRapAction(formData: FormData) {
   // SYNC path (local dev / mock — fast): run inline. redirect() throws
   // NEXT_REDIRECT, so it runs AFTER stageExtraction (which never throws).
   const outcome = await stageExtraction({ jobId: job.id, fileName, sourceS3Key });
-  if (outcome.status === "published") {
-    revalidatePath("/commitments");
-    redirect("/commitments"); // auto-published → dashboard
+  // Published RAPs land in the RapData domain — they surface on the uploader's
+  // /my-rap (company) and the staff /extract queue, NOT on the Commitments-backed
+  // public Index (/commitments never reads RapData). Send the uploader to where
+  // their data actually appears.
+  if (outcome.status === "published" && session.kind === "company") {
+    revalidatePath("/my-rap");
+    redirect("/my-rap");
   }
   revalidatePath("/extract");
-  redirect("/extract?tab=review"); // flagged or failed → review queue
+  redirect("/extract?tab=review"); // staff publish, flagged, or failed → review queue
 }
 
 // Human approves a flagged extraction. `reviewedBy` identifies the admin/org
@@ -117,9 +121,12 @@ export async function confirmExtractionAction(formData: FormData) {
   }
 
   await publishAndConfirm(job, job.extracted, reviewedBy);
-  revalidatePath("/commitments");
+  // Publishing writes to the RapData domain (surfaces on /extract and the claimed
+  // company's /my-rap), not the Commitments-backed public Index — so revalidate
+  // those, not /commitments.
   revalidatePath("/extract");
-  redirect("/commitments");
+  revalidatePath("/my-rap");
+  redirect("/extract?tab=review");
 }
 
 export async function rejectExtractionAction(formData: FormData) {

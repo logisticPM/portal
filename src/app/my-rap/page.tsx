@@ -218,8 +218,8 @@ export default async function MyRapPage() {
           <div className="text-ink3 text-xs uppercase tracking-widest mb-1">Upload your RAP</div>
           <p className="text-ink2 text-sm">
             Upload your organization&apos;s Reconciliation Action Plan document. It is sent to
-            Indigenomics for AI-assisted extraction and review before its commitments appear
-            here and in the public RAP Index.
+            Indigenomics for AI-assisted extraction and review; once published, its commitments
+            appear here on your My RAP page.
           </p>
         </div>
         <UploadForm />
