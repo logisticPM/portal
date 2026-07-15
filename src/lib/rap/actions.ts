@@ -84,6 +84,13 @@ export async function uploadRapAction(formData: FormData) {
     } catch (e) {
       await extractionRepo.markFailed(job.id, `extractor invoke failed: ${e instanceof Error ? e.message : String(e)}`);
     }
+    // A company uploads from /my-rap and can't see the staff-only /extract queue
+    // (middleware bounces it to /home). Return it to /my-rap, where the extracted
+    // RAP appears once review completes; staff stay on the review queue.
+    if (session.kind === "company") {
+      revalidatePath("/my-rap");
+      redirect("/my-rap");
+    }
     revalidatePath("/extract");
     redirect("/extract?tab=review");
   }
