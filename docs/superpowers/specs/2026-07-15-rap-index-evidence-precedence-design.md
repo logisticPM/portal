@@ -142,8 +142,19 @@ Connects the economic-flow domain (`ReportedLine` → `Confirmation` → `Covera
   driven by the resolver: share of the org's **confirmable (procurement)** commitments whose tier
   resolves to `confirmed`. Non-zero exactly when supplier confirmations exist. The denominator is
   *confirmable* commitments (labeled as such), not all commitments — so the number reads honestly.
+- **Surface the confirmed amount, not just a badge (coarseness mitigation).** Because v1 attribution is
+  org-level and binary, a small confirmed line and a target-meeting one would both read "confirmed". So
+  the confirmed tier carries the org's **actual confirmed procurement dollars** (`Coverage.byFlow.
+  procurement.confirmed`) for display alongside the badge — e.g. *"Independently confirmed — $3M in
+  supplier-attested procurement."* We surface the real attested figure; we never allocate it to a
+  specific commitment or imply the target was met. This turns the org-level coarseness from a hidden
+  overclaim into visible, reader-judgeable context. The resolver's `confirmed.confirmedAmount` (§5)
+  carries this value.
 
-Matching precision (org-level vs period-scoped vs target-proportional dollars) is an open decision (§10).
+Matching precision (org-level vs period-scoped vs target-proportional dollars) is an open decision
+(§11.1). The honest refinement path is a schema change — a `commitmentId?` on `ReportedLine` so a
+company can attribute a confirmed spend line to the commitment it serves; only then do per-commitment
+confirmed-vs-target percentages become derivable rather than invented.
 
 ## 7. Opt-in mechanism
 
@@ -165,7 +176,9 @@ Matching precision (org-level vs period-scoped vs target-proportional dollars) i
   identical to today for non-opted-in orgs, plus confirmed elevation.
 - **Self-reported rows** render in a clearly separated, badged group on the org scorecard ("Company-
   reported — uploaded RAP, not independently verified"), never blended into the headline number.
-- **Provenance badges** per row: `Research` · `Company-uploaded` · `Independently confirmed`.
+- **Provenance badges** per row: `Research` · `Company-uploaded` · `Independently confirmed`. The
+  confirmed badge shows the org's **actual confirmed procurement dollars** beside it (§6 mitigation) —
+  e.g. "Independently confirmed — $3M supplier-attested" — never a per-commitment allocation.
 - **The "confirmed" tile** now reflects §6 (with an honest sublabel).
 
 ## 9. Phasing / PR breakdown
