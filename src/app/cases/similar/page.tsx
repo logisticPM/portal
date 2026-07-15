@@ -3,11 +3,11 @@ import { casesRepo } from "@/lib/cases";
 import type { Theme, CourtLevel } from "@/lib/cases";
 import { SimilarCaseCard } from "../ui";
 import { isAdviceSeeking } from "@/lib/cases/briefs/advice";
+import { COURT_LEVELS, courtLevelLabel } from "@/lib/cases/labels";
 
 export const dynamic = "force-dynamic";
 
 const THEMES: Theme[] = ["land_rights", "resource_revenue", "duty_to_consult", "treaty", "fiduciary", "self_determination"];
-const LEVELS: CourtLevel[] = ["scc", "fca", "fc", "provincial_appeal", "provincial_superior", "tribunal"];
 
 export default async function SimilarPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   const narrative = String(searchParams.s ?? "").trim();
@@ -39,7 +39,7 @@ export default async function SimilarPage({ searchParams }: { searchParams: Reco
           ))}
         </div>
         <select name="level" defaultValue={level} className={sel} aria-label="Jurisdiction">
-          <option value="">Any court</option>{LEVELS.map((l) => <option key={l} value={l}>{l.replace(/_/g, " ")}</option>)}
+          <option value="">Any court</option>{COURT_LEVELS.map((l) => <option key={l} value={l}>{courtLevelLabel(l)}</option>)}
         </select>
         <textarea name="s" rows={4} required minLength={20} maxLength={1200} defaultValue={narrative}
           placeholder="Describe your situation: sector, what the government/company did, the agreement or right at issue, where…"
