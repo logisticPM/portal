@@ -138,6 +138,18 @@ export interface CorpusStats {
 export interface CitationGraph { cited: LegalCase[]; citing: LegalCase[]; }
 export interface CaseExportBundle { cases: LegalCase[]; asOf: string; }
 
+export interface SituationInput { themes: Theme[]; level?: CourtLevel; narrative: string }
+export interface SimilarityBreakdown {
+  semantic: number;          // cosine(situationVec, caseVec) clamped to [0,1]; 0 if no vector
+  themeOverlap: number;      // |selected ∩ case.themes| / |selected|; 0 when no themes chosen
+  jurisdictionMatch: number; // 1 if level matches else 0; 0 when no level chosen
+  composite: number;         // renormalized weighted blend, [0,1]
+  strength: "strong" | "moderate" | "weak";
+  matchedThemes: Theme[];
+  sameJurisdiction: boolean;
+}
+export interface ScoredCase { case: LegalCase; breakdown: SimilarityBreakdown }
+
 export interface CaseRepo {
   listCases(filter?: CaseFilter): Promise<LegalCase[]>;
   getCase(id: string): Promise<LegalCase | null>;
