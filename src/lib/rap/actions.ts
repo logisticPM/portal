@@ -204,10 +204,12 @@ export async function recordRapProgressAction(formData: FormData) {
 export async function setShowcaseOptInAction(formData: FormData) {
   const session = getSession();
   if (!session || session.kind !== "company" || !session.partyId) return;
-  return setShowcaseOptInForParty({
+  const result = await setShowcaseOptInForParty({
     partyId: session.partyId,
     bn: String(formData.get("bn") ?? ""),
     optIn: formData.get("optIn") === "on",
     now: new Date().toISOString(),
   });
+  if (result.ok) revalidatePath("/my-rap");
+  return result;
 }

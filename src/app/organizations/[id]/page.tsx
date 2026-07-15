@@ -79,6 +79,12 @@ export default async function OrgScorecardPage({
   const confirmableIds = new Set(commitments.filter((c) => c.type === "procurement").map((c) => c.id));
   const org = { ...card.org, confirmedPct: orgConfirmedPct(evidence, confirmableIds) };
 
+  // Org-level confirmed procurement $ — the confirmation bridge is org-level
+  // (§6), so every confirmed-tier row carries the SAME org total. Take it from
+  // any one of them rather than repeating it per row (which would misleadingly
+  // read as per-commitment attestation). undefined when the org has none.
+  const confirmedProcurementTotal = evidence.find((e) => e.tier === "confirmed")?.confirmedAmount;
+
   const integ = confirmationIntegrity(commitments);
   const risk = computeRisk(commitments, currentYear);
   const flagged = new Set(risk.flags.map((f) => f.commitment.id));
@@ -137,6 +143,11 @@ export default async function OrgScorecardPage({
         </a>
         <h1 className="mt-2 font-serif text-3xl">{org.orgName}</h1>
         <p className="text-ink2 text-sm mt-1">{org.sectors.map((s) => labelFor("sector", s)).join(" · ")}</p>
+        {confirmedProcurementTotal !== undefined && (
+          <p className="text-cedar text-sm mt-1">
+            Independently confirmed — {cad(confirmedProcurementTotal)} in supplier-attested procurement
+          </p>
+        )}
       </div>
 
       {/* about — public reference info (Wikipedia-style) */}
@@ -323,7 +334,7 @@ export default async function OrgScorecardPage({
                     const ev = evidenceByCommitmentId.get(c.id);
                     return ev?.tier === "confirmed" ? (
                       <span className="rounded-full border border-cedar/50 bg-cedar/20 text-cedar px-2 py-0.5">
-                        Independently confirmed — {cad(ev.confirmedAmount ?? 0)} supplier-attested
+                        Independently confirmed
                       </span>
                     ) : (
                       <span className="rounded-full border border-line text-ink3 px-2 py-0.5">Research</span>

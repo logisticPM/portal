@@ -85,13 +85,14 @@ export async function rollupOrgsWithEvidence(
     arr.push(c);
     byOrg.set(c.orgName, arr);
   }
-  const out: OrgRollup[] = [];
-  for (const [name, orgItems] of byOrg.entries()) {
-    const rollup = rollupOne(name, orgItems, currentYear);
-    const ev = await resolveOrgEvidence(orgItems, deps);
-    const confirmableIds = new Set(orgItems.filter((c) => c.type === "procurement").map((c) => c.id));
-    out.push({ ...rollup, confirmedPct: orgConfirmedPct(ev, confirmableIds) });
-  }
+  const out = await Promise.all(
+    Array.from(byOrg.entries()).map(async ([name, orgItems]) => {
+      const rollup = rollupOne(name, orgItems, currentYear);
+      const ev = await resolveOrgEvidence(orgItems, deps);
+      const confirmableIds = new Set(orgItems.filter((c) => c.type === "procurement").map((c) => c.id));
+      return { ...rollup, confirmedPct: orgConfirmedPct(ev, confirmableIds) };
+    }),
+  );
   return out.sort(
     (a, b) =>
       b.avgProgress - a.avgProgress || b.total - a.total || a.orgName.localeCompare(b.orgName),
