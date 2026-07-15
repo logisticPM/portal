@@ -12,6 +12,7 @@ import {
   updateCommitmentAction,
   deleteCommitmentAction,
 } from "@/lib/commitments/actions";
+import { resolveOrgForParty, listCommitmentsForCompany } from "@/lib/identity";
 import { labelFor } from "@/lib/taxonomy";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,12 @@ export default async function MyCommitmentsPage() {
     repo.getParty(session.partyId),
     commitmentsRepo.listCommitments({ orgId: session.partyId }),
   ]);
+  // Unified view (BN crosswalk): own rows PLUS the seeded public commitments
+  // matching this company's granted Business Numbers — the same rows
+  // updateCommitmentAction already authorizes edits on (Task 3). A company
+  // with no BN claims sees exactly `mine` here too, so this is additive only.
+  const { bns } = await resolveOrgForParty(session.partyId);
+  const commitments = await listCommitmentsForCompany(session.partyId, bns, commitmentsRepo);
   const opportunities = await alignmentRepo.listForOrg(session.partyId);
   const oppsByCommitment = new Map<string, typeof opportunities>();
   for (const o of opportunities) {
@@ -166,26 +173,33 @@ export default async function MyCommitmentsPage() {
       {/* existing */}
       <section className="bg-panel rounded border border-line shadow-card p-5">
         <div className="text-ink3 text-xs uppercase tracking-widest mb-3">
-          Your commitments ({mine.length})
+          Your commitments ({commitments.length})
         </div>
-        {mine.length === 0 ? (
+        {commitments.length === 0 ? (
           <p className="text-ink3 text-sm">None yet. Add your first above.</p>
         ) : (
           <div className="space-y-3">
-            {mine.map((c) => {
+            {commitments.map((c) => {
               const opps = oppsByCommitment.get(c.id) ?? [];
+              const isSeeded = c.orgId !== session.partyId;
               return (
                 <div key={c.id} className="rounded border border-line bg-bg/30 p-4 space-y-3">
                   {/* commitment header + controls */}
                   <div className="flex flex-wrap items-center gap-3 text-sm">
                     <div className="flex-1 min-w-[220px]">
+                      {isSeeded && (
+                        <span className="inline-block text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 mb-1 border text-cedar border-cedar/40 bg-cedar/10">
+                          Public record — sourced by Indigenomics
+                        </span>
+                      )}
                       <div className="font-medium text-ink">{c.title}</div>
                       <div className="text-ink3 text-xs">
                         {labelFor("sector", c.sector)} · {labelFor("commitmentType", c.type)} ·{" "}
                         {labelFor("sizeBand", c.orgSize)} · target {c.targetYear}
                       </div>
                     </div>
-                    {/* inline update */}
+                    {/* inline update — company edits stay limited to status + progress %;
+                        title/targetYear are never editable here (server-enforced too) */}
                     <form action={updateCommitmentAction} className="flex items-center gap-2">
                       <input type="hidden" name="id" value={c.id} />
                       <select name="status" defaultValue={c.status} className="rounded border border-line bg-bg/40 px-2 py-1 text-xs">
@@ -200,10 +214,12 @@ export default async function MyCommitmentsPage() {
                     <span className={`text-xs rounded border px-2 py-0.5 ${STATUS_PILL[c.status] ?? "border-line"}`}>
                       {labelFor("status", c.status)}
                     </span>
-                    <form action={deleteCommitmentAction}>
-                      <input type="hidden" name="id" value={c.id} />
-                      <button className="text-rust text-xs hover:underline">delete</button>
-                    </form>
+                    {!isSeeded && (
+                      <form action={deleteCommitmentAction}>
+                        <input type="hidden" name="id" value={c.id} />
+                        <button className="text-rust text-xs hover:underline">delete</button>
+                      </form>
+                    )}
                   </div>
 
                   {/* AI-matched suppliers, nested + scoped to THIS commitment */}

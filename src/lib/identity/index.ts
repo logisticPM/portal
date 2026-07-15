@@ -23,3 +23,19 @@ export async function listCommitmentsForBNs(
   const batches = await Promise.all(bns.map((bn) => repo.listCommitments({ businessNumber: bn })));
   return batches.flat();
 }
+
+// Unified company view (Task 6): a company's own self-created rows PLUS the
+// seeded public commitments matching its granted Business Numbers, de-duplicated
+// by id (own rows win on collision — first into the map). No claims ⇒ own rows
+// only, so a company with no BN claims sees exactly what it saw before.
+export async function listCommitmentsForCompany(
+  partyId: string,
+  bns: string[],
+  repo: CommitmentRepo = commitmentsRepo,
+): Promise<Commitment[]> {
+  const own = (await repo.listCommitments()).filter((c) => c.orgId === partyId);
+  const seeded = await listCommitmentsForBNs(bns, repo);
+  const byId = new Map<string, Commitment>();
+  for (const c of [...own, ...seeded]) byId.set(c.id, c);
+  return [...byId.values()];
+}
