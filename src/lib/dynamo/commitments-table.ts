@@ -49,10 +49,12 @@ export function itemToCommitment(it: any): Commitment {
       period: h.period,
       status: h.status,
       progressPct: h.progressPct,
+      ...(h.authoredBy !== undefined ? { authoredBy: h.authoredBy } : {}),
     })),
     createdAt: d.createdAt,
     ...(d.source !== undefined ? { source: { label: d.source.label, url: d.source.url } } : {}),
     ...(d.detail !== undefined ? { detail: d.detail } : {}),
     ...(d.targetText !== undefined ? { targetText: d.targetText } : {}),
+    ...(d.businessNumber !== undefined ? { businessNumber: d.businessNumber } : {}),
   };
 }
