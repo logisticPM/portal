@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { rapRepo } from "@/lib/rap";
 import type { Commitment, CommitmentRollup, ProgressStatus, RapDocument } from "@/lib/rap";
-import { recordRapProgressAction } from "@/lib/rap/actions";
+import { recordRapProgressAction, setShowcaseOptInAction } from "@/lib/rap/actions";
 import { labelFor } from "@/lib/taxonomy";
 import { UploadForm } from "@/app/extract/UploadForm";
 
@@ -23,6 +23,15 @@ export const dynamic = "force-dynamic";
 async function recordProgress(formData: FormData) {
   "use server";
   await recordRapProgressAction(formData);
+}
+
+// setShowcaseOptInAction returns { ok } | undefined for callers that want it;
+// a plain <form action={...}> in a Server Component requires void | Promise<void>,
+// so this inline Server Action just discards the result — the checkbox still
+// reflects the current state via defaultChecked on the revalidated claim below.
+async function setShowcaseOptIn(formData: FormData) {
+  "use server";
+  await setShowcaseOptInAction(formData);
 }
 
 const STATUSES: ProgressStatus[] = ["not_started", "on_track", "delayed", "met", "missed"];
@@ -43,6 +52,7 @@ interface RapSection {
 interface ClaimSection {
   businessNumber: string;
   orgId: string;
+  showcaseOptIn: boolean;
   raps: RapSection[];
 }
 
@@ -68,7 +78,12 @@ export default async function MyRapPage() {
           return { rap, commitments: withRollup };
         }),
       );
-      return { businessNumber: claim.businessNumber, orgId, raps: rapSections };
+      return {
+        businessNumber: claim.businessNumber,
+        orgId,
+        showcaseOptIn: claim.showcaseOptIn === true,
+        raps: rapSections,
+      };
     }),
   );
 
@@ -106,8 +121,29 @@ export default async function MyRapPage() {
         <div className="space-y-6">
           {sections.map((s) => (
             <section key={s.orgId} className="space-y-4">
-              <div className="text-ink3 text-xs uppercase tracking-widest">
-                Business Number {s.businessNumber}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-ink3 text-xs uppercase tracking-widest">
+                  Business Number {s.businessNumber}
+                </div>
+                <form
+                  action={setShowcaseOptIn}
+                  className="flex items-center gap-2 bg-panel rounded border border-line px-3 py-1.5"
+                >
+                  <input type="hidden" name="bn" value={s.businessNumber} />
+                  <label className="flex items-center gap-2 text-xs text-ink2">
+                    <input
+                      type="checkbox"
+                      name="optIn"
+                      defaultChecked={s.showcaseOptIn}
+                      className="rounded border-line"
+                    />
+                    Show my uploaded RAP on the public Index (as company-reported — it
+                    won&apos;t change my public score)
+                  </label>
+                  <button className="rounded bg-ink px-2.5 py-1 text-bg text-xs hover:bg-ink/90 shrink-0">
+                    Save
+                  </button>
+                </form>
               </div>
               {s.raps.length === 0 || s.raps.every((r) => r.commitments.length === 0) ? (
                 <p className="text-ink3 text-sm bg-panel rounded border border-line p-4">
