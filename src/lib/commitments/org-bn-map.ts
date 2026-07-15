@@ -45,6 +45,22 @@ export const ORG_BN_MAP: Record<string, string> = {
   // Enbridge: 62 registry entities — selected the publicly-traded parent that
   // publishes the RAP. Kept per that disambiguation; re-confirm if in doubt.
   "enbridge": "119653384",                            // Enbridge Inc. · corp 227602-0
+
+  // --- Provincially-incorporated (via Canada's Business Registries, ised-isde.canada.ca/cbr-rec) ---
+  // BN root taken from each province's registry entry for the Active parent.
+  "telus": "877429621",                               // TELUS Corporation · BC0573792
+  "canfor": "100783562",                              // CANFOR CORPORATION · BC0069561
+  "west-fraser": "105643464",                         // WEST FRASER TIMBER CO. LTD. · BC0071976
+  "fortisbc": "105349740",                            // FORTISBC HOLDINGS INC. · BC0791126
+  "agnico-eagle": "889122453",                        // AGNICO EAGLE MINES LIMITED · ON
+  "hydro-one": "805129962",                           // HYDRO ONE LIMITED · ON (listed parent)
+  "ellisdon": "872894332",                            // ELLISDON CORPORATION · ON
+  "glencore-canada": "897767646",                     // GLENCORE CANADA CORPORATION · ON
+  "sobeys": "104902135",                              // SOBEYS INC. · NS (BN 104902135NS0005)
+  "nova-scotia-power": "119314938",                   // NOVA SCOTIA POWER INCORPORATED · NS (…NS0001)
+  "pembina-pipeline": "870693231",                    // PEMBINA PIPELINE CORPORATION · AB
+  "pcl-construction": "104116249",                    // PCL CONSTRUCTORS INC. · AB
+  "altalink": "868544818",                            // ALTALINK MANAGEMENT LTD. · AB
 };
 
 export function bnForOrgName(orgName: string): string | undefined {

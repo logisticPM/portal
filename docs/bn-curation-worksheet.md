@@ -1,15 +1,14 @@
 # BN curation — `org-bn-map.ts`
 
-**Status:** done 2026-07-15. **24 of 103 seeded orgs curated** (in the map) — every
-federally-incorporated (CBCA) org whose parent is unambiguous. Sourced from Corporations Canada:
-the interactive federal registry (`ised-isde.canada.ca/cc`) for the first batch, then cross-checked
-and extended against the **CBCA-active bulk open dataset** (`open.canada.ca`, 98 MB, matched by
-corporate name). The other 79 orgs are categorized below by *why* they can't be curated from this
-registry. **All 24 pass `validate-org-bn-map.ts`** (Luhn format + key matches a real seeded org).
+**Status:** done 2026-07-15. **37 of 103 seeded orgs curated** (in the map) — every org whose
+Business Number is sourceable from a public registry with an unambiguous Active parent. Sourced from
+Corporations Canada: the federal registry + CBCA-active bulk open dataset for the 24 federal corps,
+and **Canada's Business Registries** (`ised-isde.canada.ca/cbr-rec`, the provincial federated search)
+for 13 provincial corps. **All 37 pass `validate-org-bn-map.ts`** (Luhn + key matches a real seeded org).
 
-## ✅ Curated (24 — in `ORG_BN_MAP`)
+## ✅ Curated — federal CBCA (24)
 
-Each is the **Active parent** among that name's registry hits (corp # in the map file for audit).
+Active parent among each name's registry hits (corp # in the map file for audit).
 
 | Slug | Registry legal entity | BN root |
 |---|---|---|
@@ -38,55 +37,66 @@ Each is the **Active parent** among that name's registry hits (corp # in the map
 | `the-north-west-company` | The North West Company Inc. | `895556991` |
 | `enbridge` | Enbridge Inc. *(parent of 62 entities)* | `119653384` |
 
-> **Judgment calls flagged:** `enbridge` (62 entities → chose the public parent Enbridge Inc.);
-> `westjet` (chose the CBCA holding **WestJet Group Inc.**); `intact-financial` (the CBCA holding
-> **Intact Financial Corporation** — the operating insurer is under OSFI). Re-confirm if the team wants
-> a different entity for any of these.
+## ✅ Curated — provincial (13, via Canada's Business Registries)
 
-**Before the prod migration:** spot-check the flagged rows against the registry, and once the ISED
-integration is live run `REGISTRY_IMPL=ised npx tsx scripts/validate-org-bn-map.ts` for an automated
-legal-name cross-check.
+BN root from the province's registry entry for the Active parent (registry ID / province in the map file).
 
-## ✋ Not curated (79) — categorized, not guessed
+| Slug | Registry legal entity | Prov | BN root |
+|---|---|---|---|
+| `telus` | TELUS Corporation | BC | `877429621` |
+| `canfor` | CANFOR CORPORATION | BC | `100783562` |
+| `west-fraser` | WEST FRASER TIMBER CO. LTD. | BC | `105643464` |
+| `fortisbc` | FORTISBC HOLDINGS INC. | BC | `105349740` |
+| `agnico-eagle` | AGNICO EAGLE MINES LIMITED | ON | `889122453` |
+| `hydro-one` | HYDRO ONE LIMITED | ON | `805129962` |
+| `ellisdon` | ELLISDON CORPORATION | ON | `872894332` |
+| `glencore-canada` | GLENCORE CANADA CORPORATION | ON | `897767646` |
+| `sobeys` | SOBEYS INC. | NS | `104902135` |
+| `nova-scotia-power` | NOVA SCOTIA POWER INCORPORATED | NS | `119314938` |
+| `pembina-pipeline` | PEMBINA PIPELINE CORPORATION | AB | `870693231` |
+| `pcl-construction` | PCL CONSTRUCTORS INC. | AB | `104116249` |
+| `altalink` | ALTALINK MANAGEMENT LTD. | AB | `868544818` |
 
-None of these are in the CBCA federal registry, so a BN can't be sourced from it:
+> **Judgment calls to re-confirm:** `enbridge` (public parent among 62); `westjet` / `intact-financial`
+> (CBCA holding chosen); `fortisbc` (Holdings entity for the BC brand); `pcl-construction`/`altalink`
+> (operating corp for an employee-owned / LP structure); `sobeys`/`nova-scotia-power` (NS BN root taken
+> from the `…NS0001`/`…NS0005` program-account string).
 
-- **Banks/insurers → OSFI** (Bank/Insurance Act, not CBCA): `rbc-royal-bank-of-canada`,
+**Before the prod migration:** spot-check the flagged rows, and once the ISED integration is live run
+`REGISTRY_IMPL=ised npx tsx scripts/validate-org-bn-map.ts` for an automated legal-name cross-check.
+
+## ✋ Not curated (63) — categorized, not guessed
+
+- **Banks/insurers → OSFI** (excluded from every business registry): `rbc-royal-bank-of-canada`,
   `bmo-bank-of-montreal`, `cibc`, `scotiabank`, `td-bank-group`, `national-bank-of-canada`, `sun-life`,
-  `manulife`, `canada-life`. *(Confirmed empirically: an RBC search returns only a discontinued shell;
-  Manulife/Sun Life return only subsidiaries, not the OSFI-regulated parent.)*
-- **Federal Crown corps (own Act, not CBCA):** `canada-post`, `business-development-bank-of-canada`,
+  `manulife`, `canada-life`, `co-operators`, `intact`-operating-insurer, `atb-financial`,
+  `meridian-credit-union`, `vancity`.
+- **Federal Crown corps (own Act):** `canada-post`, `business-development-bank-of-canada`,
   `export-development-canada`, `canada-infrastructure-bank`, `canada-mortgage-and-housing-corporation`,
-  `parks-canada` (agency), `via-rail`, `cbc-radio-canada` (Broadcasting Act).
-- **Special Act corporation:** `bell-canada` (Bell Canada Act).
-- **Provincial crown / utilities:** `bc-hydro`, `hydro-qu-bec`, `saskpower`, `ontario-power-generation`,
-  `manitoba-hydro`, `nova-scotia-power`, `hydro-one`, `altalink`, `fortisbc`, `atco`, `atb-financial`,
-  `bclc`.
-- **Provincial corporations / partnerships:** `telus`, `pembina-pipeline`, `rogers-communications`
-  (parent BC), `sobeys` (NS), `agnico-eagle` (ON), `canfor` (BC), `west-fraser` (BC), `ellisdon` (ON),
-  `pcl-construction` (AB), `graham-construction` (AB), `atkinsr-alis` (SNC-Lavalin, QC), `wsp` (parent
-  WSP Global QC; only the sub *WSP Canada Inc.* is CBCA), `ikea-canada` (LP), `bruce-power` (ON LP),
-  `syncrude` (JV), `glencore-canada`, `iron-ore-company-of-canada`, `meridian-credit-union` (ON),
-  `vancity` (BC), `co-operators` (co-op).
-- **Foreign parent:** `newmont` (US), `diavik-diamond-mine-rio-tinto` (Rio Tinto JV).
+  `parks-canada`, `via-rail`, `cbc-radio-canada`. **Special Act:** `bell-canada`.
+- **Provincial crowns / statutory (no BN published):** `bc-hydro`, `ontario-power-generation`,
+  `saskpower`, `manitoba-hydro`, `hydro-qu-bec` (QC), `bclc`, `metrolinx`, `translink`. *(Checked: BC
+  Hydro and OPG return only entities with a blank BN.)*
+- **Québec-incorporated (registry shows the NEQ, not the CRA BN):** `atkinsr-alis` (AtkinsRéalis/SNC),
+  `wsp` (WSP Global). Get the BN from the entity directly.
+- **Registry noise / no clean active BN:** `atco` (parent buried among 149 subs; QC extra-prov reg
+  surfaces first), `rogers-communications` (QC NEQ + a BN-less recent BC reg), `graham-construction`
+  (only inactive entries), `federated-co-operatives` (SK co-op — only a cancelled BC reg).
+- **Foreign parent / JV / LP:** `newmont` (US), `diavik-diamond-mine-rio-tinto`, `syncrude` (JV),
+  `bruce-power` (ON LP), `ikea-canada` (LP), `iron-ore-company-of-canada` (NL — not in CBR).
 - **LLPs (provincial partnerships):** `deloitte-canada`, `kpmg-canada`, `pwc-canada`.
-- **Universities (provincial statutory bodies — no corp BN):** `mcgill-university`, `mcmaster-university`,
-  `red-river-college-polytechnic`, `university-of-alberta`, `university-of-british-columbia`,
-  `university-of-calgary`, `university-of-manitoba`, `university-of-toronto`, `western-university`.
-- **Health authorities (provincial statutory):** `alberta-health-services`, `fraser-health`,
-  `interior-health`, `saskatchewan-health-authority`, `vancouver-coastal-health`.
-- **Airport / port / transit authorities:** `calgary-airport-authority`, `edmonton-international-airport`,
-  `toronto-pearson-gtaa`, `port-of-vancouver-vancouver-fraser-port-authority`, `metrolinx`, `translink`.
+- **Universities (9) & health authorities (5)** — provincial statutory bodies, no corporate BN.
+- **Airport / port authorities:** `calgary-airport-authority`, `edmonton-international-airport`,
+  `toronto-pearson-gtaa`, `port-of-vancouver-vancouver-fraser-port-authority`.
 
-To curate any of these, source the BN from the right registry (OSFI for banks/insurers; Canada's
-Business Registries / the province for provincial corps; the entity's own filings for crown corps and
-statutory bodies), add the row, and re-run `validate-org-bn-map.ts`.
+To curate any of these, source the BN from the right place (OSFI for banks/insurers; the entity's own
+filings for Québec corps, crown corps, and statutory bodies), add the row, and re-run the validator.
 
 ## Demo orgs — no map entry needed
 
 `northway-energy` (`c-northway`), `cedar-trust-bank` (`c-cedartrust`), `maple-telecom` (`c-mapletel`)
-are fictional demo accounts. Their commitments already carry `orgId`, so the company edits them via
-the `orgId === partyId` path — they don't need the BN crosswalk.
+are fictional demo accounts. Their commitments already carry `orgId`, so the company edits them via the
+`orgId === partyId` path — they don't need the BN crosswalk.
 
-*Full seeded set = 103 orgs: `grep -oE 'orgName: "[^"]+"' src/lib/commitments/fixtures.ts | sort -u`.
-Coverage: 24 curated + 3 demo + 76 categorized (not in the federal CBCA registry).*
+*Full seeded set = 103 orgs. Coverage: **37 curated** (24 federal + 13 provincial) + 3 demo + 63
+not-sourceable-from-a-public-registry.*
