@@ -193,9 +193,10 @@ in-country inference in this account — the model call crosses the border eithe
   sovereignty posture the default is still Option B; BDA is an optional public-only path. (Open decision §11.1.)
 - **True in-country inference** (data *and* processing in Canada) needs a **self-hosted / Canada-hosted
   model** — a larger future investment, flagged as the trigger-if-it-becomes-a-hard-requirement path.
-- **Re-test BDA in ca-central-1** before finalizing (the us-only result is a ~2-week-old point-in-time
-  sandbox finding; AWS adds regional support over time, and it may be a profile-ARN issue rather than a
-  hard block). See §11.4.
+- **BDA in Canada is confirmed impossible** (§11.4, verified 2026-07-15 by live test + AWS's
+  cross-region-inference region table): there is no Canadian BDA geography, so BDA can't process
+  Canadian-resident data. For `org_submitted` uploads this makes **Option B the only option**, not a
+  preference — the truncation bug below is therefore a hard prerequisite, not a nice-to-have.
 - Before Option B carries real private uploads, its **truncation bug** (grounded call runs out of output
   budget before the commitments array) must be fixed — it's a blocker for private extraction, tracked in
   the findings doc §4.
@@ -242,12 +243,16 @@ Each phase is independently shippable; do them before the first private upload, 
 3. **Migration timing:** migrate the public stack to ca-central-1 now (Phase 2) vs only when the first
    private upload is imminent. (Recommend: do Phase 1 now; Phases 2-5 when a real private upload is on
    the horizon — but the SCP + region default are cheap to set early.)
-4. **Re-test BDA runtime in ca-central-1** (blocks §8/§11.1): the "us-east-1 only" result is a
-   point-in-time sandbox finding (2026-07-01). Before committing to Option-B-only for private extraction,
-   re-verify whether `InvokeDataAutomationAsync` now works in ca-central-1 (a different/newer
-   `data-automation-profile` ARN, or added regional support). If BDA runs in-region, private uploads
-   could keep the stronger engine AND Canadian residency — materially changing §8. (Recommend: a
-   half-day spike before any extraction-routing build.)
+4. **~~Re-test BDA runtime in ca-central-1~~ — RESOLVED 2026-07-15: BDA is genuinely unavailable in
+   Canada.** Verified two ways: (a) live-tested this account — `ca.data-automation-v1` is an invalid ARN,
+   and a us-east-1 profile ARN is rejected in ca-central-1 "for the service region"; (b) AWS's own
+   cross-region-inference table ([bda-cris](https://docs.aws.amazon.com/bedrock/latest/userguide/bda-cris.html))
+   lists only **US / EU / APAC / GovCloud** geo profiles — **there is no Canadian BDA geography**, and
+   ca-central-1 is not a supported source region for any profile. Since BDA keeps inference within the
+   data's geography and Canada isn't one, **BDA cannot process Canadian-resident data at all.** ⇒ For
+   `org_submitted` (Canadian-hosted) uploads, **Option B is the only path** (this closes §11.1 for
+   private data: not a choice — a constraint). Public docs *may* still use BDA (us geo), but require
+   the upload/input bucket in a US region.
 5. **In-country inference bar:** is *inference* residency (model call in Canada) a client requirement, or
    only *hosting* (data at rest)? If only hosting, the current design suffices; if inference too, that
    triggers the self-hosted/Canada-hosted-model investment (§8). (Recommend: confirm with the client —
