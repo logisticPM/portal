@@ -286,3 +286,13 @@ Each phase is independently shippable; do them before the first private upload, 
   a separate P3 rotation, not solved here.
 - Builds conceptually on the crosswalk's BN identity (owner = BN) and the merged evidence-precedence work
   (public Index unaffected — it's all `public`).
+- **Extraction reliability / dual-engine cross-check — related but separate (not a governance concern).**
+  Since inference geo-routes for both engines anyway, one might keep BDA + Option B and cross-check them
+  for higher-confidence extraction (they ground differently — BDA by page+confidence, Option B by
+  verbatim quote — so agreement = high trust, disagreement = flag for review). Two caveats keep this out
+  of *this* spec: (1) **BDA can't touch `org_submitted` data** — it forces the input bucket into a US
+  region, a *hosting* violation (§8), so a cross-engine ensemble can't serve the dominant (private) path;
+  the private-data version would be *within-Canada* (Option B self-consistency / grounded-quote coverage),
+  with cross-engine agreement usable only for the *public* corpus. (2) It's an extraction-*quality*
+  feature, orthogonal to residency/consent. Near-term priority remains **fixing Option B's truncation**
+  (the only path for private extraction). Capture as its own extraction-reliability note if pursued.
