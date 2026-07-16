@@ -45,4 +45,65 @@ check(
 check("an unsplittable single-line chunk returns null (caller must fail loudly)",
   splitInHalf({ text: "oneline", index: 0 }) === null);
 
+// --- F2: splitLargeParagraph (chunk.ts:37-58), the actual production path. ---
+// Real OCR text (loadDocumentText) has NO blank lines, so chunkDocument's
+// paragraph split (/\n\s*\n/) never fires — the whole document is ONE
+// paragraph and everything falls through splitLargeParagraph, sentence
+// splitting. These fixtures force that branch (previous fixtures above were
+// 50-90 chars and never exceeded targetChars, so it never ran).
+
+// A single "paragraph" (no blank lines) with several period-terminated
+// sentences, deliberately sized so it must be split into multiple pieces at
+// a small target.
+const sentence = (n: number) =>
+  `This is sentence number ${n} describing commitment activity in detail.`;
+const bigParaSentences = Array.from({ length: 20 }, (_, i) => sentence(i + 1)).join(" ");
+check("fixture is actually larger than target (branch precondition)", bigParaSentences.length > 400);
+
+const sentenceChunks = chunkDocument(bigParaSentences, 400);
+check("an oversized single paragraph is split into multiple pieces",
+  sentenceChunks.length > 1);
+check("no piece exceeds target when sentences are short enough to fit",
+  sentenceChunks.every((c) => c.text.length <= 400));
+check("splitting an oversized paragraph loses no text (sentences reproduce exactly)",
+  sentenceChunks.map((c) => c.text).join(" ").replace(/\s+/g, " ").trim() ===
+    bigParaSentences.replace(/\s+/g, " ").trim());
+
+// A single sentence longer than target: the code deliberately keeps it whole
+// rather than cutting mid-sentence, so its piece legitimately overshoots.
+const longSentence = `This one sentence is deliberately padded with a lot of extra words so that all by itself, with no period anywhere in the middle, it exceeds the small target size we are testing against here today.`;
+check("long-sentence fixture is itself larger than target (branch precondition)",
+  longSentence.length > 100);
+const overlong = chunkDocument(longSentence, 100);
+check("an over-long single sentence becomes its own whole piece (not split mid-sentence)",
+  overlong.length === 1 && overlong[0].text === longSentence);
+
+// Mix: a normal-sized sentence followed by one over-long sentence followed by
+// more normal sentences — the over-long one should overshoot target while its
+// neighbors still get packed normally, and nothing should be lost.
+const mixed = `${sentence(1)} ${longSentence} ${sentence(2)} ${sentence(3)}`;
+const mixedChunks = chunkDocument(mixed, 100);
+check("mixed short/over-long sentences: no text lost",
+  mixedChunks.map((c) => c.text).join(" ").replace(/\s+/g, " ").trim() ===
+    mixed.replace(/\s+/g, " ").trim());
+check("mixed short/over-long sentences: only the over-long sentence's own piece exceeds target",
+  mixedChunks.every((c) => c.text.length <= 100 || c.text.includes(longSentence)));
+
+// The realistic failure mode this spike measures: consecutive bullet-list
+// items with NO trailing period (real RAP OCR text — Textract LINE blocks
+// carry no sentence punctuation on list items). Because splitLargeParagraph
+// only splits AFTER a period, a run of unpunctuated bullets joined by "\n"
+// has ZERO split points and becomes one single oversized piece, however large.
+const bullets = Array.from(
+  { length: 15 },
+  (_, i) => `Require all employees to complete action item number ${i + 1} on the plan`,
+).join("\n");
+check("bullets-with-no-periods fixture is larger than target (branch precondition)",
+  bullets.length > 300);
+const bulletChunks = chunkDocument(bullets, 300);
+check("a run of unpunctuated bullets has no sentence split point, so it stays ONE oversized piece",
+  bulletChunks.length === 1 && bulletChunks[0].text.length > 300);
+check("the unpunctuated-bullet block still loses no text",
+  bulletChunks[0].text.replace(/\s+/g, " ").trim() === bullets.replace(/\s+/g, " ").trim());
+
 process.exit(fail ? 1 : 0);
