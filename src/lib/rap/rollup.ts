@@ -9,6 +9,7 @@
 // that needs the target denormalized onto the rollup or observation.
 // ===========================================================================
 import type { CommitmentRollup, Observation, ProgressStatus } from "./types";
+import type { DataClass } from "../governance";
 
 export const STATUS_PERCENT: Record<ProgressStatus, number> = {
   not_started: 0,
@@ -22,9 +23,14 @@ export function computeRollup(
   commitId: string,
   observations: Observation[],
   now: string = new Date().toISOString(),
+  // Fallback only for the (should-not-happen) empty-observations case, where
+  // there is no observation to inherit a real classification from. Callers
+  // that have a Commitment on hand should prefer inheriting its dataClass
+  // before falling back to this conservative default.
+  fallbackDataClass: DataClass = "org_submitted",
 ): CommitmentRollup {
   if (observations.length === 0) {
-    return { commitId, latestStatus: "not_started", percentComplete: 0, observationCount: 0, updatedAt: now };
+    return { commitId, latestStatus: "not_started", percentComplete: 0, observationCount: 0, updatedAt: now, dataClass: fallbackDataClass };
   }
   // observedAt is ISO-8601 → lexical sort = chronological
   const latest = [...observations].sort((a, b) => a.observedAt.localeCompare(b.observedAt)).at(-1)!;
@@ -34,5 +40,8 @@ export function computeRollup(
     percentComplete: STATUS_PERCENT[latest.status],
     observationCount: observations.length,
     updatedAt: now,
+    // The rollup belongs to the same graph as the observations it summarizes
+    // — inherit their classification, never re-derive it.
+    dataClass: latest.dataClass,
   };
 }

@@ -119,6 +119,9 @@ export async function recordRapProgressForParty(input: {
     observedValue,
     note: input.note,
     recordedBy: input.partyId,
+    // Inherit the commitment's own classification — this Observation belongs
+    // to the same published graph, never a fresh default (spec §6).
+    dataClass: c.dataClass,
   });
   // Deployed, the rollup is recomputed asynchronously by the DynamoDB Streams
   // Lambda (src/functions/rap-rollup.ts). That Lambda never fires against the

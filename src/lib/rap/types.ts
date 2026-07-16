@@ -293,6 +293,8 @@ export interface RapOrganization {
   registryStatus: string | null; // e.g. "Active"
   registrySource: "ised" | "self_asserted" | null;
   verifiedAt: string | null; // ISO 8601 — when the registry match was recorded
+
+  dataClass: DataClass;
 }
 
 export interface RapDocument {
@@ -309,6 +311,10 @@ export interface RapDocument {
   claimBasis: ClaimBasis; // doc-level default for its commitments
   status: "active" | "superseded";
   createdAt: string;
+
+  // governance (spec §6) — inherited from the ExtractionJob that produced this
+  // graph; never re-derived at publish time.
+  dataClass: DataClass;
 }
 
 export interface Commitment {
@@ -328,6 +334,8 @@ export interface Commitment {
   source: { quote: string; page: number | null };
   // claim provenance: self-reported vs verified, and who QA'd the extraction
   provenance: Provenance;
+
+  dataClass: DataClass;
 }
 
 export type ProgressStatus = "not_started" | "on_track" | "delayed" | "met" | "missed";
@@ -339,6 +347,8 @@ export interface Observation {
   observedValue: number | null;
   note: string | null;
   recordedBy: string; // reviewer/system id
+
+  dataClass: DataClass;
 }
 
 // commitment rollup (COMMIT#<id> / META) for O(1) current-state reads
@@ -348,6 +358,8 @@ export interface CommitmentRollup {
   percentComplete: number; // computed in code
   observationCount: number;
   updatedAt: string;
+
+  dataClass: DataClass;
 }
 
 // ===========================================================================

@@ -27,7 +27,7 @@ import { runExtraction } from "../src/lib/rap/pipeline.mock";
 
   // company records progress → lock engages
   const commit = (await rapRepo.listCommitmentsByRap(rapId))[0];
-  await rapRepo.putObservation({ commitId: commit.id, observedAt: new Date().toISOString(), status: "on_track", observedValue: 40, note: null, recordedBy: "party-123" });
+  await rapRepo.putObservation({ commitId: commit.id, observedAt: new Date().toISOString(), status: "on_track", observedValue: 40, note: null, recordedBy: "party-123", dataClass: commit.dataClass });
   await assert.rejects(() => pub("lk3"), /locked/i, "re-extraction blocked after company progress");
   console.log("OK test-rap-reextract-lock");
 })().catch((e) => {

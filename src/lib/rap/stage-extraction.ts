@@ -91,6 +91,7 @@ export async function publishAndConfirm(job: ExtractionJob, extracted: Extracted
       extractionId: job.id,
       now,
       reviewedBy,
+      dataClass: job.dataClass,
       registry: job.businessNumber
         ? {
             businessNumber: job.businessNumber,

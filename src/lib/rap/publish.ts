@@ -22,6 +22,7 @@ import type {
   Sector,
   SizeBand,
 } from "./types";
+import type { DataClass } from "../governance";
 import { COMMITMENT_TYPES, PILLARS, SECTORS } from "./extraction-schema";
 
 // Coerce a raw (possibly model-produced) string to a known enum value, falling
@@ -177,6 +178,7 @@ export function buildCanonical(
     extractionId: string;
     now: string;
     reviewedBy: string | null; // "system:auto" | reviewer id
+    dataClass: DataClass; // REQUIRED — from the job. Never defaulted (spec §6).
     claimBasis?: ClaimBasis; // default: self_reported (RAPs are self-published)
     // registry-backed identity (Task 3: BN-keyed org). null/absent ⇒ self-asserted,
     // name-keyed org — every field on the org defaults to null.
@@ -205,6 +207,7 @@ export function buildCanonical(
     registryStatus: meta.registry?.registryStatus ?? null,
     registrySource: meta.registry?.registrySource ?? null,
     verifiedAt: meta.registry?.verifiedAt ?? null,
+    dataClass: meta.dataClass,
   };
 
   const period = val(extracted.periodCovered);
@@ -222,6 +225,7 @@ export function buildCanonical(
     claimBasis,
     status: "active",
     createdAt: meta.now,
+    dataClass: meta.dataClass,
   };
 
   const commitments: Commitment[] = [];
@@ -251,6 +255,7 @@ export function buildCanonical(
         sourceS3Key: meta.sourceS3Key,
         extractionConfidence: commitmentConfidence(c),
       },
+      dataClass: meta.dataClass,
     });
     // seed a baseline observation so the commitment shows on the trend from day 1
     observations.push({
@@ -260,6 +265,7 @@ export function buildCanonical(
       observedValue: null,
       note: "Baseline at publication",
       recordedBy: "system",
+      dataClass: meta.dataClass,
     });
     rollups.push({
       commitId: id,
@@ -267,6 +273,7 @@ export function buildCanonical(
       percentComplete: 0,
       observationCount: 1,
       updatedAt: meta.now,
+      dataClass: meta.dataClass,
     });
   });
 
