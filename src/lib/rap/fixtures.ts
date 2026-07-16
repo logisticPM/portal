@@ -178,5 +178,6 @@ export const jobs: ExtractionJob[] = [
     businessNumberSource: null,
     registryLegalName: null,
     registryStatus: null,
+    dataClass: "org_submitted",
   },
 ];

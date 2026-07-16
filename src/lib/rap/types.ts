@@ -18,6 +18,7 @@
 // ===========================================================================
 
 import type { CanonicalSector, CanonicalCommitmentType } from "@/lib/taxonomy";
+import type { DataClass } from "../governance";
 
 // Bump when the extraction schema changes; stored on every job for traceability
 // so re-runs and schema-evolution diffs are auditable.
@@ -211,6 +212,9 @@ export interface ExtractionJob {
   businessNumberSource: "ised" | "self_asserted" | null;
   registryLegalName: string | null; // registry-confirmed legal name
   registryStatus: string | null; // e.g. "Active"
+
+  // --- governance (spec §6): set once at ingestion, never inferred later ---
+  dataClass: DataClass;
 }
 
 // input to start a job (pre-extraction)
@@ -218,6 +222,7 @@ export interface NewExtractionJob {
   id: string;
   fileName: string;
   sourceS3Key: string;
+  dataClass: DataClass; // decided by classifyUpload() at the upload action
 }
 
 // what the pipeline hands back to be staged for review

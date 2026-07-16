@@ -14,7 +14,7 @@ import { runExtraction } from "../src/lib/rap/pipeline.mock";
 (async () => {
   const base = (await runExtraction({ fileName: "lock.pdf", sourceS3Key: "s3://l" })).extracted;
   async function pub(id: string) {
-    const job = await extractionRepo.createJob({ id, fileName: "lock.pdf", sourceS3Key: `s3://${id}` });
+    const job = await extractionRepo.createJob({ id, fileName: "lock.pdf", sourceS3Key: `s3://${id}`, dataClass: "org_submitted" });
     await extractionRepo.setJobOrg(id, { businessNumber: "119653384", businessNumberSource: "ised", registryLegalName: "X", registryStatus: "Active" });
     await publishAndConfirm((await extractionRepo.getJob(id))!, base, "tester");
     return (await extractionRepo.getJob(id))!.rapId!;

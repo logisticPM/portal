@@ -20,7 +20,7 @@ let seq = 0;
 // content-hash falls back to hashing the file name when no S3 is configured).
 async function publishDoc(fileName: string, extracted: ExtractedRap): Promise<string> {
   const id = `job-${seq++}`;
-  const job = await extractionRepo.createJob({ id, fileName, sourceS3Key: `s3://doc/${id}` });
+  const job = await extractionRepo.createJob({ id, fileName, sourceS3Key: `s3://doc/${id}`, dataClass: "org_submitted" });
   await publishAndConfirm(job, extracted, "tester");
   return (await extractionRepo.getJob(id))!.rapId!;
 }
