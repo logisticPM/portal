@@ -15,7 +15,11 @@ export default async function ExtractPage({ searchParams }: { searchParams: { ta
         <div>
           <h1 className="font-serif text-2xl mb-1">Submit a RAP for extraction</h1>
           <p className="text-ink2 text-sm mb-4">Upload a published RAP PDF; AI extracts commitments for review before they publish.</p>
-          <UploadForm />
+          {/* Staff-only surface (INDIGENOMICS_ONLY in middleware), so the
+              published-disclosure declaration is offered here and ONLY here —
+              /my-rap renders this same component for companies, where the
+              declaration is ignored by design (spec §6). */}
+          <UploadForm allowPublicDeclaration />
         </div>
       ) : (
         <ReviewPanel />
