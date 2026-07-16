@@ -54,6 +54,11 @@ So the residency spectrum is: **A** = data + inference in US · **B** = data at 
 
 ## 4. Why Option B truncates (the real blocker), and the fix
 
+> ⚠️ **Partly superseded — read §4a first.** The "~2,200 characters" figure and the
+> "lighten the grounding" fix in this section were both measured wrong; the 8192 cap
+> no longer applies (it is 16000). §4a records what the real document actually does.
+> Full rewrite is Task 5 of the Option B chunking plan.
+
 On the 13-page RAP, Claude extracted **all 13 header fields perfectly** — each with a verbatim quote, page number, and calibrated confidence (it even read `reviewCycle: "Every three years"` correctly, where BDA wrongly returned "annual"). But it **truncated before the commitments array** with `stop_reason: max_tokens`.
 
 The diagnostic: the model reported **`output_tokens: 8192` (the full cap) for only ~2,200 characters of JSON** — a ~15× mismatch. The output budget is being consumed far faster than visible JSON is produced, so it runs out before the ~22 commitments. Raising the cap to 32k made the generation long enough that the **connection aborted**. The two constraints collide.
@@ -66,6 +71,46 @@ The diagnostic: the model reported **`output_tokens: 8192` (the full cap) for on
 3. **Model/param tuning** — try a different Claude model/profile, or investigate the token-vs-char anomaly (possible interleaved reasoning consuming the budget).
 
 We fixed the connection-level issues along the way (these are committed and correct regardless): **streaming** (`InvokeModelWithResponseStream`), an **http/1.1 handler with a long timeout** (the default http2 handler dropped long generations), and **async multi-page Textract**. The pipeline now also **detects the truncation** and throws a clear error rather than a confusing JSON-parse failure.
+
+---
+
+## 4a. Chunk-boundary spike — how we cut a real RAP (2026-07-16)
+
+Everything in §4 was measured on **synthetic `.txt`**, which short-circuits `loadDocumentText` and **bypasses Textract entirely**. Nothing had ever seen real OCR output. This spike ran three boundary strategies against the real `test/BankOfCanada_RAP.pdf` and measured them. Plan: `docs/superpowers/plans/2026-07-16-chunk-boundary-spike.md`.
+
+**The document (measured, not assumed):** it is **17 pages, not 13** (§4/§5 say 13 — wrong). Real OCR output is 21,388 chars. Its commitments are the 22 "Some key actions:" bullets — 12 on p13, 10 on p15 — which **independently matches BDA's 22 in §5**. That is the gold set the arms were scored against.
+
+**Result — arm (a) Textract LAYOUT wins, decisively and not on the expected grounds:**
+
+| Arm | Boundary source | Gold found | **Pages correct** | **Quotes verbatim** |
+|---|---|---|---|---|
+| **(a)** | Textract `LAYOUT` blocks | 22/22 | **22/22** | **32/32** |
+| (b) | single newline | 22/22 | 8/22 | 11/32 |
+| (c) | sentence (status quo) | 10/22 | 1/10 | 9/19 |
+
+**The real finding — the OCR text was scrambled before chunking ever ran.** Pages 13 and 15 lay their bullets out in **two columns**, and `StartDocumentTextDetection` returns `LINE` blocks in page-wide top-to-bottom order, so the columns interleave:
+
+```
+Invest in the CBNII to share          ← left column
+Continue to integrate Indigenous      ← right column, a DIFFERENT commitment
+work and learn best practices in      ← left again
+```
+
+Only **3 of 22** commitments existed as contiguous text in what we were sending Claude. This is upstream of the chunker: no boundary rule can reassemble text that isn't contiguous. It invalidates the premise of §4's "one big call truncates" framing — the input was already corrupt on the two pages that hold every commitment.
+
+**Why (b) is the dangerous one.** Claude *reconstructs* the interleaved columns, so arm (b) scores a perfect 22/22 on count — but **21 of its 32 quotes are fabricated**: it welds fragments from two columns into a verbatim-looking span that appears nowhere in the document. A real example it returned:
+
+> "Reshape our relationship with Indigenous Peoples **that values Indigenous histories, teachings and identities**"
+
+— two unrelated p5 bullets stitched together. Its page numbers are systematically **off by one** (p12 for p13, p14 for p15), because the model infers page from the nearest preceding page-number line. Those pages are in-range, varied and non-null, so they **pass a "plausible" check while being wrong**. On a compliance product, a confident fabricated citation is worse than a miss.
+
+**Arm (a) fixes this at the source:** LAYOUT resolves multi-column reading order natively, and each block carries its own `Page`, so pages are *read* rather than guessed. Two consequences worth knowing:
+- LAYOUT_LIST blocks **overlap** their sibling LAYOUT_TEXT blocks (33% of words are owned twice). Emitting every block naively duplicates every commitment — `buildTextFromLayoutBlocks` dedupes deliberately.
+- The emitted text is **no longer byte-for-byte the source**: `[p.N]` markers are injected and running header/footer/page-number boilerplate is dropped. That is the price of correct page grounding.
+
+**Costs:** `AnalyzeDocument`+LAYOUT is a pricier Textract tier than plain text detection (unmeasured). One `aborted` stream was observed live on a 5,794-char chunk — the transient failure is real and small chunks do not prevent it, so orchestration must retry.
+
+**F3 is not latent.** `validate.ts`'s `requireQuote` only checks `quote !== null` and never substring-matches the document, so **all 21 of arm (b)'s fabricated quotes would pass validation today**. Under arm (a) this is not currently firing, but the gate is not actually checking what it claims to.
 
 ---
 
