@@ -81,6 +81,7 @@ export const mockExtractionRepo: ExtractionRepo = {
       businessNumberSource: null,
       registryLegalName: null,
       registryStatus: null,
+      dataClass: input.dataClass,
     };
     store.jobs.push(job);
     return job;

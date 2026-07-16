@@ -7,7 +7,7 @@ async function main() {
   assert.equal(canPublish({ businessNumber: null } as any), false, "no BN → cannot publish");
   assert.equal(canPublish({ businessNumber: "119653384" } as any), true, "BN → can publish");
 
-  const job = await extractionRepo.createJob({ id: "pg1", fileName: "x.pdf", sourceS3Key: "s3://pg1" });
+  const job = await extractionRepo.createJob({ id: "pg1", fileName: "x.pdf", sourceS3Key: "s3://pg1", dataClass: "org_submitted" });
   assert.equal(canPublish(job), false, "freshly created job has no BN");
   await extractionRepo.setJobOrg(job.id, {
     businessNumber: "119653384",

@@ -14,7 +14,7 @@ import { runExtraction } from "../src/lib/rap/pipeline.mock";
 (async () => {
   const base = (await runExtraction({ fileName: "lock.pdf", sourceS3Key: "s3://l" })).extracted;
   async function pub(id: string) {
-    const job = await extractionRepo.createJob({ id, fileName: "lock.pdf", sourceS3Key: `s3://${id}` });
+    const job = await extractionRepo.createJob({ id, fileName: "lock.pdf", sourceS3Key: `s3://${id}`, dataClass: "org_submitted" });
     await extractionRepo.setJobOrg(id, { businessNumber: "119653384", businessNumberSource: "ised", registryLegalName: "X", registryStatus: "Active" });
     await publishAndConfirm((await extractionRepo.getJob(id))!, base, "tester");
     return (await extractionRepo.getJob(id))!.rapId!;
@@ -27,7 +27,7 @@ import { runExtraction } from "../src/lib/rap/pipeline.mock";
 
   // company records progress → lock engages
   const commit = (await rapRepo.listCommitmentsByRap(rapId))[0];
-  await rapRepo.putObservation({ commitId: commit.id, observedAt: new Date().toISOString(), status: "on_track", observedValue: 40, note: null, recordedBy: "party-123" });
+  await rapRepo.putObservation({ commitId: commit.id, observedAt: new Date().toISOString(), status: "on_track", observedValue: 40, note: null, recordedBy: "party-123", dataClass: commit.dataClass });
   await assert.rejects(() => pub("lk3"), /locked/i, "re-extraction blocked after company progress");
   console.log("OK test-rap-reextract-lock");
 })().catch((e) => {

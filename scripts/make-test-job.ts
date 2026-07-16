@@ -11,7 +11,7 @@ async function main() {
   const fileName = process.env.FILE_NAME ?? "BankOfCanada_RAP.pdf";
   const sourceS3Key = process.env.S3KEY;
   if (!sourceS3Key) throw new Error("S3KEY env required (an existing uploaded object key)");
-  const job = await extractionRepo.createJob({ id, fileName, sourceS3Key });
+  const job = await extractionRepo.createJob({ id, fileName, sourceS3Key, dataClass: "org_submitted" });
   console.log(JSON.stringify({ jobId: job.id, fileName, sourceS3Key }));
 }
 

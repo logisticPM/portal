@@ -9,6 +9,7 @@ import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
 import { contentTypeFor, isUploadConfigured, putDocument, uploadKey } from "./storage";
 import { getSession } from "@/lib/auth";
+import { classifyUpload } from "@/lib/governance";
 
 const uuid = () => globalThis.crypto.randomUUID();
 
@@ -64,7 +65,14 @@ export async function uploadRapAction(formData: FormData) {
     sourceS3Key = `uploads/${docId}/${fileName}`;
   }
 
-  const job = await extractionRepo.createJob({ id: docId, fileName, sourceS3Key });
+  // Governance (spec §6): classify at ingestion, conservatively. A company's
+  // own upload is always org_submitted; staff uploads are too unless the
+  // document is explicitly declared a published disclosure.
+  const dataClass = classifyUpload({
+    sessionKind: session.kind,
+    declaredPublic: formData.get("declaredPublic") === "on",
+  });
+  const job = await extractionRepo.createJob({ id: docId, fileName, sourceS3Key, dataClass });
 
   // Company self-upload: auto-tag the job with the uploader's (single) claimed
   // BN so it isn't re-resolved at review. Staff uploads (or an ambiguous/no

@@ -6,7 +6,7 @@ import { StubRegistryProvider } from "../src/lib/rap/registry";
 
 async function main() {
   const reg = new StubRegistryProvider({ "119653384": { businessNumber: "119653384", legalName: "ENBRIDGE INC.", status: "Active", jurisdiction: "CA-federal", officeLocation: null, source: "ised" } });
-  const job = await extractionRepo.createJob({ id: "rj1", fileName: "x.pdf", sourceS3Key: "s3://rj1" });
+  const job = await extractionRepo.createJob({ id: "rj1", fileName: "x.pdf", sourceS3Key: "s3://rj1", dataClass: "org_submitted" });
 
   const bad = await resolveOrgForJob(reg, { jobId: job.id, bnRaw: "123" });
   assert.equal(bad.ok, false, "invalid BN rejected");

@@ -13,6 +13,7 @@ import { runExtraction } from "./pipeline";
 import { buildCanonical, isClean, reviewIsOff, scrubForAutoPublish } from "./publish";
 import { getDocumentBytes, isUploadConfigured } from "./storage";
 import type { ExtractedRap, ExtractionJob } from "./types";
+import { coerceDataClass } from "../governance";
 
 const uuid = () => globalThis.crypto.randomUUID();
 
@@ -91,6 +92,7 @@ export async function publishAndConfirm(job: ExtractionJob, extracted: Extracted
       extractionId: job.id,
       now,
       reviewedBy,
+      dataClass: coerceDataClass(job.dataClass),
       registry: job.businessNumber
         ? {
             businessNumber: job.businessNumber,

@@ -12,7 +12,7 @@ import { runExtraction } from "../src/lib/rap/pipeline.mock";
 
 (async () => {
   const base = (await runExtraction({ fileName: "p.pdf", sourceS3Key: "s3://p" })).extracted;
-  const job = await extractionRepo.createJob({ id: "pj1", fileName: "p.pdf", sourceS3Key: "s3://pj1" });
+  const job = await extractionRepo.createJob({ id: "pj1", fileName: "p.pdf", sourceS3Key: "s3://pj1", dataClass: "org_submitted" });
   await extractionRepo.setJobOrg("pj1", { businessNumber: "119653384", businessNumberSource: "ised", registryLegalName: "X", registryStatus: "Active" });
   await publishAndConfirm((await extractionRepo.getJob("pj1"))!, base, "tester");
   const rapId = (await extractionRepo.getJob("pj1"))!.rapId!;

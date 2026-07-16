@@ -119,6 +119,9 @@ export async function recordRapProgressForParty(input: {
     observedValue,
     note: input.note,
     recordedBy: input.partyId,
+    // Inherit the commitment's own classification — this Observation belongs
+    // to the same published graph, never a fresh default (spec §6).
+    dataClass: c.dataClass,
   });
   // Deployed, the rollup is recomputed asynchronously by the DynamoDB Streams
   // Lambda (src/functions/rap-rollup.ts). That Lambda never fires against the
@@ -126,7 +129,11 @@ export async function recordRapProgressForParty(input: {
   // same pure function, so it's a harmless no-op re-derivation when the stream
   // Lambda *does* also run against real Dynamo.
   const observations = await rapRepo.listObservations(input.commitId);
-  await rapRepo.putRollup(computeRollup(input.commitId, observations));
+  // listObservations is an eventually-consistent Query (no ConsistentRead), so
+  // it can race the putObservation above and return empty. Pass the loaded
+  // commitment's own dataClass as the fallback so that empty-read path inherits
+  // the correct classification instead of computeRollup's conservative default.
+  await rapRepo.putRollup(computeRollup(input.commitId, observations, undefined, c.dataClass));
   return { ok: true };
 }
 

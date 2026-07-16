@@ -12,7 +12,7 @@ import type { ExtractedRap } from "../src/lib/rap/types";
   let seq = 0;
   async function publishWithBN(name: string, bn9: string | null, file = "x.pdf") {
     const id = `job-id-${seq++}`;
-    const job = await extractionRepo.createJob({ id, fileName: file, sourceS3Key: `s3://${id}` });
+    const job = await extractionRepo.createJob({ id, fileName: file, sourceS3Key: `s3://${id}`, dataClass: "org_submitted" });
     // Task 4 sets these at review; here we simulate a resolved job:
     await extractionRepo.setJobOrg(id, bn9 ? { businessNumber: bn9, businessNumberSource: "ised", registryLegalName: name.toUpperCase(), registryStatus: "Active" } : null);
     const staged = (await extractionRepo.getJob(id))!;

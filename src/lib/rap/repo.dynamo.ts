@@ -76,6 +76,7 @@ export const dynamoExtractionRepo: ExtractionRepo = {
       businessNumberSource: null,
       registryLegalName: null,
       registryStatus: null,
+      dataClass: input.dataClass,
     };
     return putJob(job);
   },
