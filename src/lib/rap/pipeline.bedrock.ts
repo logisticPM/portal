@@ -8,8 +8,9 @@
 // ===========================================================================
 import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime";
 import {
-  GetDocumentTextDetectionCommand,
-  StartDocumentTextDetectionCommand,
+  type Block,
+  GetDocumentAnalysisCommand,
+  StartDocumentAnalysisCommand,
   TextractClient,
 } from "@aws-sdk/client-textract";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
@@ -42,9 +43,97 @@ const client = new BedrockRuntimeClient({
 const textract = new TextractClient({ region });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Layout block types that carry emittable body text. LAYOUT_HEADER / LAYOUT_FOOTER
+// / LAYOUT_PAGE_NUMBER are dropped as running-boilerplate noise (repeated on
+// every page, no extraction value — page identity is carried explicitly by the
+// "[p.N]" marker below instead). LAYOUT_FIGURE is dropped too, but costs
+// nothing in this document: figures have no LINE children (pure images, no
+// caption text was OCR'd). Dropping any of these means the emitted text is no
+// longer a byte-for-byte reproduction of the source document.
+const NOISE_LAYOUT_TYPES = new Set(["LAYOUT_HEADER", "LAYOUT_FOOTER", "LAYOUT_PAGE_NUMBER", "LAYOUT_FIGURE"]);
+
+// Join a layout block's LINE children (its CHILD relationship) into one string.
+function childLineText(block: Block, byId: Map<string, Block>): string {
+  const rel = block.Relationships?.find((r) => r.Type === "CHILD");
+  if (!rel) return "";
+  return (rel.Ids ?? [])
+    .map((id) => byId.get(id))
+    .filter((b): b is Block => !!b && b.BlockType === "LINE" && !!b.Text)
+    .map((b) => b.Text as string)
+    .join("\n");
+}
+
+// Reconstruct document text from Textract LAYOUT blocks, in Textract's own
+// reading order (LAYOUT already resolves multi-column pages into the correct
+// order; no re-sort needed). Pure, no AWS/IO — shared by the production loader
+// below and the offline measurement script (scratchpad/emit-chunks.ts), so the
+// two cannot drift.
+//
+// Dedupe (load-bearing): a LAYOUT_LIST's CHILD relationship points at
+// LAYOUT_TEXT blocks that ALSO appear as their own top-level entries in the
+// same Blocks array (verified against the cached test-fixture dump: 55
+// LAYOUT_TEXT blocks are list children; naively emitting every top-level
+// block duplicates ~33% of the document, including every commitment bullet).
+// We keep the LAYOUT_LIST's children — one paragraph per list item — and skip
+// those same LAYOUT_TEXT blocks when encountered again at top level. Emitting
+// one paragraph per list item (rather than one blob per list) also means each
+// bullet gets its own blank-line-delimited paragraph, so chunkDocument's
+// paragraph split can never land inside a single commitment.
+//
+// Page markers: every paragraph is prefixed with a "[p.N]" line so a page
+// number survives into whatever chunk the paragraph lands in. A marker
+// emitted only on page-change would be lost once a later chunk starts
+// mid-page, without the block that changed to that page — this pipeline has
+// no other page signal (a flat LINE join, the old behavior, carried none).
+// Cost: repeats a short marker on every paragraph, and — like dropping the
+// noise block types above — means chunk text is no longer a verbatim copy of
+// the source.
+export function buildTextFromLayoutBlocks(blocks: Block[]): string {
+  const byId = new Map<string, Block>();
+  for (const b of blocks) if (b.Id) byId.set(b.Id, b);
+
+  const listChildIds = new Set<string>();
+  for (const b of blocks) {
+    if (b.BlockType !== "LAYOUT_LIST") continue;
+    const rel = b.Relationships?.find((r) => r.Type === "CHILD");
+    for (const id of rel?.Ids ?? []) listChildIds.add(id);
+  }
+
+  const paragraphs: string[] = [];
+  const pushParagraph = (page: number | undefined, text: string) => {
+    const t = text.trim();
+    if (t) paragraphs.push(`[p.${page ?? "?"}]\n${t}`);
+  };
+
+  for (const b of blocks) {
+    if (!b.BlockType || NOISE_LAYOUT_TYPES.has(b.BlockType)) continue;
+
+    if (b.BlockType === "LAYOUT_LIST") {
+      const rel = b.Relationships?.find((r) => r.Type === "CHILD");
+      for (const id of rel?.Ids ?? []) {
+        const child = byId.get(id);
+        if (child) pushParagraph(child.Page, childLineText(child, byId));
+      }
+      continue;
+    }
+
+    // duplicate top-level entry for a block already emitted as a LAYOUT_LIST child
+    if (b.BlockType === "LAYOUT_TEXT" && b.Id && listChildIds.has(b.Id)) continue;
+
+    if (b.BlockType === "LAYOUT_TITLE" || b.BlockType === "LAYOUT_SECTION_HEADER" || b.BlockType === "LAYOUT_TEXT") {
+      pushParagraph(b.Page, childLineText(b, byId));
+    }
+  }
+
+  return paragraphs.join("\n\n");
+}
+
 // Fetch document text. Plain-text is decoded directly; PDFs/images are OCR'd via
-// ASYNC Textract (StartDocumentTextDetection → poll → paginate), which handles
-// MULTI-PAGE PDFs (the sync DetectDocumentText path was single-page only).
+// ASYNC Textract LAYOUT analysis (StartDocumentAnalysis FeatureTypes:["LAYOUT"]
+// → poll → paginate), which handles MULTI-PAGE PDFs (the sync path was
+// single-page only) and gives block boundaries the paragraph chunker can
+// actually use (see buildTextFromLayoutBlocks above — a flat LINE join has no
+// blank lines, so chunkDocument's paragraph split never used to fire).
 // Reads the object straight from S3 by bucket/key — no bytes round-trip.
 async function loadDocumentText(sourceS3Key: string, fileName: string): Promise<string> {
   if (/\.txt$/i.test(fileName)) {
@@ -53,8 +142,9 @@ async function loadDocumentText(sourceS3Key: string, fileName: string): Promise<
   if (!uploadBucket) throw new Error("RAP_UPLOAD_BUCKET not set (needed for Textract S3 input)");
 
   const start = await textract.send(
-    new StartDocumentTextDetectionCommand({
+    new StartDocumentAnalysisCommand({
       DocumentLocation: { S3Object: { Bucket: uploadBucket, Name: sourceS3Key } },
+      FeatureTypes: ["LAYOUT"],
     }),
   );
   const jobId = start.JobId!;
@@ -63,24 +153,22 @@ async function loadDocumentText(sourceS3Key: string, fileName: string): Promise<
   let status = "IN_PROGRESS";
   for (let i = 0; i < 60 && status === "IN_PROGRESS"; i++) {
     await sleep(5000);
-    const r = await textract.send(new GetDocumentTextDetectionCommand({ JobId: jobId }));
+    const r = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId }));
     status = r.JobStatus ?? "IN_PROGRESS";
     if (status === "FAILED") throw new Error(`Textract job failed: ${r.StatusMessage ?? "unknown"}`);
   }
   if (status !== "SUCCEEDED") throw new Error("Textract job did not complete within the poll window");
 
-  // collect LINE blocks across all result pages (NextToken pagination)
-  const lines: string[] = [];
+  // collect all blocks across all result pages (NextToken pagination)
+  const blocks: Block[] = [];
   let token: string | undefined;
   do {
-    const page = await textract.send(new GetDocumentTextDetectionCommand({ JobId: jobId, NextToken: token }));
-    for (const b of page.Blocks ?? []) {
-      if (b.BlockType === "LINE" && b.Text) lines.push(b.Text);
-    }
+    const page = await textract.send(new GetDocumentAnalysisCommand({ JobId: jobId, NextToken: token }));
+    blocks.push(...(page.Blocks ?? []));
     token = page.NextToken;
   } while (token);
 
-  return lines.join("\n");
+  return buildTextFromLayoutBlocks(blocks);
 }
 
 // classification is derivable from the grounded core fields (one fewer API call);
