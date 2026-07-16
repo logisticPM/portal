@@ -13,8 +13,16 @@ import type { DataClass } from "../src/lib/governance";
 
 const VALID: DataClass[] = ["public", "org_submitted"];
 
+// Plan scope (governance spec §6, Phase 1): document-derived RAP entities only.
+// `et` is the entity-type discriminator every RapData row carries (see `keys`
+// and the `to*Item` marshallers in src/lib/dynamo/rap-table.ts). OrgClaim rows
+// (`et: "Claim"`) are deliberately excluded — a claim is a grant record, not
+// document-derived content, and is out of this backfill's stated scope.
+const IN_SCOPE_ENTITY_TYPES = new Set(["Job", "Org", "Rap", "Commitment", "Observation", "Rollup"]);
+
 // Pure + testable: what class should this row get, or null to leave it alone?
 export function planRapDataClass(item: Record<string, any>): DataClass | null {
+  if (!IN_SCOPE_ENTITY_TYPES.has(item.et)) return null; // out of scope (e.g. OrgClaim)
   if (VALID.includes(item.dataClass)) return null; // already classified — idempotent
   return "org_submitted"; // untagged or invalid ⇒ conservative default
 }

@@ -10,6 +10,7 @@
 // ===========================================================================
 import type { CommitmentRollup, Observation, ProgressStatus } from "./types";
 import type { DataClass } from "../governance";
+import { coerceDataClass } from "../governance";
 
 export const STATUS_PERCENT: Record<ProgressStatus, number> = {
   not_started: 0,
@@ -41,7 +42,9 @@ export function computeRollup(
     observationCount: observations.length,
     updatedAt: now,
     // The rollup belongs to the same graph as the observations it summarizes
-    // — inherit their classification, never re-derive it.
-    dataClass: latest.dataClass,
+    // — inherit their classification, never re-derive it. Coerce because a
+    // legacy observation (written before dataClass existed) unmarshals to
+    // `undefined` at the Dynamo read boundary despite the type saying otherwise.
+    dataClass: coerceDataClass(latest.dataClass),
   };
 }

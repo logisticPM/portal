@@ -1,6 +1,6 @@
 // Tests the one conservative classification decision (spec §6).
 // Run: npx tsx scripts/test-governance-classify.ts
-import { classifyUpload } from "../src/lib/governance";
+import { classifyUpload, coerceDataClass } from "../src/lib/governance";
 
 let fail = 0;
 function check(name: string, ok: boolean) {
@@ -41,5 +41,14 @@ check(
   "null session + declaredPublic → org_submitted",
   classifyUpload({ sessionKind: null, declaredPublic: true }) === "org_submitted",
 );
+
+// coerceDataClass: the Dynamo read-boundary guard (finding 1 & 2). Must fail
+// CLOSED — anything not exactly "public" or "org_submitted" becomes
+// "org_submitted", never "public".
+check("coerceDataClass(undefined) → org_submitted (legacy row)", coerceDataClass(undefined) === "org_submitted");
+check("coerceDataClass(null) → org_submitted", coerceDataClass(null) === "org_submitted");
+check("coerceDataClass('banana') → org_submitted (garbage value)", coerceDataClass("banana") === "org_submitted");
+check("coerceDataClass('public') → public (preserved)", coerceDataClass("public") === "public");
+check("coerceDataClass('org_submitted') → org_submitted (preserved)", coerceDataClass("org_submitted") === "org_submitted");
 
 process.exit(fail ? 1 : 0);

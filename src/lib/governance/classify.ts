@@ -19,3 +19,11 @@ export function classifyUpload(input: ClassifyUploadInput): DataClass {
   }
   return "org_submitted";
 }
+
+// Dynamo's strip<T>() is a blind cast: a row written before dataClass existed
+// unmarshals to `undefined` while TypeScript believes the field is present.
+// Coerce at the read boundary so the type is honest and the value fails CLOSED
+// (conservative), never open. Same rule as the backfill's planRapDataClass.
+export function coerceDataClass(v: unknown): DataClass {
+  return v === "public" || v === "org_submitted" ? v : "org_submitted";
+}
