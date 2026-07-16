@@ -24,6 +24,11 @@ The Indigenomics client's data-governance guideline (verbatim):
 - Residency infra is a **dormant escape hatch**: the SST region is env-overridable
   (`sst.config.ts:32`, `SST_AWS_REGION=ca-central-1`), and a ca-central-1 extraction path already exists
   (`BEDROCK_REGION` is us-east-1 in prod for BDA, ca-central-1 elsewhere — `sst.config.ts:167`).
+- **Extraction reality (tested — `docs/rap-extraction-findings.md`, 2026-07-01):** the strong engine
+  (BDA) runs **only in us-east-1** in this account (ca-central-1 runtime fails on the profile ARN);
+  Option B (Claude) keeps data **at rest** in Canada but its **inference geo-routes** cross-region. So
+  Canadian **hosting** is achievable; strict in-country **inference** is not, today (see §8). The client
+  rule is about hosting.
 - **No governance layer exists:** no data-classification tag, no consent record, no access-audit log, no
   encryption-at-rest with a managed key, no least-privilege IAM per data class. Only an OCAP-flavoured
   `withdrawn` soft-delete on the economic-flow lines/confirmations.
@@ -126,7 +131,9 @@ Each principle is delivered by a native service; nothing bespoke.
 ### Possession — physical custody stays in Canada
 - **Mechanism:** `org_submitted` data (and, per §4, all data) is **physically stored in ca-central-1**,
   **encrypted at rest with a customer-managed key** whose custody is Canadian and whose decrypt is scoped
-  to owner roles.
+  to owner roles. **Possession = data *at rest* in Canada** — which is exactly what the client's
+  "Canadian hosting" requires. (Note: *inference* is a separate matter — see §8; the model call currently
+  crosses the border for both engines, a documented tradeoff, not a hosting violation.)
 - **AWS:** **S3** bucket + **DynamoDB** tables in `ca-central-1`; **KMS customer-managed key (CMK)** in
   `ca-central-1` with a key policy granting `Decrypt` only to the owner-scoped roles (so possession +
   control are one mechanism). S3: Block Public Access on, SSE-KMS, versioning + Object Lock for the
@@ -164,16 +171,36 @@ Each principle is delivered by a native service; nothing bespoke.
   lacks the permission and the key grant.
 - **Encryption:** SSE-KMS everywhere for `org_submitted`; TLS in transit (default). KMS key rotation on.
 
-## 8. Extraction under residency
+## 8. Extraction under residency — the honest tradeoff
 
-- **Private (`org_submitted`) uploads MUST extract in-country** → **Option B (Bedrock / Claude,
-  ca-central-1)**. BDA (us-east-1-only) is off-limits for private data — it cannot leave Canada.
-- **Public RAP extraction** *may* use BDA (us-east-1) since public data may be hosted anywhere — but
-  under the whole-stack + sovereignty posture, the **default is Option B (ca-central-1) for all
-  extraction**, with BDA retained only as an optional path for public documents if extraction quality
-  demands it. (Open decision §11.)
-- Today's `BEDROCK_REGION` split (`sst.config.ts:167`) already encodes the mechanism; the change is
-  making ca-central-1 the default and gating BDA behind `dataClass === "public"`.
+**Critical distinction: data-at-rest residency ≠ in-country inference.** Per the team's tested findings
+(`docs/rap-extraction-findings.md`, 2026-07-01), *neither* extraction engine currently achieves strict
+in-country inference in this account — the model call crosses the border either way:
+
+| | **BDA** (Option A) | **Claude on Bedrock** (Option B) |
+|---|---|---|
+| Data **at rest** | us-east-1 (BDA reads input from a same-region bucket) | **ca-central-1** ✅ |
+| **Inference** (model call) | us-east-1 | cross-region profile (`us.`/`global.` — no in-region-only Claude profile here) |
+| Runtime works in ca-central-1? | **No** — control plane yes, but `InvokeDataAutomationAsync` fails with "invalid ARN" for the `data-automation-profile`; only us-east-1 succeeds | Yes (data at rest); inference still geo-routes |
+| Quality | works end-to-end (22 commitments, 64s); ~20-page cap, chunked | better-grounded, but **truncates** on many-commitment RAPs today (fixable token-budget bug) |
+
+**What this means for the design:**
+- The client's requirement is **Canadian *hosting*** (data at rest) — **Option B satisfies it** (uploads
+  + RapData at rest in ca-central-1). BDA does **not** (it forces the upload bucket to us-east-1).
+- So for `org_submitted` uploads, **extraction must run on Option B (data at rest in ca-central-1)** to
+  meet the hosting rule — accepting that *inference* geo-routes cross-region (disclose to the client).
+- **Public** RAP extraction may use BDA (us-east-1) — public data may be hosted anywhere. Under the
+  sovereignty posture the default is still Option B; BDA is an optional public-only path. (Open decision §11.1.)
+- **True in-country inference** (data *and* processing in Canada) needs a **self-hosted / Canada-hosted
+  model** — a larger future investment, flagged as the trigger-if-it-becomes-a-hard-requirement path.
+- **Re-test BDA in ca-central-1** before finalizing (the us-only result is a ~2-week-old point-in-time
+  sandbox finding; AWS adds regional support over time, and it may be a profile-ARN issue rather than a
+  hard block). See §11.4.
+- Before Option B carries real private uploads, its **truncation bug** (grounded call runs out of output
+  budget before the commitments array) must be fixed — it's a blocker for private extraction, tracked in
+  the findings doc §4.
+- Today's `BEDROCK_REGION` split (`sst.config.ts:167`) already encodes the switch; the change is making
+  ca-central-1 the default and gating BDA behind `dataClass === "public"`.
 
 ## 9. Consent model (OCAP Control), v1
 
@@ -207,13 +234,24 @@ Each phase is independently shippable; do them before the first private upload, 
 ## 11. Open decisions (for the team)
 
 1. **BDA for public extraction:** retain BDA (us-east-1) as an optional path for *public* documents
-   (better engine, but data transits the US), or go **all-Option-B in ca-central-1** for a clean
-   sovereignty story? (Recommend: all-Option-B default; BDA only if a public-doc quality gap appears.)
+   (better engine, but data + inference transit the US), or go **all-Option-B in ca-central-1** (data at
+   rest in Canada; inference still geo-routes)? (Recommend: all-Option-B default; BDA only if a
+   public-doc quality gap appears AND §11.4 confirms it can't run in-region.)
 2. **Consent default grantees:** `["indigenomics"]` only (staff QA) vs also auto-granting the owner's
    own supplier counterparties. (Recommend: `["indigenomics"]` only; owner adds others explicitly.)
 3. **Migration timing:** migrate the public stack to ca-central-1 now (Phase 2) vs only when the first
    private upload is imminent. (Recommend: do Phase 1 now; Phases 2-5 when a real private upload is on
    the horizon — but the SCP + region default are cheap to set early.)
+4. **Re-test BDA runtime in ca-central-1** (blocks §8/§11.1): the "us-east-1 only" result is a
+   point-in-time sandbox finding (2026-07-01). Before committing to Option-B-only for private extraction,
+   re-verify whether `InvokeDataAutomationAsync` now works in ca-central-1 (a different/newer
+   `data-automation-profile` ARN, or added regional support). If BDA runs in-region, private uploads
+   could keep the stronger engine AND Canadian residency — materially changing §8. (Recommend: a
+   half-day spike before any extraction-routing build.)
+5. **In-country inference bar:** is *inference* residency (model call in Canada) a client requirement, or
+   only *hosting* (data at rest)? If only hosting, the current design suffices; if inference too, that
+   triggers the self-hosted/Canada-hosted-model investment (§8). (Recommend: confirm with the client —
+   the guideline says "hosting," which we read as data at rest.)
 
 ## 12. Risks & mitigations
 
@@ -223,7 +261,15 @@ Each phase is independently shippable; do them before the first private upload, 
   permission and the CMK grant, so a code path alone cannot read another owner's data.
 - **Audit-log tampering** → mitigated by CloudTrail → S3 Object Lock (immutable).
 - **BDA quality loss for public docs** → mitigated by retaining BDA as an optional public-only path
-  (§11.1); low impact given the public corpus is curated, not extracted.
+  (§11.1); low impact given the public corpus is curated, not extracted. Re-test whether BDA now runs
+  in-region (§11.4) before accepting the loss.
+- **Option B truncation on many-commitment RAPs** (findings §4) → a **blocker for private extraction**;
+  must be fixed before Option B carries real `org_submitted` uploads. Mitigation: fix the grounded-call
+  output-budget bug (chunk the commitments extraction, as BDA does for pages) before Phase 5.
+- **Inference crosses the border for both engines** → NOT a hosting violation (client rule is about
+  hosting/data-at-rest, which ca-central-1 satisfies), but **disclose it honestly** to the client. If
+  strict in-country *inference* becomes a hard requirement (§11.5), the mitigation is a self-hosted /
+  Canada-hosted model — a larger, deferred investment.
 - **Migration disruption to the live app** → mitigated by phasing (§10): tag first (no infra), migrate
   region only when warranted, `removal: retain` protects prod data.
 
