@@ -5,11 +5,12 @@
 
 > **Amendment log — 2026-07-16.** Two changes, both driven by verified evidence gathered after the
 > original draft:
-> 1. **§4 residency is no longer "whole-stack ca-central-1."** Meta Llama is unavailable in
->    ca-central-1 in any form (§8.1), which blocks the legal-cases briefing-note generator from running
->    there. Amended decision: **the platform runs in ca-central-1; the legal-cases corpus and its models
->    stay in us-east-1** (public court data, which the client's rule permits hosting anywhere). One app,
->    one CloudFront, one URL.
+> 1. **§4 residency is no longer "whole-stack ca-central-1."** Amended decision: **the platform runs in
+>    ca-central-1; the legal-cases corpus and its models stay in us-east-1** (public court data, which
+>    the client's rule permits hosting anywhere). One app, one CloudFront, one URL. The governing reason
+>    is that cases are **public** — so no compliance requirement moves them — and their **vector corpus
+>    is embedded in us-east-1**, making a move a ~43k-case re-embedding migration for zero governance
+>    benefit (§4).
 > 2. **The deny-outside-ca SCP in §4 is incompatible with that** and is now an open question (§11.6),
 >    not a settled control. §12's "misclassification eliminated" claim is amended accordingly.
 >
@@ -89,10 +90,11 @@ privilege**, and **use native AWS services — don't reinvent the wheel**.
 
 ## 4. Residency architecture — ca-central-1 platform, us-east-1 legal cases
 
-> **AMENDED 2026-07-16.** This section originally specified *whole-stack* ca-central-1. New verified
-> evidence (§8) shows that is **not achievable as written**: Meta Llama — which powers the legal-cases
-> briefing-note generator — is not available in ca-central-1 in any form. The decision below is the
-> amended one. The original reasoning is preserved where it still holds.
+> **AMENDED 2026-07-16.** This section originally specified *whole-stack* ca-central-1, on the reasoning
+> that BDA was the only US-pinned dependency worth weighing. That reasoning does not hold: the
+> legal-cases domain has its own US-pinned dependencies (§8.1 — Llama, and an existing us-east-1 vector
+> corpus). The amended decision below draws the residency boundary at the **domain** instead. The
+> original reasoning is preserved where it still holds.
 
 **Decision: the platform runs in `ca-central-1`; the legal-cases corpus and its models stay in
 `us-east-1`.** One app, one CloudFront distribution, one URL — the origin Lambda runs in ca-central-1
@@ -111,13 +113,29 @@ and reaches back to us-east-1 for public court data only.
 - **Why the platform side goes to Canada:** every `org_submitted` artifact — company RAP uploads and
   everything extracted from them — lives in the RapData table and the uploads bucket. That is the data
   the client's rule is about, and Canadian hosting is achievable for it (§8).
-- **Why legal cases stays in the US:**
-  - **Llama is unavailable in ca-central-1** — not in-region, not via a geo profile, not via global
-    (§8). The briefing-note generator cannot run in Canada without swapping models.
-  - Its corpus is **public court decisions** — `dataClass: public` by construction, which the client's
-    rule explicitly permits hosting anywhere. There is no compliance reason to move it.
-  - Moving it is the expensive half of the migration for zero governance benefit: ~43k rows, the
-    prebuilt bm25 (~60 MB) and vector (~160 MB) search artifacts, and a re-embedding pass.
+- **Why legal cases stays in the US** (in order of weight):
+  1. **No compliance reason to move it.** Its corpus is **public court decisions** — `dataClass: public`
+     by construction — which the client's rule explicitly permits hosting anywhere. Nothing about the
+     governance requirement touches this domain.
+  2. **Its vector corpus is embedded in us-east-1.** `EMBED_REGION` is pinned there because that is where
+     the existing Titan v2 vectors were written, and vectors carry the embedder id + dimension they were
+     created with. Moving means **re-embedding ~43k cases** — a data migration, not a config change.
+  3. **It is the expensive half of the migration for zero governance benefit:** ~43k rows plus the
+     prebuilt bm25 (~60 MB) and vector (~160 MB) search artifacts.
+  4. **Llama is unavailable in ca-central-1** (§8.1) — not in-region, not via a geo profile, not via
+     global. ⚠️ **This is a real constraint but NOT a blocker, and an earlier draft of this amendment
+     overstated it.** The briefing generator is **model-agnostic**: it runs through `modelFromId`
+     (`src/lib/cases/ingest/llm.ts`) over Bedrock Converse, which is uniform across model families, so
+     pointing `BRIEF_MODEL` at a `us.anthropic.*` Claude profile would work architecturally. Llama is
+     load-bearing **by configuration, not by code**. Treat this as a cost/quality consideration (a model
+     swap would need re-evaluation of briefing output), not as a reason the domain *cannot* move.
+- **What could move to Canada if we ever wanted it to** (recorded so nobody re-derives it): **BM25 is
+  pure local computation** with no model or AWS dependency (`src/lib/cases/search/bm25.ts`) — it runs
+  anywhere. **Titan v2 is available in-region in ca-central-1** (§8.1) and the embedder code is already
+  region-parameterised (`resolveEmbedRegion`, `src/lib/cases/search/embedder.ts`). So the only real
+  barriers are the existing vector corpus (#2) and the model-swap question (#4) — both surmountable, and
+  neither worth doing without a reason. Note the corollary for the platform side: **a new
+  Canada-resident corpus (i.e. RAP) can embed with Titan in-region in ca-central-1 today.**
 - **This is NOT the "private-slice" split rejected in the original draft.** That split mixed data
   classes *inside one application*, where a mis-tagged private record could land in us-east-1 — a
   residency breach. This boundary is a whole **domain that structurally cannot hold private data**:
@@ -261,7 +279,7 @@ aggregator was found to be **wrong** about Llama in ca-central-1; primary source
 | **Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) | ✅ **In-region**, on-demand | Dense retrieval *could* run in Canada. No cross-region routing exists for embedding models at all. |
 | **Amazon Textract** | ✅ Available | The Textract→Claude path is viable in-region. |
 | **Anthropic Claude** | ⚠️ **No in-region invocation.** `us.` geo profile or `global.` only | Option B keeps data at rest in Canada; inference geo-routes. Confirms §8's core tradeoff. |
-| **Meta Llama** | ❌ **Not available in any form** — not in-region, not geo, not global. US-only on Bedrock | **Blocks the legal-cases briefing-note generator from running in Canada.** The reason for §4's amended boundary. |
+| **Meta Llama** | ❌ **Not available in any form** — not in-region, not geo, not global. US-only on Bedrock | The legal-cases briefing generator runs on Llama *today*, so it cannot run in Canada **as configured**. NOT a hard blocker: the generator is model-agnostic (`modelFromId` over Bedrock Converse), so `BRIEF_MODEL` could point at a `us.anthropic.*` Claude profile. A model swap with quality implications — see §4. |
 | **BDA** | ❌ Not available (already established, §11.4) | Independently corroborated: no `ca.` profile prefix exists. |
 
 **Two findings worth carrying forward:**
