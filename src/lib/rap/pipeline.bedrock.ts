@@ -13,15 +13,18 @@ import {
   TextractClient,
 } from "@aws-sdk/client-textract";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
+import { resolveBedrockModelId } from "./bedrock-model";
 import { CLAUDE_TOOL, EXTRACTION_SYSTEM, EXTRACTION_TOOL_NAME } from "./extraction-schema";
 import { getDocumentBytes } from "./storage";
 import { validateAndFlag } from "./validate";
 import type { ExtractedRap, ExtractionResult, RapClassification } from "./types";
 
 const region = process.env.BEDROCK_REGION ?? "ca-central-1";
-// Set to the Claude-on-Bedrock model / inference-profile id for `region`
-// (ca-central-1 reaches Claude via the Canada/NA geo cross-region profile).
-const modelId = process.env.BEDROCK_MODEL_ID ?? "anthropic.claude-sonnet-4-6";
+// Must be an INFERENCE PROFILE, not a bare model id — Bedrock rejects bare ids
+// for on-demand invoke, which made every Option B call fail. resolveBedrockModelId
+// enforces that and explains the fix. (There is no "ca." geo prefix; ca-central-1
+// reaches Claude via the "us." profile — see src/lib/rap/bedrock-model.ts.)
+const modelId = resolveBedrockModelId(process.env);
 const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
 // Output cap. NOTE (see docs/rap-extraction-findings.md): on this model the
 // per-subfield grounded schema is very output-heavy and a many-commitment RAP
