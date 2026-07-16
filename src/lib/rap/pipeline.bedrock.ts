@@ -120,7 +120,12 @@ export function buildTextFromLayoutBlocks(blocks: Block[]): string {
     // duplicate top-level entry for a block already emitted as a LAYOUT_LIST child
     if (b.BlockType === "LAYOUT_TEXT" && b.Id && listChildIds.has(b.Id)) continue;
 
-    if (b.BlockType === "LAYOUT_TITLE" || b.BlockType === "LAYOUT_SECTION_HEADER" || b.BlockType === "LAYOUT_TEXT") {
+    // Emit every remaining LAYOUT_* type, not an allowlist of the three seen in
+    // the test fixture. Textract also emits LAYOUT_TABLE / LAYOUT_KEY_VALUE, and
+    // RAPs commonly table their commitments — an allowlist would drop those
+    // silently, violating "no commitment may be silently dropped". Unknown
+    // future types get emitted rather than lost; noise is denied above.
+    if (b.BlockType.startsWith("LAYOUT_")) {
       pushParagraph(b.Page, childLineText(b, byId));
     }
   }

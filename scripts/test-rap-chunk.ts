@@ -45,12 +45,17 @@ check(
 check("an unsplittable single-line chunk returns null (caller must fail loudly)",
   splitInHalf({ text: "oneline", index: 0 }) === null);
 
-// --- F2: splitLargeParagraph (chunk.ts:37-58), the actual production path. ---
-// Real OCR text (loadDocumentText) has NO blank lines, so chunkDocument's
-// paragraph split (/\n\s*\n/) never fires — the whole document is ONE
-// paragraph and everything falls through splitLargeParagraph, sentence
-// splitting. These fixtures force that branch (previous fixtures above were
-// 50-90 chars and never exceeded targetChars, so it never ran).
+// --- F2: splitLargeParagraph (chunk.ts:37-58) — the oversized-paragraph path. ---
+// These fixtures force that branch; the fixtures above are 50-90 chars and never
+// exceed targetChars, so it never ran and was completely untested.
+//
+// It used to be THE production path: loadDocumentText joined Textract LINE
+// blocks with single newlines, so the paragraph split (/\n\s*\n/) never fired
+// and the whole document arrived as one paragraph. loadDocumentText now emits
+// LAYOUT-block paragraphs separated by real blank lines (see the 2026-07-16
+// chunk-boundary spike in docs/rap-extraction-findings.md), so this is now the
+// fallback for a single oversized paragraph rather than the common case. It
+// still runs on any block bigger than targetChars, so it stays under test.
 
 // A single "paragraph" (no blank lines) with several period-terminated
 // sentences, deliberately sized so it must be split into multiple pieces at
