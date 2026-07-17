@@ -155,7 +155,14 @@ Only **3 of 22** commitments existed as contiguous text in what we were sending 
 
 **Costs:** `AnalyzeDocument`+LAYOUT is a pricier Textract tier than plain text detection (unmeasured). One `aborted` stream was observed live on a 5,794-char chunk — the transient failure is real and small chunks do not prevent it, so orchestration must retry.
 
-**F3 is not latent.** `validate.ts`'s `requireQuote` only checks `quote !== null` and never substring-matches the document, so **all 21 of arm (b)'s fabricated quotes would pass validation today**. Under arm (a) this is not currently firing, but the gate is not actually checking what it claims to.
+**F3 was not latent — and is now FIXED (2026-07-16).** `validate.ts`'s `requireQuote` only checked `quote !== null` and never substring-matched the document, so **all 21 of arm (b)'s fabricated quotes passed validation** — on the gate whose entire purpose is catching fabrication.
+
+`validateAndFlag` now takes the document text the model was actually shown and raises `quote_not_found` when a quote doesn't occur in it. Three decisions make it real without making it noisy:
+- **Match on words**, not bytes. The chunker is whitespace-lossy and Textract's punctuation drifts against the model's (curly vs straight apostrophes); a fabrication differs in *words*, so tolerance costs nothing and avoids false positives that would train reviewers to ignore the flag.
+- **Honest elision passes.** A multi-valued field (`pillars`, `frameworkRefs`) has no single verbatim span, so the model marks the join with `…` — that is provenance, not fabrication, and each fragment is checked instead. A **silent weld** carries no ellipsis, is matched whole, and is still caught. Found live: without this, `pillars` flagged on every run.
+- **Check against the LAYOUT-built text, never the raw PDF** — it carries injected `[p.N]` markers and drops boilerplate, so comparing to the original would false-negative everywhere. Chunks are non-overlapping slices of exactly that text, so no per-chunk plumbing is needed.
+
+Verified live: **0 false positives across ~180 quote instances**, 26/26 commitments still grounded. Opt-in via `sourceText`, so the BDA path (grounds by confidence, not quotes) is unaffected.
 
 ---
 
