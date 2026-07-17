@@ -1,6 +1,21 @@
 # Data Governance: OCAP® residency + access controls — design
 
-**Author:** Nate (En-Ping) · **Status:** proposed design (spec-only — no build yet) · **Date:** 2026-07-15
+**Author:** Nate (En-Ping) · **Date:** 2026-07-15 · **Amended:** 2026-07-16
+**Status:** approved design · **Phase 1 (classification tag) is BUILT AND MERGED**; Phases 2-5 deferred.
+
+> **Amendment log — 2026-07-16.** Two changes, both driven by verified evidence gathered after the
+> original draft:
+> 1. **§4 residency is no longer "whole-stack ca-central-1."** Amended decision: **the platform runs in
+>    ca-central-1; the legal-cases corpus and its models stay in us-east-1** (public court data, which
+>    the client's rule permits hosting anywhere). One app, one CloudFront, one URL. The governing reason
+>    is that cases are **public** — so no compliance requirement moves them — and their **vector corpus
+>    is embedded in us-east-1**, making a move a ~43k-case re-embedding migration for zero governance
+>    benefit (§4).
+> 2. **The deny-outside-ca SCP in §4 is incompatible with that** and is now an open question (§11.6),
+>    not a settled control. §12's "misclassification eliminated" claim is amended accordingly.
+>
+> §8.1 (new) records the verified ca-central-1 model-availability table. Phase 1's build is
+> `docs/superpowers/plans/2026-07-16-data-classification-tag.md`.
 
 **Scope of this doc:** a **design spec**, not an implementation. The platform holds no real
 `org_submitted` (private) data yet, so this designs the governance layer to be *ready* before the first
@@ -73,31 +88,80 @@ privilege**, and **use native AWS services — don't reinvent the wheel**.
 5. **Provenance carries through.** Every `org_submitted` artifact records its owner + upload lineage;
    extracted facts keep `Grounded<T>`. Governance never severs provenance.
 
-## 4. Residency architecture — whole-stack in ca-central-1
+## 4. Residency architecture — ca-central-1 platform, us-east-1 legal cases
 
-**Decision: the entire platform's data-at-rest lives in `ca-central-1`.** (Weighed against a
-"private-slice" split; chosen for the reasons below.)
+> **AMENDED 2026-07-16.** This section originally specified *whole-stack* ca-central-1, on the reasoning
+> that BDA was the only US-pinned dependency worth weighing. That reasoning does not hold: the
+> legal-cases domain has its own US-pinned dependencies (§8.1 — Llama, and an existing us-east-1 vector
+> corpus). The amended decision below draws the residency boundary at the **domain** instead. The
+> original reasoning is preserved where it still holds.
 
-- **Why whole-stack, not private-slice:**
-  - The client *permits* public-anywhere but doesn't require it, so both are compliant — this is an
-    engineering/mission call, and Indigenomics is a **data-sovereignty organization**: hosting
-    everything in Canada is coherent with their mission and pre-empts a future "all of it" ask.
-  - It **eliminates the region-misclassification failure mode** entirely: with a split, a mis-tagged
-    private record could land in us-east-1 — a residency breach. Whole-stack makes that impossible;
-    "flag it, don't assume" then guards *access*, not *region*.
-  - **One region** is simpler to build, reason about, and afford for a small team.
-  - The usual counter — "keep the stronger **BDA** extraction engine (us-east-1-only)" — is weak here:
-    company uploads are `org_submitted` and **must** extract in-country via Option B regardless, so BDA
-    would only ever serve *public* RAP extraction, which is minor (the public corpus is curated
-    commitments, and the prod RapData table is empty). See §8.
-- **The cost is a one-time migration** of the existing live us-east-1 stack (commitments, suppliers,
-  legal cases, alignment, the app + CloudFront) to ca-central-1 — phased in §10, not a governance blocker.
-- **Region guardrail (native):** a **Service Control Policy** (or permissions boundary) that **denies
-  resource creation outside `ca-central-1`** for the prod account/OU — so nothing can accidentally land
-  outside Canada. `aws:RequestedRegion` condition. This turns the residency rule into an *enforced
-  invariant*, not a deploy-time convention.
+**Decision: the platform runs in `ca-central-1`; the legal-cases corpus and its models stay in
+`us-east-1`.** One app, one CloudFront distribution, one URL — the origin Lambda runs in ca-central-1
+and reaches back to us-east-1 for public court data only.
+
+```
+                CloudFront (global edge — not a regional resource)
+                                 │
+                  Next.js origin Lambda — ca-central-1
+                  ├── RapData / Commitments / DataPortal / uploads → ca-central-1
+                  │     └── every `org_submitted` artifact lives here
+                  └── /cases → LegalCases table + Llama + Titan vectors → us-east-1
+                        └── public court decisions; `dataClass: public` by construction
+```
+
+- **Why the platform side goes to Canada:** every `org_submitted` artifact — company RAP uploads and
+  everything extracted from them — lives in the RapData table and the uploads bucket. That is the data
+  the client's rule is about, and Canadian hosting is achievable for it (§8).
+- **Why legal cases stays in the US** (in order of weight):
+  1. **No compliance reason to move it.** Its corpus is **public court decisions** — `dataClass: public`
+     by construction — which the client's rule explicitly permits hosting anywhere. Nothing about the
+     governance requirement touches this domain.
+  2. **Its vector corpus is embedded in us-east-1.** `EMBED_REGION` is pinned there because that is where
+     the existing Titan v2 vectors were written, and vectors carry the embedder id + dimension they were
+     created with. Moving means **re-embedding ~43k cases** — a data migration, not a config change.
+  3. **It is the expensive half of the migration for zero governance benefit:** ~43k rows plus the
+     prebuilt bm25 (~60 MB) and vector (~160 MB) search artifacts.
+  4. **Llama is unavailable in ca-central-1** (§8.1) — not in-region, not via a geo profile, not via
+     global. ⚠️ **This is a real constraint but NOT a blocker, and an earlier draft of this amendment
+     overstated it.** The briefing generator is **model-agnostic**: it runs through `modelFromId`
+     (`src/lib/cases/ingest/llm.ts`) over Bedrock Converse, which is uniform across model families, so
+     pointing `BRIEF_MODEL` at a `us.anthropic.*` Claude profile would work architecturally. Llama is
+     load-bearing **by configuration, not by code**. Treat this as a cost/quality consideration (a model
+     swap would need re-evaluation of briefing output), not as a reason the domain *cannot* move.
+- **What could move to Canada if we ever wanted it to** (recorded so nobody re-derives it): **BM25 is
+  pure local computation** with no model or AWS dependency (`src/lib/cases/search/bm25.ts`) — it runs
+  anywhere. **Titan v2 is available in-region in ca-central-1** (§8.1) and the embedder code is already
+  region-parameterised (`resolveEmbedRegion`, `src/lib/cases/search/embedder.ts`). So the only real
+  barriers are the existing vector corpus (#2) and the model-swap question (#4) — both surmountable, and
+  neither worth doing without a reason. Note the corollary for the platform side: **a new
+  Canada-resident corpus (i.e. RAP) can embed with Titan in-region in ca-central-1 today.**
+- **This is NOT the "private-slice" split rejected in the original draft.** That split mixed data
+  classes *inside one application*, where a mis-tagged private record could land in us-east-1 — a
+  residency breach. This boundary is a whole **domain that structurally cannot hold private data**:
+  the cases app has no upload path, no `OrgClaim`, no company session. The misclassification failure
+  mode does not exist here. The boundary also lines up exactly with the in-flight repo split
+  (`indigenomics-legal-cases` / `indigenomics-data-platform`), so it is where the seam was already going.
+- **The code is already built for this.** `sst.config.ts` pins every cases dependency to us-east-1
+  *explicitly, so it does not follow the stack region* — `briefGen`'s `BEDROCK_REGION: "us-east-1"`
+  (`:239`, commented "do NOT inherit the extraction stack's ca-central-1"), `EMBED_REGION: "us-east-1"`
+  (`:248`, `:337`), and the literal `arn:aws:dynamodb:us-east-1:*:table/LegalCases` grants (`:229`,
+  `:262`, `:299`). Flipping the stack region leaves these pointing at us-east-1 on their own.
+- **The cost is a one-time migration** of the five SST tables, the buckets, and the app tier — *not*
+  the cases corpus. Phased in §10.
 - **SST:** set `providers.aws.region = "ca-central-1"` for the prod stage (today it defaults us-east-1,
   `sst.config.ts:32`); `removal: retain` stays for prod (`:27`).
+- **⚠️ Region guardrail — the original SCP no longer works as specified.** The draft called for a
+  Service Control Policy denying resource creation outside ca-central-1 (`aws:RequestedRegion`) for the
+  prod account/OU, making residency an *enforced invariant*. **That policy is incompatible with this
+  decision** — it would block the legal-cases table, its buckets, and its Bedrock calls in us-east-1.
+  Options, none free: (a) scope the deny to the *services* that hold `org_submitted` data, which is
+  weaker and needs care to stay correct as resources are added; (b) move legal cases to a separate AWS
+  account and apply the unconditional SCP only to the platform account — the clean answer, and real
+  work; (c) drop the SCP and rely on the SST region default, i.e. residency stays a deploy-time
+  convention rather than an enforced invariant. **Unresolved — see §11.6.** Also still unverified:
+  whether we have AWS Organizations management-account access at all, without which no SCP is possible
+  (the team's role is `myisb_IsbUsersPS` in a shared ISB account).
 
 ## 5. The OCAP spine → mechanism → AWS service
 
@@ -129,7 +193,7 @@ Each principle is delivered by a native service; nothing bespoke.
   (ca-central-1) so the log is immutable/tamper-evident. **S3 server access logging** as a second record.
 
 ### Possession — physical custody stays in Canada
-- **Mechanism:** `org_submitted` data (and, per §4, all data) is **physically stored in ca-central-1**,
+- **Mechanism:** **every `org_submitted` artifact** is **physically stored in ca-central-1**,
   **encrypted at rest with a customer-managed key** whose custody is Canadian and whose decrypt is scoped
   to owner roles. **Possession = data *at rest* in Canada** — which is exactly what the client's
   "Canadian hosting" requires. (Note: *inference* is a separate matter — see §8; the model call currently
@@ -148,9 +212,11 @@ Each principle is delivered by a native service; nothing bespoke.
   prove an artifact is public disclosure, it is `org_submitted`. A company upload is *always*
   `org_submitted`; a research-curated public-disclosure record is `public` (mirrors the existing
   `source`-presence provenance signal — a present `source` ⇒ public disclosure).
-- **The tag drives everything:** which KMS key encrypts it, which IAM policy governs it, whether it's in
-  the CloudTrail audit scope, and (in a private-slice world) which region — under whole-stack, region is
-  uniform, but the tag still gates access, encryption, and audit.
+- **The tag drives everything:** which KMS key encrypts it, which IAM policy governs it, and whether
+  it's in the CloudTrail audit scope. It deliberately does **not** drive region: under the amended §4,
+  region is decided per-*domain* (platform → ca-central-1, legal cases → us-east-1), not per-row. That
+  separation is what keeps the misclassification failure mode structurally absent — a mis-tagged row
+  cannot relocate itself (§12).
 
 ## 7. AWS enforcement architecture (least privilege)
 
@@ -203,6 +269,30 @@ in-country inference in this account — the model call crosses the border eithe
 - Today's `BEDROCK_REGION` split (`sst.config.ts:167`) already encodes the switch; the change is making
   ca-central-1 the default and gating BDA behind `dataClass === "public"`.
 
+### 8.1 Model availability in ca-central-1 — verified 2026-07-16
+
+Checked against AWS's own per-model Regional Availability tables (not aggregators — one popular
+aggregator was found to be **wrong** about Llama in ca-central-1; primary sources only).
+
+| Model / service | ca-central-1 | Consequence |
+|---|---|---|
+| **Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) | ✅ **In-region**, on-demand | Dense retrieval *could* run in Canada. No cross-region routing exists for embedding models at all. |
+| **Amazon Textract** | ✅ Available | The Textract→Claude path is viable in-region. |
+| **Anthropic Claude** | ⚠️ **No in-region invocation.** `us.` geo profile or `global.` only | Option B keeps data at rest in Canada; inference geo-routes. Confirms §8's core tradeoff. |
+| **Meta Llama** | ❌ **Not available in any form** — not in-region, not geo, not global. US-only on Bedrock | The legal-cases briefing generator runs on Llama *today*, so it cannot run in Canada **as configured**. NOT a hard blocker: the generator is model-agnostic (`modelFromId` over Bedrock Converse), so `BRIEF_MODEL` could point at a `us.anthropic.*` Claude profile. A model swap with quality implications — see §4. |
+| **BDA** | ❌ Not available (already established, §11.4) | Independently corroborated: no `ca.` profile prefix exists. |
+
+**Two findings worth carrying forward:**
+- **There is no `ca.` inference-profile prefix in AWS's catalogue at all.** Documented geo prefixes are
+  `us`, `eu`, `au`, `jp` only. This independently corroborates the BDA conclusion in §11.4 — it is not a
+  BDA-specific gap, it is that **Canada is not a Bedrock inference geography**.
+- **The `us.` geo profile does include ca-central-1 as a destination** (for Claude Sonnet 4.5, sources
+  from ca-central-1 → may route to ca-central-1, us-east-1, us-east-2, us-west-2). So an inference call
+  *may* stay in Canada — but AWS documents no guarantee, and abuse-detection storage lands in the
+  destination region. **Do not represent this to the client as in-country inference.** It is
+  best-effort routing within a US-named geography, which is precisely §8's honest tradeoff, not an
+  escape from it.
+
 ## 9. Consent model (OCAP Control), v1
 
 - **Consent record** (DynamoDB, owner-keyed), captured at upload:
@@ -222,9 +312,18 @@ Each phase is independently shippable; do them before the first private upload, 
    conservatively) + thread it through the item mappings. Pure-additive; no infra. *(This is the one
    piece worth doing early even ahead of need — retrofitting classification onto existing data is
    harder than tagging from day one.)*
-2. **ca-central-1 stack + region SCP** — deploy the prod stage to ca-central-1; add the
-   deny-outside-ca SCP; migrate existing public data (one-time). KMS CMK + SSE-KMS + Block Public
-   Access + Object Lock on the private uploads bucket.
+2. **ca-central-1 stack** — deploy the prod stage to ca-central-1 and migrate the five SST tables +
+   buckets (one-time). **Legal cases does NOT move** (§4): its table, buckets, and Bedrock calls stay
+   pinned to us-east-1 and the existing explicit pins in `sst.config.ts` already achieve this. KMS CMK +
+   SSE-KMS + Block Public Access + Object Lock on the private uploads bucket. **Region SCP is
+   unresolved — see §11.6**; it cannot be the unconditional deny the draft assumed.
+   *Phase 2 is bigger than one line suggests — scope reality, surveyed 2026-07-16:* changing the SST
+   provider region **replaces** rather than moves every resource (`removal: retain` leaves the
+   us-east-1 originals as orphans, so it is build-new-then-copy); there is **no custom domain**
+   (`sst.aws.Nextjs("Web")` has no `domain:`), so a cutover **changes the public URL**
+   `d1hwn8hhp1ytc0.cloudfront.net`, which is referenced in `DATA_VERIFICATION.md`, the sprint hand-ins,
+   and the showcase materials. Consider adding a custom domain *first* so the URL stops being
+   load-bearing. Needs its own plan.
 3. **Least-privilege IAM + ABAC** — split the monolithic service role into per-data-class roles;
    `dynamodb:LeadingKeys` + `ownerBN` ABAC; STS session-tag propagation from the app.
 4. **CloudTrail access-audit + consent record** — enable S3/DynamoDB data events → locked trail;
@@ -240,9 +339,12 @@ Each phase is independently shippable; do them before the first private upload, 
    public-doc quality gap appears AND §11.4 confirms it can't run in-region.)
 2. **Consent default grantees:** `["indigenomics"]` only (staff QA) vs also auto-granting the owner's
    own supplier counterparties. (Recommend: `["indigenomics"]` only; owner adds others explicitly.)
-3. **Migration timing:** migrate the public stack to ca-central-1 now (Phase 2) vs only when the first
-   private upload is imminent. (Recommend: do Phase 1 now; Phases 2-5 when a real private upload is on
-   the horizon — but the SCP + region default are cheap to set early.)
+3. **~~Migration timing~~ — DECIDED 2026-07-16: do Phase 1 now, then Phase 2.** Phase 1 (the
+   classification tag) is **built and merged** — see the plan
+   `docs/superpowers/plans/2026-07-16-data-classification-tag.md`. Phase 2 (the ca-central-1 migration)
+   is next, scoped per the amended §4: platform moves, legal cases stays. Note the original
+   "SCP + region default are cheap to set early" parenthetical no longer holds — the SCP is now an open
+   question (§11.6), not a cheap default.
 4. **~~Re-test BDA runtime in ca-central-1~~ — RESOLVED 2026-07-15: BDA is genuinely unavailable in
    Canada.** Verified two ways: (a) live-tested this account — `ca.data-automation-v1` is an invalid ARN,
    and a us-east-1 profile ARN is rejected in ca-central-1 "for the service region"; (b) AWS's own
@@ -257,17 +359,36 @@ Each phase is independently shippable; do them before the first private upload, 
    only *hosting* (data at rest)? If only hosting, the current design suffices; if inference too, that
    triggers the self-hosted/Canada-hosted-model investment (§8). (Recommend: confirm with the client —
    the guideline says "hosting," which we read as data at rest.)
+6. **The region SCP (§4).** The unconditional deny-outside-ca SCP is incompatible with keeping legal
+   cases in us-east-1. Pick: (a) scope the deny to the services holding `org_submitted` data — weaker,
+   needs maintenance; (b) split legal cases into its own AWS account and apply the unconditional SCP to
+   the platform account only — clean, real work; (c) drop the SCP, residency stays a deploy-time
+   convention. **Prerequisite either way:** confirm we have AWS Organizations management-account access
+   — unverified, and without it no SCP is possible at all. (Recommend: verify Organizations access
+   first; if absent, (c) by default and revisit when the repo split gives legal cases its own deploy.)
+7. **Titan is in-region in Canada (§8.1) — does dense retrieval move?** `EMBED_REGION` is pinned to
+   us-east-1 because that is where the *existing vectors* were embedded. The model itself is available
+   in ca-central-1. Not a governance question (cases are public), purely latency vs. a re-embedding
+   pass. (Recommend: leave it pinned; no benefit worth the re-embed.)
 
 ## 12. Risks & mitigations
 
-- **Region misclassification** → **eliminated** by whole-stack + the deny-outside-ca SCP (nothing can
-  land outside Canada).
+- **Region misclassification** → **structurally absent, but no longer SCP-enforced** (amended
+  2026-07-16). The concern was a mis-tagged `org_submitted` record landing in us-east-1. That cannot
+  happen under the amended §4: the only us-east-1 resources are the legal-cases corpus and its models,
+  and the cases domain has **no ingestion path at all** — no upload, no `OrgClaim`, no company session —
+  so there is no mechanism by which private data reaches it. The residual gap is that the guardrail is
+  now a *deploy-time convention* (the SST region default) rather than an enforced invariant, because
+  the unconditional SCP is incompatible with the us-east-1 cases resources (§11.6). Mitigation until
+  resolved: the `dataClass` tag (Phase 1, merged) means every private artifact is identifiable, and the
+  Phase 3 IAM/ABAC gate does not depend on region.
 - **App bug exfiltrates private data** → mitigated by IAM/KMS least privilege: the role lacks the
   permission and the CMK grant, so a code path alone cannot read another owner's data.
 - **Audit-log tampering** → mitigated by CloudTrail → S3 Object Lock (immutable).
 - **BDA quality loss for public docs** → mitigated by retaining BDA as an optional public-only path
-  (§11.1); low impact given the public corpus is curated, not extracted. Re-test whether BDA now runs
-  in-region (§11.4) before accepting the loss.
+  (§11.1); low impact given the public corpus is curated, not extracted. (The draft's "re-test whether
+  BDA now runs in-region" is **settled — it does not, and cannot**: §11.4 and §8.1 both confirm Canada
+  is not a Bedrock inference geography. Nothing to re-test unless AWS adds one.)
 - **Option B truncation on many-commitment RAPs** (findings §4) → a **blocker for private extraction**;
   must be fixed before Option B carries real `org_submitted` uploads. Mitigation: fix the grounded-call
   output-budget bug (chunk the commitments extraction, as BDA does for pages) before Phase 5.
