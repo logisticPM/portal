@@ -446,9 +446,9 @@ async function extractChunkCommitments(
 // below) always passes full ExtractedCommitment[][], so C is inferred as
 // ExtractedCommitment there and the result is a true ExtractedRap.
 export function mergeExtraction<C>(
-  header: Omit<ExtractedRap, "commitments" | "pillars">,
+  header: Omit<ExtractedRap, "commitments" | "pillars" | "sectorFields">,
   commitmentGroups: C[][],
-): Omit<ExtractedRap, "commitments" | "pillars"> & { commitments: C[] } {
+): Omit<ExtractedRap, "commitments" | "pillars" | "sectorFields"> & { commitments: C[] } {
   return {
     ...header,
     commitments: commitmentGroups.flat(),
@@ -498,7 +498,7 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
       "Header call truncated at max_tokens — header fields were measured to fit comfortably in a single call; this is unexpected and a hard failure, not a split-and-retry case.",
     );
   }
-  const header = parseToolJson<Omit<ExtractedRap, "commitments" | "pillars">>(headerJson, HEADER_TOOL_NAME);
+  const header = parseToolJson<Omit<ExtractedRap, "commitments" | "pillars" | "sectorFields">>(headerJson, HEADER_TOOL_NAME);
 
   // Commitment calls run SEQUENTIALLY, one per chunk — never in parallel. The
   // abort failure mode observed against live Bedrock is not understood well
@@ -515,6 +515,13 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
   const merged: ExtractedRap = {
     ...mergeExtraction(header, commitmentGroups),
     pillars: derivePillars(commitmentGroups.flat()),
+    // Neither HEADER_TOOL nor CLAUDE_TOOL asks for sectorFields, so the model
+    // never returns it — and parseToolJson CASTS, so the type claimed a
+    // SectorFields that was `undefined` at runtime on every extraction. Every
+    // key on SectorFields is optional, so {} is the honest empty value; this
+    // mirrors pipeline.bda.ts, which sets {} for the same reason. Populate it
+    // for real only when the schema actually asks for per-sector fields.
+    sectorFields: {},
   };
 
   // deterministic gate: Claude returns verbatim quotes → require them
