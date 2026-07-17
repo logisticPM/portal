@@ -1,0 +1,136 @@
+// Run: npm run ddb:up && DYNAMO_ENDPOINT=http://localhost:8000 npx tsx scripts/test-migrate-table-region.ts
+//
+// Exercises copyTable/verifyParity entirely against DynamoDB Local, using two
+// tables in the same local endpoint as stand-ins for source-region/dest-region
+// tables. Prints a skip line (not a failure) if DynamoDB Local isn't reachable.
+import { CreateTableCommand, DeleteTableCommand, DynamoDBClient, ListTablesCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { copyTable, verifyParity } from "./migrate-table-region";
+
+let fail = 0;
+function check(name: string, ok: boolean) {
+  console.log(`${ok ? "✅" : "❌"} ${name}`);
+  if (!ok) fail++;
+}
+
+const ENDPOINT = process.env.DYNAMO_ENDPOINT ?? "http://localhost:8000";
+const raw = new DynamoDBClient({ endpoint: ENDPOINT, region: "local", credentials: { accessKeyId: "l", secretAccessKey: "l" } });
+const doc = DynamoDBDocumentClient.from(raw);
+const SRC = "MigSrc";
+const DST = "MigDst";
+
+async function makeTable(name: string) {
+  await raw.send(new DeleteTableCommand({ TableName: name })).catch(() => {});
+  await raw.send(new CreateTableCommand({
+    TableName: name,
+    AttributeDefinitions: [{ AttributeName: "PK", AttributeType: "S" }, { AttributeName: "SK", AttributeType: "S" }],
+    KeySchema: [{ AttributeName: "PK", KeyType: "HASH" }, { AttributeName: "SK", KeyType: "RANGE" }],
+    BillingMode: "PAY_PER_REQUEST",
+  }));
+}
+
+async function main() {
+  // Fail fast with a clear skip line rather than a confusing connection-refused stack.
+  // NOTE: no .catch() here — a rejection must propagate to the try/catch below
+  // for the skip branch to be reachable at all.
+  try {
+    await raw.send(new ListTablesCommand({}));
+  } catch {
+    console.log(`SKIP: DynamoDB Local unreachable at ${ENDPOINT} — run: npm run ddb:up`);
+    process.exit(0);
+  }
+
+  await makeTable(SRC);
+  await makeTable(DST);
+  await doc.send(new PutCommand({ TableName: SRC, Item: { PK: "ORG#1", SK: "META", sector: "finance" } }));
+  // Stale RAP-commitment item — this is where the real non-canonical rot lived
+  // (pre-#145 finance_banking/mining_extractive). Must be flagged.
+  await doc.send(
+    new PutCommand({ TableName: SRC, Item: { PK: "ORG#2", SK: "META", et: "Commitment", sector: "finance_banking" } })
+  );
+  await doc.send(new PutCommand({ TableName: SRC, Item: { PK: "ORG#3", SK: "META" } })); // no sector — fine
+  // Party-like item: free-text sector, NOT a Commitment. Must NOT be flagged —
+  // this is the false-positive case the scoped predicate exists to avoid
+  // (DataPortal Party rows legitimately carry non-canonical free-text sectors).
+  await doc.send(
+    new PutCommand({ TableName: SRC, Item: { PK: "ORG#4", SK: "META", sector: "finance_banking" } })
+  );
+  // Commitments-table-shaped item: toCommitmentItem (src/lib/dynamo/commitments-table.ts)
+  // nests the domain object under `data`, so there is NO top-level `sector` —
+  // only `data.sector`. This is the exact shape that previously defeated the
+  // taxonomy check for every real Commitments-table row. Must be flagged.
+  await doc.send(
+    new PutCommand({
+      TableName: SRC,
+      Item: { PK: "COMMITMENT#5", SK: "PROFILE", et: "Commitment", data: { sector: "finance_banking" } },
+    })
+  );
+  // Nested-but-non-commitment row: `data.sector` is non-canonical but this is
+  // NOT a Commitment item (no et:"Commitment") — must NOT be flagged, same
+  // false-positive guard as the top-level Party-like case above.
+  await doc.send(
+    new PutCommand({
+      TableName: SRC,
+      Item: { PK: "ORG#6", SK: "META", data: { sector: "finance_banking" } },
+    })
+  );
+
+  // Local test stands one endpoint in for both "regions"; a real cutover run
+  // passes distinct src/dest connection params (see CLI entrypoint below).
+  const opts = {
+    src: { endpoint: ENDPOINT, region: "local", table: SRC },
+    dest: { endpoint: ENDPOINT, region: "local", table: DST },
+  };
+
+  const rep = await copyTable(opts);
+  check("copies every source item", rep.written === 6);
+  check("scans every source item", rep.scanned === 6);
+  check(
+    "flags the non-canonical sector row on a Commitment item (does not silently carry it)",
+    rep.flaggedNonCanonical.some((k) => k.includes("ORG#2"))
+  );
+  check(
+    "flags the non-canonical sector on a Commitments-table-shaped item (nested under data.sector)",
+    rep.flaggedNonCanonical.some((k) => k.includes("COMMITMENT#5"))
+  );
+  check("flags exactly the two genuine Commitment rows, no more", rep.flaggedNonCanonical.length === 2);
+  check(
+    "does NOT flag a non-canonical sector on a non-Commitment (Party-like) item",
+    !rep.flaggedNonCanonical.some((k) => k.includes("ORG#4"))
+  );
+  check(
+    "does NOT flag a non-canonical nested data.sector on a non-Commitment item",
+    !rep.flaggedNonCanonical.some((k) => k.includes("ORG#6"))
+  );
+
+  const parity = await verifyParity(opts);
+  check("parity: dest count equals source count", parity.destCount === parity.sourceCount);
+  check("parity: match is true when counts agree and no key missing", parity.match === true);
+  check("parity: no missing keys after a full copy", parity.missingKeys.length === 0);
+  check("parity: sourceEmpty is false for a non-empty source", parity.sourceEmpty === false);
+
+  // Finding 3: an empty-source parity must not silently report success when
+  // the caller expects the table to hold data (guards against a resolution
+  // bug pointing at an empty/wrong table).
+  const EMPTY_SRC = "MigSrcEmpty";
+  const EMPTY_DST = "MigDstEmpty";
+  await makeTable(EMPTY_SRC);
+  await makeTable(EMPTY_DST);
+  const emptyOpts = {
+    src: { endpoint: ENDPOINT, region: "local", table: EMPTY_SRC },
+    dest: { endpoint: ENDPOINT, region: "local", table: EMPTY_DST },
+  };
+  const emptyParityStrict = await verifyParity({ ...emptyOpts, expectNonEmpty: true });
+  check(
+    "parity: expectNonEmpty=true forces match=false when source is empty (even though counts agree)",
+    emptyParityStrict.match === false && emptyParityStrict.sourceEmpty === true
+  );
+  const emptyParityLenient = await verifyParity({ ...emptyOpts, expectNonEmpty: false });
+  check(
+    "parity: expectNonEmpty=false allows a legitimately-empty source (e.g. RapData) to still match",
+    emptyParityLenient.match === true && emptyParityLenient.sourceEmpty === true
+  );
+
+  process.exit(fail ? 1 : 0);
+}
+main().catch((e) => { console.error(e); process.exit(1); });
