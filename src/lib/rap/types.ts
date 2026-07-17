@@ -372,7 +372,13 @@ export interface Commitment {
   deliverable: string;
   targetText: string | null;
   targetValue: number | null; // parsed in code, never by the LLM
-  dueDate: string | null; // ISO 8601
+  // A RAP timeline is often a CADENCE ("Annual", "Ongoing", "Every three
+  // years"), not a due date. Keep the document's own words alongside the parse,
+  // the same way targetText sits beside targetValue: dueDate alone destroyed
+  // "Annual" at publish time, so the canonical row claimed "no timeline" when
+  // the RAP plainly stated one.
+  timelineText: string | null; // the document's wording, verbatim
+  dueDate: string | null; // ISO 8601 — null when the timeline is a cadence, not a date
   owner: string | null;
   // grounding: this commitment's value traces to a quote + page in the source doc
   source: { quote: string; page: number | null };

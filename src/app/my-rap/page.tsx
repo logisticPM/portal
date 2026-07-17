@@ -171,7 +171,10 @@ export default async function MyRapPage() {
                               <div className="text-ink3 text-xs mt-1">
                                 {labelFor("commitmentType", c.commitmentType)}
                                 {c.targetText && <> · target: {c.targetText}</>}
-                                {c.dueDate && <> · due {c.dueDate}</>}
+                                {/* A cadence ("Annual") has no due date but IS a timeline —
+                                    fall back to the document's own wording rather than
+                                    rendering nothing, which read as "no timeline stated". */}
+                                {c.dueDate ? <> · due {c.dueDate}</> : c.timelineText && <> · {c.timelineText}</>}
                               </div>
                               <div className="text-ink3 text-xs mt-1 italic">
                                 “{c.source.quote}”{c.source.page != null && ` (p. ${c.source.page})`}

@@ -8,7 +8,7 @@
 //   flagged  ⇒ confidence < threshold  OR  value present but no quote
 //            OR a format/cross-field rule fails.
 // ===========================================================================
-import { CONFIDENCE_THRESHOLD, parseDueDate } from "./publish";
+import { CONFIDENCE_THRESHOLD, isRecurringTimeline, parseDueDate } from "./publish";
 import type { ExtractedRap, Grounded, ValidationIssue } from "./types";
 
 const isoish = /^\d{4}(-\d{2}(-\d{2})?)?$/; // YYYY or YYYY-MM or YYYY-MM-DD
@@ -95,12 +95,20 @@ function flag<T>(
   return { ...g, flagged };
 }
 
-// flag + a date_format check for fields that should parse to a date
+// flag + a date_format check for fields that should parse to a date.
+//
+// `allowRecurring` is for `timeline` only: a commitment may legitimately recur
+// ("Annual") instead of falling due, and reporting that as a malformed date
+// flagged the field and blocked isClean() on essentially every real RAP. The raw
+// wording is preserved either way (Commitment.timelineText), so nothing is lost
+// by not flagging. publicationDate does NOT pass it — a publication date that
+// says "Annually" is genuinely wrong.
 function flagDate(
   g: Grounded<string>, path: string, issues: ValidationIssue[], threshold: number, requireQuote: boolean,
-  sourceText?: string,
+  sourceText?: string, allowRecurring = false,
 ): Grounded<string> {
   const out = flag(g, path, issues, threshold, requireQuote, sourceText);
+  if (allowRecurring && isRecurringTimeline(g.value)) return out;
   if (g.value !== null && parseDueDate(g.value) === null) {
     issues.push({ path, rule: "date_format", message: `unparseable date: "${g.value}"` });
     return { ...out, flagged: true };
@@ -120,6 +128,8 @@ export function validateAndFlag(e: ExtractedRap, opts: ValidateOptions = {}): Va
   const issues: ValidationIssue[] = [];
   const f = <T>(g: Grounded<T>, path: string) => flag(g, path, issues, threshold, requireQuote, sourceText);
   const fd = (g: Grounded<string>, path: string) => flagDate(g, path, issues, threshold, requireQuote, sourceText);
+  // timeline may recur; publicationDate may not
+  const fdT = (g: Grounded<string>, path: string) => flagDate(g, path, issues, threshold, requireQuote, sourceText, true);
 
   const period = e.periodCovered.value;
   if (period && (!isoish.test(period.start) || !isoish.test(period.end))) {
@@ -142,7 +152,7 @@ export function validateAndFlag(e: ExtractedRap, opts: ValidateOptions = {}): Va
     endorsementStatus: f(e.endorsementStatus, "endorsementStatus"),
     commitments: e.commitments.map((c, i) => {
       const base = `commitments[${i}]`;
-      const timeline = fd(c.timeline, `${base}.timeline`);
+      const timeline = fdT(c.timeline, `${base}.timeline`);
       // cross-field: a deliverable's due date should fall within the RAP period
       if (timeline.value && period?.end) {
         const due = parseDueDate(timeline.value);

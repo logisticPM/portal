@@ -78,6 +78,20 @@ export function parseTargetValue(text: string | null): number | null {
 }
 
 // Accepts ISO dates, "2027", "Q2 2026", "June 2025" → best-effort ISO date string.
+// A timeline that RECURS rather than falling due. Not a malformed date — a
+// different kind of timeline, and the most common kind in a real RAP ("Host an
+// annual event", "review every three years"). Recognising it lets validate.ts
+// stop reporting a legitimate cadence as a date_format defect, which flagged the
+// field and made isClean() false on essentially every RAP. Deliberately a closed
+// list: unrecognised text ("sometime", "TBD") is still a real defect and must
+// still flag, so this must not degrade into "anything non-numeric is fine".
+const RECURRING =
+  /\b(annual|annually|ongoing|continuous(?:ly)?|quarterly|monthly|weekly|daily|biannual|semi-?annual|periodic(?:ally)?|regular(?:ly)?|each\s+year|every\s+[\w-]+\s+(?:year|month|quarter)s?)\b/i;
+
+export function isRecurringTimeline(text: string | null): boolean {
+  return text !== null && RECURRING.test(text);
+}
+
 export function parseDueDate(text: string | null): string | null {
   if (!text) return null;
   const iso = text.match(/\d{4}-\d{2}-\d{2}/);
@@ -245,7 +259,8 @@ export function buildCanonical(
       deliverable: val(c.deliverable) ?? "",
       targetText: val(c.metric),
       targetValue: parseTargetValue(val(c.metric)), // parsed in code
-      dueDate: parseDueDate(val(c.timeline)), // parsed in code
+      timelineText: val(c.timeline), // the document's words — kept even when they don't parse
+      dueDate: parseDueDate(val(c.timeline)), // parsed in code; null for a cadence
       owner: val(c.owner),
       source: { quote: c.action.quote ?? "", page: c.action.page },
       provenance: {
