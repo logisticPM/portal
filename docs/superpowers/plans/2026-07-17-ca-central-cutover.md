@@ -21,6 +21,16 @@
 - **Commit after each task.**
 - **Never delete or overwrite a us-east-1 production table until the ca parity gate (Task 6) has passed and the operator has approved teardown (Task 8).** Migration is copy-then-verify, never move.
 
+## Execution decisions (locked 2026-07-17 by Nate)
+
+- **No custom domain.** The public URL is not important for the showcase, so accept the new
+  CloudFront URL the ca stack generates and update the handful of references (Task 7). **Task 2
+  (custom domain) is DROPPED**, and the ACM-cert-in-us-east-1 gotcha no longer applies.
+- **Keep the us-east-1 platform stack ALIVE — do not tear it down.** It serves the old URL + old
+  data as a backup we may revisit. **Task 8 (teardown) is DEFERRED indefinitely.** The migration is
+  therefore a pure COPY: us-east-1 stays intact, ca becomes the working deployment alongside it.
+  This is the safest shape — the 117 real user accounts are never at risk from the cutover.
+
 ## Decisions this plan rides on (from spec §11 — recommended defaults, confirm before Task 4)
 
 These are the spec's own recommendations; the plan assumes them. If the team disagrees, revisit before the runbook.
