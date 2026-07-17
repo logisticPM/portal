@@ -15,10 +15,18 @@ import {
 } from "@aws-sdk/client-textract";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { resolveBedrockModelId } from "./bedrock-model";
-import { CLAUDE_TOOL, EXTRACTION_SYSTEM, EXTRACTION_TOOL_NAME } from "./extraction-schema";
+import { type DocChunk, chunkDocument, splitInHalf } from "./chunk";
+import {
+  COMMITMENTS_TOOL,
+  COMMITMENTS_TOOL_NAME,
+  EXTRACTION_SYSTEM,
+  EXTRACTION_TOOL_NAME,
+  HEADER_TOOL,
+  HEADER_TOOL_NAME,
+} from "./extraction-schema";
 import { getDocumentBytes } from "./storage";
 import { validateAndFlag } from "./validate";
-import type { ExtractedRap, ExtractionResult, RapClassification } from "./types";
+import type { ExtractedCommitment, ExtractedRap, ExtractionResult, RapClassification } from "./types";
 
 const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 // Must be an INFERENCE PROFILE, not a bare model id — Bedrock rejects bare ids
@@ -187,27 +195,55 @@ function deriveClassification(e: ExtractedRap): RapClassification {
   };
 }
 
-export async function runExtractionBedrock(input: { fileName: string; sourceS3Key: string }): Promise<ExtractionResult> {
-  const documentText = await loadDocumentText(input.sourceS3Key, input.fileName);
+// Max times a chunk may be recursively halved (either on max_tokens truncation
+// or as the last resort after transient-error retries are exhausted). Bounds
+// the recursion so a pathological chunk fails loudly instead of splitting
+// forever; splitInHalf itself already returns null (→ throw, see below) once a
+// chunk has no internal paragraph boundary left to split at.
+const MAX_SPLIT_DEPTH = 3;
 
+// Result of one forced-tool-use call: the reassembled tool input JSON plus the
+// stream's stop_reason. Parsing is left to the caller — the header and
+// commitments calls parse into different shapes.
+interface ToolCallResult {
+  json: string;
+  stopReason: string;
+}
+
+// Build body → stream → reassemble the forced tool_use input. Shared by the
+// header call (whole document) and every per-chunk commitments call — the
+// only things that differ between call sites are the tool, its name, the
+// user text, and (for retries) the max_tokens budget.
+//
+// system prompt: EXTRACTION_SYSTEM's rules are engine-shared, but its last
+// line names EXTRACTION_TOOL_NAME ("record_rap_extraction") — the old
+// single-call tool. That is wrong for both HEADER_TOOL and COMMITMENTS_TOOL,
+// each of which is FORCED via tool_choice and must be told its own name, or
+// the instruction contradicts what Claude is actually being forced to call.
+// Swapping the one place that name appears (rather than duplicating the whole
+// rule set here) keeps EXTRACTION_SYSTEM's exported value untouched — Task 2's
+// schema module, scripts/diag-truncation.ts, and anything else importing
+// EXTRACTION_SYSTEM/CLAUDE_TOOL/EXTRACTION_TOOL_NAME directly keep working.
+async function callTool(tool: object, toolName: string, userText: string, maxTokens: number): Promise<ToolCallResult> {
   const body = {
     anthropic_version: "bedrock-2023-05-31",
-    max_tokens: MAX_OUTPUT_TOKENS,
-    system: EXTRACTION_SYSTEM,
-    tools: [CLAUDE_TOOL],
-    tool_choice: { type: "tool", name: EXTRACTION_TOOL_NAME }, // force the schema
-    messages: [
-      {
-        role: "user",
-        content: `Extract the RAP fields from this document.\n\n<document filename="${input.fileName}">\n${documentText}\n</document>`,
-      },
-    ],
+    max_tokens: maxTokens,
+    system: EXTRACTION_SYSTEM.replace(EXTRACTION_TOOL_NAME, toolName),
+    tools: [tool],
+    tool_choice: { type: "tool", name: toolName }, // force the schema
+    messages: [{ role: "user", content: userText }],
   };
 
   // STREAM the response. A big grounded extraction is a long generation, and a
   // non-streaming InvokeModel gets its socket closed mid-generation ("socket hang
   // up"). Streaming keeps the connection alive and delivers the forced tool_use
   // input as incremental input_json_delta chunks, which we reassemble + parse.
+  // NOTE: this call (and the async iteration below) is exactly where the
+  // observed "aborted" transient stream error surfaces — a real failure at
+  // ~61s/0 output tokens on a 5,794-char chunk, not theoretical. It propagates
+  // as a thrown error here, distinct from a normal completion whose
+  // stop_reason is "max_tokens" — callers must handle those two cases
+  // differently (retry vs split).
   const res = await client.send(
     new InvokeModelWithResponseStreamCommand({ modelId, contentType: "application/json", body: JSON.stringify(body) }),
   );
@@ -223,25 +259,142 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
       toolJson += evt.delta.partial_json ?? "";
     }
   }
-  if (!toolJson) throw new Error("Bedrock stream contained no record_rap_extraction tool input");
-  if (stopReason === "max_tokens") {
-    // Truncated: the grounded schema exhausted the output budget before finishing.
-    // Known limitation for many-commitment RAPs — see docs/rap-extraction-findings.md.
-    throw new Error(
-      "Claude extraction truncated at max_tokens — this RAP has too many commitments for the per-subfield grounded schema in a single call (see docs/rap-extraction-findings.md).",
-    );
-  }
-  let raw: ExtractedRap;
+  if (!toolJson) throw new Error(`Bedrock stream contained no ${toolName} tool input`);
+  return { json: toolJson, stopReason };
+}
+
+function parseToolJson<T>(json: string, toolName: string): T {
   try {
-    raw = JSON.parse(toolJson) as ExtractedRap;
+    return JSON.parse(json) as T;
   } catch (e) {
     const m = /position (\d+)/.exec(String(e));
     const p = m ? parseInt(m[1], 10) : 0;
-    throw new Error(`tool JSON parse failed (len ${toolJson.length}) near: …${toolJson.slice(Math.max(0, p - 60), p + 60)}…`);
+    throw new Error(
+      `${toolName} tool JSON parse failed (len ${json.length}) near: …${json.slice(Math.max(0, p - 60), p + 60)}…`,
+    );
+  }
+}
+
+function chunkUserText(chunk: DocChunk, fileName: string): string {
+  return `Extract the commitments from this chunk of a RAP document.\n\n<document-chunk filename="${fileName}" chunkIndex="${chunk.index}">\n${chunk.text}\n</document-chunk>`;
+}
+
+// Extract commitments for one chunk, with the two independent failure paths
+// required above:
+//   - stop_reason "max_tokens" (truncation): split immediately, no retry
+//     (a smaller generation, not a repeat of the same generation, is what's
+//     measured to help).
+//   - a thrown transient stream error (e.g. "aborted"): retry the SAME chunk
+//     up to 2 times with backoff (1s, 4s) first — that failure mode is not
+//     about size — and only split once retries are exhausted.
+// Both paths funnel into the same bounded recursive split; splitInHalf
+// returning null, or MAX_SPLIT_DEPTH being reached, is a hard throw — never a
+// silent partial result. F4: splitInHalf's two returned halves both carry the
+// PARENT chunk's `index` (by design — see chunk.ts), so halves must never be
+// keyed/deduped by index. This function never does that: results are
+// concatenated by recursive call/return order (resultA then resultB), i.e.
+// append order, never a Map/index lookup.
+async function extractChunkCommitments(
+  chunk: DocChunk,
+  fileName: string,
+  depth: number,
+): Promise<ExtractedCommitment[]> {
+  const splitAndRecurse = async (reason: string): Promise<ExtractedCommitment[]> => {
+    if (depth >= MAX_SPLIT_DEPTH) {
+      throw new Error(`chunk ${chunk.index} still failing (${reason}) after ${MAX_SPLIT_DEPTH} recursive splits — refusing to return partial results`);
+    }
+    const halves = splitInHalf(chunk);
+    if (!halves) {
+      throw new Error(`chunk ${chunk.index} cannot be split further (${reason}) — no internal paragraph boundary; refusing to return partial results`);
+    }
+    const [first, second] = halves;
+    // Sequential, not Promise.all — concurrency is deliberately out of scope
+    // (see runExtractionBedrock). Order preserved by await order, not index.
+    const a = await extractChunkCommitments(first, fileName, depth + 1);
+    const b = await extractChunkCommitments(second, fileName, depth + 1);
+    return [...a, ...b];
+  };
+
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { json, stopReason } = await callTool(COMMITMENTS_TOOL, COMMITMENTS_TOOL_NAME, chunkUserText(chunk, fileName), MAX_OUTPUT_TOKENS);
+      if (stopReason === "max_tokens") {
+        return await splitAndRecurse("max_tokens truncation");
+      }
+      const parsed = parseToolJson<{ commitments: ExtractedCommitment[] }>(json, COMMITMENTS_TOOL_NAME);
+      return parsed.commitments ?? [];
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) {
+        await sleep(attempt === 0 ? 1000 : 4000);
+        continue;
+      }
+    }
+  }
+  return await splitAndRecurse(`transient stream error after retries: ${String(lastErr)}`);
+}
+
+// Merge the header call's fields with every chunk's commitments, concatenated
+// IN CHUNK ORDER. Pure — no AWS, no I/O — so it's testable without a live
+// Bedrock call (see scripts/test-rap-merge.ts). No dedupe: Task 1's chunker
+// guarantees chunks never overlap, so there is nothing to dedupe and no
+// identity key a commitment could be deduped by anyway.
+// Generic over the commitment shape (rather than fixed to ExtractedCommitment)
+// so scripts/test-rap-merge.ts can exercise ordering/merge behaviour with
+// minimal fixtures ({action, deliverable} only) without needing to fabricate
+// every ExtractedCommitment subfield. The real call site (runExtractionBedrock
+// below) always passes full ExtractedCommitment[][], so C is inferred as
+// ExtractedCommitment there and the result is a true ExtractedRap.
+export function mergeExtraction<C>(
+  header: Omit<ExtractedRap, "commitments">,
+  commitmentGroups: C[][],
+): Omit<ExtractedRap, "commitments"> & { commitments: C[] } {
+  return {
+    ...header,
+    commitments: commitmentGroups.flat(),
+  };
+}
+
+export async function runExtractionBedrock(input: { fileName: string; sourceS3Key: string }): Promise<ExtractionResult> {
+  const documentText = await loadDocumentText(input.sourceS3Key, input.fileName);
+  const chunks = chunkDocument(documentText);
+
+  // Header call runs over the WHOLE document text, not just the first chunk.
+  // AMENDED 2026-07-16 (supersedes an earlier "first chunk only" plan): on the
+  // real test RAP, reviewCycle and governanceBody both live on p16 — the LAST
+  // chunk — so first-chunk-only would silently null both. The measured
+  // failure mode is OUTPUT-token burn (~410 tok/commitment); a header-only
+  // call emits ~13 fields regardless of input size, so reading the whole
+  // document here is safe. If the header call truncates anyway, that's a hard
+  // failure — headers were measured to fit comfortably in one call.
+  const headerUserText = `Extract the RAP header fields (everything except individual commitments) from this document.\n\n<document filename="${input.fileName}">\n${documentText}\n</document>`;
+  const { json: headerJson, stopReason: headerStopReason } = await callTool(
+    HEADER_TOOL,
+    HEADER_TOOL_NAME,
+    headerUserText,
+    MAX_OUTPUT_TOKENS,
+  );
+  if (headerStopReason === "max_tokens") {
+    throw new Error(
+      "Header call truncated at max_tokens — header fields were measured to fit comfortably in a single call; this is unexpected and a hard failure, not a split-and-retry case.",
+    );
+  }
+  const header = parseToolJson<Omit<ExtractedRap, "commitments">>(headerJson, HEADER_TOOL_NAME);
+
+  // Commitment calls run SEQUENTIALLY, one per chunk — never in parallel. The
+  // abort failure mode observed against live Bedrock is not understood well
+  // enough to reason about what concurrency would do to it; a bounded pool is
+  // a later optimisation, not this task's.
+  const commitmentGroups: ExtractedCommitment[][] = [];
+  for (const chunk of chunks) {
+    commitmentGroups.push(await extractChunkCommitments(chunk, input.fileName, 0));
   }
 
+  const merged = mergeExtraction(header, commitmentGroups);
+
   // deterministic gate: Claude returns verbatim quotes → require them
-  const { extracted, issues } = validateAndFlag(raw, { requireQuote: true });
+  const { extracted, issues } = validateAndFlag(merged, { requireQuote: true });
 
   return {
     engine: "claude",
