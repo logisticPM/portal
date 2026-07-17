@@ -48,6 +48,9 @@ check(
 
 // --- matchTableByStem ---------------------------------------------------
 
+const SRC_PREFIX = "indigenomics-portal-production-";
+const DEST_PREFIX = "indigenomics-portal-ca-";
+
 const usEast1Names = [
   "indigenomics-portal-production-DataPortalTable-bddkwbku",
   "indigenomics-portal-production-RapDataTable-x8f2n3qz",
@@ -66,34 +69,113 @@ const caCentral1Names = [
 ];
 
 for (const stem of PLATFORM_STEMS) {
-  const srcMatch = matchTableByStem(usEast1Names, stem);
-  check(`matchTableByStem: finds ${stem} in us-east-1 list`, typeof srcMatch === "string" && srcMatch.includes(stem));
+  const srcMatch = matchTableByStem(usEast1Names, stem, SRC_PREFIX);
+  check(`matchTableByStem: finds ${stem} in us-east-1 list`, srcMatch.includes(stem));
 
-  const destMatch = matchTableByStem(caCentral1Names, stem);
-  check(`matchTableByStem: finds ${stem} in ca-central-1 list`, typeof destMatch === "string" && destMatch.includes(stem));
+  const destMatch = matchTableByStem(caCentral1Names, stem, DEST_PREFIX);
+  check(`matchTableByStem: finds ${stem} in ca-central-1 list`, destMatch.includes(stem));
 }
 
 check(
-  "matchTableByStem: returns null when stem absent from the list",
-  matchTableByStem(caCentral1Names, "NotARealStem") === null
+  "matchTableByStem: throws when stem absent from the list under the prefix",
+  (() => {
+    try {
+      matchTableByStem(caCentral1Names, "NotARealStem", DEST_PREFIX);
+      return false;
+    } catch {
+      return true;
+    }
+  })()
 );
 
 check(
   "matchTableByStem: never returns the LegalCases table when searching a mixed list for a platform stem",
   PLATFORM_STEMS.every((stem) => {
-    const match = matchTableByStem(usEast1Names, stem);
-    return match === null || !match.toLowerCase().includes("legalcases");
+    const match = matchTableByStem(usEast1Names, stem, SRC_PREFIX);
+    return !match.toLowerCase().includes("legalcases");
   })
 );
 
 check(
-  "matchTableByStem: refuses to return a LegalCases table even when the stem is literally 'LegalCases'",
-  matchTableByStem(usEast1Names, "LegalCases") === null
+  "matchTableByStem: refuses to return a LegalCases table even when the stem is literally 'LegalCases' (throws, 0 matches)",
+  (() => {
+    try {
+      matchTableByStem(usEast1Names, "LegalCases", SRC_PREFIX);
+      return false;
+    } catch {
+      return true;
+    }
+  })()
 );
 
 check(
-  "matchTableByStem: given a list containing ONLY LegalCases, a platform stem search finds nothing",
-  matchTableByStem(["indigenomics-portal-production-LegalCasesTable-q1r2s3t4"], "DataPortal") === null
+  "matchTableByStem: given a list containing ONLY LegalCases, a platform stem search throws (not found)",
+  (() => {
+    try {
+      matchTableByStem(["indigenomics-portal-production-LegalCasesTable-q1r2s3t4"], "DataPortal", SRC_PREFIX);
+      return false;
+    } catch {
+      return true;
+    }
+  })()
+);
+
+// --- Finding 1: real-world ambiguity regression -------------------------
+// These are the ACTUAL us-east-1 ListTables results that triggered this
+// finding: THREE tables contain "DataPortal" (bare + production + a
+// personal-stage table), and the bare `DataPortal` sorts first. Without the
+// stagePrefix constraint, matchTableByStem would silently resolve to the
+// wrong (dev) table and miss all 167 real production user accounts.
+const realAmbiguousDataPortalNames = [
+  "DataPortal",
+  "indigenomics-portal-production-DataPortalTable-bdczkfou",
+  "indigenomics-portal-sharonhuang-DataPortalTable-wmdkvddr",
+];
+
+const realAmbiguousRapSurveyNames = [
+  "RapSurvey",
+  "indigenomics-portal-production-RapSurveyTable-x7z2q9kd",
+  "indigenomics-portal-sharonhuang-RapSurveyTable-p3m8w1rt",
+];
+
+check(
+  "matchTableByStem: real ambiguous DataPortal list resolves to the production table under the prefix, not bare/dev",
+  matchTableByStem(realAmbiguousDataPortalNames, "DataPortal", SRC_PREFIX) ===
+    "indigenomics-portal-production-DataPortalTable-bdczkfou"
+);
+
+check(
+  "matchTableByStem: real ambiguous RapSurvey list resolves to the production table under the prefix, not bare/dev",
+  matchTableByStem(realAmbiguousRapSurveyNames, "RapSurvey", SRC_PREFIX) ===
+    "indigenomics-portal-production-RapSurveyTable-x7z2q9kd"
+);
+
+check(
+  "matchTableByStem: two tables under the SAME prefix+stem throws (ambiguity aborts, never silently picks one)",
+  (() => {
+    const twoUnderSamePrefix = [
+      "indigenomics-portal-production-DataPortalTable-aaaa1111",
+      "indigenomics-portal-production-DataPortalTable-bbbb2222",
+    ];
+    try {
+      matchTableByStem(twoUnderSamePrefix, "DataPortal", SRC_PREFIX);
+      return false;
+    } catch (e) {
+      return e instanceof Error && e.message.includes("DataPortal") && e.message.includes("2");
+    }
+  })()
+);
+
+check(
+  "matchTableByStem: zero matches under the prefix throws (missing table aborts, never silently skips)",
+  (() => {
+    try {
+      matchTableByStem(["indigenomics-portal-ca-DataPortalTable-nc7hd821"], "DataPortal", SRC_PREFIX);
+      return false;
+    } catch {
+      return true;
+    }
+  })()
 );
 
 // --- guard test: PLATFORM_STEMS itself must never include LegalCases ----

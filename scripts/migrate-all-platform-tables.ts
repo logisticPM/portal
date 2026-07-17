@@ -25,6 +25,13 @@ import { copyTable, verifyParity, type MigrationReport, type ParityReport } from
 export const SRC_REGION = "us-east-1";
 export const DEST_REGION = "ca-central-1";
 
+// Stage prefixes that constrain matchTableByStem to the ONE deployed stage we
+// intend to touch — the source production stage in us-east-1, and the `ca`
+// stage in ca-central-1 (mirrors scripts/list-ca-tables.ts's own filter).
+// Never widen this to match dev/personal stages (e.g. "...-sharonhuang-...").
+export const SRC_STAGE_PREFIX = "indigenomics-portal-production-";
+export const DEST_STAGE_PREFIX = "indigenomics-portal-ca-";
+
 // The shared logical stem for each of the five platform tables. SST appends a
 // stage prefix and a random suffix to these, e.g.
 // `indigenomics-portal-production-DataPortalTable-bddkwbku` (us-east-1) and
@@ -43,19 +50,38 @@ export function isPlatformTable(name: string): boolean {
   return PLATFORM_STEMS.some((stem) => lower.includes(stem.toLowerCase()));
 }
 
-// PURE — no AWS calls. Finds the physical table name in `names` whose name
-// contains `stem` (case-insensitive substring), matching SST's
-// `<prefix>-<Stem>Table-<suffix>` naming. Returns null when no match is
-// found. Never matches LegalCases, even if a caller mistakenly passed a stem
-// that would otherwise match it (defense in depth alongside isPlatformTable).
-export function matchTableByStem(names: string[], stem: string): string | null {
-  const needle = stem.toLowerCase();
-  const match = names.find((name) => {
+// PURE — no AWS calls. Finds the physical table name in `names` that STARTS
+// WITH `stagePrefix` AND contains `<stem>Table` (case-insensitive), matching
+// SST's `<prefix>-<Stem>Table-<suffix>` naming. Never matches LegalCases,
+// even if a caller mistakenly passed a stem that would otherwise match it
+// (defense in depth alongside isPlatformTable).
+//
+// us-east-1 RIGHT NOW contains THREE tables whose name contains "DataPortal"
+// (bare `DataPortal`, `...-production-...`, `...-sharonhuang-...`), and the
+// same for RapSurvey — a bare substring match on the unconstrained ListTables
+// output would silently resolve to the WRONG (dev) table. The stagePrefix
+// constraint plus a hard ambiguity/not-found abort are what make this safe:
+// this function must NEVER silently pick a table when the result is unclear.
+export function matchTableByStem(names: string[], stem: string, stagePrefix: string): string {
+  const needle = `${stem.toLowerCase()}table`;
+  const matches = names.filter((name) => {
+    if (!name.startsWith(stagePrefix)) return false;
     const lower = name.toLowerCase();
     if (lower.includes("legalcases")) return false;
     return lower.includes(needle);
   });
-  return match ?? null;
+
+  if (matches.length === 0) {
+    throw new Error(
+      `matchTableByStem: expected table not found for stem "${stem}" under prefix "${stagePrefix}" (0 matches).`
+    );
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `matchTableByStem: ambiguous match for stem "${stem}" under prefix "${stagePrefix}" — ${matches.length} tables matched: ${matches.join(", ")}. Aborting rather than guessing.`
+    );
+  }
+  return matches[0];
 }
 
 interface TableResult {
@@ -78,11 +104,8 @@ async function listTableNames(region: string): Promise<string[]> {
   return names;
 }
 
-function resolveStemName(names: string[], stem: PlatformStem, region: string): string {
-  const match = matchTableByStem(names, stem);
-  if (!match) {
-    throw new Error(`migrate-all-platform-tables: no table matching stem "${stem}" found in ${region}`);
-  }
+function resolveStemName(names: string[], stem: PlatformStem, region: string, stagePrefix: string): string {
+  const match = matchTableByStem(names, stem, stagePrefix);
   if (!isPlatformTable(match)) {
     // Should be unreachable given matchTableByStem's own LegalCases guard,
     // but asserted explicitly per the "throws if LegalCases ever appears in
@@ -91,6 +114,17 @@ function resolveStemName(names: string[], stem: PlatformStem, region: string): s
   }
   return match;
 }
+
+// Tables known to hold real data today — an empty source scan for these must
+// abort parity rather than report a hollow "match". RapData is legitimately
+// empty in us-east-1 at time of writing, so it opts out.
+const EXPECT_NON_EMPTY: Record<PlatformStem, boolean> = {
+  DataPortal: true,
+  RapData: false,
+  RapSurvey: true,
+  Commitments: true,
+  Alignment: true,
+};
 
 async function migrateOne(stem: PlatformStem, srcName: string, destName: string, verifyOnly: boolean): Promise<TableResult> {
   const opts = {
@@ -102,7 +136,7 @@ async function migrateOne(stem: PlatformStem, srcName: string, destName: string,
   if (!verifyOnly) {
     copy = await copyTable(opts);
   }
-  const parity = await verifyParity(opts);
+  const parity = await verifyParity({ ...opts, expectNonEmpty: EXPECT_NON_EMPTY[stem] });
   return { stem, srcName, destName, copy, parity };
 }
 
@@ -134,8 +168,8 @@ async function main(): Promise<void> {
   const errors: { stem: PlatformStem; error: unknown }[] = [];
 
   for (const stem of PLATFORM_STEMS) {
-    const srcName = resolveStemName(srcNames, stem, SRC_REGION);
-    const destName = resolveStemName(destNames, stem, DEST_REGION);
+    const srcName = resolveStemName(srcNames, stem, SRC_REGION, SRC_STAGE_PREFIX);
+    const destName = resolveStemName(destNames, stem, DEST_REGION, DEST_STAGE_PREFIX);
 
     // Final assertion right before any AWS mutation/read call — every table
     // in the target set MUST pass isPlatformTable, or we abort entirely.

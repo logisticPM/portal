@@ -55,6 +55,25 @@ async function main() {
   await doc.send(
     new PutCommand({ TableName: SRC, Item: { PK: "ORG#4", SK: "META", sector: "finance_banking" } })
   );
+  // Commitments-table-shaped item: toCommitmentItem (src/lib/dynamo/commitments-table.ts)
+  // nests the domain object under `data`, so there is NO top-level `sector` —
+  // only `data.sector`. This is the exact shape that previously defeated the
+  // taxonomy check for every real Commitments-table row. Must be flagged.
+  await doc.send(
+    new PutCommand({
+      TableName: SRC,
+      Item: { PK: "COMMITMENT#5", SK: "PROFILE", et: "Commitment", data: { sector: "finance_banking" } },
+    })
+  );
+  // Nested-but-non-commitment row: `data.sector` is non-canonical but this is
+  // NOT a Commitment item (no et:"Commitment") — must NOT be flagged, same
+  // false-positive guard as the top-level Party-like case above.
+  await doc.send(
+    new PutCommand({
+      TableName: SRC,
+      Item: { PK: "ORG#6", SK: "META", data: { sector: "finance_banking" } },
+    })
+  );
 
   // Local test stands one endpoint in for both "regions"; a real cutover run
   // passes distinct src/dest connection params (see CLI entrypoint below).
@@ -64,22 +83,53 @@ async function main() {
   };
 
   const rep = await copyTable(opts);
-  check("copies every source item", rep.written === 4);
-  check("scans every source item", rep.scanned === 4);
+  check("copies every source item", rep.written === 6);
+  check("scans every source item", rep.scanned === 6);
   check(
     "flags the non-canonical sector row on a Commitment item (does not silently carry it)",
-    rep.flaggedNonCanonical.length === 1 && rep.flaggedNonCanonical[0].includes("ORG#2")
+    rep.flaggedNonCanonical.some((k) => k.includes("ORG#2"))
   );
+  check(
+    "flags the non-canonical sector on a Commitments-table-shaped item (nested under data.sector)",
+    rep.flaggedNonCanonical.some((k) => k.includes("COMMITMENT#5"))
+  );
+  check("flags exactly the two genuine Commitment rows, no more", rep.flaggedNonCanonical.length === 2);
   check(
     "does NOT flag a non-canonical sector on a non-Commitment (Party-like) item",
     !rep.flaggedNonCanonical.some((k) => k.includes("ORG#4"))
   );
-  check("Party-like non-canonical-sector item is still copied (data is data)", rep.written === 4);
+  check(
+    "does NOT flag a non-canonical nested data.sector on a non-Commitment item",
+    !rep.flaggedNonCanonical.some((k) => k.includes("ORG#6"))
+  );
 
   const parity = await verifyParity(opts);
   check("parity: dest count equals source count", parity.destCount === parity.sourceCount);
   check("parity: match is true when counts agree and no key missing", parity.match === true);
   check("parity: no missing keys after a full copy", parity.missingKeys.length === 0);
+  check("parity: sourceEmpty is false for a non-empty source", parity.sourceEmpty === false);
+
+  // Finding 3: an empty-source parity must not silently report success when
+  // the caller expects the table to hold data (guards against a resolution
+  // bug pointing at an empty/wrong table).
+  const EMPTY_SRC = "MigSrcEmpty";
+  const EMPTY_DST = "MigDstEmpty";
+  await makeTable(EMPTY_SRC);
+  await makeTable(EMPTY_DST);
+  const emptyOpts = {
+    src: { endpoint: ENDPOINT, region: "local", table: EMPTY_SRC },
+    dest: { endpoint: ENDPOINT, region: "local", table: EMPTY_DST },
+  };
+  const emptyParityStrict = await verifyParity({ ...emptyOpts, expectNonEmpty: true });
+  check(
+    "parity: expectNonEmpty=true forces match=false when source is empty (even though counts agree)",
+    emptyParityStrict.match === false && emptyParityStrict.sourceEmpty === true
+  );
+  const emptyParityLenient = await verifyParity({ ...emptyOpts, expectNonEmpty: false });
+  check(
+    "parity: expectNonEmpty=false allows a legitimately-empty source (e.g. RapData) to still match",
+    emptyParityLenient.match === true && emptyParityLenient.sourceEmpty === true
+  );
 
   process.exit(fail ? 1 : 0);
 }

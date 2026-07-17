@@ -58,6 +58,10 @@ export interface ParityReport {
   destCount: number;
   match: boolean;
   missingKeys: string[];
+  // True when sourceCount === 0. Surfaced explicitly so an empty-source
+  // "match" (both counts 0, no missing keys) can never be mistaken for a
+  // genuine successful migration — see expectNonEmpty below.
+  sourceEmpty: boolean;
 }
 
 type Item = Record<string, unknown>;
@@ -127,7 +131,7 @@ export async function copyTable(
       const res = await destDoc.send(
         new BatchWriteCommand({
           RequestItems: {
-            [opts.dest.table]: pending.map((Item) => ({ PutRequest: { Item } })),
+            [opts.dest.table]: pending.map((record) => ({ PutRequest: { Item: record } })),
           },
         })
       );
@@ -169,10 +173,16 @@ export async function copyTable(
     );
     for (const item of page.Items ?? []) {
       scanned++;
+      // Commitments-table items nest their domain fields under `data`
+      // (toCommitmentItem writes `data: c`), so there is no top-level
+      // `item.sector` for them — RapData commit items spread `...c` and DO
+      // have a top-level `sector`. Check both shapes; shouldCheckTaxonomy
+      // still gates this to genuine commitment items only.
+      const sector = item.sector ?? (item.data as Item | undefined)?.sector;
       if (
-        typeof item.sector === "string" &&
+        typeof sector === "string" &&
         checkTaxonomy(item) &&
-        !CANONICAL_SECTORS.includes(item.sector as (typeof CANONICAL_SECTORS)[number])
+        !CANONICAL_SECTORS.includes(sector as (typeof CANONICAL_SECTORS)[number])
       ) {
         flaggedNonCanonical.push(keyLabel(item));
       }
@@ -187,7 +197,16 @@ export async function copyTable(
   return { scanned, written, flaggedNonCanonical };
 }
 
-export async function verifyParity(opts: CopyVerifyOpts): Promise<ParityReport> {
+export async function verifyParity(
+  opts: CopyVerifyOpts & {
+    // When true, a source count of 0 forces match=false — an empty source
+    // table (e.g. because the wrong/dev table was resolved) must never be
+    // reported as a successful migration just because dest is also empty.
+    // Tables known to legitimately be empty in the source region (e.g.
+    // RapData in us-east-1) pass false/omit this.
+    expectNonEmpty?: boolean;
+  }
+): Promise<ParityReport> {
   const srcDoc = makeDocClient(opts.src);
   const destDoc = makeDocClient(opts.dest);
 
@@ -232,8 +251,9 @@ export async function verifyParity(opts: CopyVerifyOpts): Promise<ParityReport> 
     if (!res.Item) missingKeys.push(`${String(key.PK)}/${String(key.SK)}`);
   }
 
-  const match = sourceCount === destCount && missingKeys.length === 0;
-  return { sourceCount, destCount, match, missingKeys };
+  const sourceEmpty = sourceCount === 0;
+  const match = sourceCount === destCount && missingKeys.length === 0 && !(opts.expectNonEmpty && sourceEmpty);
+  return { sourceCount, destCount, match, missingKeys, sourceEmpty };
 }
 
 // ---------------------------------------------------------------------------
