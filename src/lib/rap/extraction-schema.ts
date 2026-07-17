@@ -65,7 +65,6 @@ const HEADER_FIELD_PROPERTIES = {
     required: ["start", "end"],
   }),
   frameworkRefs: grounded({ type: ["array", "null"], items: { type: "string", enum: FRAMEWORK_REFS } }),
-  pillars: grounded({ type: ["array", "null"], items: { type: "string", enum: PILLARS } }),
   governanceBody: gString,
   reviewCycle: gString,
   rapType: gEnum(RAP_TYPES),
@@ -75,7 +74,7 @@ const HEADER_FIELD_PROPERTIES = {
 
 const HEADER_FIELD_REQUIRED = [
   "orgName", "sector", "jurisdiction", "rapTitle", "publicationDate", "periodCovered",
-  "frameworkRefs", "pillars", "governanceBody", "reviewCycle", "rapType", "pairLevel",
+  "frameworkRefs", "governanceBody", "reviewCycle", "rapType", "pairLevel",
   "endorsementStatus",
 ] as const;
 
@@ -127,7 +126,7 @@ export const CLAUDE_TOOL = {
     },
     required: [
       "orgName", "sector", "jurisdiction", "rapTitle", "publicationDate", "periodCovered",
-      "frameworkRefs", "pillars", "governanceBody", "reviewCycle", "rapType", "pairLevel",
+      "frameworkRefs", "governanceBody", "reviewCycle", "rapType", "pairLevel",
       "endorsementStatus", "commitments", "extras",
     ],
     additionalProperties: false,

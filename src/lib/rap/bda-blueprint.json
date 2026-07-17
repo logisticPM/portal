@@ -40,7 +40,6 @@
     "publicationDate": { "type": "string", "inferenceType": "explicit", "instruction": "The date the RAP was published, as an ISO date if determinable." },
     "periodCovered": { "$ref": "#/definitions/PeriodCovered", "instruction": "The start and end of the period the RAP covers." },
     "frameworkRefs": { "type": "array", "instruction": "Frameworks the RAP references; each item one of: undrip, trc_cta_92, ocap, pair, other.", "items": { "type": "string" } },
-    "pillars": { "type": "array", "instruction": "The document's top-level pillars/themes, normalized to: relationships, respect, opportunities, governance, employment, community, environment, economy, education, other.", "items": { "type": "string" } },
     "governanceBody": { "type": "string", "inferenceType": "explicit", "instruction": "The body that governs/sponsors the RAP (e.g. a RAP Working Group, advisory council, or board sponsor)." },
     "reviewCycle": { "type": "string", "inferenceType": "explicit", "instruction": "How often the RAP is reviewed/reported (e.g. annual, biennial, 3-year)." },
     "rapType": { "type": "string", "inferenceType": "inferred", "instruction": "Australian RAP maturity tier if stated: reflect, innovate, stretch, or elevate. Leave empty for Canadian RAPs." },

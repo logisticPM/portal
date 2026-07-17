@@ -20,7 +20,7 @@ import {
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { resolveBedrockModelId } from "./bedrock-model";
 import { DEFAULT_TARGET_CHARS, type DocChunk, chunkDocument, splitInHalf } from "./chunk";
-import { deriveClassification } from "./classify";
+import { deriveClassification, derivePillars } from "./classify";
 import {
   COMMITMENTS_TOOL,
   COMMITMENTS_TOOL_NAME,
@@ -446,9 +446,9 @@ async function extractChunkCommitments(
 // below) always passes full ExtractedCommitment[][], so C is inferred as
 // ExtractedCommitment there and the result is a true ExtractedRap.
 export function mergeExtraction<C>(
-  header: Omit<ExtractedRap, "commitments">,
+  header: Omit<ExtractedRap, "commitments" | "pillars">,
   commitmentGroups: C[][],
-): Omit<ExtractedRap, "commitments"> & { commitments: C[] } {
+): Omit<ExtractedRap, "commitments" | "pillars"> & { commitments: C[] } {
   return {
     ...header,
     commitments: commitmentGroups.flat(),
@@ -498,7 +498,7 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
       "Header call truncated at max_tokens — header fields were measured to fit comfortably in a single call; this is unexpected and a hard failure, not a split-and-retry case.",
     );
   }
-  const header = parseToolJson<Omit<ExtractedRap, "commitments">>(headerJson, HEADER_TOOL_NAME);
+  const header = parseToolJson<Omit<ExtractedRap, "commitments" | "pillars">>(headerJson, HEADER_TOOL_NAME);
 
   // Commitment calls run SEQUENTIALLY, one per chunk — never in parallel. The
   // abort failure mode observed against live Bedrock is not understood well
@@ -509,7 +509,13 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
     commitmentGroups.push(await extractChunkCommitments(chunk, input.fileName, 0));
   }
 
-  const merged = mergeExtraction(header, commitmentGroups);
+  // pillars is DERIVED from the commitments, never extracted — HEADER_TOOL does
+  // not carry it (see classify.ts derivePillars). The commitments are the single
+  // source of truth; this is a projection of their already-grounded pillars.
+  const merged: ExtractedRap = {
+    ...mergeExtraction(header, commitmentGroups),
+    pillars: derivePillars(commitmentGroups.flat()),
+  };
 
   // deterministic gate: Claude returns verbatim quotes → require them
   // deterministic gate: Claude returns verbatim quotes → require them, AND check

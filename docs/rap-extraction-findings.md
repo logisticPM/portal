@@ -221,6 +221,34 @@ forward-looking and that a past-achievement list must be skipped even when it lo
 list of commitments. BDA (§5) returning 22 on the same document was the clue that this was a prompt
 gap in Option B, not an inherent limit.
 
+### `pillars` is now derived, not extracted (2026-07-16)
+
+Turning the quote check on surfaced a schema problem. `Grounded<T>` is shaped for a **scalar** —
+one value, one quote, one page, one confidence — but `pillars` was `Grounded<Pillar[]>`, so it
+grounded the *array*, not the *elements*. Live, it returned **six** pillars behind **one** quote at
+**page 5**, though "education" and "community" come from p15. There was no honest way to fill it:
+"which themes does this RAP touch?" is a **summary**, and rule 1 says the model transcribes rather
+than summarizes. No sentence in a RAP says "this plan is about employment", so no span exists to
+quote. The field could not satisfy its own contract, and the model did the only thing left — welded
+bullets together with an ellipsis. Because `isClean()` treats any flagged field as
+review-worthy, that ungroundable field alone routed every RAP to the human queue.
+
+**`pillars` is now derived from the commitments** (`classify.ts` `derivePillars`), which are the
+single source of truth: each already carries a grounded `pillarRaw` and a normalized
+`pillarNormalized`, and `publish.ts` already built the published row from `c.pillarNormalized`, not
+from `e.pillars`. The field is plain `Pillar[]` (like `pillarNormalized`), emitted in canonical
+order so two runs of the same document are comparable, and the model is no longer asked for it.
+
+It is also **more complete**, not merely better grounded: the model's summary returned 6 pillars,
+while deriving from its own commitments yields **8** — it had omitted `respect` and `governance`
+despite asserting commitments in both. The summary disagreed with the data it summarized.
+
+Two bugs died with it: BDA's multi-chunk `mergeExtracted` used `pick()` (first chunk with a value)
+for `pillars`, silently discarding every other chunk's pillars on a >20-page RAP; and the field's
+low confidence was flagging otherwise-clean extractions. The generalisable lesson: **any "what is
+this document about" field is an inference, not an extraction, and cannot be verbatim-grounded** —
+derive it from the grounded records beneath it.
+
 ---
 
 ## 5. What "works today" looks like (Option A)

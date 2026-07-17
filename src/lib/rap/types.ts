@@ -133,7 +133,10 @@ export interface ExtractedRap {
   publicationDate: Grounded<string>; // ISO 8601
   periodCovered: Grounded<{ start: string; end: string }>;
   frameworkRefs: Grounded<FrameworkRef[]>;
-  pillars: Grounded<Pillar[]>; // normalized theme set for the whole doc
+  // DERIVED from commitments (classify.ts derivePillars), never extracted: it is
+  // a summary of the document, so no verbatim span exists to ground it. Plain,
+  // like the per-commitment pillarNormalized it is projected from.
+  pillars: Pillar[];
   governanceBody: Grounded<string>; // RAP Working Group / board sponsor
   reviewCycle: Grounded<string>; // annual / biennial / 3-year
 

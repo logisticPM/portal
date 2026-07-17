@@ -21,7 +21,7 @@ import {
   InvokeDataAutomationAsyncCommand,
   BedrockDataAutomationRuntimeClient,
 } from "@aws-sdk/client-bedrock-data-automation-runtime";
-import { deriveClassification } from "./classify";
+import { deriveClassification, derivePillars } from "./classify";
 import { getDocumentBytes, getJsonByS3Uri, putDocument } from "./storage";
 import { validateAndFlag } from "./validate";
 import type {
@@ -80,6 +80,10 @@ function mapBdaToExtracted(ir: any, ex: any): ExtractedRap {
   const g = (k: string) => grounded(ir[k], ex[k]);
   const irCommits = Array.isArray(ir.commitments) ? ir.commitments : [];
   const exCommits = Array.isArray(ex.commitments) ? ex.commitments : [];
+  // drop empty-action artifacts (BDA sometimes returns blank commitment objects)
+  const commitments: ExtractedCommitment[] = irCommits
+    .map((c: any, i: number) => mapCommitment(c, exCommits[i]))
+    .filter((c: ExtractedCommitment) => !empty(c.action.value));
   return {
     orgName: g("orgName"),
     sector: g("sector") as Grounded<Sector>,
@@ -88,16 +92,16 @@ function mapBdaToExtracted(ir: any, ex: any): ExtractedRap {
     publicationDate: g("publicationDate"),
     periodCovered: g("periodCovered"),
     frameworkRefs: g("frameworkRefs"),
-    pillars: g("pillars"),
     governanceBody: g("governanceBody"),
     reviewCycle: g("reviewCycle"),
     rapType: g("rapType"),
     pairLevel: g("pairLevel"),
     endorsementStatus: g("endorsementStatus"),
-    // drop empty-action artifacts (BDA sometimes returns blank commitment objects)
-    commitments: irCommits
-      .map((c: any, i: number) => mapCommitment(c, exCommits[i]))
-      .filter((c: ExtractedCommitment) => !empty(c.action.value)),
+    commitments,
+    // DERIVED from the commitments, not read from the blueprint's own `pillars`
+    // field — that field is a summary with no verbatim span, and BDA grounds by
+    // confidence anyway. The blueprint may still emit it; we ignore it.
+    pillars: derivePillars(commitments),
     sectorFields: {}, // populate from ir.sectorFields once the blueprint defines them
     extras: Array.isArray(ir.extras) ? ir.extras : [],
   };
@@ -219,11 +223,17 @@ function mergeExtracted(parts: ExtractedRap[]): ExtractedRap {
     orgName: pick((e) => e.orgName), sector: pick((e) => e.sector) as Grounded<Sector>,
     jurisdiction: pick((e) => e.jurisdiction) as Grounded<Jurisdiction>, rapTitle: pick((e) => e.rapTitle),
     publicationDate: pick((e) => e.publicationDate), periodCovered: pick((e) => e.periodCovered),
-    frameworkRefs: pick((e) => e.frameworkRefs), pillars: pick((e) => e.pillars),
+    frameworkRefs: pick((e) => e.frameworkRefs),
     governanceBody: pick((e) => e.governanceBody), reviewCycle: pick((e) => e.reviewCycle),
     rapType: pick((e) => e.rapType), pairLevel: pick((e) => e.pairLevel),
     endorsementStatus: pick((e) => e.endorsementStatus),
-    commitments, sectorFields: parts[0].sectorFields ?? {}, extras,
+    commitments,
+    // Derive from the MERGED commitments. pick() takes the first chunk that found
+    // a value, which for an array field silently discarded every other chunk's
+    // pillars on a >20-page RAP; the commitments are unioned across chunks, so
+    // deriving from them is both correct and complete.
+    pillars: derivePillars(commitments),
+    sectorFields: parts[0].sectorFields ?? {}, extras,
   };
 }
 

@@ -74,7 +74,6 @@ const HEADER_GROUNDED_FIELDS = [
   "publicationDate",
   "periodCovered",
   "frameworkRefs",
-  "pillars",
   "governanceBody",
   "reviewCycle",
   "rapType",
@@ -156,6 +155,11 @@ async function main() {
       `  ${key}: value=${JSON.stringify(g.value)} page=${g.page} confidence=${g.confidence} flagged=${g.flagged} quote="${truncate(g.quote as string | null, 80)}"`,
     );
   }
+  // pillars is DERIVED from the commitments (classify.ts derivePillars), not
+  // extracted — it is a summary, so it has no verbatim span to ground. Printed
+  // separately for that reason: it is not a Grounded field and must not be
+  // reported as satisfying a quote/page contract it was never given.
+  console.log(`derived pillars (from the commitments, not the model): ${JSON.stringify(extracted.pillars)}`);
   console.log("");
 
   // ---- commitments: counts + grounding contract ------------------------

@@ -135,7 +135,6 @@ export function validateAndFlag(e: ExtractedRap, opts: ValidateOptions = {}): Va
     publicationDate: fd(e.publicationDate, "publicationDate"),
     periodCovered: f(e.periodCovered, "periodCovered"),
     frameworkRefs: f(e.frameworkRefs, "frameworkRefs"),
-    pillars: f(e.pillars, "pillars"),
     governanceBody: f(e.governanceBody, "governanceBody"),
     reviewCycle: f(e.reviewCycle, "reviewCycle"),
     rapType: f(e.rapType, "rapType"),
