@@ -15,11 +15,17 @@ This documents what we learned deploying and testing the RAP extraction pipeline
 
 **Option B — Claude on Bedrock (in-country, `ca-central-1`) — UPDATE 2026-07-16: the blocker is fixed.**
 It was deferred because a single grounded call **aborted** on the real RAP. It now runs end to end
-in `ca-central-1` (**392s**), extracting all 22 forward-looking commitments on their correct pages,
-every one carrying a quote and a page. Two caveats before anyone re-opens the engine decision:
-it **over-extracts** (46 returned, ~17 of them past achievements — a prompt gap, see §4b), and it is
-~6× slower than BDA's 64s. §4 records what the original diagnosis got wrong; §4a how we cut the
-document; §4b the live run. **This does not by itself overturn "ship A"** — that is a team call.
+in `ca-central-1` in **116.5s**, returning **26 commitments — all 22 forward-looking ones on their
+correct pages** (12 on p13, 10 on p15), every one carrying a verbatim quote and a real page number,
+plus 4 defensible extras. The over-extraction that the first run showed (46, ~17 of them past
+achievements) was a prompt gap and is fixed. §4 records what the original diagnosis got wrong;
+§4a how we cut the document; §4b the live runs.
+
+**This still does not by itself overturn "ship A" — that is a team call.** But the two things that
+argued against B have both moved: it is now ~1.8× slower than BDA (116.5s vs 64s), not 6×, and it
+extracts the same 22 commitments BDA does while carrying **verbatim quotes and read (not guessed)
+page numbers**, in-country at rest. The open question is cost — `AnalyzeDocument`+LAYOUT is a
+pricier Textract tier and that is still unmeasured.
 
 ---
 
@@ -169,7 +175,23 @@ Only **3 of 22** commitments existed as contiguous text in what we were sending 
 No drops, no duplicates. Textract OCR on the real multi-page PDF works, and page numbers are read
 rather than guessed.
 
-**But it returns 46, not 22 — it over-extracts.** The breakdown:
+> **UPDATE — over-extraction fixed (2026-07-16, verified live).** `EXTRACTION_SYSTEM` gained a
+> forward-looking rule (rule 7). Re-run against the same PDF: **46 → 26 commitments**, and all
+> **17** past-achievement bullets are gone — pages 7 and 8 no longer appear in the output at all.
+> The 22 real commitments are untouched (still 12 on p13 + 10 on p15). The `"Starting in 1975"` /
+> `"Over the past several years"` validation flags are gone; the 3 that remain (`"Annual"`,
+> `"Every three years"`) are legitimate cadences that just aren't ISO dates.
+> The 4 remaining non-gold items are defensible: p6 "Commit to understanding limitations of Western
+> ways of thinking…" and two p16 governance commitments ("Every three years… review and refresh",
+> "Share annual updates on progress"). Only p9 "Develop a Reconciliation Action Plan" is arguable —
+> the Bank already did, this document *is* it.
+> **Side effect: it got 3.4× faster — 392s → 116.5s** — because output tokens scale with commitment
+> count (~410 each), and it no longer emits ~20 things it shouldn't. That materially narrows the
+> latency gap with BDA (64s) for the engine decision.
+>
+> The original 46-result analysis is kept below, because it is what diagnosed the cause.
+
+**The original run returned 46, not 22 — it over-extracted.** The breakdown:
 - **22** — the real forward-looking "Some key actions:" commitments (p13/p15). Correct.
 - **17** — the p7/p8 **past-achievement** bullets from "Where we have been" (p7 has 7, p8 has 10 —
   the numbers match exactly). These are history, not commitments: "Representing Indigenous voices
@@ -187,9 +209,10 @@ new per-chunk prompt ever says *forward-looking only*, so the same over-extracti
 before; the old call simply died before it could show us (46 × ~410 ≈ 19k tokens > the 16000 cap —
 which is precisely why it aborted).
 
-**Follow-up (not fixed here):** teach the commitments prompt to exclude past achievements —
-`EXTRACTION_SYSTEM` needs a forward-looking rule. Note BDA (§5) returned 22 on the same document,
-so this is a prompt gap in Option B, not an inherent limit.
+**Fixed** (see the update box above): `EXTRACTION_SYSTEM` rule 7 now states that commitments are
+forward-looking and that a past-achievement list must be skipped even when it looks exactly like a
+list of commitments. BDA (§5) returning 22 on the same document was the clue that this was a prompt
+gap in Option B, not an inherent limit.
 
 ---
 
