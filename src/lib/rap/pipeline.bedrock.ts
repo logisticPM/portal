@@ -1,8 +1,12 @@
 // ===========================================================================
 // Real extraction pipeline — Claude on Bedrock (tool-use), with deterministic
 // validation. This is Option B (fully in-region, e.g. ca-central-1): async
-// Textract OCR (multi-page) → Claude forced to call record_rap_extraction
-// (grounded JSON with verbatim quotes) → validateAndFlag → ExtractionResult.
+// Textract LAYOUT OCR (multi-page, page-grounded paragraphs) → one HEADER_TOOL
+// call over the whole document + one COMMITMENTS_TOOL call per ~6000-char
+// chunk (each forced via tool_choice, grounded JSON with verbatim quotes) →
+// merge in chunk order → validateAndFlag → ExtractionResult. Chunking exists
+// because a single forced call over a large RAP truncates before the JSON
+// completes (see docs/rap-extraction-findings.md §4).
 // Gated behind EXTRACTION_IMPL=bedrock; the mock is the default so dev/demo
 // never loads this module. (Option A is pipeline.bda.ts — managed, US-region.)
 // ===========================================================================
@@ -15,7 +19,7 @@ import {
 } from "@aws-sdk/client-textract";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { resolveBedrockModelId } from "./bedrock-model";
-import { type DocChunk, chunkDocument, splitInHalf } from "./chunk";
+import { DEFAULT_TARGET_CHARS, type DocChunk, chunkDocument, splitInHalf } from "./chunk";
 import {
   COMMITMENTS_TOOL,
   COMMITMENTS_TOOL_NAME,
@@ -35,10 +39,19 @@ const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 // reaches Claude via the "us." profile — see src/lib/rap/bedrock-model.ts.)
 const modelId = resolveBedrockModelId(process.env);
 const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
-// Output cap. NOTE (see docs/rap-extraction-findings.md): on this model the
-// per-subfield grounded schema is very output-heavy and a many-commitment RAP
-// can exhaust this before the JSON completes (detected below). Raising it much
-// higher makes the generation long enough that the connection drops.
+// Output cap. Measured regime (docs/rap-extraction-findings.md §4, live
+// 2026-07-16, do not re-derive — it costs real money): ~410 output tokens per
+// commitment; 22 commitments succeeded 3/3 runs in both regions (~8.9k-10.2k
+// output tokens); 32 aborted the connection 3/3, also on sonnet-4-5. Raising
+// this cap makes it WORSE, not better (32 @16000 aborts outright, where 32
+// @4000 at least returns a clean max_tokens stop). The burn is also
+// INVISIBLE — at 32 commitments ~89% of the budget goes to tokens that never
+// appear in any stream channel (no text block, no thinking block, just
+// {tool_use: 1}), always dying ~1,380 chars into the commitments array — so a
+// smaller per-subfield grounded schema was measured NOT to fix this; do not
+// "lighten the grounding" to address a truncation, that costs provenance and
+// buys nothing. The real fix is chunking (this file): each call stays well
+// inside the proven-good regime instead of trying to shrink the schema.
 const MAX_OUTPUT_TOKENS = 16000;
 
 // Use an http/1.1 handler with a long request timeout. A large extraction (many
@@ -96,6 +109,41 @@ function childLineText(block: Block, byId: Map<string, Block>): string {
 // Cost: repeats a short marker on every paragraph, and — like dropping the
 // noise block types above — means chunk text is no longer a verbatim copy of
 // the source.
+//
+// Oversized blocks (load-bearing): a single LAYOUT_ block's text can exceed
+// chunkDocument's targetChars — LAYOUT_TABLE widening in particular means a
+// tabled commitments section can produce one huge block. chunk.ts's own
+// splitLargeParagraph would later cut that into multiple pieces, but it only
+// keeps the FIRST piece's leading "[p.N]" line — every later piece would land
+// in the document with no marker at all, and once a chunk boundary falls
+// between pieces the model attributes the marker-less piece to whatever page
+// happens to precede it: in-range, non-null, and wrong. So we pre-split here,
+// at the source, into multiple paragraphs that EACH carry their own "[p.N]"
+// marker — chunk.ts stays pure and marker-agnostic, and no marker-less piece
+// can ever exist downstream.
+function splitOversizedBlockText(text: string, target: number): string[] {
+  if (text.length <= target) return [text];
+  const sentences = text.split(/(?<=\.)(?:\s+|\n)/);
+  const parts: string[] = [];
+  let current = "";
+  for (const s of sentences) {
+    const candidate = current ? `${current} ${s}` : s;
+    if (candidate.length > target) {
+      if (current) {
+        parts.push(current);
+        current = s;
+      } else {
+        // a single sentence already over target: keep it whole
+        current = s;
+      }
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) parts.push(current);
+  return parts.filter(Boolean);
+}
+
 export function buildTextFromLayoutBlocks(blocks: Block[]): string {
   const byId = new Map<string, Block>();
   for (const b of blocks) if (b.Id) byId.set(b.Id, b);
@@ -110,7 +158,10 @@ export function buildTextFromLayoutBlocks(blocks: Block[]): string {
   const paragraphs: string[] = [];
   const pushParagraph = (page: number | undefined, text: string) => {
     const t = text.trim();
-    if (t) paragraphs.push(`[p.${page ?? "?"}]\n${t}`);
+    if (!t) return;
+    for (const piece of splitOversizedBlockText(t, DEFAULT_TARGET_CHARS)) {
+      paragraphs.push(`[p.${page ?? "?"}]\n${piece}`);
+    }
   };
 
   for (const b of blocks) {
@@ -150,6 +201,25 @@ export function buildTextFromLayoutBlocks(blocks: Block[]): string {
 // Reads the object straight from S3 by bucket/key — no bytes round-trip.
 async function loadDocumentText(sourceS3Key: string, fileName: string): Promise<string> {
   if (/\.txt$/i.test(fileName)) {
+    // .txt bypasses Textract entirely: no LAYOUT paragraphs, no "[p.N]"
+    // markers, so every page number the model reports is a guess, not
+    // grounding (measured: 1/10 correct — see docs/rap-extraction-findings.md
+    // §4a). src/app/api/rap/upload-url/route.ts imposes no extension
+    // restriction, so this path is reachable in production; refuse it by
+    // default. ALLOW_UNGROUNDED_TXT=1 is a diagnostic escape hatch only (used
+    // to produce the synthetic-.txt measurements in §4) — it must never be set
+    // in prod.
+    if (process.env.ALLOW_UNGROUNDED_TXT !== "1") {
+      throw new Error(
+        `Refusing to extract from "${fileName}": .txt bypasses Textract and cannot carry page grounding. ` +
+          "Convert to PDF/image for a Textract-grounded extraction, or set ALLOW_UNGROUNDED_TXT=1 to force it " +
+          "for diagnostic work (pages will be model-guessed and ungrounded).",
+      );
+    }
+    console.warn(
+      `ALLOW_UNGROUNDED_TXT=1: extracting "${fileName}" as plain text, bypassing Textract. ` +
+        "Page numbers will be MODEL-GUESSED, not grounded — do not use this output for anything but diagnostics.",
+    );
     return new TextDecoder().decode(await getDocumentBytes(sourceS3Key));
   }
   if (!uploadBucket) throw new Error("RAP_UPLOAD_BUCKET not set (needed for Textract S3 input)");
@@ -259,7 +329,17 @@ async function callTool(tool: object, toolName: string, userText: string, maxTok
       toolJson += evt.delta.partial_json ?? "";
     }
   }
-  if (!toolJson) throw new Error(`Bedrock stream contained no ${toolName} tool input`);
+  // Only throw on empty JSON when it's NOT a max_tokens truncation. A
+  // truncation that emitted zero visible input_json_delta bytes before dying
+  // (the invisible-burn failure mode — see the MAX_OUTPUT_TOKENS comment
+  // above) must be handed back to the caller as {json: "", stopReason:
+  // "max_tokens"} so it can split immediately, not thrown here — a throw
+  // would make callToolWithRetry treat it as transient and re-run the
+  // identical (doomed) generation three times before the caller ever gets a
+  // chance to split.
+  if (!toolJson && stopReason !== "max_tokens") {
+    throw new Error(`Bedrock stream contained no ${toolName} tool input`);
+  }
   return { json: toolJson, stopReason };
 }
 
@@ -387,6 +467,19 @@ export function mergeExtraction<C>(
 export async function runExtractionBedrock(input: { fileName: string; sourceS3Key: string }): Promise<ExtractionResult> {
   const documentText = await loadDocumentText(input.sourceS3Key, input.fileName);
   const chunks = chunkDocument(documentText);
+  // No extractable text (an image-only scan whose LAYOUT blocks are all noise
+  // types, or a document that OCR'd to nothing) means chunkDocument("")
+  // returns []. Without this guard the per-chunk loop below would simply
+  // never run and this function would return a complete-looking
+  // ExtractionResult with commitments: [] — exactly the "silently dropped
+  // commitments" failure the whole pipeline exists to prevent. Fail loudly
+  // instead.
+  if (documentText.trim() === "" || chunks.length === 0) {
+    throw new Error(
+      `No extractable text found in "${input.fileName}" — is this an image-only scan with no OCR-able text? ` +
+        "Textract LAYOUT returned no usable paragraphs, so there is nothing to extract commitments from.",
+    );
+  }
 
   // Header call runs over the WHOLE document text, not just the first chunk.
   // AMENDED 2026-07-16 (supersedes an earlier "first chunk only" plan): on the
