@@ -3,7 +3,7 @@
 // Exercises copyTable/verifyParity entirely against DynamoDB Local, using two
 // tables in the same local endpoint as stand-ins for source-region/dest-region
 // tables. Prints a skip line (not a failure) if DynamoDB Local isn't reachable.
-import { CreateTableCommand, DeleteTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { CreateTableCommand, DeleteTableCommand, DynamoDBClient, ListTablesCommand } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { copyTable, verifyParity } from "./migrate-table-region";
 
@@ -31,10 +31,12 @@ async function makeTable(name: string) {
 
 async function main() {
   // Fail fast with a clear skip line rather than a confusing connection-refused stack.
+  // NOTE: no .catch() here — a rejection must propagate to the try/catch below
+  // for the skip branch to be reachable at all.
   try {
-    await raw.send(new DeleteTableCommand({ TableName: "__ddb_reachability_probe__" })).catch(() => {});
+    await raw.send(new ListTablesCommand({}));
   } catch {
-    console.log(`SKIP: DynamoDB Local unreachable at ${ENDPOINT} (run "npm run ddb:up" first)`);
+    console.log(`SKIP: DynamoDB Local unreachable at ${ENDPOINT} — run: npm run ddb:up`);
     process.exit(0);
   }
 

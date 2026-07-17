@@ -36,6 +36,14 @@ export interface CopyVerifyOpts {
   dest: ConnOpts;
 }
 
+// Injectable for tests that need to simulate DynamoDB behaviors (e.g.
+// UnprocessedItems under throttling) that DynamoDB Local won't reproduce with
+// a handful of items. Real callers never pass this — copyTable builds a real
+// client from src/dest region+endpoint by default.
+export interface DocClientLike {
+  send: DynamoDBDocumentClient["send"];
+}
+
 export interface MigrationReport {
   scanned: number;
   written: number;
@@ -83,11 +91,29 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Retry backoff schedule (ms) for UnprocessedItems from BatchWriteCommand.
+// DynamoDB returns partial-success batches under throttling; retrying with
+// backoff is the documented mitigation (see AWS SDK BatchWrite docs).
+const UNPROCESSED_RETRY_DELAYS_MS = [50, 100, 200, 400, 800];
+
 export async function copyTable(
-  opts: CopyVerifyOpts & { shouldCheckTaxonomy?: (item: Item) => boolean }
+  opts: CopyVerifyOpts & {
+    shouldCheckTaxonomy?: (item: Item) => boolean;
+    // Test-only overrides: inject fake doc clients to simulate
+    // UnprocessedItems/throttling behavior DynamoDB Local won't produce, and
+    // to keep that test free of any real network/DynamoDB Local dependency.
+    // Real callers never set these — real clients are built from src/dest
+    // region+endpoint by default.
+    srcDocClient?: DocClientLike;
+    destDocClient?: DocClientLike;
+  }
 ): Promise<MigrationReport> {
-  const srcDoc = makeDocClient(opts.src);
-  const destDoc = makeDocClient(opts.dest);
+  const srcDoc: DocClientLike = opts.srcDocClient ?? makeDocClient(opts.src);
+  const destDoc: DocClientLike = opts.destDocClient ?? makeDocClient(opts.dest);
   const checkTaxonomy = opts.shouldCheckTaxonomy ?? shouldCheckTaxonomy;
 
   let scanned = 0;
@@ -95,17 +121,43 @@ export async function copyTable(
   const flaggedNonCanonical: string[] = [];
   const buffer: Item[] = [];
 
-  async function flushBuffer() {
-    if (buffer.length === 0) return;
-    for (const batch of chunk(buffer, 25)) {
-      await destDoc.send(
+  async function writeBatch(batch: Item[]) {
+    let pending = batch;
+    for (let attempt = 0; pending.length > 0; attempt++) {
+      const res = await destDoc.send(
         new BatchWriteCommand({
           RequestItems: {
-            [opts.dest.table]: batch.map((Item) => ({ PutRequest: { Item } })),
+            [opts.dest.table]: pending.map((Item) => ({ PutRequest: { Item } })),
           },
         })
       );
-      written += batch.length;
+      const unprocessed = (res.UnprocessedItems?.[opts.dest.table] ?? [])
+        .map((req) => req.PutRequest?.Item)
+        .filter((item): item is Item => item != null);
+
+      const confirmed = pending.length - unprocessed.length;
+      written += confirmed;
+
+      if (unprocessed.length === 0) return;
+
+      if (attempt >= UNPROCESSED_RETRY_DELAYS_MS.length) {
+        const keys = unprocessed.map((item) => keyLabel(item)).join(", ");
+        throw new Error(
+          `copyTable: ${unprocessed.length} item(s) remained UnprocessedItems after ` +
+            `${UNPROCESSED_RETRY_DELAYS_MS.length} retries and were NOT written to ` +
+            `${opts.dest.table}. Migration aborted to avoid silent data loss. Keys: ${keys}`
+        );
+      }
+
+      await sleep(UNPROCESSED_RETRY_DELAYS_MS[attempt]);
+      pending = unprocessed;
+    }
+  }
+
+  async function flushBuffer() {
+    if (buffer.length === 0) return;
+    for (const batch of chunk(buffer, 25)) {
+      await writeBatch(batch);
     }
     buffer.length = 0;
   }
