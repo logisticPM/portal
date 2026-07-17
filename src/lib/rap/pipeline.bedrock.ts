@@ -20,6 +20,7 @@ import {
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { resolveBedrockModelId } from "./bedrock-model";
 import { DEFAULT_TARGET_CHARS, type DocChunk, chunkDocument, splitInHalf } from "./chunk";
+import { deriveClassification } from "./classify";
 import {
   COMMITMENTS_TOOL,
   COMMITMENTS_TOOL_NAME,
@@ -30,7 +31,7 @@ import {
 } from "./extraction-schema";
 import { getDocumentBytes } from "./storage";
 import { validateAndFlag } from "./validate";
-import type { ExtractedCommitment, ExtractedRap, ExtractionResult, RapClassification } from "./types";
+import type { ExtractedCommitment, ExtractedRap, ExtractionResult } from "./types";
 
 const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 // Must be an INFERENCE PROFILE, not a bare model id — Bedrock rejects bare ids
@@ -254,16 +255,6 @@ async function loadDocumentText(sourceS3Key: string, fileName: string): Promise<
   return buildTextFromLayoutBlocks(blocks);
 }
 
-// classification is derivable from the grounded core fields (one fewer API call);
-// confidence = the least confident of the three signals.
-function deriveClassification(e: ExtractedRap): RapClassification {
-  return {
-    jurisdiction: e.jurisdiction.value ?? "other",
-    sector: e.sector.value ?? "other",
-    rapType: e.rapType.value,
-    confidence: Math.min(e.jurisdiction.confidence, e.sector.confidence, e.rapType.confidence),
-  };
-}
 
 // Max times a chunk may be recursively halved (either on max_tokens truncation
 // or as the last resort after transient-error retries are exhausted). Bounds

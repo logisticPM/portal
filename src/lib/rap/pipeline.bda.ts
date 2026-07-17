@@ -21,11 +21,12 @@ import {
   InvokeDataAutomationAsyncCommand,
   BedrockDataAutomationRuntimeClient,
 } from "@aws-sdk/client-bedrock-data-automation-runtime";
+import { deriveClassification } from "./classify";
 import { getDocumentBytes, getJsonByS3Uri, putDocument } from "./storage";
 import { validateAndFlag } from "./validate";
 import type {
   CommitmentType, ExtractedCommitment, ExtractedRap, ExtractionResult, Grounded, Jurisdiction,
-  Pillar, RapClassification, Sector,
+  Pillar, Sector,
 } from "./types";
 import { RAP_SCHEMA_VERSION } from "./types";
 
@@ -102,14 +103,6 @@ function mapBdaToExtracted(ir: any, ex: any): ExtractedRap {
   };
 }
 
-function deriveClassification(e: ExtractedRap): RapClassification {
-  return {
-    jurisdiction: e.jurisdiction.value ?? "other",
-    sector: e.sector.value ?? "other",
-    rapType: e.rapType.value,
-    confidence: Math.min(e.jurisdiction.confidence, e.sector.confidence, e.rapType.confidence),
-  };
-}
 
 // Read the BDA output. The status s3Uri is a job-metadata JSON; the blueprint
 // result (inference_result + explainability_info) lives in the per-segment
