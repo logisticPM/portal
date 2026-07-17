@@ -3,7 +3,7 @@
 // pattern) — never overwrites, promotes, or touches the artifact. harvest + send are
 // injectable for offline tests.
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
-import { ddbDoc } from "../../dynamo/client";
+import { casesDdbDoc as ddbDoc } from "../../dynamo/client";
 import { caseToItems } from "../../dynamo/cases-table";
 import { a2ajToCase, type A2ajRecord } from "../ingest/a2aj";
 import { dedupeByCitation } from "../ingest/dedup";

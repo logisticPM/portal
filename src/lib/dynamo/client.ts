@@ -33,3 +33,29 @@ export const ddbClient = new DynamoDBClient({
 export const ddbDoc = DynamoDBDocumentClient.from(ddbClient, {
   marshallOptions: { removeUndefinedValues: true },
 });
+
+// ---------------------------------------------------------------------------
+// Legal-cases client — pinned to the cases region, NOT the Lambda's AWS_REGION.
+//
+// Under the residency split (spec §4) the LegalCases table stays in us-east-1
+// while the platform runs in ca-central-1. `ddbDoc` above follows AWS_REGION, so
+// in the ca Lambda it points at ca-central-1 — where LegalCases does not exist,
+// so every cases read fails ("corpus isn't reachable"). This only worked before
+// because the app had only ever run IN us-east-1, where AWS_REGION happened to
+// match. Cases access must therefore use a client pinned to the cases region.
+//
+// Local dev is unchanged: DYNAMO_ENDPOINT still routes to DynamoDB Local. Only
+// the cloud region differs, and it defaults to us-east-1 (where the corpus +
+// its Titan vectors live), overridable via CASES_REGION.
+const casesRegion = process.env.CASES_REGION ?? "us-east-1";
+
+export const casesDdbClient = new DynamoDBClient({
+  region: casesRegion,
+  ...(endpoint
+    ? { endpoint, credentials: { accessKeyId: "local", secretAccessKey: "local" } }
+    : {}),
+});
+
+export const casesDdbDoc = DynamoDBDocumentClient.from(casesDdbClient, {
+  marshallOptions: { removeUndefinedValues: true },
+});

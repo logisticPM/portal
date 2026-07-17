@@ -1,7 +1,7 @@
 // DynamoDB impl. getCase = GetCommand by key. Everything else Scans the table
 // and delegates to the SAME query.ts the mock uses → dynamo ≡ mock by design.
 import { GetCommand, QueryCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
-import { ddbDoc } from "../dynamo/client";
+import { casesDdbDoc as ddbDoc } from "../dynamo/client";
 import { caseKeys, caseToItems, itemToCase, reassembleCase } from "../dynamo/cases-table";
 import { filterCases, searchCases, buildFacets, buildActivation, buildGraph, buildCorpusStats } from "./query";
 import type { CaseRepo, LegalCase } from "./types";

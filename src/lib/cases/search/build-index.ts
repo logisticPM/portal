@@ -6,7 +6,7 @@
 // start. Any artifact-load failure degrades to the scan path — never breaks search.
 import { ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { promises as fs } from "node:fs";
-import { ddbDoc } from "../../dynamo/client";
+import { casesDdbDoc as ddbDoc } from "../../dynamo/client";
 import { itemToCase } from "../../dynamo/cases-table";
 import { unpackF32 } from "./pack";
 import { metaText, makeInMemorySearcher, type RetrievalUnit, type Searcher } from "./hybrid";

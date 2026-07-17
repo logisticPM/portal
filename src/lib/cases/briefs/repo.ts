@@ -4,7 +4,7 @@
 // WINTYPE#… browse keys). Payload sits under `data` like every other item.
 import { createHash } from "node:crypto";
 import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { ddbDoc } from "../../dynamo/client";
+import { casesDdbDoc as ddbDoc } from "../../dynamo/client";
 import { GSI2 } from "../../dynamo/cases-table";
 import { normWs } from "../ingest/summarizer";
 import type { Briefing, BriefingBody } from "./types";

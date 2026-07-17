@@ -321,6 +321,11 @@ export default $config({
         // Matches the app default (client code falls back to "LegalCases"), but
         // explicit is better than implicit for a prod dependency.
         CASES_TABLE: "LegalCases",
+        // The LegalCases table lives in us-east-1 regardless of the app's region
+        // (residency split, spec §4). The cases client (casesDdbDoc) pins here so
+        // the ca-central-1 Lambda reads the corpus cross-region instead of looking
+        // for LegalCases in ca-central-1 (where it doesn't exist).
+        CASES_REGION: "us-east-1",
         // Search-index artifacts (spec 2026-07-03): prebuilt bm25/vectors objects
         // the server loads once per instance instead of scanning the table — the
         // prod search-504 fix. Bucket is SST-linked above.
