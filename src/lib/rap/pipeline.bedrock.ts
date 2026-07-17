@@ -263,6 +263,31 @@ async function callTool(tool: object, toolName: string, userText: string, maxTok
   return { json: toolJson, stopReason };
 }
 
+// Retry a TRANSIENT stream error (the observed "aborted") with backoff (1s, 4s),
+// then give up and rethrow. Only wraps callTool: a normal completion whose
+// stop_reason is "max_tokens" is NOT a transient error and must not be retried
+// here — a smaller generation, not a repeat of the same one, is what's measured
+// to help. Every Bedrock call goes through this, including the header call: it
+// reads the whole document (the largest single input we send) and the abort was
+// observed live at 61s on a chunk a quarter that size.
+async function callToolWithRetry(
+  tool: object,
+  toolName: string,
+  userText: string,
+  maxTokens: number,
+): Promise<ToolCallResult> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await callTool(tool, toolName, userText, maxTokens);
+    } catch (e) {
+      lastErr = e;
+      if (attempt < 2) await sleep(attempt === 0 ? 1000 : 4000);
+    }
+  }
+  throw lastErr;
+}
+
 function parseToolJson<T>(json: string, toolName: string): T {
   try {
     return JSON.parse(json) as T;
@@ -315,33 +340,27 @@ async function extractChunkCommitments(
     return [...a, ...b];
   };
 
-  // ONLY callTool goes inside the try. The try exists to catch a transient
-  // STREAM error and retry the same generation; it must not wrap
-  // splitAndRecurse or parseToolJson, whose throws are deliberate loud
-  // failures. Wrapping them would catch a "refusing to return partial results"
-  // throw, retry the chunk against live Bedrock twice more, and then rethrow it
-  // mislabelled as a transient stream error.
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let call: ToolCallResult;
-    try {
-      call = await callTool(COMMITMENTS_TOOL, COMMITMENTS_TOOL_NAME, chunkUserText(chunk, fileName), MAX_OUTPUT_TOKENS);
-    } catch (e) {
-      lastErr = e;
-      if (attempt < 2) {
-        await sleep(attempt === 0 ? 1000 : 4000);
-        continue;
-      }
-      // retries exhausted: a smaller generation is the one thing measured to help
-      return await splitAndRecurse(`transient stream error after retries: ${String(lastErr)}`);
-    }
-    if (call.stopReason === "max_tokens") {
-      return await splitAndRecurse("max_tokens truncation");
-    }
-    return parseToolJson<{ commitments: ExtractedCommitment[] }>(call.json, COMMITMENTS_TOOL_NAME).commitments ?? [];
+  // ONLY the Bedrock call goes inside the try. The try turns an exhausted
+  // transient retry into a split; it must not wrap splitAndRecurse or
+  // parseToolJson, whose throws are deliberate loud failures. Wrapping those
+  // would catch a "refusing to return partial results" throw, retry the chunk
+  // against live Bedrock, and rethrow it mislabelled as a transient error.
+  let call: ToolCallResult;
+  try {
+    call = await callToolWithRetry(
+      COMMITMENTS_TOOL,
+      COMMITMENTS_TOOL_NAME,
+      chunkUserText(chunk, fileName),
+      MAX_OUTPUT_TOKENS,
+    );
+  } catch (e) {
+    // transient retries exhausted: a smaller generation is the one thing measured to help
+    return await splitAndRecurse(`transient stream error after retries: ${String(e)}`);
   }
-  // unreachable: attempt 2 either returns or throws out of the catch above
-  throw new Error(`chunk ${chunk.index} exhausted its retry loop without a result`);
+  if (call.stopReason === "max_tokens") {
+    return await splitAndRecurse("max_tokens truncation");
+  }
+  return parseToolJson<{ commitments: ExtractedCommitment[] }>(call.json, COMMITMENTS_TOOL_NAME).commitments ?? [];
 }
 
 // Merge the header call's fields with every chunk's commitments, concatenated
@@ -378,7 +397,13 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
   // document here is safe. If the header call truncates anyway, that's a hard
   // failure — headers were measured to fit comfortably in one call.
   const headerUserText = `Extract the RAP header fields (everything except individual commitments) from this document.\n\n<document filename="${input.fileName}">\n${documentText}\n</document>`;
-  const { json: headerJson, stopReason: headerStopReason } = await callTool(
+  // Retried like every other call: reading the whole document makes this the
+  // largest single input we send, and the transient abort was observed live on a
+  // chunk a quarter its size. A transient stream error here is not a truncation
+  // and must not fail the whole extraction on the first blip. (It cannot fall
+  // back to splitting the way a chunk does — there is only one header call — so
+  // an exhausted retry throws.)
+  const { json: headerJson, stopReason: headerStopReason } = await callToolWithRetry(
     HEADER_TOOL,
     HEADER_TOOL_NAME,
     headerUserText,
