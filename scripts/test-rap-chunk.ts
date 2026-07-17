@@ -1,5 +1,5 @@
 // Run: npx tsx scripts/test-rap-chunk.ts
-import { chunkDocument, splitInHalf } from "../src/lib/rap/chunk";
+import { chunkDocument, splitInHalf, DEFAULT_TARGET_CHARS } from "../src/lib/rap/chunk";
 
 let fail = 0;
 function check(name: string, ok: boolean) {
@@ -110,5 +110,21 @@ check("a run of unpunctuated bullets has no sentence split point, so it stays ON
   bulletChunks.length === 1 && bulletChunks[0].text.length > 300);
 check("the unpunctuated-bullet block still loses no text",
   bulletChunks[0].text.replace(/\s+/g, " ").trim() === bullets.replace(/\s+/g, " ").trim());
+
+// Measured 2026-07-16: ~410 output tokens per commitment; 22 commitments (~9-10k
+// tokens) is the largest size that reliably succeeded; 32 failed 3/3. Synthetic
+// RAP text ran ~340 document chars per commitment. So a chunk of N chars implies
+// roughly N/340 commitments → N/340*410 output tokens. Keep that comfortably
+// under the proven-good ~10k, allowing for ~15% run-to-run variance.
+const impliedCommitments = DEFAULT_TARGET_CHARS / 340;
+const impliedOutputTokens = impliedCommitments * 410;
+check(
+  `default chunk implies ~${Math.round(impliedOutputTokens)} output tokens — inside the measured-good regime`,
+  impliedOutputTokens < 9000,
+);
+check(
+  "default chunk implies well under the 32-commitment size that failed 3/3",
+  impliedCommitments < 22,
+);
 
 process.exit(fail ? 1 : 0);
