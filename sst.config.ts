@@ -171,7 +171,11 @@ export default $config({
       BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID ?? "",
     };
     const bedrockPerms = [
-      { actions: ["bedrock:InvokeModel"], resources: ["*"] },
+      // Option B (pipeline.bedrock.ts) streams via InvokeModelWithResponseStream — a
+      // SEPARATE IAM action from InvokeModel. Without it, a RAP extraction in the
+      // Lambda role fails AccessDenied on the stream call (surfaced deploying the
+      // ca stage with EXTRACTION_IMPL=bedrock; prod runs BDA so it never bit there).
+      { actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"], resources: ["*"] },
       { actions: ["bedrock:InvokeDataAutomationAsync", "bedrock:GetDataAutomationStatus"], resources: ["*"] },
       { actions: ["textract:AnalyzeDocument", "textract:StartDocumentTextDetection", "textract:GetDocumentTextDetection", "textract:DetectDocumentText"], resources: ["*"] },
     ];
