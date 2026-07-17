@@ -158,6 +158,7 @@ export interface ExtractedRap {
 // ===========================================================================
 export type ValidationRule =
   | "no_quote" // value present but ungrounded
+  | "quote_not_found" // quote given, but it does not appear in the source document
   | "date_format"
   | "currency_format"
   | "out_of_range"

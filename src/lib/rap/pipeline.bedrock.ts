@@ -512,7 +512,12 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
   const merged = mergeExtraction(header, commitmentGroups);
 
   // deterministic gate: Claude returns verbatim quotes → require them
-  const { extracted, issues } = validateAndFlag(merged, { requireQuote: true });
+  // deterministic gate: Claude returns verbatim quotes → require them, AND check
+  // each one actually occurs in what the model was shown. sourceText is the
+  // LAYOUT-built documentText (with its "[p.N]" markers), never the raw PDF —
+  // chunks are non-overlapping slices of exactly this text, so any chunk's quote
+  // is a substring of it, and no per-chunk plumbing is needed.
+  const { extracted, issues } = validateAndFlag(merged, { requireQuote: true, sourceText: documentText });
 
   return {
     engine: "claude",
