@@ -224,7 +224,18 @@ process.exit(fail ? 1 : 0);
 
 **Behaviour required:**
 1. `loadDocumentText` → `chunkDocument(text)`.
-2. **Header call:** `callTool(HEADER_TOOL, …)` over the **first chunk only** (RAP header fields live at the front; sending the whole document reintroduces the payload we are trying to avoid). If the header call truncates, that's a hard failure — headers were measured to fit comfortably.
+2. **Header call:** `callTool(HEADER_TOOL, …)` over the **whole document text**. If the header call truncates, that's a hard failure — headers were measured to fit comfortably.
+
+   > **AMENDED 2026-07-16 (decided by Nate; supersedes "first chunk only").** The original
+   > "first chunk only, sending the whole document reintroduces the payload we are trying to
+   > avoid" was wrong on both halves. (i) It regresses real fields: on the test RAP,
+   > `reviewCycle` ("Every three years we will review") and `governanceBody` ("Directors,
+   > Governing Council and Executive Council") are both on **p16** — the LAST chunk — and
+   > findings §4 explicitly credits Claude with reading `reviewCycle` correctly today. First
+   > chunk only = pages 1-6 = both fields silently null. (ii) The payload fear misdiagnoses
+   > the failure: every Measured Fact above is **output**-token burn (~410 tok/commitment),
+   > and a header-only call emits ~13 fields no matter how much input it reads. Input size
+   > was never the failure mode.
 3. **Commitment calls:** for each chunk, `callTool(COMMITMENTS_TOOL, …)`. **Run these sequentially, not in parallel** — the abort failure mode is not understood, and concurrency adds a variable we cannot yet reason about. (A bounded pool is a later optimisation.)
 4. **On `stop_reason === "max_tokens"` for a chunk:** `splitInHalf` it and retry each half (recursive, max depth 3). If `splitInHalf` returns `null`, **throw** — never return partial.
 5. **On a transient stream error** (the `aborted` error observed in Measured Facts): retry that chunk up to 2 times with backoff (1s, 4s). If it still fails, **split the chunk in half and try that** (a smaller generation is the one thing measured to help). If that fails, **throw**.
