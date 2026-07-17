@@ -13,13 +13,28 @@ This documents what we learned deploying and testing the RAP extraction pipeline
 
 **Ship Option A — Amazon Bedrock Data Automation (BDA), in `us-east-1`.** It works end-to-end today: it extracted all 22 commitments plus every header field from the real Bank of Canada RAP in **64 seconds**.
 
-**Option B — Claude on Bedrock (in-country, `ca-central-1`) — UPDATE 2026-07-16: the blocker is fixed.**
-It was deferred because a single grounded call **aborted** on the real RAP. It now runs end to end
-in `ca-central-1` in **116.5s**, returning **26 commitments — all 22 forward-looking ones on their
-correct pages** (12 on p13, 10 on p15), every one carrying a verbatim quote and a real page number,
-plus 4 defensible extras. The over-extraction that the first run showed (46, ~17 of them past
-achievements) was a prompt gap and is fixed. §4 records what the original diagnosis got wrong;
-§4a how we cut the document; §4b the live runs.
+**Option B is kept as a working backup, not shipped — reaffirmed 2026-07-16 (Nate), with B now fully functional.**
+This is a deliberate re-decision, not inertia: B's original blocker is gone. It was deferred because a
+single grounded call **aborted** on the real RAP; it now runs end to end in `ca-central-1` in **~115s**,
+returning **26 commitments — all 22 forward-looking ones on their correct pages** (12 on p13, 10 on p15),
+each with a verbatim quote and a page number the pipeline *read* rather than guessed, plus 4 defensible
+extras. Cost is ~**$0.30/document** (77% inference, 14% Textract LAYOUT).
+
+**Why A still ships anyway:** it is deployed, proven, ~1.8× faster (64s vs ~115s), and needs no prompt
+surgery to return 22. Switching engines is a migration, and nothing currently demands one.
+
+**Why B is kept warm rather than deleted:** it is the *only* in-country-at-rest path, and it grounds
+better than A — verbatim quotes verified against the document (§4a/F3) versus A's confidence-only
+grounding with `quote: null`. If strict Canadian residency becomes a hard requirement (governance spec
+§8.1), or if quote-level provenance becomes product-visible, B is ready rather than a research project.
+Both live behind `EXTRACTION_IMPL` (`sst.config.ts`: prod defaults to `bda`), so B costs nothing while
+dormant — `pipeline.bedrock.ts` isn't even imported unless the flag flips.
+
+**Keeping the backup honest:** B's value is that it works *when needed*. Its test suite (86 checks,
+incl. a real-OCR regression fixture) runs in CI, so it can't rot silently — but no test exercises the
+live Bedrock path. Re-run `scripts/smoke-extract-bedrock.ts` before ever relying on B in anger.
+
+§4 records what the original diagnosis got wrong; §4a how we cut the document; §4b the live runs.
 
 **This still does not by itself overturn "ship A" — that is a team call.** But the two things that
 argued against B have both moved: it is now ~1.8× slower than BDA (116.5s vs 64s), not 6×, and it
@@ -265,8 +280,14 @@ Real BDA output from the Bank of Canada RAP:
 
 1. **Now:** run on Option A (BDA, `us-east-1`). It's deployed and working.
 2. **Tell the client** the residency tradeoff honestly (§3): with BDA, RAP documents are processed in the US. If strict Canadian residency becomes a hard requirement, that's the trigger to invest in Option B.
-3. **Revisit B** with fix #1 (lighter commitment grounding) — it keeps the in-country data-at-rest posture *and* the superior verbatim-quote provenance, and is the smaller of the two engineering efforts.
+3. ~~**Revisit B** with fix #1 (lighter commitment grounding).~~ **Done — and fix #1 was the wrong
+   fix.** Lightening the grounding was *measured not to help* (the budget burn isn't JSON — §4).
+   B was fixed by **chunking + Textract LAYOUT** instead and now works end to end; it is kept as a
+   warm backup rather than shipped (see the Decision above). Nothing to revisit here — the trigger
+   is a residency or provenance requirement, not further engineering.
 4. **Explore alternatives** if neither fits: a Canada-hosted or self-hosted model for true in-country inference; or Textract-Queries-only extraction (no LLM) for the structured subset.
+5. **Before any bulk run on B:** re-run `scripts/smoke-extract-bedrock.ts`. Cost is ~$0.30/doc
+   (§4b) — inference dominates at 77%, so commitment count, not the Textract tier, is the cost lever.
 
 ---
 

@@ -149,6 +149,29 @@ export interface ExtractedRap {
   rapTitle: Grounded<string>;
   publicationDate: Grounded<string>; // ISO 8601
   periodCovered: Grounded<{ start: string; end: string }>;
+  // KNOWN LIMITATION — the last Grounded<T[]> in the schema, kept deliberately.
+  // Grounded<T> is shaped for a SCALAR: one value, one quote, one page, one
+  // confidence. A RAP citing both UNDRIP and TRC CTA #92 cites them in two
+  // places, so the single `page` is right for one ref and wrong for the other
+  // (measured: a 2-ref fixture reports p10 for a ref that is on p12).
+  //
+  // Not fixed the way `pillars` was, for two different reasons:
+  //   • It can't be DERIVED. `pillars` is a projection of the commitments'
+  //     already-grounded pillarNormalized; framework citations are a
+  //     document-level fact that no commitment carries.
+  //   • Grounded<FrameworkRef>[] (per-element quote+page) is the correct shape
+  //     and Claude could fill it — but BDA cannot. pipeline.bda.ts's grounded()
+  //     gets ONE field-level {page, confidence} from explainability_info, so
+  //     per-element grounding there would mean copying that page onto every
+  //     element: output that LOOKS per-element grounded and isn't. Option A is
+  //     the shipped engine; manufacturing provenance on it to tidy a type is
+  //     exactly the failure docs/rap-extraction-findings.md §4a is about.
+  //
+  // Not currently harmful: nothing reads frameworkRefs.page, and validate.ts
+  // accepts the model's elided "A … B" quote (each fragment is checked), so a
+  // multi-ref RAP does not spuriously flag. Revisit if per-citation provenance
+  // is ever surfaced — and only alongside a BDA blueprint that can ground each
+  // element for real.
   frameworkRefs: Grounded<FrameworkRef[]>;
   // DERIVED from commitments (classify.ts derivePillars), never extracted: it is
   // a summary of the document, so no verbatim span exists to ground it. Plain,
