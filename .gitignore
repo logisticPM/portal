@@ -18,3 +18,9 @@ docs/specs/*.pdf
 
 # A2AJ/LLM disk cache produced by cases:ingest — large, ephemeral, not committed
 scripts/.cache/
+
+# Local spike/diagnostic scratch — instruments, not deliverables. Findings that
+# matter get committed (see docs/rap-extraction-findings.md and the real-OCR
+# fixture in scripts/fixtures/). Untracked but kept: re-deriving a Textract dump
+# costs money.
+scratchpad/
