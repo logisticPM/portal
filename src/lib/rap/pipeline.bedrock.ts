@@ -315,24 +315,33 @@ async function extractChunkCommitments(
     return [...a, ...b];
   };
 
+  // ONLY callTool goes inside the try. The try exists to catch a transient
+  // STREAM error and retry the same generation; it must not wrap
+  // splitAndRecurse or parseToolJson, whose throws are deliberate loud
+  // failures. Wrapping them would catch a "refusing to return partial results"
+  // throw, retry the chunk against live Bedrock twice more, and then rethrow it
+  // mislabelled as a transient stream error.
   let lastErr: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
+    let call: ToolCallResult;
     try {
-      const { json, stopReason } = await callTool(COMMITMENTS_TOOL, COMMITMENTS_TOOL_NAME, chunkUserText(chunk, fileName), MAX_OUTPUT_TOKENS);
-      if (stopReason === "max_tokens") {
-        return await splitAndRecurse("max_tokens truncation");
-      }
-      const parsed = parseToolJson<{ commitments: ExtractedCommitment[] }>(json, COMMITMENTS_TOOL_NAME);
-      return parsed.commitments ?? [];
+      call = await callTool(COMMITMENTS_TOOL, COMMITMENTS_TOOL_NAME, chunkUserText(chunk, fileName), MAX_OUTPUT_TOKENS);
     } catch (e) {
       lastErr = e;
       if (attempt < 2) {
         await sleep(attempt === 0 ? 1000 : 4000);
         continue;
       }
+      // retries exhausted: a smaller generation is the one thing measured to help
+      return await splitAndRecurse(`transient stream error after retries: ${String(lastErr)}`);
     }
+    if (call.stopReason === "max_tokens") {
+      return await splitAndRecurse("max_tokens truncation");
+    }
+    return parseToolJson<{ commitments: ExtractedCommitment[] }>(call.json, COMMITMENTS_TOOL_NAME).commitments ?? [];
   }
-  return await splitAndRecurse(`transient stream error after retries: ${String(lastErr)}`);
+  // unreachable: attempt 2 either returns or throws out of the catch above
+  throw new Error(`chunk ${chunk.index} exhausted its retry loop without a result`);
 }
 
 // Merge the header call's fields with every chunk's commitments, concatenated
