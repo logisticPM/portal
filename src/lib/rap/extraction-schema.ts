@@ -45,68 +45,137 @@ const gEnum = (values: string[]) => grounded({ type: ["string", "null"], enum: [
 
 export const EXTRACTION_TOOL_NAME = "record_rap_extraction";
 
+// ---------------------------------------------------------------------------
+// Shared field definitions. CLAUDE_TOOL (the original single-call schema) and
+// the two split tools (HEADER_TOOL, COMMITMENTS_TOOL — see below) are built
+// from the SAME objects, partitioned rather than retyped, so the grounded
+// {value, quote, page, confidence} shape can't drift between them.
+// ---------------------------------------------------------------------------
+
+// Every ExtractedRap field except `commitments` and `extras`.
+const HEADER_FIELD_PROPERTIES = {
+  orgName: gString,
+  sector: gEnum(SECTORS),
+  jurisdiction: gEnum(JURISDICTIONS),
+  rapTitle: gString,
+  publicationDate: gString, // ISO 8601 if determinable
+  periodCovered: grounded({
+    type: ["object", "null"],
+    properties: { start: { type: "string" }, end: { type: "string" } },
+    required: ["start", "end"],
+  }),
+  frameworkRefs: grounded({ type: ["array", "null"], items: { type: "string", enum: FRAMEWORK_REFS } }),
+  pillars: grounded({ type: ["array", "null"], items: { type: "string", enum: PILLARS } }),
+  governanceBody: gString,
+  reviewCycle: gString,
+  rapType: gEnum(RAP_TYPES),
+  pairLevel: gEnum(PAIR_LEVELS),
+  endorsementStatus: gString,
+} as const;
+
+const HEADER_FIELD_REQUIRED = [
+  "orgName", "sector", "jurisdiction", "rapTitle", "publicationDate", "periodCovered",
+  "frameworkRefs", "pillars", "governanceBody", "reviewCycle", "rapType", "pairLevel",
+  "endorsementStatus",
+] as const;
+
+// fields found in the document that don't map to any field above — do not force-fit
+const EXTRAS_FIELD = {
+  type: "array",
+  description: "fields found in the document that don't map to any field above — do not force-fit",
+  items: {
+    type: "object",
+    properties: {
+      label: { type: "string" },
+      value: { type: "string" },
+      quote: { type: "string" },
+      page: { type: ["integer", "null"] },
+    },
+    required: ["label", "value", "quote", "page"],
+    additionalProperties: false,
+  },
+} as const;
+
+const COMMITMENTS_FIELD = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      pillarRaw: gString,
+      pillarNormalized: { type: ["string", "null"], enum: [...PILLARS, null] },
+      action: gString,
+      deliverable: gString,
+      timeline: gString,
+      owner: gString,
+      metric: gString,
+      commitmentType: gEnum(COMMITMENT_TYPES),
+    },
+    required: ["pillarRaw", "pillarNormalized", "action", "deliverable", "timeline", "owner", "metric", "commitmentType"],
+    additionalProperties: false,
+  },
+} as const;
+
 export const CLAUDE_TOOL = {
   name: EXTRACTION_TOOL_NAME,
   description: "Record the structured fields extracted from a Reconciliation Action Plan document.",
   input_schema: {
     type: "object",
     properties: {
-      orgName: gString,
-      sector: gEnum(SECTORS),
-      jurisdiction: gEnum(JURISDICTIONS),
-      rapTitle: gString,
-      publicationDate: gString, // ISO 8601 if determinable
-      periodCovered: grounded({
-        type: ["object", "null"],
-        properties: { start: { type: "string" }, end: { type: "string" } },
-        required: ["start", "end"],
-      }),
-      frameworkRefs: grounded({ type: ["array", "null"], items: { type: "string", enum: FRAMEWORK_REFS } }),
-      pillars: grounded({ type: ["array", "null"], items: { type: "string", enum: PILLARS } }),
-      governanceBody: gString,
-      reviewCycle: gString,
-      rapType: gEnum(RAP_TYPES),
-      pairLevel: gEnum(PAIR_LEVELS),
-      endorsementStatus: gString,
-      commitments: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            pillarRaw: gString,
-            pillarNormalized: { type: ["string", "null"], enum: [...PILLARS, null] },
-            action: gString,
-            deliverable: gString,
-            timeline: gString,
-            owner: gString,
-            metric: gString,
-            commitmentType: gEnum(COMMITMENT_TYPES),
-          },
-          required: ["pillarRaw", "pillarNormalized", "action", "deliverable", "timeline", "owner", "metric", "commitmentType"],
-          additionalProperties: false,
-        },
-      },
-      extras: {
-        type: "array",
-        description: "fields found in the document that don't map to any field above — do not force-fit",
-        items: {
-          type: "object",
-          properties: {
-            label: { type: "string" },
-            value: { type: "string" },
-            quote: { type: "string" },
-            page: { type: ["integer", "null"] },
-          },
-          required: ["label", "value", "quote", "page"],
-          additionalProperties: false,
-        },
-      },
+      ...HEADER_FIELD_PROPERTIES,
+      commitments: COMMITMENTS_FIELD,
+      extras: EXTRAS_FIELD,
     },
     required: [
       "orgName", "sector", "jurisdiction", "rapTitle", "publicationDate", "periodCovered",
       "frameworkRefs", "pillars", "governanceBody", "reviewCycle", "rapType", "pairLevel",
       "endorsementStatus", "commitments", "extras",
     ],
+    additionalProperties: false,
+  },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Split schemas (Task 2). The extraction pipeline dies on real documents
+// because CLAUDE_TOOL forces one tool call to emit every commitment at once —
+// the fix (Task 3) is one header call plus N per-chunk commitment calls. The
+// header call runs over the whole document: the failure mode being fixed is
+// output-token burn from large commitment arrays, and a header-only call's
+// output is small regardless of how much input it reads. These two tools are
+// CLAUDE_TOOL's field set partitioned, not redefined — every value keeps the
+// Grounded<T> = {value, quote, page, confidence} shape.
+// ---------------------------------------------------------------------------
+
+// Widened to `string` (not inferred as a literal): HEADER_TOOL.name and
+// COMMITMENTS_TOOL.name are compared for inequality (see the split-schema
+// test), and TS flags that comparison as an error when both sides are
+// disjoint string-literal types.
+export const HEADER_TOOL_NAME: string = "record_rap_header";
+
+export const HEADER_TOOL = {
+  name: HEADER_TOOL_NAME,
+  description: "Record the header-level structured fields extracted from a Reconciliation Action Plan document (everything except individual commitments).",
+  input_schema: {
+    type: "object",
+    properties: {
+      ...HEADER_FIELD_PROPERTIES,
+      extras: EXTRAS_FIELD,
+    },
+    required: [...HEADER_FIELD_REQUIRED, "extras"],
+    additionalProperties: false,
+  },
+} as const;
+
+export const COMMITMENTS_TOOL_NAME: string = "record_rap_commitments";
+
+export const COMMITMENTS_TOOL = {
+  name: COMMITMENTS_TOOL_NAME,
+  description: "Record the commitments extracted from a chunk of a Reconciliation Action Plan document.",
+  input_schema: {
+    type: "object",
+    properties: {
+      commitments: COMMITMENTS_FIELD,
+    },
+    required: ["commitments"],
     additionalProperties: false,
   },
 } as const;
