@@ -29,6 +29,23 @@ These are the spec's own recommendations; the plan assumes them. If the team dis
 - **§11.1 / §11.4 Extraction → all-Option-B in ca.** Private (`org_submitted`) uploads can only use Option B (BDA cannot process Canadian-resident data — §11.4, resolved). Public docs *may* still use BDA, but that is a follow-up (spec Phase 5), not part of this cutover.
 - **§11.5 Residency bar → hosting (data at rest), not inference.** The design already satisfies this; no self-hosted-model work in scope.
 
+## What the us-east-1 platform data actually is (inspected live 2026-07-17 — read-only)
+
+This is the migrate-vs-reseed answer, and it raised the stakes. **All four platform tables hold real production data. None are reseedable fixtures.**
+
+| Table | Items | What it is | Sensitivity |
+|---|---|---|---|
+| **DataPortal** | 167 | The **live application database**: `User` (117 — with `email` + `passwordHash`), `Line`/`Conf` (supplier-flow reporting ledger), `Party` (company/supplier profiles, some `profilePublic`). | **Real users + credentials + PII.** Mixed public/private. This is exactly the `org_submitted`-class data the residency rule exists for — strongly reinforces ca. |
+| **Commitments** | 106 | Real commitments corpus (`Commitment` items). Public. | Public, real. |
+| **Alignment** | 82 | `Opportunity` rows the AlignmentEngine computed. Derived. | Public, real. |
+| **RapSurvey** | 4 | 2 `Org` + 2 `Response`. Real survey data. | Real. |
+
+**Consequences for this plan (folded into the tasks below):**
+1. **The cutover moves real user accounts with password hashes.** Migration is sensitive-data movement (TLS in transit — SDK default; **KMS/SSE-KMS at rest is NOT optional for DataPortal** — it graduates from Task 4 Step 3's gate to a requirement). The migration script must **never log item bodies** — counts and keys only.
+2. **The taxonomy-rot guard (Task 1) is mis-scoped as first drafted.** `Party` carries a free-text `sector` *and* a normalized `sectorNorm`; the RAP canonical taxonomy applies to RAP-commitment sectors, not questionnaire party descriptions. The guard must run ONLY on RAP-commitment sector fields (RapData `COMMIT` items and the Commitments table), never blanket on any attribute named `sector` — otherwise it false-flags all 167 DataPortal rows.
+3. **Teardown (Task 8) deletes real user accounts from us-east-1.** The parity gate is now load-bearing for user data, not demo data — treat the final gate accordingly, and consider a maintenance window / read-only announcement for the cutover moment.
+4. RapData: us-east-1 holds 0; the `ca` stage holds 68 **stale pre-#145 fixtures** (`finance_banking` etc.) — discard those, do not migrate them.
+
 ## Prerequisites (do before Task 4; Tasks 1–3 need none of this)
 
 1. **A domain you control** for the custom URL (e.g. `rap.indigenomics.xyz`). Decide the exact hostname and whether DNS is Route 53 (SST can manage cert + records) or external (you'll add a CNAME + validate an ACM cert manually). **This is a human input — the plan cannot invent it.**
@@ -49,7 +66,11 @@ These are the spec's own recommendations; the plan assumes them. If the team dis
   - `interface MigrationReport { scanned: number; written: number; skippedInvalidTaxonomy: string[] }`
   - `interface ParityReport { sourceCount: number; destCount: number; match: boolean; missingKeys: string[] }`
 
-**Context:** the seed scripts (`scripts/seed.ts`) are already env-parameterized (`AWS_REGION`, `DYNAMO_TABLE`) but only *create fixtures*. The cutover moves **real** data, so it needs copy-then-verify, not reseed. `src/lib/dynamo/client.ts:18-26` shows the region/endpoint/creds pattern to mirror (a `DYNAMO_ENDPOINT` env → DynamoDB Local with dummy creds; absent → real AWS). Taxonomy guard: the stale `ca` RapData held `finance_banking`/`mining_extractive`, which are NOT in `CANONICAL_SECTORS` (from `@/lib/taxonomy`) post-#145. The us-east-1 data may have the same rot; the copy must FLAG (not silently carry) any item whose `sector` is non-canonical, so a pre-#145 table is caught before it poisons ca.
+**Context:** the seed scripts (`scripts/seed.ts`) are already env-parameterized (`AWS_REGION`, `DYNAMO_TABLE`) but only *create fixtures*. The cutover moves **real** data (incl. DataPortal's user accounts + password hashes — see the data-inventory section above), so it needs copy-then-verify, not reseed. `src/lib/dynamo/client.ts:18-26` shows the region/endpoint/creds pattern to mirror.
+
+**Two guards this script must get right:**
+- **Never log item bodies.** DataPortal holds `email` + `passwordHash`. Reports carry counts and keys (`PK`/`SK`) only — never a scanned item's attributes.
+- **Taxonomy-rot flag, correctly scoped.** The stale `ca` RapData held `finance_banking`/`mining_extractive`, NOT in `CANONICAL_SECTORS` (`@/lib/taxonomy`) post-#145. The guard flags a non-canonical sector ONLY on RAP-commitment items (RapData `et === "Commitment"` / the Commitments table), because `Party` rows in DataPortal legitimately carry free-text `sector` values that were never meant to be canonical. A guard that flags any attribute named `sector` false-flags all 167 DataPortal rows — pass the guard a predicate (`shouldCheckTaxonomy(item): boolean`) rather than hardcoding the attribute name.
 
 - [ ] **Step 1: Write the failing test**
 
