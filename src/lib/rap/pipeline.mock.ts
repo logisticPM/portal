@@ -31,7 +31,7 @@ function cleanResult(): ExtractionResult {
       publicationDate: g("2025-06-20", "June 2025", 1, 0.92),
       periodCovered: g({ start: "2025-01-01", end: "2027-12-31" }, "2025–2027", 3, 0.9),
       frameworkRefs: g(["trc_cta_92", "undrip"], "Call to Action 92 ... UNDRIP", 4, 0.94),
-      pillars: g(["economy", "employment", "community", "environment", "governance"], "five pathways", 5, 0.95),
+      pillars: ["governance", "employment", "community", "environment", "economy"], // derived from commitments (canonical order)
       governanceBody: g("Indigenous Advisory Council", "Indigenous Advisory Council", 6, 0.93),
       reviewCycle: g("biennial", "reviewed every two years", 6, 0.91),
       rapType: g<RapType>(null, null, null, 0.5),
@@ -77,7 +77,7 @@ function flaggedResult(): ExtractionResult {
       publicationDate: g("2025-11-19", "November 2025", 1, 0.86),
       periodCovered: g({ start: "2025-01-01", end: "2025-12-31" }, "2025", 2, 0.84), // flagged (low conf)
       frameworkRefs: g(["trc_cta_92"], "Call to Action 92", 3, 0.88),
-      pillars: g(["relationships", "respect", "opportunities", "governance"], "four pillars", 4, 0.9),
+      pillars: ["relationships", "respect", "opportunities", "governance"], // derived from commitments
       governanceBody: g("Indigenous Reconciliation team", "Indigenous Reconciliation team", 5, 0.82), // flagged
       reviewCycle: g("annual", "annual report", 5, 0.9),
       rapType: g<RapType>(null, null, null, 0.5),

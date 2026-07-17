@@ -101,7 +101,7 @@ export function parseDueDate(text: string | null): string | null {
 function collectGrounded(e: ExtractedRap): Grounded<unknown>[] {
   const core: Grounded<unknown>[] = [
     e.orgName, e.sector, e.jurisdiction, e.rapTitle, e.publicationDate,
-    e.periodCovered, e.frameworkRefs, e.pillars, e.governanceBody, e.reviewCycle,
+    e.periodCovered, e.frameworkRefs, e.governanceBody, e.reviewCycle,
     e.rapType, e.pairLevel, e.endorsementStatus,
   ];
   for (const c of e.commitments) {
@@ -131,7 +131,7 @@ export function scrubForAutoPublish(e: ExtractedRap): ExtractedRap {
     orgName: scrub(e.orgName), sector: scrub(e.sector), jurisdiction: scrub(e.jurisdiction),
     rapTitle: scrub(e.rapTitle), publicationDate: scrub(e.publicationDate),
     periodCovered: scrub(e.periodCovered), frameworkRefs: scrub(e.frameworkRefs),
-    pillars: scrub(e.pillars), governanceBody: scrub(e.governanceBody),
+    governanceBody: scrub(e.governanceBody),
     reviewCycle: scrub(e.reviewCycle), rapType: scrub(e.rapType),
     pairLevel: scrub(e.pairLevel), endorsementStatus: scrub(e.endorsementStatus),
     commitments: e.commitments.map((c) => ({

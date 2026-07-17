@@ -21,8 +21,25 @@ import type { CanonicalSector, CanonicalCommitmentType } from "@/lib/taxonomy";
 import type { DataClass } from "../governance";
 
 // Bump when the extraction schema changes; stored on every job for traceability
-// so re-runs and schema-evolution diffs are auditable.
-export const RAP_SCHEMA_VERSION = "1.0.0";
+// so re-runs and schema-evolution diffs are auditable. Nothing branches on it —
+// it exists to tell you which shape a stored record is, so keep the log below
+// current or the number tells you nothing.
+//
+// 1.1.0 (2026-07-16)
+//   • pillars: Grounded<Pillar[]> → Pillar[]. SHAPE-INCOMPATIBLE: a record
+//     written at 1.0.0 carries {value, quote, page, confidence} where 1.1.0
+//     carries a bare array. It is no longer extracted at all — it is DERIVED
+//     from the commitments (classify.ts derivePillars), which are the single
+//     source of truth. A summary has no verbatim span to quote, so the field
+//     could never satisfy the grounding contract; see docs/rap-extraction-
+//     findings.md §4b. No consumer reads it (the published RapDocument has no
+//     pillars field, and Explore groups on the per-commitment Commitment.pillar),
+//     so nothing breaks on the old shape — but a 1.0.0 record is not readable as
+//     a 1.1.0 one.
+//   • ValidationRule gained "quote_not_found": quotes are now checked to occur
+//     in the document the model was shown, not merely to be non-null. Additive.
+// 1.0.0 — initial.
+export const RAP_SCHEMA_VERSION = "1.1.0";
 
 // --- shared enums ----------------------------------------------------------
 export type Jurisdiction = "AU" | "CA" | "other";
@@ -133,7 +150,10 @@ export interface ExtractedRap {
   publicationDate: Grounded<string>; // ISO 8601
   periodCovered: Grounded<{ start: string; end: string }>;
   frameworkRefs: Grounded<FrameworkRef[]>;
-  pillars: Grounded<Pillar[]>; // normalized theme set for the whole doc
+  // DERIVED from commitments (classify.ts derivePillars), never extracted: it is
+  // a summary of the document, so no verbatim span exists to ground it. Plain,
+  // like the per-commitment pillarNormalized it is projected from.
+  pillars: Pillar[];
   governanceBody: Grounded<string>; // RAP Working Group / board sponsor
   reviewCycle: Grounded<string>; // annual / biennial / 3-year
 
@@ -158,6 +178,7 @@ export interface ExtractedRap {
 // ===========================================================================
 export type ValidationRule =
   | "no_quote" // value present but ungrounded
+  | "quote_not_found" // quote given, but it does not appear in the source document
   | "date_format"
   | "currency_format"
   | "out_of_range"

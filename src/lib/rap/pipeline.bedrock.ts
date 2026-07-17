@@ -20,6 +20,7 @@ import {
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { resolveBedrockModelId } from "./bedrock-model";
 import { DEFAULT_TARGET_CHARS, type DocChunk, chunkDocument, splitInHalf } from "./chunk";
+import { deriveClassification, derivePillars } from "./classify";
 import {
   COMMITMENTS_TOOL,
   COMMITMENTS_TOOL_NAME,
@@ -30,7 +31,7 @@ import {
 } from "./extraction-schema";
 import { getDocumentBytes } from "./storage";
 import { validateAndFlag } from "./validate";
-import type { ExtractedCommitment, ExtractedRap, ExtractionResult, RapClassification } from "./types";
+import type { ExtractedCommitment, ExtractedRap, ExtractionResult } from "./types";
 
 const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 // Must be an INFERENCE PROFILE, not a bare model id — Bedrock rejects bare ids
@@ -254,16 +255,6 @@ async function loadDocumentText(sourceS3Key: string, fileName: string): Promise<
   return buildTextFromLayoutBlocks(blocks);
 }
 
-// classification is derivable from the grounded core fields (one fewer API call);
-// confidence = the least confident of the three signals.
-function deriveClassification(e: ExtractedRap): RapClassification {
-  return {
-    jurisdiction: e.jurisdiction.value ?? "other",
-    sector: e.sector.value ?? "other",
-    rapType: e.rapType.value,
-    confidence: Math.min(e.jurisdiction.confidence, e.sector.confidence, e.rapType.confidence),
-  };
-}
 
 // Max times a chunk may be recursively halved (either on max_tokens truncation
 // or as the last resort after transient-error retries are exhausted). Bounds
@@ -455,9 +446,9 @@ async function extractChunkCommitments(
 // below) always passes full ExtractedCommitment[][], so C is inferred as
 // ExtractedCommitment there and the result is a true ExtractedRap.
 export function mergeExtraction<C>(
-  header: Omit<ExtractedRap, "commitments">,
+  header: Omit<ExtractedRap, "commitments" | "pillars">,
   commitmentGroups: C[][],
-): Omit<ExtractedRap, "commitments"> & { commitments: C[] } {
+): Omit<ExtractedRap, "commitments" | "pillars"> & { commitments: C[] } {
   return {
     ...header,
     commitments: commitmentGroups.flat(),
@@ -507,7 +498,7 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
       "Header call truncated at max_tokens — header fields were measured to fit comfortably in a single call; this is unexpected and a hard failure, not a split-and-retry case.",
     );
   }
-  const header = parseToolJson<Omit<ExtractedRap, "commitments">>(headerJson, HEADER_TOOL_NAME);
+  const header = parseToolJson<Omit<ExtractedRap, "commitments" | "pillars">>(headerJson, HEADER_TOOL_NAME);
 
   // Commitment calls run SEQUENTIALLY, one per chunk — never in parallel. The
   // abort failure mode observed against live Bedrock is not understood well
@@ -518,10 +509,21 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
     commitmentGroups.push(await extractChunkCommitments(chunk, input.fileName, 0));
   }
 
-  const merged = mergeExtraction(header, commitmentGroups);
+  // pillars is DERIVED from the commitments, never extracted — HEADER_TOOL does
+  // not carry it (see classify.ts derivePillars). The commitments are the single
+  // source of truth; this is a projection of their already-grounded pillars.
+  const merged: ExtractedRap = {
+    ...mergeExtraction(header, commitmentGroups),
+    pillars: derivePillars(commitmentGroups.flat()),
+  };
 
   // deterministic gate: Claude returns verbatim quotes → require them
-  const { extracted, issues } = validateAndFlag(merged, { requireQuote: true });
+  // deterministic gate: Claude returns verbatim quotes → require them, AND check
+  // each one actually occurs in what the model was shown. sourceText is the
+  // LAYOUT-built documentText (with its "[p.N]" markers), never the raw PDF —
+  // chunks are non-overlapping slices of exactly this text, so any chunk's quote
+  // is a substring of it, and no per-chunk plumbing is needed.
+  const { extracted, issues } = validateAndFlag(merged, { requireQuote: true, sourceText: documentText });
 
   return {
     engine: "claude",

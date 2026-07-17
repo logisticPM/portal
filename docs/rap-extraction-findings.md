@@ -15,11 +15,17 @@ This documents what we learned deploying and testing the RAP extraction pipeline
 
 **Option B — Claude on Bedrock (in-country, `ca-central-1`) — UPDATE 2026-07-16: the blocker is fixed.**
 It was deferred because a single grounded call **aborted** on the real RAP. It now runs end to end
-in `ca-central-1` (**392s**), extracting all 22 forward-looking commitments on their correct pages,
-every one carrying a quote and a page. Two caveats before anyone re-opens the engine decision:
-it **over-extracts** (46 returned, ~17 of them past achievements — a prompt gap, see §4b), and it is
-~6× slower than BDA's 64s. §4 records what the original diagnosis got wrong; §4a how we cut the
-document; §4b the live run. **This does not by itself overturn "ship A"** — that is a team call.
+in `ca-central-1` in **116.5s**, returning **26 commitments — all 22 forward-looking ones on their
+correct pages** (12 on p13, 10 on p15), every one carrying a verbatim quote and a real page number,
+plus 4 defensible extras. The over-extraction that the first run showed (46, ~17 of them past
+achievements) was a prompt gap and is fixed. §4 records what the original diagnosis got wrong;
+§4a how we cut the document; §4b the live runs.
+
+**This still does not by itself overturn "ship A" — that is a team call.** But the two things that
+argued against B have both moved: it is now ~1.8× slower than BDA (116.5s vs 64s), not 6×, and it
+extracts the same 22 commitments BDA does while carrying **verbatim quotes and read (not guessed)
+page numbers**, in-country at rest. The open question is cost — `AnalyzeDocument`+LAYOUT is a
+pricier Textract tier and that is still unmeasured.
 
 ---
 
@@ -149,7 +155,14 @@ Only **3 of 22** commitments existed as contiguous text in what we were sending 
 
 **Costs:** `AnalyzeDocument`+LAYOUT is a pricier Textract tier than plain text detection (unmeasured). One `aborted` stream was observed live on a 5,794-char chunk — the transient failure is real and small chunks do not prevent it, so orchestration must retry.
 
-**F3 is not latent.** `validate.ts`'s `requireQuote` only checks `quote !== null` and never substring-matches the document, so **all 21 of arm (b)'s fabricated quotes would pass validation today**. Under arm (a) this is not currently firing, but the gate is not actually checking what it claims to.
+**F3 was not latent — and is now FIXED (2026-07-16).** `validate.ts`'s `requireQuote` only checked `quote !== null` and never substring-matched the document, so **all 21 of arm (b)'s fabricated quotes passed validation** — on the gate whose entire purpose is catching fabrication.
+
+`validateAndFlag` now takes the document text the model was actually shown and raises `quote_not_found` when a quote doesn't occur in it. Three decisions make it real without making it noisy:
+- **Match on words**, not bytes. The chunker is whitespace-lossy and Textract's punctuation drifts against the model's (curly vs straight apostrophes); a fabrication differs in *words*, so tolerance costs nothing and avoids false positives that would train reviewers to ignore the flag.
+- **Honest elision passes.** A multi-valued field (`pillars`, `frameworkRefs`) has no single verbatim span, so the model marks the join with `…` — that is provenance, not fabrication, and each fragment is checked instead. A **silent weld** carries no ellipsis, is matched whole, and is still caught. Found live: without this, `pillars` flagged on every run.
+- **Check against the LAYOUT-built text, never the raw PDF** — it carries injected `[p.N]` markers and drops boilerplate, so comparing to the original would false-negative everywhere. Chunks are non-overlapping slices of exactly that text, so no per-chunk plumbing is needed.
+
+Verified live: **0 false positives across ~180 quote instances**, 26/26 commitments still grounded. Opt-in via `sourceText`, so the BDA path (grounds by confidence, not quotes) is unaffected.
 
 ---
 
@@ -169,7 +182,23 @@ Only **3 of 22** commitments existed as contiguous text in what we were sending 
 No drops, no duplicates. Textract OCR on the real multi-page PDF works, and page numbers are read
 rather than guessed.
 
-**But it returns 46, not 22 — it over-extracts.** The breakdown:
+> **UPDATE — over-extraction fixed (2026-07-16, verified live).** `EXTRACTION_SYSTEM` gained a
+> forward-looking rule (rule 7). Re-run against the same PDF: **46 → 26 commitments**, and all
+> **17** past-achievement bullets are gone — pages 7 and 8 no longer appear in the output at all.
+> The 22 real commitments are untouched (still 12 on p13 + 10 on p15). The `"Starting in 1975"` /
+> `"Over the past several years"` validation flags are gone; the 3 that remain (`"Annual"`,
+> `"Every three years"`) are legitimate cadences that just aren't ISO dates.
+> The 4 remaining non-gold items are defensible: p6 "Commit to understanding limitations of Western
+> ways of thinking…" and two p16 governance commitments ("Every three years… review and refresh",
+> "Share annual updates on progress"). Only p9 "Develop a Reconciliation Action Plan" is arguable —
+> the Bank already did, this document *is* it.
+> **Side effect: it got 3.4× faster — 392s → 116.5s** — because output tokens scale with commitment
+> count (~410 each), and it no longer emits ~20 things it shouldn't. That materially narrows the
+> latency gap with BDA (64s) for the engine decision.
+>
+> The original 46-result analysis is kept below, because it is what diagnosed the cause.
+
+**The original run returned 46, not 22 — it over-extracted.** The breakdown:
 - **22** — the real forward-looking "Some key actions:" commitments (p13/p15). Correct.
 - **17** — the p7/p8 **past-achievement** bullets from "Where we have been" (p7 has 7, p8 has 10 —
   the numbers match exactly). These are history, not commitments: "Representing Indigenous voices
@@ -187,9 +216,38 @@ new per-chunk prompt ever says *forward-looking only*, so the same over-extracti
 before; the old call simply died before it could show us (46 × ~410 ≈ 19k tokens > the 16000 cap —
 which is precisely why it aborted).
 
-**Follow-up (not fixed here):** teach the commitments prompt to exclude past achievements —
-`EXTRACTION_SYSTEM` needs a forward-looking rule. Note BDA (§5) returned 22 on the same document,
-so this is a prompt gap in Option B, not an inherent limit.
+**Fixed** (see the update box above): `EXTRACTION_SYSTEM` rule 7 now states that commitments are
+forward-looking and that a past-achievement list must be skipped even when it looks exactly like a
+list of commitments. BDA (§5) returning 22 on the same document was the clue that this was a prompt
+gap in Option B, not an inherent limit.
+
+### `pillars` is now derived, not extracted (2026-07-16)
+
+Turning the quote check on surfaced a schema problem. `Grounded<T>` is shaped for a **scalar** —
+one value, one quote, one page, one confidence — but `pillars` was `Grounded<Pillar[]>`, so it
+grounded the *array*, not the *elements*. Live, it returned **six** pillars behind **one** quote at
+**page 5**, though "education" and "community" come from p15. There was no honest way to fill it:
+"which themes does this RAP touch?" is a **summary**, and rule 1 says the model transcribes rather
+than summarizes. No sentence in a RAP says "this plan is about employment", so no span exists to
+quote. The field could not satisfy its own contract, and the model did the only thing left — welded
+bullets together with an ellipsis. Because `isClean()` treats any flagged field as
+review-worthy, that ungroundable field alone routed every RAP to the human queue.
+
+**`pillars` is now derived from the commitments** (`classify.ts` `derivePillars`), which are the
+single source of truth: each already carries a grounded `pillarRaw` and a normalized
+`pillarNormalized`, and `publish.ts` already built the published row from `c.pillarNormalized`, not
+from `e.pillars`. The field is plain `Pillar[]` (like `pillarNormalized`), emitted in canonical
+order so two runs of the same document are comparable, and the model is no longer asked for it.
+
+It is also **more complete**, not merely better grounded: the model's summary returned 6 pillars,
+while deriving from its own commitments yields **8** — it had omitted `respect` and `governance`
+despite asserting commitments in both. The summary disagreed with the data it summarized.
+
+Two bugs died with it: BDA's multi-chunk `mergeExtracted` used `pick()` (first chunk with a value)
+for `pillars`, silently discarding every other chunk's pillars on a >20-page RAP; and the field's
+low confidence was flagging otherwise-clean extractions. The generalisable lesson: **any "what is
+this document about" field is an inference, not an extraction, and cannot be verbatim-grounded** —
+derive it from the grounded records beneath it.
 
 ---
 

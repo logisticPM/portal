@@ -141,7 +141,7 @@ export const jobs: ExtractionJob[] = [
       publicationDate: g("2025-11-19", "November 2025", 1, 0.86),
       periodCovered: g({ start: "2025-01-01", end: "2025-12-31" }, "2025", 2, 0.84),
       frameworkRefs: g(["trc_cta_92"], "Call to Action 92", 3, 0.88),
-      pillars: g(["relationships", "respect", "opportunities", "governance"], "four pillars", 4, 0.9),
+      pillars: ["relationships", "respect", "opportunities", "governance"], // derived from commitments
       governanceBody: g("Indigenous Reconciliation team", "Indigenous Reconciliation team", 5, 0.82),
       reviewCycle: g("annual", "annual report", 5, 0.9),
       rapType: g<RapType>(null, null, null, 0.5),

@@ -65,7 +65,6 @@ const HEADER_FIELD_PROPERTIES = {
     required: ["start", "end"],
   }),
   frameworkRefs: grounded({ type: ["array", "null"], items: { type: "string", enum: FRAMEWORK_REFS } }),
-  pillars: grounded({ type: ["array", "null"], items: { type: "string", enum: PILLARS } }),
   governanceBody: gString,
   reviewCycle: gString,
   rapType: gEnum(RAP_TYPES),
@@ -75,7 +74,7 @@ const HEADER_FIELD_PROPERTIES = {
 
 const HEADER_FIELD_REQUIRED = [
   "orgName", "sector", "jurisdiction", "rapTitle", "publicationDate", "periodCovered",
-  "frameworkRefs", "pillars", "governanceBody", "reviewCycle", "rapType", "pairLevel",
+  "frameworkRefs", "governanceBody", "reviewCycle", "rapType", "pairLevel",
   "endorsementStatus",
 ] as const;
 
@@ -127,7 +126,7 @@ export const CLAUDE_TOOL = {
     },
     required: [
       "orgName", "sector", "jurisdiction", "rapTitle", "publicationDate", "periodCovered",
-      "frameworkRefs", "pillars", "governanceBody", "reviewCycle", "rapType", "pairLevel",
+      "frameworkRefs", "governanceBody", "reviewCycle", "rapType", "pairLevel",
       "endorsementStatus", "commitments", "extras",
     ],
     additionalProperties: false,
@@ -187,7 +186,8 @@ Rules — follow exactly:
 2. NO QUOTE ⇒ NO VALUE. If you cannot find a supporting span, set quote=null AND value=null. Never guess, infer, or recall from outside the document.
 3. NEVER COMPUTE. Do not add, total, average, or convert. Copy the figure as written (e.g. "$1.8 billion"); downstream code parses numbers.
 4. NORMALIZE THEMES. Map each commitment's own pillar wording (pillarRaw) onto the closest canonical pillar (pillarNormalized). Keep the original wording in pillarRaw.
-5. USE EXTRAS. Anything meaningful that doesn't fit a defined field goes in "extras" with its own quote — do not force it into an unrelated field.
+5. USE EXTRAS — only when the tool you are calling actually has an "extras" field. Anything meaningful that doesn't fit a defined field goes there with its own quote; do not force it into an unrelated field.
 6. CALIBRATE confidence honestly (0..1): high only when the span unambiguously states the value.
+7. COMMITMENTS ARE FORWARD-LOOKING — this is the most common mistake. A commitment is something the organization says it WILL do, or is undertaking to do. A RAP also narrates what it has ALREADY done: past achievements, milestones, history ("Launched in 2015…", "Since 2019, the Bank has…", "In January 2021 we founded…"). Those are NOT commitments — do not record them, even when they appear as a tidy bulleted list that looks exactly like a list of commitments, and even when the surrounding section heading is about the organization's journey. Test each candidate: if the document says it already happened, it is not a commitment. If a stated action is genuinely ongoing AND forward-looking ("continue to…", "we will keep…"), it IS a commitment. When a section header marks a list as past ("Where we have been", "Our journey so far", "Achievements"), skip that list entirely.
 
 Call the ${EXTRACTION_TOOL_NAME} tool exactly once with your result.`;
