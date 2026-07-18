@@ -282,17 +282,13 @@ export default $config({
       link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, alignment, casesIndex],
       transform: {
         server: {
-          // Search-index artifacts resident in memory + faster CPU for
-          // deserialization. The original "~160MB vectors" estimate was 6× low:
-          // the real vectors.bin is ~979MB (bm25.bin ~155MB), and deserialized
-          // alongside the Next.js runtime that OOM'd a 2048MB Lambda on the first
-          // dense-search request (Runtime.OutOfMemory, observed on the ca stage).
-          // 4096MB holds the ~1.1GB of artifacts + working set with headroom, and
-          // the extra CPU that comes with it speeds the one-time index load.
-          // NOTE: a request Lambda holding a ~1GB index is heavy for a feature
-          // used on a fraction of requests — a later refactor should move dense
-          // retrieval off the request path (separate function / vector service).
-          memory: "3008 MB", // account Lambda cap is 3008MB (4096 rejected); raise quota for more
+          // Holds the BM25 search-index artifact (~155MB bm25.bin) + the Next.js
+          // runtime. NOTE: dense retrieval's vectors.bin is ~979MB — loading it
+          // into this request Lambda OOMs even at the account's 3008MB cap, so
+          // dense is opt-in via CASES_EMBED_PROVIDER (see the Web env below) and
+          // OFF where memory can't hold it. Re-enabling dense in a Lambda needs a
+          // memory-quota increase, or better, moving dense off the request path.
+          memory: "2048 MB",
           // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
           // permission to invoke the async extraction worker.
           permissions: [
@@ -348,7 +344,13 @@ export default $config({
         // inherited extractionEnv BEDROCK_REGION=ca-central-1 for cases embedding
         // ONLY — RAP extraction still uses ca-central-1. The query router keeps
         // dense's embed call to conceptual/topical queries; known-item stays BM25.
-        EMBED_PROVIDER: "bedrock",
+        //
+        // Overridable because dense loads the ~979MB vectors.bin into the request
+        // Lambda — which OOMs even at the account's 3008MB Lambda cap (observed on
+        // the ca stage). Set CASES_EMBED_PROVIDER=stub to run BM25-only (loads just
+        // the ~155MB bm25.bin, fits comfortably) until dense retrieval is moved off
+        // the request path or a Lambda memory-quota increase is granted.
+        EMBED_PROVIDER: process.env.CASES_EMBED_PROVIDER ?? "bedrock",
         EMBED_MODEL: "amazon.titan-embed-text-v2:0",
         EMBED_DIM: "1024",
         EMBED_REGION: "us-east-1",
