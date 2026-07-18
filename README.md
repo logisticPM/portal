@@ -6,6 +6,15 @@ Public-facing companion to Indigenomics AI — a vertical slice of the RAP (Reco
 
 ---
 
+## Live deployments
+
+| Environment | URL | Notes |
+|---|---|---|
+| **ca-central-1** (current) | <https://d20w6ctg8j4zg2.cloudfront.net> | RAP platform migrated to Canada under the data-residency split (spec §4). Real data. Legal cases are served cross-region from us-east-1. |
+| **us-east-1** (previous) | <https://d1hwn8hhp1ytc0.cloudfront.net> | Original production. Kept live as a backup / to revisit prior content. |
+
+---
+
 ## Running locally
 
 ```bash
