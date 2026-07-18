@@ -282,9 +282,17 @@ export default $config({
       link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, alignment, casesIndex],
       transform: {
         server: {
-          // Search-index artifact resident in memory (bm25 ~60MB; +~160MB vectors
-          // now dense is enabled) + faster CPU for index deserialization.
-          memory: "2048 MB",
+          // Search-index artifacts resident in memory + faster CPU for
+          // deserialization. The original "~160MB vectors" estimate was 6× low:
+          // the real vectors.bin is ~979MB (bm25.bin ~155MB), and deserialized
+          // alongside the Next.js runtime that OOM'd a 2048MB Lambda on the first
+          // dense-search request (Runtime.OutOfMemory, observed on the ca stage).
+          // 4096MB holds the ~1.1GB of artifacts + working set with headroom, and
+          // the extra CPU that comes with it speeds the one-time index load.
+          // NOTE: a request Lambda holding a ~1GB index is heavy for a feature
+          // used on a fraction of requests — a later refactor should move dense
+          // retrieval off the request path (separate function / vector service).
+          memory: "4096 MB",
           // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
           // permission to invoke the async extraction worker.
           permissions: [
