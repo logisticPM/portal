@@ -2,7 +2,7 @@
 // invisible to the corpus: no GSI1PK (scanAll scans GSI1), et ∉ {Case,CaseChunk},
 // listed via GSI2 under a dedicated "SCAN#ALL" partition. Own repo — NOT CaseRepo.
 import { PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
-import { ddbDoc } from "../../dynamo/client";
+import { casesDdbDoc as ddbDoc } from "../../dynamo/client";
 import { GSI2 } from "../../dynamo/cases-table";
 import type { ScanReport } from "./types";
 
