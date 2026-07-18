@@ -292,7 +292,7 @@ export default $config({
           // NOTE: a request Lambda holding a ~1GB index is heavy for a feature
           // used on a fraction of requests — a later refactor should move dense
           // retrieval off the request path (separate function / vector service).
-          memory: "4096 MB",
+          memory: "3008 MB", // account Lambda cap is 3008MB (4096 rejected); raise quota for more
           // Bedrock/Textract aren't SST-linkable → attach IAM directly. Plus
           // permission to invoke the async extraction worker.
           permissions: [
