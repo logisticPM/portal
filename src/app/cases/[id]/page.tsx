@@ -4,13 +4,19 @@ import { casesRepo } from "@/lib/cases";
 import { TierBadge, FullTextReader, ProvenanceFooter } from "../ui";
 import { themeLabel } from "@/lib/cases/labels";
 import { findCitingPassage } from "@/lib/cases/treatment";
+import { getSession } from "@/lib/auth";
+import { getCaseQa } from "@/lib/cases/caseqa/repo";
+import { isAdviceSeeking } from "@/lib/cases/briefs/advice";
+import { askCase } from "./ask-actions";
 
 export default async function CaseDetail({
   params, searchParams,
-}: { params: { id: string }; searchParams: { q?: string } }) {
+}: { params: { id: string }; searchParams: { q?: string; ask?: string; askerr?: string } }) {
   const c = await casesRepo.getCase(params.id);
   if (!c) notFound();
   const q = searchParams.q ?? "";
+  const session = getSession();
+  const qa = searchParams.ask ? await getCaseQa(searchParams.ask) : null;
   const graph = await casesRepo.getCitationGraph(c.id);
   const citingTop = [...graph.citing]
     .sort((a, b) => b.year - a.year || b.citingCount - a.citingCount)
@@ -135,6 +141,49 @@ export default async function CaseDetail({
                     : <p className="mt-1 text-xs text-ink3">In this library; citing passage not located in the available text.</p>}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-6">
+        <h2 className="font-serif text-lg">Ask this judgment</h2>
+        <p className="mt-1 text-xs text-ink3">Ask a question about this decision. The answer is drawn only from this judgment — each point quoted and anchored to a paragraph. Not legal advice.</p>
+        {searchParams.askerr === "length" && <p className="mt-2 rounded border border-line bg-amber/10 px-3 py-2 text-sm text-ink2">Please ask a question between 8 and 400 characters.</p>}
+        {searchParams.askerr === "quota" && <p className="mt-2 rounded border border-line bg-amber/10 px-3 py-2 text-sm text-ink2">Daily question limit reached — please try again tomorrow.</p>}
+        {session ? (
+          <form action={askCase} className="mt-2 space-y-2">
+            <input type="hidden" name="caseId" value={c.id} />
+            <textarea name="question" rows={2} required minLength={8} maxLength={400}
+              placeholder="e.g. What did the court say about the duty to consult here?"
+              className="w-full rounded border border-line bg-panel p-2 text-sm" />
+            <button className="rounded bg-ink px-4 py-2 text-bg hover:bg-ink/90">Ask →</button>
+          </form>
+        ) : (
+          <p className="mt-2 text-sm text-ink3">Sign in to ask.{" "}<Link href="/login" className="text-amber hover:underline">Log in →</Link></p>
+        )}
+        {qa && (
+          <div className="mt-3">
+            {isAdviceSeeking(qa.question) && (
+              <p className="rounded border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-ink2">
+                This reads as asking about a specific situation. This is <strong>general legal information from this judgment, not advice</strong> — for advice, consult qualified counsel or an Indigenous legal clinic.
+              </p>
+            )}
+            <div className="mt-2 rounded border border-line bg-panel p-3">
+              <div className="text-xs text-ink3">Q: {qa.question}</div>
+              {qa.status === "pending" && (<><meta httpEquiv="refresh" content="4" /><p className="mt-1 text-sm text-ink3">Reading the judgment… this page refreshes automatically.</p></>)}
+              {qa.status === "failed" && <p className="mt-1 text-sm text-ink2">{qa.failReason ?? "Could not answer from this judgment."}</p>}
+              {qa.status === "done" && qa.answer && (
+                <>
+                  <div className="mt-1 text-xs text-ink3">Answer — from this judgment</div>
+                  <ul className="mt-1 space-y-1 text-sm text-ink2">
+                    {qa.answer.claims.map((cl, i) => (
+                      <li key={i}>{cl.text}{" "}<a href={cl.sourceUrl} className="text-xs text-amber hover:underline" target="_blank" rel="noreferrer">[{cl.sourceParagraph}]</a></li>
+                    ))}
+                  </ul>
+                  <p className="mt-1 text-xs text-ink3">Drawn only from this judgment · not legal advice.</p>
+                </>
+              )}
             </div>
           </div>
         )}

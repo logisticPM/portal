@@ -65,6 +65,10 @@ export default async function MethodologyPage() {
           <p>On a case page, "later cases citing this decision" shows the <strong>verbatim passage</strong> where each in-corpus later case cites it, with its paragraph anchor — so a reader can see <em>how</em> the case was used. It is deliberately <strong>extractive only</strong>: no "followed / distinguished / overruled" classification (a legal conclusion we don't assert), and it is bounded to cases in this library.</p>
         </div>
         <div>
+          <h2 className="font-serif text-lg">Ask this judgment</h2>
+          <p>On a case page you can ask a question about that single decision. The answer is generated the same way as our summaries — <strong>extractive and paragraph-anchored</strong>: every point must quote a real paragraph of that judgment or it is dropped, and if the decision does not address the question the assistant <strong>says so</strong> rather than guessing. Single-source, badged, rate-limited, and <strong>not legal advice</strong>.</p>
+        </div>
+        <div>
           <h2 className="font-serif text-lg">Retrieval evaluation</h2>
           <p>Search quality is measured (nDCG@10 / recall@10 / MRR) on a graded gold set, comparing lexical (BM25) against hybrid retrieval, so ranking changes are evidence-based, not asserted.</p>
         </div>
