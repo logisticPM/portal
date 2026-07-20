@@ -11,7 +11,16 @@ import { getEmbedder } from "./search/embedder";
 import { routeQuery } from "./search/route";
 import { unpackF32 } from "./search/pack";
 import { scoreSituation } from "./similarity";
-import { cache } from "react";
+import { cache as reactCache } from "react";
+// React's cache() (per-request RSC memoization) exists only in the React build Next.js
+// vendors for its server runtime; plain `tsx` ops scripts load stable react@18, whose
+// `cache` export is undefined → calling it throws "cache is not a function". Degrade to
+// identity there — memoization is a perf optimization for the RSC browse page (which always
+// runs under Next, where reactCache IS a function), not a correctness requirement, and ops
+// scripts invoke scanAll/coreSimilarityData once per run anyway.
+const cache = (typeof reactCache === "function"
+  ? reactCache
+  : (<T extends (...a: any[]) => any>(fn: T): T => fn)) as typeof reactCache;
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
