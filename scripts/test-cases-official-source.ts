@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfText, pdfToText } from "../src/lib/cases/ingest/official-source";
 
 (async () => {
+  const allowAll = async (_u: string) => true; // robots gate stub for offline extraction tests
+
   // --- isOpenSource (v3 = bccourts + SCC + ONCA) ---
   assert.equal(isOpenSource("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm"), true);
   assert.equal(isOpenSource("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14246/index.do"), true, "SCC open");
@@ -51,34 +53,34 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   // --- fetchOfficialText: injected get returns { buf, contentType } (bytes + type) ---
   const body = "The reasons for judgment. ".repeat(20); // > 200 chars after trim
   const htmlGet = async () => ({ buf: Buffer.from(`<p>${body}</p>`, "utf8"), contentType: "text/html; charset=utf-8" });
-  assert.equal(await fetchOfficialText("https://www.bccourts.ca/a.htm", htmlGet), body.trim(), "open HTML host → extracted text");
-  assert.equal(await fetchOfficialText("https://www.canlii.org/x", htmlGet), "", "non-open host → '' (not fetched)");
-  assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => ({ buf: Buffer.from("<p>tiny</p>"), contentType: "text/html" })), "", "too-short extraction → ''");
-  assert.equal(await fetchOfficialText("https://www.bccourts.ca/e.htm", async () => { throw new Error("net"); }), "", "fetch error → ''");
+  assert.equal(await fetchOfficialText("https://www.bccourts.ca/a.htm", htmlGet, allowAll), body.trim(), "open HTML host → extracted text");
+  assert.equal(await fetchOfficialText("https://www.canlii.org/x", htmlGet, allowAll), "", "non-open host → '' (not fetched)");
+  assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => ({ buf: Buffer.from("<p>tiny</p>"), contentType: "text/html" }), allowAll), "", "too-short extraction → ''");
+  assert.equal(await fetchOfficialText("https://www.bccourts.ca/e.htm", async () => { throw new Error("net"); }, allowAll), "", "fetch error → ''");
 
-  // robots.txt deny-list: an /icm/ disallowed document is never fetched.
+  // robots gate: a disallowed URL is never fetched (replaces the old hardcoded ROBOTS_DENY).
   let denyFetched = false;
+  const denyGate = async (_u: string) => false;
   assert.equal(
-    await fetchOfficialText("https://decisions.scc-csc.ca/icm/icm/en/120620/1/document.do", async () => { denyFetched = true; return { buf: Buffer.from("x"), contentType: "application/pdf" }; }),
-    "", "robots-denied URL → '' ");
-  assert.equal(denyFetched, false, "robots-denied URL not fetched");
+    await fetchOfficialText("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm",
+      async () => { denyFetched = true; return { buf: Buffer.from("x".repeat(300)), contentType: "text/html" }; },
+      denyGate),
+    "", "robots-disallowed URL → ''");
+  assert.equal(denyFetched, false, "robots-disallowed URL not fetched");
 
-  // PDF routing by content-type: PDF-typed bytes go to pdfToText (NOT htmlToText). We
-  // prove the *dispatch* here; real SCC PDF extraction is verified in the ops Phase-0
-  // fidelity gate (pdf-parse confirmed to parse real SCC PDFs, e.g. Haida id 2189 →
-  // 39pp / 161k chars). Feeding HTML bytes as application/pdf makes pdf-parse reject
-  // them → "", whereas the same bytes as text/html extract the body — proving routing.
+  // PDF routing by content-type: PDF-typed bytes go to pdfToText (NOT htmlToText).
   const htmlBytes = Buffer.from(`<p>${body}</p>`, "utf8");
   assert.equal(
     await fetchOfficialText("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2189/index.do",
-      async (u: string) => { assert.ok(u.endsWith("/2189/1/document.do"), "normalized to document.do"); return { buf: htmlBytes, contentType: "application/pdf" }; }),
+      async (u: string) => { assert.ok(u.endsWith("/2189/1/document.do"), "normalized to document.do"); return { buf: htmlBytes, contentType: "application/pdf" }; },
+      allowAll),
     "", "application/pdf content-type routes to PDF parser (HTML bytes rejected → '')");
   assert.equal(
-    await fetchOfficialText("https://www.bccourts.ca/a.htm", async () => ({ buf: htmlBytes, contentType: "text/html" })),
+    await fetchOfficialText("https://www.bccourts.ca/a.htm", async () => ({ buf: htmlBytes, contentType: "text/html" }), allowAll),
     body.trim(), "same bytes as text/html route to htmlToText → body (routing control)");
   assert.equal(
     await fetchOfficialText("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do",
-      async () => ({ buf: htmlBytes, contentType: "" })),
+      async () => ({ buf: htmlBytes, contentType: "" }), allowAll),
     "", "document.do URL suffix forces the PDF branch even without a pdf content-type");
 
   // --- cleanupPdfText: deterministic verbatim cleanup (pure string→string) ---
