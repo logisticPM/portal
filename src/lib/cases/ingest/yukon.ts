@@ -50,7 +50,9 @@ const YUKON_SIGNAL = /\b(first nations?|nacho nyak dun|fnnnd|kwanlin|champagne|a
 const GOV_PARTY = /yukon\s*\(government of\)/i;
 
 export function isIndigenousEconomicCandidate(row: YukonListingRow): boolean {
-  const hay = `${row.citation} ${row.fileName}`;
+  // Normalize `_` → space: filenames use underscores as separators ("1_Ross River"),
+  // and `_` is a regex word char so `\b` would not fire between `_` and a party name.
+  const hay = `${row.citation} ${row.fileName}`.replace(/_/g, " ");
   return YUKON_SIGNAL.test(hay) || GOV_PARTY.test(hay);
 }
 
