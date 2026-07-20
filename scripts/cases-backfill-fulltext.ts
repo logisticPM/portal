@@ -10,6 +10,7 @@ import { caseToItems } from "../src/lib/dynamo/cases-table";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { applyFullText } from "../src/lib/cases/ingest/fulltext";
 import { fetchOfficialText, isOpenSource } from "../src/lib/cases/ingest/official-source";
+import { makeRobotsGate } from "../src/lib/cases/ingest/robots";
 import { promoteOne } from "./cases-ingest";
 import type { LegalCase } from "../src/lib/cases/types";
 
@@ -32,11 +33,12 @@ async function main() {
     isOpenSource(c.provenance.sourceUrl) &&
     (!HOST || hostOf(c.provenance.sourceUrl) === HOST));
   console.log(`backfill: ${todo.length} open-source no-fulltext cases${HOST ? ` (host=${HOST})` : ""}`);
+  const gate = makeRobotsGate(); // one per run → each host's robots.txt fetched once
 
   let done = 0, withText = 0, promoted = 0;
   let batch: LegalCase[] = [];
   for (const c of todo) {
-    const text = await fetchOfficialText(c.provenance.sourceUrl);
+    const text = await fetchOfficialText(c.provenance.sourceUrl, undefined, gate.allows);
     if (text) {
       withText++;
       const withTextCase: LegalCase = { ...applyFullText(c, text), provenance: { ...c.provenance, source: "official_court" } };
