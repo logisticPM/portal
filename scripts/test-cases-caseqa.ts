@@ -56,5 +56,15 @@ import assert from "node:assert/strict";
   r = await answerCaseQuestion(c, [], "Q?", never);
   assert.equal(r.status, "failed");
 
+  const { caseQuestionHash, caseQaKeys } = await import("../src/lib/cases/caseqa/repo");
+  // per-case scoping: same question, different case ⇒ different hash
+  assert.notEqual(caseQuestionHash("2004-scc-73", "what is the duty?"), caseQuestionHash("2014-scc-44", "what is the duty?"));
+  // deterministic + normalized (case/space/trailing punct fold)
+  assert.equal(caseQuestionHash("c1", "What is the DUTY??"), caseQuestionHash("c1", "what is the duty"));
+  assert.equal(caseQuestionHash("c1", "x").length, 32);
+  assert.deepEqual(caseQaKeys.qa("abc"), { PK: "CASEQA#abc", SK: "CASEQA" });
+  assert.deepEqual(caseQaKeys.qhash("h1"), { PK: "CQHASH#h1", SK: "CQHASH" });
+  assert.deepEqual(caseQaKeys.quota("2026-07-19", "company:c-1"), { PK: "CQUOTA#2026-07-19#company:c-1", SK: "CQUOTA" });
+
   console.log("✅ test-cases-caseqa passed");
 })().catch((e) => { console.error(e); process.exit(1); });
