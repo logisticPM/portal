@@ -58,7 +58,7 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => ({ buf: Buffer.from("<p>tiny</p>"), contentType: "text/html" }), allowAll), "", "too-short extraction → ''");
   assert.equal(await fetchOfficialText("https://www.bccourts.ca/e.htm", async () => { throw new Error("net"); }, allowAll), "", "fetch error → ''");
 
-  // robots gate: a disallowed URL is never fetched (replaces the old hardcoded ROBOTS_DENY).
+  // robots gate: a disallowed URL is never fetched (replaces the old hardcoded deny-list).
   let denyFetched = false;
   const denyGate = async (_u: string) => false;
   assert.equal(
