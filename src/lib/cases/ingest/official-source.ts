@@ -3,15 +3,9 @@
 // (no LLM) so downstream summary/figure verbatim-verification stays valid; only
 // allow-listed open hosts are fetched (CanLII remains excluded).
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import { defaultRobotsGate } from "./robots";
 
 export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca", "coadecisions.ontariocourts.ca"];
-
-// robots.txt (User-agent: *) disallows exactly these two documents — honor it even
-// though they are /icm/ (not /scc-csc/) and won't appear in our SCC set.
-const ROBOTS_DENY = [
-  "/icm/icm/en/item/120620/", "/icm/icm/en/120620/1/document.do",
-  "/icm/icm/en/item/111322/", "/icm/icm/en/111322/1/document.do",
-];
 
 export function isOpenSource(url: string): boolean {
   try { return OPEN_HOSTS.includes(new URL(url).host); } catch { return false; }
@@ -121,13 +115,17 @@ async function defaultFetch(u: string): Promise<Fetched> {
   return { buf: Buffer.alloc(0), contentType: "" };
 }
 
-// Fetch an official page and extract verbatim text. Returns "" on a robots-denied URL, a
-// non-open host, a network failure, or an implausibly short extraction. `get` is
-// injectable for offline tests.
-export async function fetchOfficialText(url: string, get: (u: string) => Promise<Fetched> = defaultFetch): Promise<string> {
-  if (ROBOTS_DENY.some((d) => url.includes(d))) return "";
-  if (!isOpenSource(url)) return "";
+// Fetch an official page and extract verbatim text. Returns "" for a non-open host, a
+// robots-disallowed URL, a network failure, or an implausibly short extraction. `get` and
+// `allows` are injectable for offline tests.
+export async function fetchOfficialText(
+  url: string,
+  get: (u: string) => Promise<Fetched> = defaultFetch,
+  allows: (u: string) => Promise<boolean> = defaultRobotsGate.allows,
+): Promise<string> {
+  if (!isOpenSource(url)) return "";          // curation gate: official-open hosts only
   const target = toDocumentUrl(url);
+  if (!(await allows(target))) return "";     // crawling-ethics gate: honor robots.txt
   try {
     const { buf, contentType } = await get(target);
     if (buf.length === 0) return "";

@@ -42,6 +42,8 @@
     "cases:fetch-fulltext": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-fetch-fulltext.ts",
     "cases:backfill-fulltext": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-backfill-fulltext.ts",
     "cases:backfill-fulltext:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-backfill-fulltext.ts",
+    "cases:audit-robots": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-audit-robots.ts",
+    "cases:audit-robots:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-audit-robots.ts",
     "cases:promote": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-promote.ts",
     "cases:summarize": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-summarize.ts",
     "cases:summarize:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-summarize.ts",
@@ -84,7 +86,8 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "robots-parser": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
