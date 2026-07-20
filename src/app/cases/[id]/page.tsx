@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { casesRepo } from "@/lib/cases";
 import { TierBadge, FullTextReader, ProvenanceFooter } from "../ui";
 import { themeLabel } from "@/lib/cases/labels";
+import { findCitingPassage } from "@/lib/cases/treatment";
 
 export default async function CaseDetail({
   params, searchParams,
@@ -11,6 +12,16 @@ export default async function CaseDetail({
   if (!c) notFound();
   const q = searchParams.q ?? "";
   const graph = await casesRepo.getCitationGraph(c.id);
+  const citingTop = [...graph.citing]
+    .sort((a, b) => b.year - a.year || b.citingCount - a.citingCount)
+    .slice(0, 10);
+  const citeTarget = { citation: c.citation, citation2: c.citation2, styleOfCause: c.styleOfCause };
+  const treated = await Promise.all(citingTop.map(async (g) => {
+    const full = await casesRepo.getCase(g.id);
+    const passage = full?.chunks?.length ? findCitingPassage(full.chunks, citeTarget) : null;
+    return { case: g, passage };
+  }));
+  const withSnippet = treated.filter((t) => t.passage).length;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -102,11 +113,31 @@ export default async function CaseDetail({
 
       <section className="mt-4">
         <h2 className="font-serif text-lg">Citations</h2>
-        <p className="text-sm text-ink2">Cited by {c.citingCount} case(s).</p>
-        <div className="mt-1 grid grid-cols-2 gap-3 text-sm">
-          <div><div className="text-xs text-ink3">Cites</div>{graph.cited.map((g) => <Link key={g.id} href={`/cases/${g.id}`} className="block hover:text-amber hover:underline">{g.styleOfCause}</Link>)}</div>
-          <div><div className="text-xs text-ink3">Cited by</div>{graph.citing.map((g) => <Link key={g.id} href={`/cases/${g.id}`} className="block hover:text-amber hover:underline">{g.styleOfCause}</Link>)}</div>
-        </div>
+        <p className="text-sm text-ink3">
+          Cited by {c.citingCount} case(s) · {graph.citing.length} in this library · {withSnippet} shown with the citing passage.
+        </p>
+        {graph.cited.length > 0 && (
+          <div className="mt-2 text-sm">
+            <div className="text-xs text-ink3">Cites</div>
+            {graph.cited.map((g) => <Link key={g.id} href={`/cases/${g.id}`} className="block hover:text-amber hover:underline">{g.styleOfCause}</Link>)}
+          </div>
+        )}
+        {treated.length > 0 && (
+          <div className="mt-3">
+            <div className="text-xs text-ink3">Later cases citing this decision</div>
+            <p className="mt-1 text-xs text-ink3">The passage where each later case cites this decision — read it to see how the case was used. This is the record, not a verdict on whether the decision still governs. Unofficial; verify against the source.</p>
+            <div className="mt-2 space-y-3">
+              {treated.map(({ case: g, passage }) => (
+                <div key={g.id} className="rounded border border-line bg-panel p-3 text-sm">
+                  <Link href={`/cases/${g.id}`} className="font-serif hover:text-amber hover:underline">{g.styleOfCause} ({g.court}, {g.year})</Link>
+                  {passage
+                    ? <p className="mt-1 text-ink2">&ldquo;{passage.text}&rdquo; <span className="text-xs text-ink3">({passage.paragraph})</span></p>
+                    : <p className="mt-1 text-xs text-ink3">In this library; citing passage not located in the available text.</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <ProvenanceFooter c={c} />
