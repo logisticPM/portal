@@ -5,7 +5,7 @@
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { defaultRobotsGate } from "./robots";
 
-export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca", "coadecisions.ontariocourts.ca", "www.yukoncourts.ca"];
+export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca", "coadecisions.ontariocourts.ca", "www.yukoncourts.ca", "www.courtsnb-coursnb.ca", "www.manitobacourts.mb.ca"];
 
 export function isOpenSource(url: string): boolean {
   try { return OPEN_HOSTS.includes(new URL(url).host); } catch { return false; }
