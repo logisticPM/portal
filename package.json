@@ -84,7 +84,8 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "robots-parser": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
