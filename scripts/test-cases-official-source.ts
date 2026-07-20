@@ -10,6 +10,7 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   assert.equal(isOpenSource("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm"), true);
   assert.equal(isOpenSource("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/14246/index.do"), true, "SCC open");
   assert.equal(isOpenSource("https://coadecisions.ontariocourts.ca/coa/coa/en/item/1234/index.do"), true, "ONCA open in v3");
+  assert.equal(isOpenSource("https://www.yukoncourts.ca/sites/default/files/2026-05/2026_yksc_36_FNNND.pdf"), true, "Yukon open (direct-harvest source)");
   assert.equal(isOpenSource("https://www.canlii.org/en/bc/bcsc/doc/x.html"), false, "CanLII excluded");
   assert.equal(isOpenSource("not a url"), false);
 
