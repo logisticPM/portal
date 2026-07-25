@@ -66,6 +66,11 @@ export default $config({
     // NOTE: the alignment stream subscriber is declared LATER (after bedrockPerms),
     // since `const bedrockPerms` is in the temporal dead zone up here.
 
+    // Weekly overdue-milestone digest records (spec 2026-07-25). One partition
+    // (NOTIFY#institute) of per-ISO-week digests; the institute /notifications
+    // inbox reads it, the cron + button write it.
+    const notifications = new sst.aws.Dynamo("Notifications", singleTableShape);
+
     // RAP submission portal + Index (ExtractionJob / RapDocument / Commitment /
     // Observation). PITR + Streams enabled:
     //   • PITR    → required for DynamoDB's native point-in-time export to S3
@@ -273,13 +278,36 @@ export default $config({
       },
     });
 
+    // Weekly overdue-milestone digest (spec 2026-07-25). Prod-only so dev/ca
+    // stages never emit stray emails; the institute /notifications BUTTON path
+    // (Web server action) runs in every stage for the showcase demo.
+    if (isProd) {
+      new sst.aws.Cron("NotifyDigest", {
+        schedule: "cron(0 13 ? * MON *)", // Mondays 13:00 UTC (~6am PT)
+        function: {
+          handler: "src/functions/notify-digest.handler",
+          timeout: "120 seconds",
+          memory: "512 MB",
+          link: [notifications, commitments],
+          permissions: [{ actions: ["ses:SendEmail"], resources: ["*"] }],
+          environment: {
+            REPO_IMPL: "dynamo",
+            NOTIFICATIONS_TABLE: notifications.name,
+            COMMITMENTS_TABLE: commitments.name,
+            DIGEST_SENDER: process.env.DIGEST_SENDER ?? "",
+            DIGEST_RECIPIENT: process.env.DIGEST_RECIPIENT ?? "",
+          },
+        },
+      });
+    }
+
     // HMAC key for signing session cookies (auth.ts). Set per stage with:
     //   npx sst secret set AuthSecret <random-string> --stage <stage>
     const authSecret = new sst.Secret("AuthSecret");
 
     new sst.aws.Nextjs("Web", {
       // Least-privilege access to exactly these resources (tables + GSIs + buckets).
-      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, alignment, casesIndex],
+      link: [dataPortal, rapSurvey, rapData, rapUploads, exports, rapAnalytics, commitments, alignment, casesIndex, notifications],
       transform: {
         server: {
           // Holds the BM25 search-index artifact (~155MB bm25.bin) + the Next.js
@@ -295,6 +323,9 @@ export default $config({
             ...bedrockPerms,
             { actions: ["lambda:InvokeFunction"], resources: [rapExtract.arn] },
             { actions: ["lambda:InvokeFunction"], resources: [briefGen.arn] },
+            // Weekly digest button (Task 6): the /notifications server action
+            // sends the SES email inline (no worker Lambda needed for this path).
+            { actions: ["ses:SendEmail"], resources: ["*"] },
             // Legal-cases corpus table. NOT SST-managed: it is created + seeded by
             // the cases:*:cloud pipeline (scripts/create-table.ts, cases-ingest.ts,
             // cases-fetch-fulltext.ts, cases-embed.ts) under the literal name
@@ -320,6 +351,12 @@ export default $config({
         AUTH_SECRET: authSecret.value, // HMAC session-signing key (server-side; never NEXT_PUBLIC_)
         COMMITMENTS_TABLE: commitments.name,
         ALIGNMENT_TABLE: alignment.name,
+        // Weekly overdue-milestone digest (spec 2026-07-25): the institute
+        // /notifications button (server action) reads/writes this table and
+        // sends via SES using the same env the cron uses.
+        NOTIFICATIONS_TABLE: notifications.name,
+        DIGEST_SENDER: process.env.DIGEST_SENDER ?? "",
+        DIGEST_RECIPIENT: process.env.DIGEST_RECIPIENT ?? "",
         // Legal-cases corpus: literal table name (created/seeded out-of-band by the
         // cases:*:cloud pipeline — see the IAM grant in transform.server above).
         // Matches the app default (client code falls back to "LegalCases"), but

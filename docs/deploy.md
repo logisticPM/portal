@@ -151,3 +151,24 @@ deploy manually.
 | App shows no data after deploy | Tables exist but weren't seeded → run the `seed:sst` command for that stage |
 | `AccessDenied` during `sst deploy` | Your SSO role lacks a permission — note the exact action and escalate to the AWS account admin (`logisticPM`) |
 | Want a throwaway environment | Deploy a named stage, e.g. `--stage demo2`, then `sst remove --stage demo2` when done |
+
+---
+
+## Weekly overdue-milestone digest (notifications)
+
+Before deploying: in the stage's region, [verify](https://console.aws.amazon.com/ses/home#/verified-identities)
+`DIGEST_SENDER` as an SES identity; while the account is in the SES **sandbox**,
+also verify `DIGEST_RECIPIENT` (sandbox SES can only send to verified addresses).
+
+At deploy, set both as env vars, e.g.:
+
+```bash
+DIGEST_SENDER=notifications@indigenomics.example DIGEST_RECIPIENT=team@indigenomics.example npx sst deploy --stage production
+```
+
+The weekly `NotifyDigest` cron (Mondays 13:00 UTC) is **production-only** — dev
+and `ca` stages never emit it, so unverified SES identities there are harmless.
+The institute **"Generate & send now"** button on `/notifications` runs the same
+`runDigest()` orchestrator in every stage, so the feature is demoable without
+waiting for Monday: sign in as the institute user, open `/notifications`, and
+click **Generate & send now**.
