@@ -285,6 +285,7 @@ async function main() {
     puts.length = 0;
     const badEmailer: Emailer = { send: async () => { throw new Error("SES down"); } };
     const rFail = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: badEmailer, recipient: "a@b.co", now });
+    check("run: persisted BEFORE send even when send throws", puts[0] === "skipped");
     check("run: emailStatus failed on throw", rFail.emailStatus === "failed" && rFail.emailError === "SES down");
 
     // (c) no recipient → skipped, no send attempted
@@ -292,6 +293,31 @@ async function main() {
     const spyEmailer: Emailer = { send: async () => { attempted = true; } };
     const rSkip = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: spyEmailer, recipient: null, now });
     check("run: emailStatus skipped when no recipient", rSkip.emailStatus === "skipped" && attempted === false);
+
+    // (d) recipient present but emailer explicitly null → skipped, no send attempted
+    const rNoEmailer = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: null, recipient: "a@b.co", now });
+    check("run: emailStatus skipped when emailer explicitly null (recipient present)", rNoEmailer.emailStatus === "skipped");
+
+    // (e) env-fallback recipient (recipient key omitted entirely)
+    const prevDigestRecipient = process.env.DIGEST_RECIPIENT;
+    try {
+      // (e1) DIGEST_RECIPIENT unset → skipped, no send attempted
+      delete process.env.DIGEST_RECIPIENT;
+      let envAttempted = false;
+      const envSpyEmailer: Emailer = { send: async () => { envAttempted = true; } };
+      const rEnvUnset = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: envSpyEmailer, now });
+      check("run: emailStatus skipped when DIGEST_RECIPIENT unset (recipient key omitted)", rEnvUnset.emailStatus === "skipped" && envAttempted === false);
+
+      // (e2) DIGEST_RECIPIENT set → sent, using the env value as recipient
+      process.env.DIGEST_RECIPIENT = "env@b.co";
+      let envSent: any = null;
+      const envOkEmailer: Emailer = { send: async (m) => { envSent = m; } };
+      const rEnvSet = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: envOkEmailer, now });
+      check("run: emailStatus sent using DIGEST_RECIPIENT env fallback", rEnvSet.emailStatus === "sent" && envSent?.to === "env@b.co");
+    } finally {
+      if (prevDigestRecipient === undefined) delete process.env.DIGEST_RECIPIENT;
+      else process.env.DIGEST_RECIPIENT = prevDigestRecipient;
+    }
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
