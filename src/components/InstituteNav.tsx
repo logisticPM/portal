@@ -8,6 +8,7 @@ const TABS = [
   { href: "/verify", label: "Verification" },
   { href: "/alignment", label: "Alignment" },
   { href: "/extract", label: "Extract" },
+  { href: "/notifications", label: "Notifications" },
 ];
 
 export function InstituteNav({ active }: { active: string }) {
