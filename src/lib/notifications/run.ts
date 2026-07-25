@@ -34,7 +34,10 @@ export async function runDigest(deps: RunDeps = {}): Promise<NotificationRecord>
       await emailer.send({ to: recipient, subject, html, text });
       rec = { ...rec, emailStatus: "sent" };
     } catch (e) {
-      rec = { ...rec, emailStatus: "failed", emailError: e instanceof Error ? e.message : String(e) };
+      // Store the error NAME/code, not the message — raw SES errors (esp.
+      // sandbox/verification failures) can embed the recipient address, a
+      // latent PII leak into a persisted (and inbox-rendered) record.
+      rec = { ...rec, emailStatus: "failed", emailError: e instanceof Error ? e.name : String(e) };
     }
     await notify.put(rec);
   }

@@ -1,6 +1,5 @@
 // SES v2 sender. Injectable client so tests never hit AWS. From/region come
 // from env (set per stage). Throws on send failure — runDigest records that.
-// @ts-ignore: package resolved at runtime
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 
 export interface Emailer {

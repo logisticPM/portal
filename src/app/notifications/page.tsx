@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { notificationsRepo } from "@/lib/notifications";
 import { InstituteNav } from "@/components/InstituteNav";
 import { runDigestAction } from "./actions";
+import { GenerateButton } from "./GenerateButton";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,7 @@ export default async function NotificationsPage() {
           </p>
         </div>
         <form action={runDigestAction}>
-          <button type="submit" className="text-sm rounded px-4 py-2 bg-amber/10 text-amber hover:bg-amber/20 whitespace-nowrap">
-            Generate &amp; send now
-          </button>
+          <GenerateButton />
         </form>
       </div>
 

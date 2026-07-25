@@ -128,6 +128,26 @@ async function main() {
   check("format: text preserves raw (unescaped) org name", escMail.text.includes("A&B <Corp>"));
   check("format: text preserves raw (unescaped) title", escMail.text.includes(`"Hire" <10> & more`));
 
+  // reason (computeRisk-produced, but hand-constructed here since injecting HTML
+  // metacharacters through computeRisk itself is impractical) must be escaped too.
+  const escReasonFixture: OverdueDigest = {
+    isoWeek: "2026-W30",
+    generatedAt: "2026-07-25T00:00:00.000Z",
+    year: 2026,
+    totals: { overdue: 1, atRisk: 0, orgs: 1 },
+    groups: [
+      {
+        orgName: "Acme",
+        overdue: 1,
+        atRisk: 0,
+        items: [{ title: "Hire 10", targetYear: 2024, kind: "overdue", reason: `Target <2024> & "overdue"` }],
+      },
+    ],
+  };
+  const escReasonMail = renderDigestEmail(escReasonFixture);
+  check("format: html escapes reason metacharacters", escReasonMail.html.includes(`Target &lt;2024&gt; &amp; &quot;overdue&quot;`));
+  check("format: html has no raw reason metacharacters", !escReasonMail.html.includes(`Target <2024> & "overdue"`));
+
   // --- sort-order tiebreak pinning (isolated fixtures so the checks above stay undisturbed) ---
 
   // (1) group atRisk tiebreak: equal overdue, different atRisk — higher-atRisk group sorts first.
@@ -281,12 +301,21 @@ async function main() {
     check("run: persisted BEFORE send (first put was skipped)", puts[0] === "skipped");
     check("run: persisted AFTER send too (second put sent)", puts.includes("sent"));
 
-    // (b) failure path
+    // (b) failure path — emailError must store the error's NAME/code, never the
+    // raw message, since SES sandbox/verification failures can embed the
+    // recipient address in the message (PII leak into a persisted/rendered record).
     puts.length = 0;
-    const badEmailer: Emailer = { send: async () => { throw new Error("SES down"); } };
+    const badEmailer: Emailer = {
+      send: async () => {
+        const err = new Error("451 rejected for secret@example.com");
+        err.name = "MessageRejected";
+        throw err;
+      },
+    };
     const rFail = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: badEmailer, recipient: "a@b.co", now });
     check("run: persisted BEFORE send even when send throws", puts[0] === "skipped");
-    check("run: emailStatus failed on throw", rFail.emailStatus === "failed" && rFail.emailError === "SES down");
+    check("run: emailStatus failed on throw", rFail.emailStatus === "failed" && rFail.emailError === "MessageRejected");
+    check("run: emailError does not leak recipient address from the error message", !rFail.emailError?.includes("secret@example.com"));
 
     // (c) no recipient → skipped, no send attempted
     let attempted = false;

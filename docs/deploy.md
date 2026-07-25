@@ -172,3 +172,7 @@ The institute **"Generate & send now"** button on `/notifications` runs the same
 `runDigest()` orchestrator in every stage, so the feature is demoable without
 waiting for Monday: sign in as the institute user, open `/notifications`, and
 click **Generate & send now**.
+
+If `DIGEST_SENDER` is unset/empty while `DIGEST_RECIPIENT` is set, every digest
+send fails (recorded as `emailStatus: failed`, visible only in the inbox) — so
+`DIGEST_SENDER` must be a verified SES sender before enabling.
