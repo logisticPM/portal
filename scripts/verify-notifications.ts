@@ -4,6 +4,7 @@
 // + orchestration sections (later tasks) need DynamoDB Local (`npm run ddb:up`).
 // ===========================================================================
 import { isoWeekOf, buildOverdueDigest } from "../src/lib/notifications/digest";
+import { renderDigestEmail } from "../src/lib/notifications/format";
 import type { Commitment } from "../src/lib/commitments";
 
 let pass = 0;
@@ -55,6 +56,17 @@ async function main() {
   // empty-network case
   const empty = buildOverdueDigest([], now);
   check("digest: empty network → zero totals, no groups", empty.totals.overdue === 0 && empty.totals.atRisk === 0 && empty.groups.length === 0);
+
+  // --- renderDigestEmail ---
+  const mail = renderDigestEmail(d);
+  check("format: subject has counts", /2 overdue/.test(mail.subject) && /1 at-risk/.test(mail.subject));
+  check("format: subject has org count", /2 organization/.test(mail.subject));
+  check("format: subject has iso week", mail.subject.includes(d.isoWeek));
+  check("format: html mentions Acme + Beta", mail.html.includes("Acme") && mail.html.includes("Beta"));
+  check("format: text mentions a milestone title", mail.text.includes("Hire 10"));
+  check("format: text is non-empty and has no undefined", mail.text.length > 0 && !/undefined/.test(mail.text));
+  const emptyMail = renderDigestEmail(empty);
+  check("format: empty digest → on-track subject", /on track/i.test(emptyMail.subject));
 
   // --- sort-order tiebreak pinning (isolated fixtures so the checks above stay undisturbed) ---
 
