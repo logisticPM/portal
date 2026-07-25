@@ -6,6 +6,7 @@
 import { isoWeekOf, buildOverdueDigest } from "../src/lib/notifications/digest";
 import { renderDigestEmail } from "../src/lib/notifications/format";
 import type { Commitment } from "../src/lib/commitments";
+import type { OverdueDigest } from "../src/lib/notifications/types";
 
 let pass = 0;
 let fail = 0;
@@ -60,13 +61,39 @@ async function main() {
   // --- renderDigestEmail ---
   const mail = renderDigestEmail(d);
   check("format: subject has counts", /2 overdue/.test(mail.subject) && /1 at-risk/.test(mail.subject));
-  check("format: subject has org count", /2 organization/.test(mail.subject));
+  check("format: subject has org count", /\b2 organizations\b/.test(mail.subject));
   check("format: subject has iso week", mail.subject.includes(d.isoWeek));
   check("format: html mentions Acme + Beta", mail.html.includes("Acme") && mail.html.includes("Beta"));
   check("format: text mentions a milestone title", mail.text.includes("Hire 10"));
   check("format: text is non-empty and has no undefined", mail.text.length > 0 && !/undefined/.test(mail.text));
   const emptyMail = renderDigestEmail(empty);
   check("format: empty digest → on-track subject", /on track/i.test(emptyMail.subject));
+
+  // --- renderDigestEmail: HTML-escaping regression (org name + title carry HTML metacharacters) ---
+  // Supplier-entered orgName/title land in an emailed HTML digest — this pins that escapeHtml()
+  // is actually called on both, not just implemented-but-unused. Deleting the escapeHtml(...)
+  // wrapper, or dropping a call site, must turn these checks red.
+  const escFixture: OverdueDigest = {
+    isoWeek: "2026-W30",
+    generatedAt: "2026-07-25T00:00:00.000Z",
+    year: 2026,
+    totals: { overdue: 1, atRisk: 0, orgs: 1 },
+    groups: [
+      {
+        orgName: "A&B <Corp>",
+        overdue: 1,
+        atRisk: 0,
+        items: [{ title: `"Hire" <10> & more`, targetYear: 2024, kind: "overdue", reason: "Target 2024 passed" }],
+      },
+    ],
+  };
+  const escMail = renderDigestEmail(escFixture);
+  check("format: html escapes org name metacharacters", escMail.html.includes("A&amp;B &lt;Corp&gt;"));
+  check("format: html escapes title metacharacters (incl. quotes)", escMail.html.includes(`&quot;Hire&quot; &lt;10&gt; &amp; more`));
+  check("format: html has no raw org metacharacters", !escMail.html.includes("<Corp>"));
+  check("format: html has no raw title metacharacters", !escMail.html.includes("<10>"));
+  check("format: text preserves raw (unescaped) org name", escMail.text.includes("A&B <Corp>"));
+  check("format: text preserves raw (unescaped) title", escMail.text.includes(`"Hire" <10> & more`));
 
   // --- sort-order tiebreak pinning (isolated fixtures so the checks above stay undisturbed) ---
 
