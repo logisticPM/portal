@@ -11,6 +11,9 @@ import { mockNotificationsRepo, _resetMockNotifications } from "../src/lib/notif
 import { dynamoNotificationsRepo } from "../src/lib/notifications/repo.dynamo";
 import { NOTIFICATIONS_TABLE } from "../src/lib/notifications/notifications-table";
 import { createSingleTable } from "../src/lib/dynamo/create";
+import { runDigest } from "../src/lib/notifications/run";
+import type { Emailer } from "../src/lib/notifications/email";
+import type { CommitmentRepo } from "../src/lib/commitments";
 
 let pass = 0;
 let fail = 0;
@@ -257,6 +260,38 @@ async function main() {
       // relabeled as a skip — fail loudly so it can't hide behind the try/catch.
       check("repo parity: unexpected error", false, String(e instanceof Error ? `${e.name}: ${e.message}` : e));
     }
+  }
+
+  // --- runDigest orchestration (injected deps; no AWS) ---
+  {
+    const fakeCommits = { listCommitments: async () => items } as unknown as CommitmentRepo;
+    const puts: string[] = [];
+    const fakeNotify = {
+      put: async (rec: any) => { puts.push(rec.emailStatus); return rec; },
+      latest: async () => [], getByWeek: async () => null,
+    };
+    const now = new Date("2026-07-15T00:00:00Z");
+
+    // (a) success path
+    let sent: any = null;
+    const okEmailer: Emailer = { send: async (m) => { sent = m; } };
+    const rSent = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: okEmailer, recipient: "a@b.co", now });
+    check("run: emailStatus sent on success", rSent.emailStatus === "sent");
+    check("run: recipient passed to emailer", sent?.to === "a@b.co");
+    check("run: persisted BEFORE send (first put was skipped)", puts[0] === "skipped");
+    check("run: persisted AFTER send too (second put sent)", puts.includes("sent"));
+
+    // (b) failure path
+    puts.length = 0;
+    const badEmailer: Emailer = { send: async () => { throw new Error("SES down"); } };
+    const rFail = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: badEmailer, recipient: "a@b.co", now });
+    check("run: emailStatus failed on throw", rFail.emailStatus === "failed" && rFail.emailError === "SES down");
+
+    // (c) no recipient → skipped, no send attempted
+    let attempted = false;
+    const spyEmailer: Emailer = { send: async () => { attempted = true; } };
+    const rSkip = await runDigest({ commitmentsRepo: fakeCommits, notificationsRepo: fakeNotify as any, emailer: spyEmailer, recipient: null, now });
+    check("run: emailStatus skipped when no recipient", rSkip.emailStatus === "skipped" && attempted === false);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
