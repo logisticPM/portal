@@ -1,6 +1,8 @@
 // Single-table mapping for Notifications (mirrors commitments-table.ts). One
 // partition holds the institute's weekly digests; SK sorts by ISO week so
-// `latest(n)` is a bounded reverse Query. Dedicated table → et is informational.
+// `latest(n)` is a bounded reverse Query. This is a dedicated table with only
+// one entity type, so `et` is not used for routing — it is kept purely for
+// informational/debugging parity with the shared-table convention.
 import type { NotificationRecord } from "./types";
 
 export const NOTIFICATIONS_TABLE = process.env.NOTIFICATIONS_TABLE ?? "Notifications";

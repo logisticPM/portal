@@ -9,6 +9,7 @@ import type { Commitment } from "../src/lib/commitments";
 import type { OverdueDigest } from "../src/lib/notifications/types";
 import { mockNotificationsRepo, _resetMockNotifications } from "../src/lib/notifications/repo.mock";
 import { dynamoNotificationsRepo } from "../src/lib/notifications/repo.dynamo";
+import { NOTIFICATIONS_TABLE } from "../src/lib/notifications/notifications-table";
 import { createSingleTable } from "../src/lib/dynamo/create";
 
 let pass = 0;
@@ -30,11 +31,27 @@ function mk(over: Partial<Commitment>): Commitment {
 async function resetNotificationsTable() {
   const { ddbDoc } = await import("../src/lib/dynamo/client");
   const { ScanCommand, BatchWriteCommand } = await import("@aws-sdk/lib-dynamodb");
-  const r = await ddbDoc.send(new ScanCommand({ TableName: "Notifications", ProjectionExpression: "PK, SK" }));
+  const r = await ddbDoc.send(new ScanCommand({ TableName: NOTIFICATIONS_TABLE, ProjectionExpression: "PK, SK" }));
   const keys = (r.Items ?? []) as { PK: string; SK: string }[];
   for (let i = 0; i < keys.length; i += 25) {
-    await ddbDoc.send(new BatchWriteCommand({ RequestItems: { Notifications: keys.slice(i, i + 25).map((Key) => ({ DeleteRequest: { Key } })) } }));
+    await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [NOTIFICATIONS_TABLE]: keys.slice(i, i + 25).map((Key) => ({ DeleteRequest: { Key } })) } }));
   }
+}
+
+// Connection-failure heuristic: only these should downgrade to a SKIP. Any
+// other exception (a real bug in createSingleTable, a TypeError from bad
+// array access, etc.) must fail loudly instead of hiding behind the skip.
+function isDbUnreachable(e: unknown): boolean {
+  const msg = String(e instanceof Error ? `${e.name} ${e.message}` : e).toLowerCase();
+  return (
+    msg.includes("econnrefused") ||
+    msg.includes("connection refused") ||
+    msg.includes("socket hang up") ||
+    msg.includes("fetch failed") ||
+    msg.includes("networkingerror") ||
+    msg.includes("timeouterror") ||
+    msg.includes("enotfound")
+  );
 }
 
 async function main() {
@@ -188,14 +205,15 @@ async function main() {
 
   // --- repo parity (needs DynamoDB Local: npm run ddb:up) ---
   try {
-    await createSingleTable("Notifications");
+    await createSingleTable(NOTIFICATIONS_TABLE);
     await resetNotificationsTable();
     _resetMockNotifications();
 
     const recA = { ...buildOverdueDigest(items, new Date("2026-07-20T00:00:00Z")), recipient: "a@b.co", emailStatus: "sent" as const };
     const recB = { ...buildOverdueDigest(items, new Date("2026-07-27T00:00:00Z")), recipient: "a@b.co", emailStatus: "skipped" as const };
+    const recC = { ...buildOverdueDigest(items, new Date("2026-07-13T00:00:00Z")), recipient: "a@b.co", emailStatus: "sent" as const };
 
-    for (const rec of [recA, recB]) {
+    for (const rec of [recA, recB, recC]) {
       await mockNotificationsRepo.put(rec);
       await dynamoNotificationsRepo.put(rec);
     }
@@ -203,7 +221,24 @@ async function main() {
     const mLatest = await mockNotificationsRepo.latest(5);
     const dLatest = await dynamoNotificationsRepo.latest(5);
     check("repo: latest parity (mock ≡ dynamo)", JSON.stringify(mLatest) === JSON.stringify(dLatest), `${mLatest.length} vs ${dLatest.length}`);
-    check("repo: latest is newest-first", mLatest[0].isoWeek > mLatest[1].isoWeek);
+    check("repo: latest is newest-first", mLatest[0].isoWeek > mLatest[1].isoWeek && mLatest[1].isoWeek > mLatest[2].isoWeek);
+
+    // bound/truncation: 3 distinct weeks are stored, latest(2) must return exactly
+    // the 2 newest — not just "however many happen to fit" — for both mock and dynamo.
+    const mLatest2 = await mockNotificationsRepo.latest(2);
+    const dLatest2 = await dynamoNotificationsRepo.latest(2);
+    const expectedTop2 = [recB.isoWeek, recA.isoWeek]; // newest-first: B (07-27) then A (07-20); C (07-13) excluded
+    check(
+      "repo: latest(2) truncates to exactly 2, newest-first (mock)",
+      mLatest2.length === 2 && mLatest2.map((r) => r.isoWeek).join(",") === expectedTop2.join(","),
+      `got ${mLatest2.map((r) => r.isoWeek).join(",")}`,
+    );
+    check(
+      "repo: latest(2) truncates to exactly 2, newest-first (dynamo)",
+      dLatest2.length === 2 && dLatest2.map((r) => r.isoWeek).join(",") === expectedTop2.join(","),
+      `got ${dLatest2.map((r) => r.isoWeek).join(",")}`,
+    );
+    check("repo: latest(2) parity (mock ≡ dynamo)", JSON.stringify(mLatest2) === JSON.stringify(dLatest2));
 
     const mWk = await mockNotificationsRepo.getByWeek(recA.isoWeek);
     const dWk = await dynamoNotificationsRepo.getByWeek(recA.isoWeek);
@@ -212,10 +247,16 @@ async function main() {
     // idempotency: re-put same week overwrites, not appends
     await dynamoNotificationsRepo.put({ ...recA, emailStatus: "failed", emailError: "boom" });
     const after = await dynamoNotificationsRepo.latest(5);
-    check("repo: idempotent per week (no dup)", after.length === 2);
+    check("repo: idempotent per week (no dup)", after.length === 3);
     check("repo: re-put updated in place", after.find((x) => x.isoWeek === recA.isoWeek)?.emailStatus === "failed");
   } catch (e) {
-    check("repo parity SKIPPED (DynamoDB Local down?)", true, String(e instanceof Error ? e.message : e));
+    if (isDbUnreachable(e)) {
+      check("repo parity SKIPPED (DynamoDB Local down?)", true, String(e instanceof Error ? e.message : e));
+    } else {
+      // A genuine bug (bad key, TypeError, undefined-var typo, etc.) must NOT be
+      // relabeled as a skip — fail loudly so it can't hide behind the try/catch.
+      check("repo parity: unexpected error", false, String(e instanceof Error ? `${e.name}: ${e.message}` : e));
+    }
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
