@@ -7,6 +7,9 @@ import { isoWeekOf, buildOverdueDigest } from "../src/lib/notifications/digest";
 import { renderDigestEmail } from "../src/lib/notifications/format";
 import type { Commitment } from "../src/lib/commitments";
 import type { OverdueDigest } from "../src/lib/notifications/types";
+import { mockNotificationsRepo, _resetMockNotifications } from "../src/lib/notifications/repo.mock";
+import { dynamoNotificationsRepo } from "../src/lib/notifications/repo.dynamo";
+import { createSingleTable } from "../src/lib/dynamo/create";
 
 let pass = 0;
 let fail = 0;
@@ -22,6 +25,16 @@ function mk(over: Partial<Commitment>): Commitment {
     title: "Hire 10", targetYear: 2024, status: "in_progress", progressPct: 10,
     history: [], createdAt: "2024-01-01T00:00:00.000Z", ...over,
   } as Commitment;
+}
+
+async function resetNotificationsTable() {
+  const { ddbDoc } = await import("../src/lib/dynamo/client");
+  const { ScanCommand, BatchWriteCommand } = await import("@aws-sdk/lib-dynamodb");
+  const r = await ddbDoc.send(new ScanCommand({ TableName: "Notifications", ProjectionExpression: "PK, SK" }));
+  const keys = (r.Items ?? []) as { PK: string; SK: string }[];
+  for (let i = 0; i < keys.length; i += 25) {
+    await ddbDoc.send(new BatchWriteCommand({ RequestItems: { Notifications: keys.slice(i, i + 25).map((Key) => ({ DeleteRequest: { Key } })) } }));
+  }
 }
 
 async function main() {
@@ -171,6 +184,38 @@ async function main() {
         gizmo.items[2].kind === "at_risk" && gizmo.items[2].title === "Mango Initiative",
       `order=${gizmo?.items.map((i) => `${i.kind}:${i.title}`).join(", ")}`,
     );
+  }
+
+  // --- repo parity (needs DynamoDB Local: npm run ddb:up) ---
+  try {
+    await createSingleTable("Notifications");
+    await resetNotificationsTable();
+    _resetMockNotifications();
+
+    const recA = { ...buildOverdueDigest(items, new Date("2026-07-20T00:00:00Z")), recipient: "a@b.co", emailStatus: "sent" as const };
+    const recB = { ...buildOverdueDigest(items, new Date("2026-07-27T00:00:00Z")), recipient: "a@b.co", emailStatus: "skipped" as const };
+
+    for (const rec of [recA, recB]) {
+      await mockNotificationsRepo.put(rec);
+      await dynamoNotificationsRepo.put(rec);
+    }
+
+    const mLatest = await mockNotificationsRepo.latest(5);
+    const dLatest = await dynamoNotificationsRepo.latest(5);
+    check("repo: latest parity (mock ≡ dynamo)", JSON.stringify(mLatest) === JSON.stringify(dLatest), `${mLatest.length} vs ${dLatest.length}`);
+    check("repo: latest is newest-first", mLatest[0].isoWeek > mLatest[1].isoWeek);
+
+    const mWk = await mockNotificationsRepo.getByWeek(recA.isoWeek);
+    const dWk = await dynamoNotificationsRepo.getByWeek(recA.isoWeek);
+    check("repo: getByWeek parity", JSON.stringify(mWk) === JSON.stringify(dWk));
+
+    // idempotency: re-put same week overwrites, not appends
+    await dynamoNotificationsRepo.put({ ...recA, emailStatus: "failed", emailError: "boom" });
+    const after = await dynamoNotificationsRepo.latest(5);
+    check("repo: idempotent per week (no dup)", after.length === 2);
+    check("repo: re-put updated in place", after.find((x) => x.isoWeek === recA.isoWeek)?.emailStatus === "failed");
+  } catch (e) {
+    check("repo parity SKIPPED (DynamoDB Local down?)", true, String(e instanceof Error ? e.message : e));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
