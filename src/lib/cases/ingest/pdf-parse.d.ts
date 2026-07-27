@@ -10,6 +10,21 @@ declare module "pdf-parse/lib/pdf-parse.js" {
     metadata: unknown;
     version: string;
   }
-  function pdfParse(dataBuffer: Buffer): Promise<PdfParseResult>;
+  // A pdf.js TextItem: `str` is the glyph run, `transform` is a 6-element
+  // matrix where [4]=x and [5]=y in PDF user space (origin bottom-left).
+  interface PdfTextItem {
+    str: string;
+    transform: number[];
+  }
+  interface PdfPageData {
+    pageIndex: number;
+    getTextContent(opts?: { normalizeWhitespace?: boolean; disableCombineTextItems?: boolean }): Promise<{ items: PdfTextItem[] }>;
+  }
+  interface PdfParseOptions {
+    /** Called once per page. Its return value is concatenated into `text`. */
+    pagerender?: (pageData: PdfPageData) => Promise<string>;
+    max?: number;
+  }
+  function pdfParse(dataBuffer: Buffer, options?: PdfParseOptions): Promise<PdfParseResult>;
   export default pdfParse;
 }
