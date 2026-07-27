@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="gallery.css">
+<style>
+  .canvas{width:900px;height:462px}
+  .head{padding:22px 30px 2px}
+  .title{font-size:28px}.caption{font-size:15.5px;max-width:840px}
+  .body2{display:flex;gap:22px;margin:8px 30px 22px;align-items:flex-start}
+  .figcard{border:1.5px solid var(--line);border-radius:10px;background:#fff;padding:8px;flex:0 0 auto}
+  .figcard img{width:487px;height:auto;display:block}
+  .panel{flex:1;display:flex;flex-direction:column;gap:12px;padding-top:4px}
+  .panel .h{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--maroon)}
+  .panel p{font-size:14.5px;line-height:1.45;color:var(--ink)}
+  .panel p b{font-weight:700}
+  .pair{display:flex;gap:10px}
+  .pair .c{flex:1;border-radius:8px;padding:9px 11px}
+  .pair .c.fn{background:#E3EAF1;border-left:4px solid var(--blue)}
+  .pair .c.rv{background:#EDEFEA;border-left:4px solid #9AA79E}
+  .pair .n{font-family:var(--disp);font-weight:800;font-size:25px;line-height:1;color:var(--blue)}
+  .pair .c.rv .n{color:var(--muted)}
+  .pair .l{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.25}
+  .note2{border-left:4px solid var(--green);background:#E4EAE6;border-radius:8px;padding:9px 12px;font-size:13.5px;line-height:1.4;color:var(--ink)}
+</style></head>
+<body>
+<div class="canvas">
+  <div class="head">
+    <div class="eyebrow">CS7980 · Indigenomics Portal · Research finding</div>
+    <div class="title">Where the signal lives — agreement finds bugs, not conventions</div>
+    <div class="caption">Cross-family agreement is a high-precision filter for <em>correctness</em> defects — not a substitute for project-specific linting.</div>
+  </div>
+  <div class="body2">
+    <div class="figcard"><img src="families-agreeing.png" alt="Recall by defect type as independent families agree"></div>
+    <div class="panel">
+      <div class="h">What it shows</div>
+      <p>As more <b>independent model families</b> agree on a finding, the ones that survive are increasingly <b>universal functional bugs</b> — wrong in any codebase — rather than project-specific <b>rule violations</b>.</p>
+      <div class="pair">
+        <div class="c fn"><div class="n">43%</div><div class="l">functional-bug recall at 3 families agreeing</div></div>
+        <div class="c rv"><div class="n">18%</div><div class="l">rule-violation recall at the same depth</div></div>
+      </div>
+      <div class="note2">This is why recall plateaus near <b>0.83</b>: much of the residue is lint-targetable convention, which agreement was never going to recover. Pair decorrelated review with a deterministic linter.</div>
+    </div>
+  </div>
+</div>
+</body></html>
