@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="gallery.css">
+<style>
+  .canvas{width:1500px;height:912px}
+  .head{position:absolute;top:0;left:0;right:0}
+  .title{font-size:33px}.caption{font-size:18px;max-width:1150px}
+</style></head>
+<body>
+<div class="canvas">
+  <div class="head">
+    <div class="eyebrow">CS7980 · Indigenomics Portal · AWS Architecture</div>
+    <div class="title">System Overview — one app, two subsystems, two regions</div>
+    <div class="caption">A single Next.js app on Lambda behind CloudFront serves both the RAP platform and the legal-cases corpus across a Canada / US data-residency split.</div>
+  </div>
+
+  <svg class="wires" viewBox="0 0 1500 912">
+    <defs>
+      <marker id="ah" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#57665D"/></marker>
+      <marker id="ahl" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#9AA79E"/></marker>
+      <marker id="ahd" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto-start-reverse"><path d="M0,0 L8,3 L0,6 Z" fill="#8A1A2B"/></marker>
+    </defs>
+    <!-- primary (grey) -->
+    <g stroke="#57665D" stroke-width="2.4" fill="none" marker-end="url(#ah)">
+      <line x1="168" y1="180" x2="226" y2="180"/>
+      <line x1="348" y1="180" x2="428" y2="180"/>
+      <line x1="688" y1="180" x2="596" y2="180"/>
+      <path d="M505 232 C505 300, 340 305, 325 354"/>
+    </g>
+    <!-- internal (light grey, thin) -->
+    <g stroke="#9AA79E" stroke-width="1.8" fill="none" marker-end="url(#ahl)">
+      <line x1="300" y1="440" x2="270" y2="544"/>
+      <line x1="330" y1="578" x2="428" y2="578"/>
+      <line x1="548" y1="578" x2="576" y2="578"/>
+      <line x1="1030" y1="548" x2="905" y2="432"/>
+      <line x1="1075" y1="548" x2="1235" y2="432"/>
+    </g>
+    <!-- cross-region (dashed maroon), box-to-box double arrow in the gap -->
+    <g stroke="#8A1A2B" stroke-width="2.8" fill="none" stroke-dasharray="8 6" marker-start="url(#ahd)" marker-end="url(#ahd)">
+      <line x1="716" y1="505" x2="788" y2="505"/>
+    </g>
+  </svg>
+
+  <!-- FRONT DOOR -->
+  <div class="node" style="left:48px;top:150px"><svg width="60" height="60" viewBox="0 0 60 60"><rect x="6" y="10" width="48" height="34" rx="4" fill="#fff" stroke="#57665D" stroke-width="2.5"/><rect x="6" y="10" width="48" height="9" rx="4" fill="#57665D"/><rect x="24" y="46" width="12" height="6" fill="#57665D"/><rect x="18" y="52" width="24" height="3" rx="1.5" fill="#57665D"/></svg><div class="lbl">Browser</div><div class="svc">institute · supplier</div></div>
+  <div class="node" style="left:228px;top:150px"><img src="icons/aws-cloudfront.svg"><div class="lbl">CloudFront</div><div class="svc">CDN / edge</div></div>
+  <div class="node wide" style="left:430px;top:150px"><img src="icons/aws-lambda.svg"><div class="lbl">Next.js on Lambda</div><div class="svc">Web · OpenNext</div></div>
+  <div class="node" style="left:690px;top:150px"><img src="icons/aws-secrets-manager.svg"><div class="lbl">Secrets Manager</div><div class="svc">AuthSecret · HMAC</div></div>
+
+  <!-- REGION: ca-central-1 -->
+  <div class="region ca" style="left:32px;top:300px;width:680px;height:410px"><span class="chip">ca-central-1 · RAP platform</span></div>
+  <div class="node" style="left:70px;top:360px"><img src="icons/aws-s3.svg"><div class="lbl">S3 RapUploads</div><div class="svc">presigned PUT</div></div>
+  <div class="node wide" style="left:250px;top:360px"><img src="icons/aws-lambda.svg"><div class="lbl">Async workers</div><div class="svc">Extract·Rollup·Align</div></div>
+  <div class="node" style="left:470px;top:360px"><img src="icons/aws-ses.svg"><div class="lbl">SES</div><div class="svc">weekly digest</div></div>
+  <div class="node wide" style="left:190px;top:548px"><img src="icons/aws-dynamodb.svg"><div class="lbl">RAP tables</div><div class="svc">single-table · ×7</div></div>
+  <div class="node" style="left:400px;top:548px"><img src="icons/aws-s3.svg"><div class="lbl">RapAnalytics</div><div class="svc">PITR export</div></div>
+  <div class="node" style="left:560px;top:548px"><img src="icons/aws-athena.svg"><div class="lbl">Athena</div><div class="svc roadmap">roadmap</div></div>
+
+  <!-- REGION: us-east-1 -->
+  <div class="region us" style="left:792px;top:300px;width:676px;height:410px"><span class="chip">us-east-1 · legal cases + AI runtime</span></div>
+  <div class="group" style="left:815px;top:344px;width:312px;height:132px"><span class="glabel">shared AI inference</span></div>
+  <div class="node" style="left:825px;top:362px"><img src="icons/aws-bedrock.svg"><div class="lbl">Bedrock</div><div class="svc">BDA·Claude·Titan</div></div>
+  <div class="node" style="left:975px;top:362px"><img src="icons/aws-textract.svg"><div class="lbl">Textract</div><div class="svc">LAYOUT OCR</div></div>
+  <div class="node" style="left:1210px;top:362px"><img src="icons/aws-dynamodb.svg"><div class="lbl">LegalCases</div><div class="svc">~43k cases</div></div>
+  <div class="node" style="left:825px;top:548px"><img src="icons/aws-s3.svg"><div class="lbl">CasesIndex</div><div class="svc">bm25 / vectors</div></div>
+  <div class="node" style="left:1000px;top:548px"><img src="icons/aws-lambda.svg"><div class="lbl">BriefGen</div><div class="svc">briefing notes</div></div>
+
+  <!-- cross-region pill + legend -->
+  <div class="pill" style="left:648px;top:452px;border-color:#8A1A2B;color:#8A1A2B">cross-region</div>
+  <div class="legend" style="left:1120px;top:600px">
+    <div class="row"><span class="sw" style="border-color:#57665D"></span> in-region call</div>
+    <div class="row"><span class="sw" style="border-color:#9AA79E"></span> data / stream</div>
+    <div class="row"><span class="sw" style="border-color:#8A1A2B;border-top-style:dashed"></span> cross-region (residency)</div>
+    <div class="row"><span class="sw" style="border-color:#B98A2E;border-top-style:dashed"></span> roadmap (provisioned, not yet active)</div>
+  </div>
+
+  <div class="note" style="left:40px;top:752px;width:1420px">
+    <span class="tag">Roadmap</span><b>Analytics on-ramp.</b> The <b>RapAnalytics</b> bucket is provisioned so a DynamoDB point-in-time export can land in S3 for <b>Athena</b> + Glue to answer ad-hoc, cross-tab questions — without ever touching the live tables. The bucket is live today (it also holds Bedrock extraction output); the Athena query layer is the next step, so the path is one deploy away rather than an architecture change.
+  </div>
+</div>
+</body></html>

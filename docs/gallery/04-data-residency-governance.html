@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="gallery.css">
+<style>
+  .canvas{width:1500px;height:1020px}
+  .head{position:absolute;top:0;left:0;right:0}
+  .title{font-size:33px}.caption{font-size:18px;max-width:1200px}
+  .boundary{position:absolute;top:170px;bottom:210px;left:748px;width:0;border-left:3px dashed #8A1A2B}
+  .blabel{position:absolute;left:672px;top:150px;font-family:var(--mono);font-size:14px;font-weight:700;color:#8A1A2B;background:var(--paper);padding:2px 10px;border:1.5px solid #8A1A2B;border-radius:20px}
+  .govern{position:absolute;left:40px;right:40px;bottom:26px;background:rgba(255,255,255,.55);border:1.5px solid var(--line);
+    border-radius:12px;padding:16px 22px;font-family:var(--serif);font-size:17px;line-height:1.4;color:var(--ink)}
+  .govern b{color:var(--maroon)}
+  .paneltag{position:absolute;font-family:var(--mono);font-size:15px;color:var(--muted)}
+</style></head>
+<body>
+<div class="canvas">
+  <div class="head">
+    <div class="eyebrow">CS7980 · Indigenomics Portal · Data Governance (OCAP)</div>
+    <div class="title">Data Residency — data stays in Canada, inference geo-routes to the US</div>
+    <div class="caption">Data-at-rest is held in ca-central-1 wherever possible; because AWS has no Canadian Bedrock geography, AI inference routes to us-east-1.</div>
+  </div>
+
+  <div class="boundary"></div>
+  <div class="blabel">cross-region boundary</div>
+
+  <svg class="wires" viewBox="0 0 1500 1020">
+    <defs><marker id="ahd" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#8A1A2B"/></marker></defs>
+    <g stroke="#8A1A2B" stroke-width="2.6" fill="none" stroke-dasharray="8 6" marker-end="url(#ahd)">
+      <line x1="612" y1="300" x2="836" y2="300"/>
+      <path d="M1240 470 C1000 560, 760 470, 612 430"/>
+    </g>
+  </svg>
+
+  <!-- CANADA -->
+  <div class="region ca" style="left:40px;top:180px;width:670px;height:520px"><span class="chip">ca-central-1 · Canada · data at rest</span></div>
+  <div class="node" style="left:80px;top:250px"><img src="icons/aws-s3.svg"><div class="lbl">RapUploads</div><div class="svc">supplier PDFs</div></div>
+  <div class="node" style="left:290px;top:250px"><img src="icons/aws-dynamodb.svg"><div class="lbl">RapData</div><div class="svc">extractions</div></div>
+  <div class="node" style="left:500px;top:250px"><img src="icons/aws-dynamodb.svg"><div class="lbl">Commitments</div><div class="svc">index</div></div>
+  <div class="node" style="left:80px;top:440px"><img src="icons/aws-dynamodb.svg"><div class="lbl">Notifications</div><div class="svc">digests</div></div>
+  <div class="node" style="left:290px;top:440px"><img src="icons/aws-dynamodb.svg"><div class="lbl">DataPortal</div><div class="svc">coverage</div></div>
+  <div class="node" style="left:500px;top:440px"><img src="icons/aws-s3.svg"><div class="lbl">Exports</div><div class="svc roadmap">OCAP · roadmap</div></div>
+  <div class="paneltag" style="left:80px;top:630px">✓ personal &amp; supplier data never leaves Canada</div>
+
+  <!-- US -->
+  <div class="region us" style="left:790px;top:180px;width:670px;height:520px"><span class="chip">us-east-1 · United States · inference + cases</span></div>
+  <div class="node" style="left:830px;top:250px"><img src="icons/aws-bedrock.svg"><div class="lbl">Bedrock</div><div class="svc">BDA · Claude · Titan</div></div>
+  <div class="node" style="left:1040px;top:250px"><img src="icons/aws-textract.svg"><div class="lbl">Textract</div><div class="svc">LAYOUT OCR</div></div>
+  <div class="node" style="left:1250px;top:250px"><img src="icons/aws-dynamodb.svg"><div class="lbl">LegalCases</div><div class="svc">public corpus</div></div>
+  <div class="node" style="left:830px;top:440px"><img src="icons/aws-s3.svg"><div class="lbl">CasesIndex</div><div class="svc">embeddings</div></div>
+  <div class="paneltag" style="left:830px;top:630px">↻ inference via the “us.” profile — no “ca.” geography exists</div>
+
+  <div class="pill" style="left:640px;top:274px;border-color:#8A1A2B;color:#8A1A2B">AI inference (extraction · embeddings)</div>
+  <div class="pill" style="left:840px;top:470px;border-color:#8A1A2B;color:#8A1A2B">cross-region read (public cases)</div>
+
+  <div class="note" style="left:40px;top:730px;width:1420px">
+    <span class="tag">Roadmap</span><b>OCAP “export my records.”</b> The <b>Exports</b> bucket is provisioned (and IAM-wired) so a future route can hand a First Nation, Inuit, or Métis organization a short-lived signed URL to download <i>their own</i> data on demand — the Ownership + Access half of OCAP. The infrastructure is in place; the export flow is the next build, so enabling it needs no architecture change.
+  </div>
+
+  <div class="govern"><b>OCAP data governance:</b> personal and supplier data (RAP uploads, extractions, commitments, notifications) stays at rest in <b>ca-central-1</b>. AWS publishes no Canadian Bedrock geography, so Bedrock / BDA / Textract <b>inference geo-routes to us-east-1</b> via the <span style="font-family:var(--mono)">us.</span> inference profile — data is governed in Canada while compute runs in the US. The public LegalCases corpus lives in us-east-1 and is read cross-region.</div>
+</div>
+</body></html>

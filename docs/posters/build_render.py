@@ -1,9 +1,12 @@
 import sys, pathlib, subprocess, os
-src = sys.argv[1]              # e.g. poster-landscape.html
+src = sys.argv[1]
 built = src.replace('.html', '.built.html')
 html = pathlib.Path(src).read_text()
-html = html.replace('<!--FIG_NULL-->', pathlib.Path('fig-null.svg').read_text())
-html = html.replace('<!--FIG_DECORR-->', pathlib.Path('fig-decorrelation.svg').read_text())
+for token, path in [('<!--FIG_NULL-->','fig-null.svg'),
+                    ('<!--FIG_DECORR-->','fig-decorrelation.svg'),
+                    ('<!--FIG_COST-->','fig-cost.svg')]:
+    if token in html:
+        html = html.replace(token, pathlib.Path(path).read_text())
 pathlib.Path(built).write_text(html)
 pdf = src.replace('.html', '.pdf')
 chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"

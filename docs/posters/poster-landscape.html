@@ -2,146 +2,235 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Evaluating Decorrelation in LLM Code Review — Poster (Landscape A0)</title>
+<title>More AI Reviewers Don't Help — Decorrelation Does (Landscape A0)</title>
 <link rel="stylesheet" href="poster.css">
 <style>
   @page { size: 1189mm 841mm; margin: 0; }
   html, body { width: 1189mm; height: 841mm; }
-  .poster { width: 1189mm; height: 841mm; padding: 20mm 28mm 14mm; font-size: 7.2mm; gap: 7mm; justify-content: space-between; }
+  .poster { width: 1189mm; height: 841mm; padding: 18mm 26mm 12mm; font-size: 7mm; gap: 7mm; justify-content: space-between; }
 
-  .title h1 { font-size: 25mm; }
-  .title .sub { font-size: 9mm; margin-top: 2.5mm; }
-  .title .eyebrow { font-size: 5.2mm; margin-bottom: 4mm; }
-  .title .byline { font-size: 6.8mm; margin-top: 4.5mm; }
-  .title .affil { font-size: 5.6mm; margin-top: 2mm; }
+  .title { border-bottom: 3px solid var(--ink); padding-bottom: 4mm; }
+  .title .eyebrow { display: flex; justify-content: space-between; font-size: 4.8mm; margin-bottom: 2.5mm; }
+  .title h1 { font-size: 27mm; line-height: 1.0; }
+  .title h1 .thesis { color: var(--maroon); font-style: normal; }
+  .title .sub { font-size: 7.6mm; font-style: normal; margin-top: 3.5mm; max-width: 1060mm; line-height:1.3; }
+  .title .paper { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 6.2mm; margin-top: 2mm; }
+  .title .byline { font-size: 6mm; margin-top: 3mm; }
+  .title .affil { font-family: var(--disp); color: var(--muted); font-size: 4.9mm; margin-top: 1.2mm; }
 
-  .row { display: flex; gap: 10mm; flex: 0 0 auto; }
-  .row-hero { flex: 0 0 auto; }
-  .col { display: flex; flex-direction: column; gap: 6mm; }
+  /* contribution banner */
+  .banner { display: flex; gap: 13mm; background: #F5E3E6; border: 2.5px solid var(--maroon); border-radius: 6mm; padding: 7mm 10mm; align-items: center; flex: 0 0 auto; }
+  .banner .b-txt { flex: 1.1; display:flex; flex-direction:column; gap:3.5mm; }
+  .b-eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--maroon); font-size: 4.8mm; }
+  .banner .b-head { font-family: var(--disp); font-weight: 800; font-size: 13mm; line-height: 1.05; color: var(--ink); }
+  .banner .b-head em { color: var(--maroon); font-style: normal; }
+  .banner .b-body { font-size: 6.2mm; line-height: 1.34; color: var(--ink); }
+  .b-stats { display:flex; gap:11mm; margin-top:1mm; }
+  .b-stats .s { display:flex; flex-direction:column; }
+  .b-stats .n { font-family: var(--disp); font-weight: 820; font-size: 24mm; line-height:1; letter-spacing:-.02em; color: var(--maroon); }
+  .b-stats .s.grey .n { color: var(--muted); }
+  .b-stats .l { font-size: 4.6mm; color: var(--muted); margin-top:1.5mm; max-width:80mm; line-height:1.22; }
+  .banner .b-fig { flex: 0.9; display: flex; flex-direction: column; align-items: center; }
+  .banner .b-fig svg { width: 100%; height: auto; max-height: 178mm; }
+  .banner .b-fig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 4.4mm; margin-top: 1mm; text-align: center; }
 
-  .hero { gap: 16mm; align-items: flex-start; }
-  .hero .beat { flex: 1; }
-  .hero svg { height: 205mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+  /* three columns */
+  .cols { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9mm; flex: 0 0 auto; }
+  .col { display: flex; flex-direction: column; gap: 4mm; }
+  .col h2, .wide h2 { font-family: var(--disp); font-weight: 750; text-transform: uppercase; letter-spacing: .03em; font-size: 6.8mm; color: var(--ink); border-bottom: 1.5px solid var(--line2); padding-bottom: 1.6mm; display: flex; align-items: baseline; gap: 2.4mm; }
+  .col h2 .num, .wide h2 .num { font-family: var(--mono); color: var(--maroon); font-weight: 700; }
+  .col p { font-size: 6.2mm; line-height: 1.34; }
+  .col .who { font-family: var(--mono); font-size: 4.6mm; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+  .col b { font-weight: 750; }
+  .hot { color: var(--maroon); font-weight: 750; }
+  .mono { font-family: var(--mono); }
 
-  .panel h2 { font-size: 8.4mm; padding-bottom: 2mm; margin-bottom: 4mm; gap: 2.8mm; }
-  .panel p, .panel li { font-size: 7mm; }
-  .panel .lede { font-size: 7.2mm; }
-  .panel ul { display: flex; flex-direction: column; gap: 3.4mm; }
+  .callout { border-left: 4px solid var(--green); background: #E4EAE6; border-radius: 3mm; padding: 3.5mm 4.5mm; }
+  .callout .ct { font-family: var(--mono); font-size: 4.2mm; text-transform: uppercase; letter-spacing:.06em; color: var(--green); }
+  .callout p { font-size: 5.4mm; margin-top: 1.5mm; }
 
-  .rung .r-name { font-size: 6.2mm; }
-  .rung .r-sub { font-size: 4.6mm; margin-top: 0.6mm; }
-  .rung { padding: 3.5mm 4mm; }
-  .arrow { font-size: 8mm; }
-  .ds { margin-top: 4.5mm; }
-  .ds .d b { font-size: 5.8mm; }
-  .ds .d span { font-size: 4.9mm; display: block; margin-top: 0.6mm; }
+  /* scale tiles */
+  .tiles { display: flex; gap: 3mm; }
+  .tile { flex: 1; background: #fff; border: 1.2px solid var(--line); border-radius: 3mm; padding: 3mm 2mm; text-align: center; }
+  .tile .n { font-family: var(--disp); font-weight: 800; font-size: 8mm; line-height: 1; color: var(--ink); }
+  .tile .l { font-size: 3.9mm; color: var(--muted); margin-top: 1.5mm; line-height: 1.18; }
 
-  .hero .beat .cap { font-size: 6mm; margin-top: 3.5mm; }
-  .client p { font-size: 7mm; }
-  .client .kappa { font-size: 7.8mm; }
-  .ack { font-size: 5.4mm; padding-top: 4mm; margin-top: 2mm; }
-  .foot { font-size: 5mm; margin-top: 2.5mm; }
+  /* dataset chips */
+  .ds { display: flex; gap: 3mm; }
+  .ds .d { flex: 1; border-left: 3px solid var(--blue); padding-left: 2.5mm; }
+  .ds .d b { font-size: 5mm; }
+  .ds .d span { font-family: var(--mono); font-size: 4mm; color: var(--muted); display: block; margin-top: .8mm; }
+
+  .exp { border: 1.5px dashed var(--line2); border-radius: 4mm; padding: 3.5mm 4.5mm; background: rgba(255,255,255,.4); }
+  .exp .lbl { font-family: var(--mono); font-size: 4.2mm; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+  .exp .rungs { display: flex; align-items: center; gap: 1.6mm; margin-top: 2.5mm; }
+  .exp .rung { flex: 1; border: 1.2px solid var(--line2); border-radius: 3mm; padding: 2.2mm 1mm; text-align: center; background: #fff; font-family: var(--disp); font-weight: 700; font-size: 4.2mm; color: var(--ink); }
+  .exp .rung.base { border-color: var(--green); color: var(--green); }
+  .exp .arr { color: var(--faint); font-weight: 700; font-size: 4.6mm; }
+  .exp .note { font-size: 4.8mm; color: var(--muted); margin-top: 2.5mm; font-style: italic; font-family: var(--serif); line-height:1.3; }
+  .exp .held { font-family: var(--mono); font-size: 3.9mm; color: var(--faint); margin-top: 2.6mm; border-top: 1px dashed var(--line2); padding-top: 2.4mm; line-height:1.35; }
+  .exp .held b { color: var(--ink); font-weight: 700; }
+
+  /* real portal screenshots, browser-framed and top-cropped */
+  .shots { display: flex; gap: 4mm; }
+  .ss { flex: 1; display: flex; flex-direction: column; }
+  .ss .frame { border: 1.4px solid #CFC7B4; border-radius: 3mm; overflow: hidden; background: #EFE9DB; }
+  .ss .bar { display: flex; align-items: center; gap: 1.6mm; padding: 2mm 3mm; background: #E5DBC6; border-bottom: 1px solid #D8CDB6; }
+  .ss .bar i { width: 2.2mm; height: 2.2mm; border-radius: 50%; background: #CDBE9E; }
+  .ss .url { margin-left: 1.5mm; font-family: var(--mono); font-size: 3.2mm; color: #8a7a55; }
+  .ss .win { height: 112mm; overflow: hidden; background: #EFE9DB; display: flex; align-items: flex-start; justify-content: center; }
+  .ss .win img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+  .ss .cap { font-family: var(--serif); font-style: italic; font-size: 4.4mm; color: var(--muted); margin-top: 1.8mm; line-height: 1.3; }
+  .ss .cap b { font-style: normal; color: var(--ink); font-weight: 700; }
+
+  .kfig svg { width:100%; height:auto; max-height:150mm; }
+  .kfig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 4.3mm; margin-top:1mm; text-align:center; }
+
+  /* full-width cost row */
+  .wide { flex: 0 0 auto; }
+  .wide .row { display: flex; gap: 12mm; align-items: center; margin-top: 3.5mm; }
+  .wide .cfig { flex: 0 0 420mm; }
+  .wide .cfig svg { width: 100%; height: auto; }
+  .wide .ctxt { flex: 1; display: flex; flex-direction: column; gap: 3mm; }
+  .wide .ctxt p { font-size: 6.2mm; line-height: 1.34; }
+  .wide .ctxt b { font-weight: 750; }
+
+  /* impact — three separate cards, each with room to breathe */
+  .impact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; flex: 0 0 auto; background: none; padding: 0; }
+  .impact .blk { background: var(--ink); color: var(--paper); border-radius: 5mm; padding: 11mm 11mm 12mm; display: flex; flex-direction: column; }
+  .impact h3 { font-family: var(--mono); font-size: 5.6mm; text-transform: uppercase; letter-spacing: .12em; color: #E0B84B; }
+  .impact .rule { height: 1.8mm; width: 32mm; background: #E0B84B; border-radius: 1mm; margin: 4.5mm 0 5.5mm; }
+  .impact p { font-size: 7mm; line-height: 1.5; }
+  .impact b { color: #fff; font-weight: 750; }
+
+  .ack { font-family: var(--serif); font-size: 4.4mm; color: var(--muted); border-top: 1.2px solid var(--line2); padding-top: 2.5mm; display: flex; justify-content: space-between; gap: 10mm; flex: 0 0 auto; }
+  .ack b { color: var(--ink); font-weight: 700; }
 </style>
 </head>
 <body>
 <div class="poster">
 
-  <!-- ===== TITLE ===== -->
+  <!-- TITLE -->
   <header class="title">
     <div class="eyebrow"><span>CS 7980 · Research Capstone · Khoury College, Northeastern University</span><span>Showcase 2026</span></div>
-    <h1>More AI Reviewers Help — <span class="thesis">Only If Their Mistakes Differ</span></h1>
-    <div class="sub">Companion to: “Evaluating Decorrelation in LLM Code Review: A Pre-Registered Study”</div>
+    <h1>More AI Reviewers Don't Help — <span class="thesis">Decorrelation Does</span></h1>
+    <div class="sub">A pre-registered, compute-matched comparison of four AI code-review architectures across <b>2,415 reviews</b> — including 30 real pull requests from the platform we built for our client.</div>
+    <div class="paper">Companion to: “Evaluating Decorrelation in LLM Code Review: A Pre-Registered Study”</div>
     <div class="byline"><b>En-Ping Su · Tong Wu · Shiting Huang · Mengshan Li</b></div>
-    <div class="affil">Khoury College of Computer Sciences, Northeastern University · Vancouver, Canada&nbsp;&nbsp;·&nbsp;&nbsp;Advisor: Yvonne Coady&nbsp;&nbsp;·&nbsp;&nbsp;Industry Partner: Indigenomics Institute (Carol Anne Hilton, Founder)</div>
+    <div class="affil">Khoury College of Computer Sciences, Northeastern University · Vancouver&nbsp;&nbsp;·&nbsp;&nbsp;Advisor: Yvonne Coady&nbsp;&nbsp;·&nbsp;&nbsp;Industry Partner: Indigenomics Institute (Carol Anne Hilton, Founder)</div>
   </header>
 
-  <!-- ===== ROW 1: Motivation | Method + ladder ===== -->
-  <section class="row row1">
-    <div class="panel col" style="flex: 0 0 30%;">
-      <h2><span class="num">01</span> Motivation</h2>
-      <p class="lede">LLMs increasingly automate code review, and frameworks split the work across specialized agents — managers, specialists, voters — and price accordingly.</p>
-      <p><b>Does the <em>structure</em> of that collaboration improve review quality, or just cost more?</b> We hold the model, PR snapshot, prompts, and pipeline fixed and vary only structure. Pre-registered on OSF; prompts frozen before any confirmatory data.</p>
+  <!-- CONTRIBUTION BANNER -->
+  <section class="banner">
+    <div class="b-txt">
+      <div class="b-eyebrow">The contribution</div>
+      <div class="b-head">Agreement predicts truth — but <em>only</em> when the reviewers are independent.</div>
+      <div class="b-body">Error decorrelation — not more agents, specialists, or debate — is what turns agreement into a real signal.</div>
+      <div class="b-stats">
+        <div class="s"><div class="n">89%</div><div class="l">three <b>independent</b> model families that agree match injected ground truth</div></div>
+        <div class="s grey"><div class="n">54%</div><div class="l">one model run three times — agreement is mostly noise</div></div>
+      </div>
     </div>
-    <div class="panel col" style="flex: 1;">
-      <h2><span class="num">02</span> Method — a four-rung ladder, each rung adds one capability</h2>
-      <div class="ladder">
-        <div class="rung base"><div class="r-name">Agentless</div><div class="r-sub">single pass · 1 call</div></div>
-        <div class="arrow">→</div>
-        <div class="rung"><div class="r-name">Generalists-3</div><div class="r-sub">sample ×3, merge · 3 calls</div></div>
-        <div class="arrow">→</div>
-        <div class="rung"><div class="r-name">Hierarchical</div><div class="r-sub">coordinator + specialists · 3 calls</div></div>
-        <div class="arrow">→</div>
-        <div class="rung"><div class="r-name">Consensus</div><div class="r-sub">debate + vote · 9 calls</div></div>
-      </div>
-      <p style="margin-top:4mm;">Adjacent contrasts isolate <b>sampling</b> vs <b>specialization</b> vs <b>communication</b>. Model held constant: Claude Haiku 4.5. Evaluated on three datasets:</p>
-      <div class="ds">
-        <div class="d"><b>E1 · Qodo</b><span>99 PRs · 1,188 reviews · injected ground truth</span></div>
-        <div class="d"><b>E2 · SWE-PRBench</b><span>50 PRs · 600 reviews · human-reviewer agreement</span></div>
-        <div class="d"><b>E3 · Industrial</b><span>30 PRs · 627 reviews · no oracle</span></div>
-      </div>
+    <div class="b-fig">
+      <!--FIG_DECORR-->
+      <div class="cap">Golden-match rate by number of sources agreeing (E1, injected ground truth).</div>
     </div>
   </section>
 
-  <!-- ===== HERO (full width) ===== -->
-  <section class="row row-hero">
-    <div class="panel col" style="flex:1;">
-      <h2><span class="num">03</span> Two results: more agents don’t help — decorrelation does</h2>
-      <div class="hero">
-        <div class="beat">
-          <!--FIG_NULL-->
-          <div class="cap"><b>The null (myth-buster).</b> No multi-agent arm beats single-pass F1. Extra agents raise recall (0.62–0.63 vs 0.50) but halve precision — buying recall at <b>3–9× the calls</b> and <b>5× the cost</b> per confirmed finding.</div>
+  <!-- COLUMNS -->
+  <section class="cols">
+    <div class="col">
+      <h2><span class="num">01</span> Problem &amp; motivation</h2>
+      <div class="who">The client</div>
+      <p>The <b>Indigenomics Institute</b> needs corporate Reconciliation Action Plan commitments made legible and trackable — and AI now writes much of the software that does it.</p>
+      <div class="who" style="margin-top:1.5mm">The research</div>
+      <p>Multi-agent AI reviewers are proliferating — managers, specialists, voters — and priced accordingly. Does that <b>structure</b> improve review, or just cost more?</p>
+      <div class="callout">
+        <div class="ct">Grounded in</div>
+        <p>Carol Anne Hilton's economic-reconciliation framework — an economic lens, not a case summarizer.</p>
+      </div>
+      <div class="tiles" style="margin-top:2mm">
+        <div class="tile"><div class="n">2,415</div><div class="l">reviews</div></div>
+        <div class="tile"><div class="n">179</div><div class="l">pull requests</div></div>
+        <div class="tile"><div class="n">4</div><div class="l">architectures</div></div>
+        <div class="tile"><div class="n">×3</div><div class="l">runs each</div></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <h2><span class="num">02</span> Approach</h2>
+      <div class="who">What we built for the client</div>
+      <p>The <b>RAP Data Portal</b> — one platform, two lenses: corporate reconciliation commitments and Indigenous legal precedents, as comparable searchable data on AWS.</p>
+      <div class="shots">
+        <div class="ss">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i><span class="url">indigenomics · RAP Index</span></div>
+            <div class="win"><img src="rap.png" alt="RAP Index"></div>
+          </div>
+          <div class="cap"><b>Lens 1 — RAP Index.</b> 106 commitments across 100 organizations, 63% average progress.</div>
         </div>
-        <div class="beat">
-          <!--FIG_DECORR-->
-          <div class="cap"><b>The signal (decorrelation).</b> Three <em>independent</em> model families match injected ground truth <b>89%</b> of the time; one model repeated three times saturates at <b>54%</b>. Independence — not more compute — is what makes agreement predict truth.</div>
+        <div class="ss">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i><span class="url">indigenomics · Legal Cases</span></div>
+            <div class="win"><img src="legal.png" alt="Legal Cases"></div>
+          </div>
+          <div class="cap"><b>Lens 2 — Legal Cases.</b> 561 Indigenous economic-justice decisions, citation-anchored.</div>
         </div>
+      </div>
+      <div class="exp">
+        <div class="lbl">The experiment — apparatus, not the finding</div>
+        <div class="rungs">
+          <div class="rung base">Agentless</div><div class="arr">→</div>
+          <div class="rung">Generalists-3</div><div class="arr">→</div>
+          <div class="rung">Hierarchical</div><div class="arr">→</div>
+          <div class="rung">Consensus</div>
+        </div>
+        <div class="note">Each rung adds exactly one capability — sampling, then specialization, then communication.</div>
+        <div class="held">Held constant: same PR snapshot · same model (Claude Haiku 4.5) · same prompts · same evaluation pipeline · three runs per arm · <b>pre-registered on OSF</b></div>
+      </div>
+      <div class="ds" style="margin-top:1mm">
+        <div class="d"><b>E1 · Qodo</b><span>99 PRs · ground truth</span></div>
+        <div class="d"><b>E2 · SWE-PRBench</b><span>50 PRs · human review</span></div>
+        <div class="d"><b>E3 · our portal</b><span>30 PRs · no oracle</span></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <h2><span class="num">03</span> Key results</h2>
+      <p><b>Structure is null.</b> No multi-agent arm beats single-pass F1; specialists tie compute-matched sampling (<span class="mono">p=0.73</span>); peer debate adds nothing over a manager (<span class="mono">p=0.12</span>).</p>
+      <p><b>Decorrelation pays — on precision,</b> not coverage (<span class="hot">89% vs 54%</span>). <b>Bounded:</b> recall plateaus at <span class="hot">≈0.83</span>; on the portal's own unlabeled code, LLM judges disagree (<span class="hot">κ=0.03</span>).</p>
+      <div class="kfig" style="margin-top:2mm">
+        <!--FIG_NULL-->
+        <div class="cap">Semantic F1 by architecture — extra agents raise recall but halve precision, so no team beats single-pass.</div>
       </div>
     </div>
   </section>
 
-  <!-- ===== FINDINGS | WHY | NEXT (3 columns) ===== -->
-  <section class="row row-findings">
-    <div class="panel" style="flex: 1.25;">
-      <h2><span class="num">04</span> Key findings (pre-registered, confirmatory)</h2>
-      <ul>
-        <li><b>Specialization is null:</b> Hierarchical ties Generalists-3 on recall (0.624 vs 0.626, <span class="mono">p=0.73</span>).</li>
-        <li><b>No arm beats single-pass F1</b> (0.487 vs 0.357–0.378; Holm <span class="mono">p&lt;0.001</span>).</li>
-        <li><b>Communication unsupported:</b> Consensus does not beat Hierarchical (Holm <span class="mono">p=0.12</span>) at 5× the cost.</li>
-        <li><b>Grounding bounds recall at a <span class="hot">≈0.83</span> ceiling</b> — residue is linter-recoverable conventions + an execution-reachable functional core.</li>
-        <li><b>Self-consistency fails; cross-family agreement lifts precision.</b></li>
-      </ul>
-    </div>
-    <div class="panel" style="flex: 1;">
-      <h2><span class="num">06</span> Why it matters</h2>
-      <ul>
-        <li>Don’t deploy multi-agent review expecting a quality lift — you buy recall, not F1, at 3–9× the cost.</li>
-        <li>Decorrelate verifiers: independent model families, not one model repeating itself.</li>
-        <li>Measure benchmark completeness — a 0.83 recall ceiling means much “imprecision” is the benchmark’s.</li>
-        <li>Treat LLM-judged evaluation on real code as unreliable (κ = 0.03).</li>
-      </ul>
-    </div>
-    <div class="panel" style="flex: 0.85;">
-      <h2><span class="num">07</span> Next steps · open science</h2>
-      <ul>
-        <li>Tool-grounded verifiers — execution + static analysis as a correctness oracle.</li>
-        <li>All runs, ablations, and artifacts released for replay.</li>
-      </ul>
+  <!-- COST ROW -->
+  <section class="wide">
+    <h2><span class="num">04</span> What the extra agents actually buy</h2>
+    <div class="row">
+      <div class="cfig">
+        <!--FIG_COST-->
+      </div>
+      <div class="ctxt">
+        <p>Adding agents doesn't buy quality — it buys <b>recall at a price</b>. Every confirmed true finding costs <b>0.34</b> LLM calls under single-pass review and <b>1.76</b> under peer consensus, for a <b>lower-F1</b> result.</p>
+        <p>That is the practical case for decorrelation: <b>spend the budget on independence, not on more of the same reviewer.</b></p>
+      </div>
     </div>
   </section>
 
-  <!-- ===== CLIENT (full width band) ===== -->
-  <section class="row row-client">
-    <div class="panel client col" style="flex:1; padding: 6mm 8mm;">
-      <h2><span class="num">05</span> Where research meets the client: E3 is the Indigenomics RAP platform</h2>
-      <p>Our E3 industrial dataset <em>is</em> the live RAP data platform we built for the <b>Indigenomics Institute</b> — its <b>30 real merged pull requests, 627 reviews</b>. On this unlabeled industrial code the verification relationship reaches its <em>ecological boundary</em>: LLM correctness judges themselves disagree (<span class="kappa">κ = 0.03</span>), so the decorrelation signal that holds on labeled benchmarks cannot be validated without an oracle. The research and the client’s product are one system.</p>
-    </div>
+  <!-- IMPACT -->
+  <section class="impact">
+    <div class="blk"><h3>Impact — for the field</h3><div class="rule"></div><p>Don't deploy multi-agent review expecting a quality lift. <b>Decorrelate your verifiers</b> — independent model families — and read their agreement as a precision signal.</p></div>
+    <div class="blk"><h3>Impact — for the client</h3><div class="rule"></div><p>A verifiable, trackable view of economic reconciliation — <b>commitments + legal precedents in one platform</b>, delivered to the Indigenomics Institute.</p></div>
+    <div class="blk"><h3>Next steps</h3><div class="rule"></div><p>Tool-grounded verifiers — execution and static analysis as a correctness oracle. <b>Open science:</b> all runs, ablations &amp; artifacts released for replay.</p></div>
   </section>
 
-  <!-- ===== ACK ===== -->
-  <footer>
-    <div class="ack"><b>Acknowledgements.</b> Lino Coria Mendoza (weekly progress check-ins). Indigenomics Institute: Shawn Anderson (technical point of contact), Eve Marenghi (scheduling), K. Krasnow Waterman (legal advice). Compute: AWS Bedrock.</div>
-    <div class="foot"><span>Pre-registered on OSF · prompts frozen before confirmatory data</span><span>Code, data &amp; artifacts released for replay · github.com/SharonHuang77/rap-review-research</span></div>
-  </footer>
+  <div class="ack">
+    <span><b>Acknowledgements.</b> Lino Coria Mendoza (weekly progress check-ins) · Indigenomics Institute: Shawn Anderson (technical contact), Eve Marenghi (scheduling), K. Krasnow Waterman (legal advice) · Compute: AWS Bedrock.</span>
+    <span style="white-space:nowrap"><b>Pre-registered on OSF</b> · github.com/SharonHuang77/rap-review-research</span>
+  </div>
 
 </div>
 </body>

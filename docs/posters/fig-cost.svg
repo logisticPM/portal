@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 208" font-family="'Helvetica Neue',Arial,sans-serif">
+  <!-- LLM calls per CONFIRMED true finding (E1 Qodo) — Table III, Cost/TP column -->
+  <!-- scale: x0=175, 1.90 units -> 470px  => 247.4 px/unit -->
+  <g font-size="17" fill="#16201B" text-anchor="end">
+    <text x="165" y="34" font-weight="700">Agentless</text>
+    <text x="165" y="80">Generalists-3</text>
+    <text x="165" y="126">Hierarchical</text>
+    <text x="165" y="172">Consensus</text>
+  </g>
+  <g font-family="'SF Mono',Menlo,monospace" font-size="13" fill="#7C8A81" text-anchor="end">
+    <text x="165" y="50">1 call</text>
+    <text x="165" y="96">3 calls</text>
+    <text x="165" y="142">3 calls</text>
+    <text x="165" y="188">9 calls</text>
+  </g>
+
+  <!-- baseline axis -->
+  <line x1="175" y1="14" x2="175" y2="196" stroke="#C4CCBD" stroke-width="1.5"/>
+
+  <!-- bars -->
+  <rect x="175" y="18"  width="84"  height="26" rx="3" fill="#1B6A52"/>
+  <rect x="175" y="64"  width="111" height="26" rx="3" fill="#2C5F82"/>
+  <rect x="175" y="110" width="124" height="26" rx="3" fill="#2C5F82"/>
+  <rect x="175" y="156" width="435" height="26" rx="3" fill="#8A1A2B"/>
+
+  <!-- value labels -->
+  <g font-size="18" font-weight="700" fill="#16201B">
+    <text x="269" y="38">0.34</text>
+    <text x="296" y="84">0.45</text>
+    <text x="309" y="130">0.50</text>
+    <text x="620" y="176" fill="#8A1A2B">1.76</text>
+  </g>
+
+  <!-- 5x annotation -->
+  <text x="175" y="203" font-size="15" font-weight="700" fill="#8A1A2B">5× more expensive per confirmed finding than single-pass review</text>
+</svg>

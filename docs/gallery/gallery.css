@@ -1,0 +1,69 @@
+/* Shared styles for the portal architecture gallery. Diagrams use absolute
+   positioning inside a fixed .stage, with an SVG overlay for arrows. Palette
+   matches the showcase poster. */
+:root{
+  --paper:#EEF1EB; --ink:#16201B; --muted:#57665D; --faint:#7C8A81;
+  --line:#C4CCBD; --blue:#2C5F82; --green:#1B6A52; --maroon:#8A1A2B; --teal:#01A88D;
+  --ca:#E5EDE7; --us:#E5ECF2;
+  --disp:"Helvetica Neue",Arial,sans-serif;
+  --serif:"Palatino Linotype",Palatino,Georgia,serif;
+  --mono:"SF Mono",Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{background:var(--paper);font-family:var(--disp);color:var(--ink)}
+.canvas{background:var(--paper);position:relative;overflow:hidden;display:flex;flex-direction:column}
+.canvas .head{padding:26px 34px 6px}
+.eyebrow{font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+.title{font-family:var(--serif);font-weight:700;color:var(--ink);letter-spacing:-.01em;margin-top:4px}
+.caption{font-family:var(--serif);font-style:italic;color:var(--muted);margin-top:4px}
+.stage{position:relative;flex:1;margin:6px 24px 20px}
+
+/* region containers */
+.region{position:absolute;border:2px dashed var(--line);border-radius:16px}
+.region.ca{background:var(--ca);border-color:#9DB6A6}
+.region.us{background:var(--us);border-color:#9DB2C6}
+.region.plain{background:#F4F6F2;border-color:var(--line)}
+.chip{position:absolute;top:-14px;left:18px;background:var(--paper);padding:2px 12px;border-radius:20px;
+  font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.02em}
+.region.ca .chip{color:var(--green);border:1.5px solid #9DB6A6}
+.region.us .chip{color:var(--blue);border:1.5px solid #9DB2C6}
+.region.plain .chip{color:var(--muted);border:1.5px solid var(--line)}
+
+/* nodes (service icon + labels) */
+.node{position:absolute;display:flex;flex-direction:column;align-items:center;width:118px;text-align:center}
+.node img,.node svg{width:60px;height:60px;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.12))}
+.node .lbl{font-size:14.5px;font-weight:700;line-height:1.12;margin-top:6px;color:var(--ink)}
+.node .svc{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:1px}
+.node.wide{width:150px}
+
+/* grouped sub-box (e.g. async workers) */
+.group{position:absolute;border:1.6px solid var(--line);border-radius:12px;background:rgba(255,255,255,.35)}
+.group .glabel{position:absolute;top:-11px;left:14px;background:var(--paper);padding:0 8px;
+  font-family:var(--mono);font-size:12px;color:var(--faint)}
+
+/* numbered step badges + edge labels */
+.step{position:absolute;width:28px;height:28px;border-radius:50%;background:var(--maroon);color:#fff;
+  font-family:var(--disp);font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.pill{position:absolute;background:var(--paper);border:1px solid var(--line);border-radius:20px;
+  padding:2px 9px;font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* wire overlay */
+svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.node,.group,.step,.pill,.chip,.legend,.note{z-index:2}
+.region{z-index:1}
+
+/* legend */
+.legend{position:absolute;display:flex;flex-direction:column;gap:5px;background:rgba(255,255,255,.6);
+  border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:12.5px;color:var(--muted)}
+.legend b{color:var(--ink);font-weight:700}
+.legend .row{display:flex;align-items:center;gap:8px}
+.legend .sw{width:26px;height:0;border-top-width:2.5px;border-top-style:solid}
+
+/* roadmap annotation note */
+.note{position:absolute;border:1.5px dashed #B98A2E;border-radius:12px;background:rgba(245,238,224,.6);
+  padding:12px 16px;font-family:var(--serif);font-size:16px;line-height:1.4;color:#6B5A32}
+.note b{color:#8A6410;font-weight:700}
+.note .tag{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  color:#8A6410;border:1.3px solid #B98A2E;border-radius:20px;padding:1px 9px;margin-right:8px;font-style:normal}
+.svc.roadmap{color:#8A6410}

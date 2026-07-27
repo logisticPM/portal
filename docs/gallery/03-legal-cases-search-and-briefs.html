@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="gallery.css">
+<style>
+  .canvas{width:1600px;height:1000px}
+  .head{position:absolute;top:0;left:0;right:0}
+  .title{font-size:33px}.caption{font-size:18px;max-width:1250px}
+  .lanelbl{position:absolute;font-family:var(--mono);font-size:15px;letter-spacing:.06em;color:var(--faint);font-weight:600}
+</style></head>
+<body>
+<div class="canvas">
+  <div class="head">
+    <div class="eyebrow">CS7980 · Indigenomics Portal · Legal-cases subsystem · us-east-1</div>
+    <div class="title">Legal Cases — ingest → embed → index → hybrid search + briefs</div>
+    <div class="caption">An offline pipeline OCRs and embeds court decisions into a searchable corpus; the app runs hybrid keyword + vector search and generates Bedrock briefing notes.</div>
+  </div>
+
+  <svg class="wires" viewBox="0 0 1600 1000">
+    <defs>
+      <marker id="ah" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#57665D"/></marker>
+      <marker id="ahi" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#01806B"/></marker>
+      <marker id="ahs" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#2C5F82"/></marker>
+    </defs>
+    <!-- ingestion (teal) -->
+    <g stroke="#01806B" stroke-width="2.5" fill="none" marker-end="url(#ahi)">
+      <line x1="208" y1="260" x2="326" y2="260"/>
+      <line x1="448" y1="260" x2="566" y2="260"/>
+      <path d="M629 292 C700 360, 740 380, 749 418"/>
+      <path d="M600 292 C450 380, 700 400, 949 418"/>
+    </g>
+    <!-- serve (blue) -->
+    <g stroke="#2C5F82" stroke-width="2.5" fill="none" marker-end="url(#ahs)">
+      <line x1="208" y1="700" x2="326" y2="700"/>
+      <line x1="448" y1="700" x2="566" y2="700"/>
+      <path d="M629 668 C700 560, 730 540, 749 522"/>
+      <path d="M660 668 C820 560, 900 545, 985 522"/>
+      <line x1="688" y1="700" x2="878" y2="700"/>
+      <line x1="998" y1="700" x2="1116" y2="700"/>
+      <path d="M1360 668 C1200 560, 1080 540, 1015 522"/>
+    </g>
+  </svg>
+
+  <div class="lanelbl" style="left:40px;top:210px">① INGESTION — offline pipeline (cases:*:cloud, human-run ops)</div>
+  <div class="lanelbl" style="left:40px;top:648px">② SERVE — request path</div>
+
+  <!-- INGESTION LANE -->
+  <div class="node" style="left:90px;top:230px"><svg width="60" height="60" viewBox="0 0 60 60"><rect x="8" y="8" width="44" height="44" rx="9" fill="#5B6B7A"/><path d="M20 20 h12 M20 27 h20 M20 34 h20 M20 41 h14" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="42" cy="20" r="6" fill="none" stroke="#fff" stroke-width="2.4"/></svg><div class="lbl">Court decisions</div><div class="svc">harvest</div></div>
+  <div class="node" style="left:330px;top:230px"><img src="icons/aws-textract.svg"><div class="lbl">Textract</div><div class="svc">OCR fulltext</div></div>
+  <div class="node" style="left:570px;top:230px"><img src="icons/aws-bedrock.svg"><div class="lbl">Bedrock Titan</div><div class="svc">embeddings v2</div></div>
+
+  <!-- SHARED STORES (middle) -->
+  <div class="node" style="left:690px;top:420px"><img src="icons/aws-s3.svg"><div class="lbl">CasesIndex</div><div class="svc">bm25.bin · vectors.bin</div></div>
+  <div class="node" style="left:950px;top:420px"><img src="icons/aws-dynamodb.svg"><div class="lbl">LegalCases</div><div class="svc">~43k cases</div></div>
+
+  <!-- SERVE LANE -->
+  <div class="node" style="left:90px;top:670px"><svg width="60" height="60" viewBox="0 0 60 60"><rect x="6" y="10" width="48" height="34" rx="4" fill="#fff" stroke="#57665D" stroke-width="2.5"/><rect x="6" y="10" width="48" height="9" rx="4" fill="#57665D"/><rect x="24" y="46" width="12" height="6" fill="#57665D"/><rect x="18" y="52" width="24" height="3" rx="1.5" fill="#57665D"/></svg><div class="lbl">Browser</div><div class="svc">researcher</div></div>
+  <div class="node" style="left:330px;top:670px"><img src="icons/aws-cloudfront.svg"><div class="lbl">CloudFront</div><div class="svc">CDN / edge</div></div>
+  <div class="node" style="left:570px;top:670px"><img src="icons/aws-lambda.svg"><div class="lbl">Next.js on Lambda</div><div class="svc">hybrid search</div></div>
+  <div class="node" style="left:820px;top:670px"><img src="icons/aws-lambda.svg"><div class="lbl">BriefGen</div><div class="svc">requestBriefing</div></div>
+  <div class="node" style="left:1060px;top:670px"><img src="icons/aws-bedrock.svg"><div class="lbl">Bedrock</div><div class="svc">briefing notes</div></div>
+  <div class="node" style="left:1300px;top:670px"><img src="icons/aws-eventbridge.svg"><div class="lbl">CaseMonitor</div><div class="svc">rate(7 days)</div></div>
+
+  <!-- pills -->
+  <div class="pill" style="left:620px;top:600px;border-color:#2C5F82;color:#2C5F82">load bm25 (cold start) · BM25 + dense (Titan)</div>
+  <div class="pill" style="left:1245px;top:600px;border-color:#2C5F82;color:#2C5F82">detect new decisions</div>
+  <div class="pill" style="left:250px;top:352px;border-color:#01806B;color:#01806B">build bm25.bin + vectors.bin → S3; corpus → LegalCases</div>
+
+  <div class="legend" style="left:1330px;top:420px">
+    <div class="row"><span class="sw" style="border-color:#01806B"></span> ingestion (offline)</div>
+    <div class="row"><span class="sw" style="border-color:#2C5F82"></span> serve (request)</div>
+  </div>
+</div>
+</body></html>
