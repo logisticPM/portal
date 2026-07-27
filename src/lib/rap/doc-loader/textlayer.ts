@@ -201,6 +201,26 @@ export function buildTextFromPages(pages: string[][]): string {
   return out.join("\n\n");
 }
 
+// Control characters that indicate a glyph failed to map to Unicode. \n, \r and
+// \t are deliberately excluded — they are the structure the "[p.N]" format is
+// built from. U+FFFD counts as damage whether we introduced it or pdf-parse did.
+const DAMAGE_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD]/g;
+
+/**
+ * Render unmappable glyphs VISIBLY and report where they were. Detection of the
+ * downstream consequence (a quote that no longer matches the source) is already
+ * handled by validate.ts's quote_not_found; this exists so a reviewer can tell
+ * a damaged source from a hallucinating model.
+ */
+export function scanFidelity(text: string): { text: string; fidelityDamaged: boolean; damagedOffsets: number[] } {
+  const damagedOffsets: number[] = [];
+  let m: RegExpExecArray | null;
+  DAMAGE_RE.lastIndex = 0;
+  while ((m = DAMAGE_RE.exec(text)) !== null) damagedOffsets.push(m.index);
+  if (damagedOffsets.length === 0) return { text, fidelityDamaged: false, damagedOffsets: [] };
+  return { text: text.replace(DAMAGE_RE, "�"), fidelityDamaged: true, damagedOffsets };
+}
+
 export const textlayerLoader: DocLoader = {
   name: "textlayer",
   async load({ sourceS3Key, fileName }): Promise<LoadResult> {
@@ -220,8 +240,8 @@ export const textlayerLoader: DocLoader = {
     // reproduce at all once the input stays a Uint8Array. The retry is gone.)
     const bytes = await getDocumentBytes(sourceS3Key);
     const pages = await extractPagesFromPdf(bytes);
-    const text = buildTextFromPages(pages);
-    // Fidelity and scanned gates are added in Tasks 3 and 4.
-    return { text, fidelityDamaged: false, damagedOffsets: [] };
+    // Scanned-document gate is added in Task 4.
+    const scanned = scanFidelity(buildTextFromPages(pages));
+    return scanned;
   },
 };

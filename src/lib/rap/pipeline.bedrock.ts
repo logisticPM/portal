@@ -339,6 +339,21 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
   // is a substring of it, and no per-chunk plumbing is needed.
   const { extracted, issues } = validateAndFlag(merged, { requireQuote: true, sourceText: documentText });
 
+  // One document-level issue when the SOURCE TEXT was damaged. Individual bad
+  // quotes already fail quote_not_found; without this the reviewer sees N
+  // unexplained quote errors and no reason for them. Any issue makes isClean()
+  // false, so a damaged document can never auto-publish.
+  if (loaded.fidelityDamaged) {
+    issues.push({
+      path: "$document",
+      rule: "source_text_damaged",
+      message:
+        `The extracted source text contains ${loaded.damagedOffsets.length} unmappable character(s) ` +
+        `(offsets ${loaded.damagedOffsets.slice(0, 10).join(", ")}${loaded.damagedOffsets.length > 10 ? ", …" : ""}). ` +
+        "The document's embedded fonts lack Unicode mappings for some glyphs, so quotes may not match the source verbatim. Review manually.",
+    });
+  }
+
   return {
     engine: "claude",
     schemaVersion: (await import("./types")).RAP_SCHEMA_VERSION,
