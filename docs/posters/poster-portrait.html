@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Evaluating Decorrelation in LLM Code Review — Poster (Portrait A0)</title>
+<link rel="stylesheet" href="poster.css">
+<style>
+  @page { size: 841mm 1189mm; margin: 0; }
+  html, body { width: 841mm; height: 1189mm; }
+  .poster { width: 841mm; height: 1189mm; padding: 26mm 28mm 20mm; font-size: 8mm; gap: 12mm; justify-content: space-between; }
+
+  .title h1 { font-size: 23.5mm; }
+  .title .sub { font-size: 9mm; margin-top: 2.5mm; }
+  .title .eyebrow { font-size: 5.2mm; margin-bottom: 5mm; }
+  .title .byline { font-size: 7.2mm; margin-top: 5mm; }
+  .title .affil { font-size: 5.8mm; margin-top: 2mm; }
+
+  .row { display: flex; gap: 11mm; flex: 0 0 auto; }
+  .col { display: flex; flex-direction: column; gap: 7mm; }
+
+  .panel h2 { font-size: 9mm; padding-bottom: 2.2mm; margin-bottom: 4.5mm; gap: 3mm; }
+  .panel p, .panel li { font-size: 7.6mm; }
+  .panel .lede { font-size: 7.8mm; }
+  .panel ul { display: flex; flex-direction: column; gap: 3.8mm; }
+
+  .rung .r-name { font-size: 6.4mm; }
+  .rung .r-sub { font-size: 4.8mm; margin-top: 0.6mm; }
+  .rung { padding: 3.6mm 4mm; }
+  .arrow { font-size: 8mm; }
+  .ds { margin-top: 5mm; }
+  .ds .d b { font-size: 6.2mm; }
+  .ds .d span { font-size: 5mm; display: block; margin-top: 0.6mm; }
+
+  .hero { gap: 14mm; align-items: flex-start; }
+  .hero .beat { flex: 1; }
+  .hero svg { height: 248mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+  .hero .beat .cap { font-size: 6.4mm; margin-top: 3.5mm; }
+
+  .client p { font-size: 7.6mm; }
+  .client .kappa { font-size: 8.2mm; }
+  .ack { font-size: 5.6mm; padding-top: 4mm; margin-top: 2mm; }
+  .foot { font-size: 5.2mm; margin-top: 3mm; }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <!-- ===== TITLE ===== -->
+  <header class="title">
+    <div class="eyebrow"><span>CS 7980 · Research Capstone · Khoury College, Northeastern University</span><span>Showcase 2026</span></div>
+    <h1>More AI Reviewers Help — <span class="thesis">Only If Their Mistakes Differ</span></h1>
+    <div class="sub">Companion to: “Evaluating Decorrelation in LLM Code Review: A Pre-Registered Study”</div>
+    <div class="byline"><b>En-Ping Su · Tong Wu · Shiting Huang · Mengshan Li</b></div>
+    <div class="affil">Khoury College of Computer Sciences, Northeastern University · Vancouver, Canada&nbsp;&nbsp;·&nbsp;&nbsp;Advisor: Yvonne Coady&nbsp;&nbsp;·&nbsp;&nbsp;Industry Partner: Indigenomics Institute (Carol Anne Hilton, Founder)</div>
+  </header>
+
+  <!-- ===== Motivation | Method ===== -->
+  <section class="row">
+    <div class="panel col" style="flex: 0 0 32%;">
+      <h2><span class="num">01</span> Motivation</h2>
+      <p class="lede">LLMs increasingly automate code review, and frameworks split the work across specialized agents — managers, specialists, voters — and price accordingly.</p>
+      <p><b>Does the <em>structure</em> of that collaboration improve review quality, or just cost more?</b> We hold the model, PR snapshot, prompts, and pipeline fixed and vary only structure. Pre-registered on OSF; prompts frozen before any confirmatory data.</p>
+    </div>
+    <div class="panel col" style="flex: 1;">
+      <h2><span class="num">02</span> Method — a four-rung ladder, each rung adds one capability</h2>
+      <div class="ladder">
+        <div class="rung base"><div class="r-name">Agentless</div><div class="r-sub">single pass · 1 call</div></div>
+        <div class="arrow">→</div>
+        <div class="rung"><div class="r-name">Generalists-3</div><div class="r-sub">sample ×3, merge · 3 calls</div></div>
+        <div class="arrow">→</div>
+        <div class="rung"><div class="r-name">Hierarchical</div><div class="r-sub">coordinator + specialists · 3 calls</div></div>
+        <div class="arrow">→</div>
+        <div class="rung"><div class="r-name">Consensus</div><div class="r-sub">debate + vote · 9 calls</div></div>
+      </div>
+      <p style="margin-top:4mm;">Adjacent contrasts isolate <b>sampling</b> vs <b>specialization</b> vs <b>communication</b>. Model held constant: Claude Haiku 4.5. Evaluated on three datasets:</p>
+      <div class="ds">
+        <div class="d"><b>E1 · Qodo</b><span>99 PRs · 1,188 reviews · injected ground truth</span></div>
+        <div class="d"><b>E2 · SWE-PRBench</b><span>50 PRs · 600 reviews · human-reviewer agreement</span></div>
+        <div class="d"><b>E3 · Industrial</b><span>30 PRs · 627 reviews · no oracle</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== HERO ===== -->
+  <section class="panel col" style="flex: 0 0 auto;">
+    <h2><span class="num">03</span> Two results: more agents don’t help — decorrelation does</h2>
+    <div class="hero">
+      <div class="beat">
+        <!--FIG_NULL-->
+        <div class="cap"><b>The null (myth-buster).</b> No multi-agent arm beats single-pass F1. Extra agents raise recall (0.62–0.63 vs 0.50) but halve precision — buying recall at <b>3–9× the calls</b> and <b>5× the cost</b> per confirmed finding.</div>
+      </div>
+      <div class="beat">
+        <!--FIG_DECORR-->
+        <div class="cap"><b>The signal (decorrelation).</b> Three <em>independent</em> model families match injected ground truth <b>89%</b> of the time; one model repeated three times saturates at <b>54%</b>. Independence — not more compute — is what makes agreement predict truth.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Key findings (full width) ===== -->
+  <section class="panel" style="flex: 0 0 auto;">
+    <h2><span class="num">04</span> Key findings (pre-registered, confirmatory)</h2>
+    <ul style="display:grid; grid-template-columns:1fr 1fr; gap:3mm 14mm;">
+      <li><b>Specialization is null:</b> Hierarchical ties Generalists-3 on recall (0.624 vs 0.626, <span class="mono">p=0.73</span>).</li>
+      <li><b>Communication unsupported:</b> Consensus does not beat Hierarchical (Holm <span class="mono">p=0.12</span>) at 5× the cost.</li>
+      <li><b>No arm beats single-pass F1</b> (0.487 vs 0.357–0.378; Holm <span class="mono">p&lt;0.001</span>).</li>
+      <li><b>Grounding bounds recall at a <span class="hot">≈0.83</span> ceiling</b> — linter-recoverable conventions + an execution-reachable functional core.</li>
+      <li><b>Cost rises monotonically</b> along the ladder — efficiency, not quality.</li>
+      <li><b>Self-consistency fails; cross-family agreement lifts precision.</b></li>
+    </ul>
+  </section>
+
+  <!-- ===== Why | Next ===== -->
+  <section class="row">
+    <div class="panel" style="flex: 1.2;">
+      <h2><span class="num">06</span> Why it matters</h2>
+      <ul>
+        <li>Don’t deploy multi-agent review expecting a quality lift — you buy recall, not F1, at 3–9× the cost.</li>
+        <li>Decorrelate verifiers: independent model families, not one model repeating itself.</li>
+        <li>Measure benchmark completeness — a 0.83 recall ceiling means much “imprecision” is the benchmark’s.</li>
+        <li>Treat LLM-judged evaluation on real code as unreliable (κ = 0.03).</li>
+      </ul>
+    </div>
+    <div class="panel" style="flex: 1;">
+      <h2><span class="num">07</span> Next steps · open science</h2>
+      <ul>
+        <li>Tool-grounded verifiers — execution + static analysis as a correctness oracle.</li>
+        <li>All runs, ablations, and artifacts released for replay.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===== Client band ===== -->
+  <section class="panel client col" style="flex: 0 0 auto; padding: 7mm 8mm;">
+    <h2><span class="num">05</span> Where research meets the client: E3 is the Indigenomics RAP platform</h2>
+    <p>Our E3 industrial dataset <em>is</em> the live RAP data platform we built for the <b>Indigenomics Institute</b> — its <b>30 real merged pull requests, 627 reviews</b>. On this unlabeled industrial code the verification relationship reaches its <em>ecological boundary</em>: LLM correctness judges themselves disagree (<span class="kappa">κ = 0.03</span>), so the decorrelation signal that holds on labeled benchmarks cannot be validated without an oracle. The research and the client’s product are one system.</p>
+  </section>
+
+  <!-- ===== ACK ===== -->
+  <footer>
+    <div class="ack"><b>Acknowledgements.</b> Lino Coria Mendoza (weekly progress check-ins). Indigenomics Institute: Shawn Anderson (technical point of contact), Eve Marenghi (scheduling), K. Krasnow Waterman (legal advice). Compute: AWS Bedrock.</div>
+    <div class="foot"><span>Pre-registered on OSF · prompts frozen before confirmatory data</span><span>github.com/SharonHuang77/rap-review-research</span></div>
+  </footer>
+
+</div>
+</body>
+</html>

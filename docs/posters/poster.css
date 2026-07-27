@@ -1,0 +1,84 @@
+/* Revised research poster — shared design layer.
+   Design tokens lifted from Week 9/khoury-cs7980-code-review-topologies.html
+   so this poster reads as part of the team's set. Page boxes (A0 landscape /
+   portrait) are set per-orientation in each poster HTML file's own <style>. */
+
+:root {
+  --paper: #EEF1EB;
+  --ink: #16201B;
+  --muted: #57665D;
+  --faint: #7C8A81;
+  --line: #D6DCD0;
+  --line2: #C4CCBD;
+  --blue: #2C5F82;
+  --green: #1B6A52;
+  --maroon: #8A1A2B;
+  --band: #E4EAE6;
+  --disp: "Helvetica Neue", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --serif: "Palatino Linotype", Palatino, Charter, "Iowan Old Style", Georgia, serif;
+  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+html, body { background: var(--paper); color: var(--ink); font-family: var(--disp); }
+
+.poster { background: var(--paper); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ---- Title block ---- */
+.title { border-bottom: 3px solid var(--ink); padding-bottom: 0.5em; }
+.title .eyebrow { display: flex; justify-content: space-between; align-items: baseline; }
+.title h1 { font-family: var(--disp); font-weight: 820; letter-spacing: -0.015em; line-height: 1.02; color: var(--ink); }
+.title h1 .thesis { color: var(--maroon); font-style: italic; }
+.title .sub { font-family: var(--serif); font-style: italic; color: var(--muted); }
+.title .byline { color: var(--ink); }
+.title .byline b { font-weight: 750; }
+.title .affil { color: var(--muted); }
+
+/* ---- Panels ---- */
+.panel { display: flex; flex-direction: column; }
+.panel h2 { font-family: var(--disp); font-weight: 750; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink); display: flex; align-items: baseline; gap: 0.5em; border-bottom: 1.5px solid var(--line2); }
+.panel h2 .num { font-family: var(--mono); color: var(--maroon); font-weight: 700; }
+.panel p { font-family: var(--disp); line-height: 1.4; color: var(--ink); }
+.panel .lede { font-family: var(--serif); color: var(--ink); }
+.panel ul { list-style: none; }
+.panel li { font-family: var(--disp); line-height: 1.38; color: var(--ink); position: relative; padding-left: 1.1em; }
+.panel li::before { content: "▪"; position: absolute; left: 0; color: var(--blue); }
+.panel li b { font-weight: 750; }
+.serif { font-family: var(--serif); }
+.mono { font-family: var(--mono); }
+.hot { color: var(--maroon); font-weight: 750; }
+.num-big { font-family: var(--disp); font-weight: 820; color: var(--maroon); letter-spacing: -0.02em; }
+
+/* ---- The four-rung ladder chips ---- */
+.ladder { display: flex; align-items: stretch; gap: 0.4em; }
+.rung { flex: 1; border: 1.5px solid var(--line2); border-radius: 8px; padding: 0.5em 0.6em; background: #fff; }
+.rung .r-name { font-family: var(--disp); font-weight: 750; }
+.rung .r-sub { font-family: var(--mono); color: var(--faint); }
+.rung.base { border-color: var(--green); }
+.arrow { align-self: center; color: var(--faint); font-weight: 700; }
+
+/* ---- Datasets ---- */
+.ds { display: flex; gap: 0.5em; }
+.ds .d { flex: 1; border-left: 3px solid var(--blue); padding-left: 0.5em; }
+.ds .d b { font-family: var(--disp); }
+.ds .d span { font-family: var(--mono); color: var(--muted); }
+
+/* ---- Hero two-beat figure ---- */
+.hero { display: flex; gap: 1.2em; }
+.hero .beat { flex: 1; display: flex; flex-direction: column; }
+.hero .beat .cap { font-family: var(--serif); color: var(--muted); line-height: 1.36; }
+.hero img { width: 100%; height: auto; }
+
+/* ---- Client panel ---- */
+.client { border-left: 8px solid var(--blue); background: var(--band); border-radius: 4px; }
+.client h2 { border-bottom: none; }
+.client .kappa { color: var(--maroon); font-weight: 820; }
+
+/* ---- Acknowledgements ---- */
+.ack { font-family: var(--serif); color: var(--muted); border-top: 1.5px solid var(--line2); }
+.foot { font-family: var(--serif); font-style: italic; color: var(--faint); display: flex; justify-content: space-between; }
+
+.tag { font-family: var(--mono); border-radius: 6px; padding: 0.1em 0.5em; }
+.tag.rescue { background: #DCEAE2; color: var(--green); }
+.tag.noise { background: #F3DEE1; color: var(--maroon); }

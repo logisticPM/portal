@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 400" font-family="'Helvetica Neue',Arial,sans-serif">
+  <!-- Per-arm semantic F1 (E1 Qodo, 99 PRs) — values from Table III -->
+  <!-- y: value v -> 350 - v*500 ; plot 0..0.6 over y 350..50 -->
+  <!-- gridlines -->
+  <g stroke="#C4CCBD" stroke-width="1">
+    <line x1="60" y1="350" x2="660" y2="350"/>
+    <line x1="60" y1="250" x2="660" y2="250"/>
+    <line x1="60" y1="150" x2="660" y2="150"/>
+    <line x1="60" y1="50"  x2="660" y2="50"/>
+  </g>
+  <g font-family="'SF Mono',Menlo,monospace" font-size="15" fill="#7C8A81" text-anchor="end">
+    <text x="52" y="355">0</text>
+    <text x="52" y="255">0.2</text>
+    <text x="52" y="155">0.4</text>
+    <text x="52" y="55">0.6</text>
+  </g>
+
+  <!-- single-pass reference line at F1 = 0.487 (y = 106.5) -->
+  <line x1="60" y1="106.5" x2="660" y2="106.5" stroke="#8A1A2B" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="656" y="100" text-anchor="end" font-size="15" font-style="italic" fill="#8A1A2B">single-pass F1 = 0.487 — no team beats it</text>
+
+  <!-- bars: slot centers 135,285,435,585 ; bar width 92 -->
+  <!-- Agentless 0.487 (green) -->
+  <rect x="89"  y="106.5" width="92" height="243.5" fill="#1B6A52"/>
+  <!-- Generalists-3 0.357 -->
+  <rect x="239" y="171.5" width="92" height="178.5" fill="#2C5F82"/>
+  <!-- Hierarchical 0.378 -->
+  <rect x="389" y="161"   width="92" height="189"   fill="#2C5F82"/>
+  <!-- Consensus 0.369 -->
+  <rect x="539" y="165.5" width="92" height="184.5" fill="#2C5F82"/>
+
+  <!-- value labels -->
+  <g font-size="19" font-weight="700" fill="#16201B" text-anchor="middle">
+    <text x="135" y="98">0.487</text>
+    <text x="285" y="163">0.357</text>
+    <text x="435" y="152">0.378</text>
+    <text x="585" y="157">0.369</text>
+  </g>
+
+  <!-- arm names -->
+  <g font-size="17" fill="#16201B" text-anchor="middle">
+    <text x="135" y="375" font-weight="700">Agentless</text>
+    <text x="285" y="375">Generalists-3</text>
+    <text x="435" y="375">Hierarchical</text>
+    <text x="585" y="375">Consensus</text>
+  </g>
+  <!-- call counts -->
+  <g font-family="'SF Mono',Menlo,monospace" font-size="14" fill="#7C8A81" text-anchor="middle">
+    <text x="135" y="396">1 call</text>
+    <text x="285" y="396">3 calls</text>
+    <text x="435" y="396">3 calls</text>
+    <text x="585" y="396">9 calls</text>
+  </g>
+</svg>
