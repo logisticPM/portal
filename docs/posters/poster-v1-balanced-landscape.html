@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>V1 balanced — More AI Reviewers Don't Help, Decorrelation Does (Landscape A0)</title>
+<link rel="stylesheet" href="poster.css">
+<style>
+  @page { size: 1189mm 841mm; margin: 0; }
+  html, body { width: 1189mm; height: 841mm; }
+  .poster { width: 1189mm; height: 841mm; padding: 16mm 24mm 11mm; font-size: 7mm; gap: 6mm; justify-content: space-between; }
+
+  .title { border-bottom: 3px solid var(--ink); padding-bottom: 3.5mm; }
+  .title .eyebrow { display: flex; justify-content: space-between; font-size: 4.6mm; margin-bottom: 2.2mm; }
+  .title h1 { font-size: 26mm; line-height: 1.0; }
+  .title h1 .thesis { color: var(--maroon); font-style: normal; }
+  .title .sub { font-size: 7.2mm; font-style: normal; margin-top: 3mm; max-width: 1090mm; line-height: 1.3; }
+  .title .paper { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 5.8mm; margin-top: 1.8mm; }
+  .title .byline { font-size: 5.8mm; margin-top: 2.6mm; }
+  .title .affil { font-family: var(--disp); color: var(--muted); font-size: 4.7mm; margin-top: 1.1mm; }
+
+  /* contribution banner — 15% shorter than the previous build */
+  .banner { display: flex; gap: 11mm; background: #F5E3E6; border: 2.5px solid var(--maroon); border-radius: 5mm; padding: 5.5mm 9mm; align-items: center; flex: 0 0 auto; }
+  .banner .b-txt { flex: 1.15; display: flex; flex-direction: column; gap: 2.8mm; }
+  .b-eyebrow { font-family: var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--maroon); font-size: 4.5mm; }
+  .banner .b-head { font-family: var(--disp); font-weight: 800; font-size: 12mm; line-height: 1.05; color: var(--ink); }
+  .banner .b-head em { color: var(--maroon); font-style: normal; }
+  .b-stats { display: flex; gap: 9mm; }
+  .b-stats .s { display: flex; flex-direction: column; }
+  .b-stats .n { font-family: var(--disp); font-weight: 820; font-size: 22mm; line-height: 1; letter-spacing: -.02em; color: var(--maroon); }
+  .b-stats .s.grey .n { color: var(--muted); }
+  .b-stats .l { font-size: 4.4mm; color: var(--muted); margin-top: 1.2mm; max-width: 84mm; line-height: 1.2; }
+  .banner .b-fig { flex: 0.85; display: flex; flex-direction: column; align-items: center; }
+  .banner .b-fig svg { width: 100%; height: auto; max-height: 152mm; }
+  .banner .b-fig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 4.1mm; margin-top: .8mm; text-align: center; }
+
+  /* three columns */
+  .cols { display: grid; grid-template-columns: 0.92fr 1.22fr 1fr; gap: 7mm; flex: 0 0 auto; }
+  .col { display: flex; flex-direction: column; gap: 3.4mm; }
+  h2 { font-family: var(--disp); font-weight: 750; text-transform: uppercase; letter-spacing: .03em; font-size: 6.8mm; color: var(--ink); border-bottom: 1.5px solid var(--line2); padding-bottom: 1.4mm; display: flex; align-items: baseline; gap: 2.2mm; }
+  h2 .num { font-family: var(--mono); color: var(--maroon); font-weight: 700; }
+  h2 .scope { font-family: var(--mono); font-size: 4.1mm; color: var(--faint); font-weight: 400; letter-spacing: .04em; }
+  .col p { font-size: 6.2mm; line-height: 1.36; }
+  .who { font-family: var(--mono); font-size: 4.2mm; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+  .hot { color: var(--maroon); font-weight: 750; }
+  .mono { font-family: var(--mono); }
+  b { font-weight: 750; }
+
+  .callout { border-left: 4px solid var(--green); background: #E4EAE6; border-radius: 3mm; padding: 3mm 4mm; }
+  .callout .ct { font-family: var(--mono); font-size: 3.9mm; text-transform: uppercase; letter-spacing: .06em; color: var(--green); }
+  .callout p { font-size: 5.6mm; margin-top: 1.2mm; }
+
+  /* product block */
+  .prod { display: flex; gap: 4mm; }
+  .prod .pc { flex: 1; background: #fff; border: 1.2px solid var(--line); border-radius: 3mm; padding: 3mm 3.5mm; }
+  .prod .pc .ph { font-family: var(--mono); font-size: 4.4mm; text-transform: uppercase; letter-spacing: .06em; color: var(--blue); margin-bottom: 1.6mm; }
+  .prod .pc ul { list-style: none; display: flex; flex-direction: column; gap: 1.2mm; }
+  .prod .pc li { font-size: 5.2mm; line-height: 1.28; position: relative; padding-left: 3.6mm; }
+  .prod .pc li::before { content: "▪"; position: absolute; left: 0; color: var(--blue); }
+
+  /* screenshots + annotations */
+  .shots { display: flex; gap: 4mm; }
+  .ss { flex: 1; display: flex; flex-direction: column; }
+  .ss .frame { border: 1.3px solid #CFC7B4; border-radius: 2.5mm; overflow: hidden; background: #EFE9DB; }
+  .ss .bar { display: flex; align-items: center; gap: 1.4mm; padding: 1.6mm 2.6mm; background: #E5DBC6; border-bottom: 1px solid #D8CDB6; }
+  .ss .bar i { width: 1.9mm; height: 1.9mm; border-radius: 50%; background: #CDBE9E; }
+  .ss .url { margin-left: 1.2mm; font-family: var(--mono); font-size: 3mm; color: #8a7a55; }
+  .ss .win { height: 96mm; overflow: hidden; background: #EFE9DB; display: flex; align-items: flex-start; justify-content: center; }
+  .ss .win img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+  .ss .anno { margin-top: 1.6mm; display: flex; flex-direction: column; gap: .9mm; }
+  .ss .anno .t { font-family: var(--disp); font-weight: 750; font-size: 5.2mm; }
+  .ss .anno span { font-size: 4.6mm; color: var(--muted); line-height: 1.2; padding-left: 4mm; position: relative; }
+  .ss .anno span::before { content: "◂"; position: absolute; left: 0; color: var(--blue); }
+
+  /* stat tiles */
+  .tiles { display: flex; gap: 2.4mm; }
+  .tile { flex: 1; background: #fff; border: 1.2px solid var(--line); border-radius: 2.5mm; padding: 2.4mm 1.6mm; text-align: center; }
+  .tile .n { font-family: var(--disp); font-weight: 800; font-size: 7.6mm; line-height: 1; color: var(--ink); }
+  .tile .l { font-size: 4.1mm; color: var(--muted); margin-top: 1.1mm; line-height: 1.15; }
+
+  .kfig svg { width: 100%; height: auto; max-height: 120mm; }
+  .kfig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 4mm; margin-top: .8mm; text-align: center; }
+
+  /* bridge strip */
+  .bridge { flex: 0 0 auto; }
+  .bflow { display: flex; align-items: stretch; gap: 2mm; margin-top: 3mm; }
+  .bnode { flex: 1; border: 1.4px solid var(--line2); border-radius: 3mm; background: #fff; padding: 3mm 2.6mm; display: flex; flex-direction: column; justify-content: center; }
+  .bnode.client { border-color: var(--green); background: #E4EAE6; }
+  .bnode.res { border-color: var(--maroon); background: #F5E3E6; }
+  .bnode .bt { font-family: var(--disp); font-weight: 750; font-size: 5.6mm; line-height: 1.1; }
+  .bnode .bs { font-size: 4.6mm; color: var(--muted); margin-top: 1.2mm; line-height: 1.2; }
+  .barr { align-self: center; color: var(--faint); font-weight: 700; font-size: 6mm; }
+
+  /* impact + QR */
+  .foot { display: flex; gap: 6mm; flex: 0 0 auto; }
+  .impact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; flex: 1; }
+  .impact .blk { background: var(--ink); color: var(--paper); border-radius: 4mm; padding: 6mm 6.5mm 6.5mm; display: flex; flex-direction: column; }
+  .impact h3 { font-family: var(--mono); font-size: 4.5mm; text-transform: uppercase; letter-spacing: .12em; color: #E0B84B; }
+  .impact .rule { height: 1.4mm; width: 24mm; background: #E0B84B; border-radius: 1mm; margin: 3mm 0 3.6mm; }
+  .impact p { font-size: 6mm; line-height: 1.44; }
+  .impact b { color: #fff; font-weight: 750; }
+  .qr { display: flex; gap: 5mm; flex: 0 0 auto; align-items: stretch; }
+  .qr .q { background: #fff; border: 1.4px solid var(--line); border-radius: 4mm; padding: 4mm 4mm 3mm; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 62mm; }
+  .qr .q img { width: 46mm; height: 46mm; display: block; }
+  .qr .q .lbl { font-family: var(--mono); font-size: 3.8mm; color: var(--muted); margin-top: 2.4mm; text-align: center; line-height: 1.2; }
+  .qr .q .lbl b { color: var(--ink); display: block; font-size: 4.4mm; }
+
+  .ack { font-family: var(--serif); font-size: 4.2mm; color: var(--muted); border-top: 1.2px solid var(--line2); padding-top: 2.2mm; display: flex; justify-content: space-between; gap: 10mm; flex: 0 0 auto; }
+  .ack b { color: var(--ink); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <header class="title">
+    <div class="eyebrow"><span>CS 7980 · Research Capstone · Khoury College, Northeastern University</span><span>Showcase 2026</span></div>
+    <h1>More AI Reviewers Don't Help — <span class="thesis">Decorrelation Does</span></h1>
+    <div class="sub">Large language models increasingly review production code. We built a data platform for the <b>Indigenomics Institute</b>, then used it to ask whether multi-agent AI reviewers actually beat a single reviewer — <b>validated on 30 real pull requests from the software we shipped for our industry partner.</b></div>
+    <div class="paper">Companion to: “Evaluating Decorrelation in LLM Code Review: A Pre-Registered Study”</div>
+    <div class="byline"><b>En-Ping Su · Tong Wu · Shiting Huang · Mengshan Li</b></div>
+    <div class="affil">Khoury College of Computer Sciences, Northeastern University · Vancouver&nbsp;&nbsp;·&nbsp;&nbsp;Advisor: Yvonne Coady&nbsp;&nbsp;·&nbsp;&nbsp;Industry Partner: Indigenomics Institute (Carol Anne Hilton, Founder)</div>
+  </header>
+
+  <section class="banner">
+    <div class="b-txt">
+      <div class="b-eyebrow">The research contribution</div>
+      <div class="b-head">Agreement predicts truth — but <em>only</em> when the reviewers are independent.</div>
+      <div class="b-stats">
+        <div class="s"><div class="n">89%</div><div class="l">three <b>independent</b> model families that agree match injected ground truth</div></div>
+        <div class="s grey"><div class="n">54%</div><div class="l">one model run three times — agreement is mostly noise</div></div>
+      </div>
+    </div>
+    <div class="b-fig">
+      <!--FIG_DECORR-->
+      <div class="cap">Golden-match rate by number of sources agreeing (E1 · Qodo, injected ground truth).</div>
+    </div>
+  </section>
+
+  <section class="cols">
+    <!-- 01 -->
+    <div class="col">
+      <h2><span class="num">01</span> The client problem</h2>
+      <p>Canadian companies publish <b>Reconciliation Action Plan</b> commitments, and the legal precedents that shape them sit scattered across court records. There is no unified, searchable, verifiable view — so progress can't be tracked.</p>
+      <div class="callout">
+        <div class="ct">Grounded in</div>
+        <p>Carol Anne Hilton's economic-reconciliation framework — an economic lens, not a case summarizer.</p>
+      </div>
+      <div class="who" style="margin-top:1mm">What we shipped</div>
+      <div class="tiles">
+        <div class="tile"><div class="n">AWS</div><div class="l">serverless deploy</div></div>
+        <div class="tile"><div class="n">2</div><div class="l">data lenses</div></div>
+        <div class="tile"><div class="n">AI</div><div class="l">PDF extraction</div></div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="n">106</div><div class="l">commitments</div></div>
+        <div class="tile"><div class="n">100</div><div class="l">organizations</div></div>
+        <div class="tile"><div class="n">561</div><div class="l">legal decisions</div></div>
+      </div>
+    </div>
+
+    <!-- 02 -->
+    <div class="col">
+      <h2><span class="num">02</span> The RAP Data Portal</h2>
+      <div class="prod">
+        <div class="pc">
+          <div class="ph">What it does</div>
+          <ul>
+            <li>Searchable RAP commitments, scored by progress</li>
+            <li>Indigenous legal-precedent database</li>
+            <li>AI extraction from published PDFs</li>
+            <li>Human review before anything publishes</li>
+          </ul>
+        </div>
+        <div class="pc">
+          <div class="ph">Who uses it</div>
+          <ul>
+            <li>Indigenomics Institute</li>
+            <li>Indigenous organizations &amp; nations</li>
+            <li>Corporate partners reporting progress</li>
+            <li>Researchers &amp; legal advisors</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shots">
+        <div class="ss">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i><span class="url">indigenomics · RAP Index</span></div>
+            <div class="win"><img src="rap.png" alt="RAP Index"></div>
+          </div>
+          <div class="anno">
+            <div class="t">RAP Index</div>
+            <span>106 commitments, 100 organizations</span>
+            <span>63% average progress tracked</span>
+            <span>auto-generated plain-language takeaways</span>
+          </div>
+        </div>
+        <div class="ss">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i><span class="url">indigenomics · Legal Cases</span></div>
+            <div class="win"><img src="legal.png" alt="Legal Cases"></div>
+          </div>
+          <div class="anno">
+            <div class="t">Legal Cases</div>
+            <span>561 economic-justice decisions</span>
+            <span>citation-anchored, every claim sourced</span>
+            <span>role-based views (nation · advisor · corporate)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 03 -->
+    <div class="col">
+      <h2><span class="num">03</span> Research findings <span class="scope">· E1 · Qodo, 99 PRs</span></h2>
+      <p><b>Structure is null.</b> No multi-agent arm beats single-pass F1; specialists tie compute-matched sampling (<span class="mono">p=0.73</span>); peer debate adds nothing over a manager (<span class="mono">p=0.12</span>).</p>
+      <p><b>Decorrelation pays — on precision,</b> not coverage (<span class="hot">89% vs 54%</span>). <b>Bounded:</b> recall plateaus at <span class="hot">≈0.83</span>; on our own unlabeled code, LLM judges disagree (<span class="hot">κ=0.03</span>).</p>
+      <div class="kfig">
+        <!--FIG_NULL-->
+      </div>
+      <div class="kfig">
+        <!--FIG_COST-->
+        <div class="cap">Extra agents buy recall at up to 5× the cost per confirmed finding.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BRIDGE -->
+  <section class="bridge">
+    <h2><span class="num">04</span> How the project became the research</h2>
+    <div class="bflow">
+      <div class="bnode client"><div class="bt">Client problem</div><div class="bs">reconciliation data is scattered &amp; unverifiable</div></div>
+      <div class="barr">→</div>
+      <div class="bnode"><div class="bt">We built the portal</div><div class="bs">production platform on AWS, shipped to the Institute</div></div>
+      <div class="barr">→</div>
+      <div class="bnode"><div class="bt">30 real pull requests</div><div class="bs">merged while building it — AI reviewed the code</div></div>
+      <div class="barr">→</div>
+      <div class="bnode"><div class="bt">E3 industrial dataset</div><div class="bs">627 reviews on unlabeled real code, no oracle</div></div>
+      <div class="barr">→</div>
+      <div class="bnode"><div class="bt">Four architectures</div><div class="bs">Agentless → Generalists-3 → Hierarchical → Consensus</div></div>
+      <div class="barr">→</div>
+      <div class="bnode res"><div class="bt">Findings</div><div class="bs">decorrelation is the lever, not structure</div></div>
+    </div>
+  </section>
+
+  <!-- IMPACT + QR -->
+  <section class="foot">
+    <div class="impact">
+      <div class="blk"><h3>Project impact</h3><div class="rule"></div><p>A production platform delivered to the <b>Indigenomics Institute</b> — reconciliation commitments and legal precedents, verifiable and searchable in one place.</p></div>
+      <div class="blk"><h3>Research impact</h3><div class="rule"></div><p>Don't deploy multi-agent review expecting a quality lift. <b>Decorrelate your verifiers</b> — independent model families — and read their agreement as a precision signal.</p></div>
+      <div class="blk"><h3>Next steps</h3><div class="rule"></div><p>Tool-grounded verifiers — execution and static analysis as a correctness oracle. <b>Open science:</b> all runs, ablations &amp; artifacts released for replay.</p></div>
+    </div>
+    <div class="qr">
+      <div class="q"><img src="qr-code.svg" alt="QR to code"><div class="lbl"><b>Code &amp; data</b>rap-review-research</div></div>
+      <div class="q"><img src="qr-demo.svg" alt="QR to live demo"><div class="lbl"><b>Live portal</b>try the demo</div></div>
+    </div>
+  </section>
+
+  <div class="ack">
+    <span><b>Acknowledgements.</b> Lino Coria Mendoza (weekly progress check-ins) · Indigenomics Institute: Shawn Anderson (technical contact), Eve Marenghi (scheduling), K. Krasnow Waterman (legal advice) · Compute: AWS Bedrock.</span>
+    <span style="white-space:nowrap"><b>Pre-registered on OSF</b> · held constant: same PR snapshot · same model (Claude Haiku 4.5) · same prompts · three runs per arm</span>
+  </div>
+
+</div>
+</body>
+</html>
