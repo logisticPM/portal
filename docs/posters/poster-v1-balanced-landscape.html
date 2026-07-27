@@ -36,7 +36,7 @@
   .banner .b-fig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 4.1mm; margin-top: .8mm; text-align: center; }
 
   /* three columns */
-  .cols { display: grid; grid-template-columns: 0.92fr 1.22fr 1fr; gap: 7mm; flex: 0 0 auto; }
+  .cols { display: grid; grid-template-columns: 0.82fr 1.46fr 0.98fr; gap: 7mm; flex: 0 0 auto; }
   .col { display: flex; flex-direction: column; gap: 3.4mm; }
   h2 { font-family: var(--disp); font-weight: 750; text-transform: uppercase; letter-spacing: .03em; font-size: 6.8mm; color: var(--ink); border-bottom: 1.5px solid var(--line2); padding-bottom: 1.4mm; display: flex; align-items: baseline; gap: 2.2mm; }
   h2 .num { font-family: var(--mono); color: var(--maroon); font-weight: 700; }
@@ -60,17 +60,19 @@
   .prod .pc li::before { content: "▪"; position: absolute; left: 0; color: var(--blue); }
 
   /* screenshots + annotations */
-  .shots { display: flex; gap: 4mm; }
-  .ss { flex: 1; display: flex; flex-direction: column; }
+  .shots { display: flex; flex-direction: column; gap: 3.4mm; }
+  .ss { display: flex; gap: 4mm; align-items: flex-start; }
+  .ss .frame { flex: 0 0 48%; }
+  .ss .anno { flex: 1; margin-top: 0 !important; }
   .ss .frame { border: 1.3px solid #CFC7B4; border-radius: 2.5mm; overflow: hidden; background: #EFE9DB; }
   .ss .bar { display: flex; align-items: center; gap: 1.4mm; padding: 1.6mm 2.6mm; background: #E5DBC6; border-bottom: 1px solid #D8CDB6; }
   .ss .bar i { width: 1.9mm; height: 1.9mm; border-radius: 50%; background: #CDBE9E; }
   .ss .url { margin-left: 1.2mm; font-family: var(--mono); font-size: 3mm; color: #8a7a55; }
-  .ss .win { height: 96mm; overflow: hidden; background: #EFE9DB; display: flex; align-items: flex-start; justify-content: center; }
-  .ss .win img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+  .ss .win { overflow: hidden; background: #EFE9DB; display: block; }
+  .ss .win img { width: 100%; height: auto; display: block; }
   .ss .anno { margin-top: 1.6mm; display: flex; flex-direction: column; gap: .9mm; }
-  .ss .anno .t { font-family: var(--disp); font-weight: 750; font-size: 5.2mm; }
-  .ss .anno span { font-size: 4.6mm; color: var(--muted); line-height: 1.2; padding-left: 4mm; position: relative; }
+  .ss .anno .t { font-family: var(--disp); font-weight: 750; font-size: 5.6mm; }
+  .ss .anno span { font-size: 5mm; color: var(--muted); line-height: 1.2; padding-left: 4mm; position: relative; }
   .ss .anno span::before { content: "◂"; position: absolute; left: 0; color: var(--blue); }
 
   /* stat tiles */
