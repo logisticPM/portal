@@ -221,6 +221,22 @@ export function scanFidelity(text: string): { text: string; fidelityDamaged: boo
   return { text: text.replace(DAMAGE_RE, "�"), fidelityDamaged: true, damagedOffsets };
 }
 
+// Heuristics, not laws — tuned against the two real RAPs we have (BoC 17pp /
+// 21,994 chars ~= 1,294 per page; TMX 2pp / 3,805 ~= 1,902 per page) with wide
+// margin so a genuinely terse document is not mistaken for a scan. Change these
+// only against a measured document, never by feel.
+const MIN_TOTAL_CHARS = 200;
+const MIN_CHARS_PER_PAGE = 50;
+
+/** Throw ScannedDocumentError when the document carries no usable text layer. */
+export function assertHasTextLayer(text: string, pageCount: number, fileName: string): void {
+  // Page markers are ours, not the document's — exclude them so a 40-page scan
+  // does not look content-rich purely because it has 40 "[p.N]" lines.
+  const body = text.replace(/^\[p\.[^\]]*\]$/gm, "").trim();
+  if (body.length < MIN_TOTAL_CHARS) throw new ScannedDocumentError(fileName);
+  if (pageCount > 0 && body.length / pageCount < MIN_CHARS_PER_PAGE) throw new ScannedDocumentError(fileName);
+}
+
 export const textlayerLoader: DocLoader = {
   name: "textlayer",
   async load({ sourceS3Key, fileName }): Promise<LoadResult> {
@@ -240,8 +256,8 @@ export const textlayerLoader: DocLoader = {
     // reproduce at all once the input stays a Uint8Array. The retry is gone.)
     const bytes = await getDocumentBytes(sourceS3Key);
     const pages = await extractPagesFromPdf(bytes);
-    // Scanned-document gate is added in Task 4.
     const scanned = scanFidelity(buildTextFromPages(pages));
+    assertHasTextLayer(scanned.text, pages.length, fileName);
     return scanned;
   },
 };
