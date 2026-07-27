@@ -4,7 +4,8 @@ built = src.replace('.html', '.built.html')
 html = pathlib.Path(src).read_text()
 for token, path in [('<!--FIG_NULL-->','fig-null.svg'),
                     ('<!--FIG_DECORR-->','fig-decorrelation.svg'),
-                    ('<!--FIG_COST-->','fig-cost.svg')]:
+                    ('<!--FIG_COST-->','fig-cost.svg'),
+                    ('<!--FIG_ARCH-->','fig-architectures.svg')]:
     if token in html:
         html = html.replace(token, pathlib.Path(path).read_text())
 pathlib.Path(built).write_text(html)
