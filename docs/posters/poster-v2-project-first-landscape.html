@@ -78,7 +78,10 @@
   .bnode .bs { font-size: 5.3mm; color: var(--muted); margin-top: .8mm; line-height: 1.18; }
   .bdn { text-align: center; color: var(--faint); font-size: 5mm; line-height: 1; }
 
-  /* four-architecture mini diagram */
+  .archfig { border: 1.3px solid var(--line2); border-radius: 3mm; background: #fff; padding: 2.4mm; }
+  .archfig img { width: 100%; height: auto; display: block; }
+
+  /* four-architecture mini diagram (superseded by .archfig) */
   .arch { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.2mm; margin-top: 1mm; }
   .ac { border: 1.3px solid var(--line2); border-radius: 3mm; background: #fff; padding: 2.6mm 1.8mm; display: flex; flex-direction: column; align-items: center; gap: 1.4mm; }
   .ac.base { border-color: var(--green); }
@@ -241,29 +244,7 @@
         <div class="bdn">↓</div>
         <div class="bnode res"><div class="bt">Four AI review architectures</div><div class="bs">each rung adds exactly one capability</div></div>
       </div>
-      <div class="arch">
-        <div class="ac base">
-          <div class="an">Agentless</div>
-          <svg viewBox="0 0 60 62"><rect x="18" y="2" width="24" height="11" rx="2" fill="#EEF1EB" stroke="#57665D" stroke-width="1.4"/><text x="30" y="10" font-size="7" text-anchor="middle" fill="#16201B" font-family="Helvetica">PR</text><line x1="30" y1="13" x2="30" y2="24" stroke="#1B6A52" stroke-width="1.6" marker-end="url(#a1)"/><circle cx="30" cy="33" r="9" fill="#E0EFE7" stroke="#1B6A52" stroke-width="1.5"/><text x="30" y="36" font-size="6.5" text-anchor="middle" fill="#1B6A52" font-family="Helvetica">LLM</text><line x1="30" y1="42" x2="30" y2="52" stroke="#1B6A52" stroke-width="1.6"/><rect x="16" y="52" width="28" height="9" rx="2" fill="#fff" stroke="#9AA79E" stroke-width="1.2"/><defs><marker id="a1" markerWidth="6" markerHeight="6" refX="4" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 Z" fill="#1B6A52"/></marker></defs></svg>
-          <div class="ax">1 call</div>
-        </div>
-        <div class="ac">
-          <div class="an">Generalists-3</div>
-          <svg viewBox="0 0 60 62"><rect x="18" y="2" width="24" height="11" rx="2" fill="#EEF1EB" stroke="#57665D" stroke-width="1.4"/><text x="30" y="10" font-size="7" text-anchor="middle" fill="#16201B" font-family="Helvetica">PR</text><g stroke="#2C5F82" stroke-width="1.4"><line x1="30" y1="13" x2="11" y2="24"/><line x1="30" y1="13" x2="30" y2="24"/><line x1="30" y1="13" x2="49" y2="24"/></g><circle cx="11" cy="31" r="6.5" fill="#E3EAF1" stroke="#2C5F82" stroke-width="1.3"/><circle cx="30" cy="31" r="6.5" fill="#E3EAF1" stroke="#2C5F82" stroke-width="1.3"/><circle cx="49" cy="31" r="6.5" fill="#E3EAF1" stroke="#2C5F82" stroke-width="1.3"/><g stroke="#2C5F82" stroke-width="1.4"><line x1="11" y1="38" x2="30" y2="46"/><line x1="30" y1="38" x2="30" y2="46"/><line x1="49" y1="38" x2="30" y2="46"/></g><rect x="14" y="46" width="32" height="10" rx="2" fill="#fff" stroke="#9AA79E" stroke-width="1.2"/><text x="30" y="53" font-size="5.4" text-anchor="middle" fill="#57665D" font-family="Helvetica">merge</text></svg>
-          <div class="ax">3 calls</div>
-        </div>
-        <div class="ac">
-          <div class="an">Hierarchical</div>
-          <svg viewBox="0 0 60 62"><rect x="12" y="2" width="36" height="11" rx="2" fill="#E3EAF1" stroke="#2C5F82" stroke-width="1.4"/><text x="30" y="10" font-size="5.6" text-anchor="middle" fill="#2C5F82" font-family="Helvetica">coordinator</text><g stroke="#2C5F82" stroke-width="1.4"><line x1="30" y1="13" x2="11" y2="24"/><line x1="30" y1="13" x2="30" y2="24"/><line x1="30" y1="13" x2="49" y2="24"/></g><rect x="4" y="24" width="14" height="11" rx="2" fill="#fff" stroke="#2C5F82" stroke-width="1.2"/><rect x="23" y="24" width="14" height="11" rx="2" fill="#fff" stroke="#2C5F82" stroke-width="1.2"/><rect x="42" y="24" width="14" height="11" rx="2" fill="#fff" stroke="#2C5F82" stroke-width="1.2"/><g stroke="#2C5F82" stroke-width="1.4"><line x1="11" y1="35" x2="30" y2="46"/><line x1="30" y1="35" x2="30" y2="46"/><line x1="49" y1="35" x2="30" y2="46"/></g><rect x="13" y="46" width="34" height="10" rx="2" fill="#fff" stroke="#9AA79E" stroke-width="1.2"/><text x="30" y="53" font-size="5.2" text-anchor="middle" fill="#57665D" font-family="Helvetica">synthesis</text></svg>
-          <div class="ax">3 calls</div>
-        </div>
-        <div class="ac">
-          <div class="an">Consensus</div>
-          <svg viewBox="0 0 60 62"><circle cx="11" cy="9" r="6.5" fill="#F5E3E6" stroke="#8A1A2B" stroke-width="1.3"/><circle cx="30" cy="9" r="6.5" fill="#F5E3E6" stroke="#8A1A2B" stroke-width="1.3"/><circle cx="49" cy="9" r="6.5" fill="#F5E3E6" stroke="#8A1A2B" stroke-width="1.3"/><g stroke="#8A1A2B" stroke-width="1.2" stroke-dasharray="2 2"><line x1="17.5" y1="9" x2="23.5" y2="9"/><line x1="36.5" y1="9" x2="42.5" y2="9"/></g><g stroke="#8A1A2B" stroke-width="1.4"><line x1="11" y1="16" x2="30" y2="26"/><line x1="30" y1="16" x2="30" y2="26"/><line x1="49" y1="16" x2="30" y2="26"/></g><rect x="10" y="26" width="40" height="11" rx="2" fill="#fff" stroke="#8A1A2B" stroke-width="1.2"/><text x="30" y="33.5" font-size="5.4" text-anchor="middle" fill="#8A1A2B" font-family="Helvetica">discussion</text><line x1="30" y1="37" x2="30" y2="45" stroke="#8A1A2B" stroke-width="1.4"/><rect x="16" y="45" width="28" height="11" rx="2" fill="#fff" stroke="#8A1A2B" stroke-width="1.2"/><text x="30" y="52.5" font-size="5.4" text-anchor="middle" fill="#8A1A2B" font-family="Helvetica">vote</text></svg>
-          <div class="ax">9 calls</div>
-        </div>
-      </div>
-      <p style="font-size:5.4mm;color:var(--muted);font-family:var(--serif);font-style:italic">Held constant: same PR snapshot · same model (Claude Haiku 4.5) · same prompts · three runs per arm · pre-registered on OSF.</p>
+      <div class="archfig"><img src="four-rung-architecture.png" alt="Four AI review architectures"></div>
     </div>
 
     <!-- RIGHT: RESEARCH -->
