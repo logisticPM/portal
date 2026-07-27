@@ -4,6 +4,11 @@ Practical steps to record the notifications feature. The feature is delivered on
 branch `feat/overdue-notifications` (spec `docs/superpowers/specs/2026-07-25-…`,
 plan `docs/superpowers/plans/2026-07-25-…`).
 
+> **Current state (2026-07-27):** the SES setup in step 1 below has **not** been done —
+> no identity is verified in `ca-central-1`, and `DIGEST_SENDER`/`DIGEST_RECIPIENT` are
+> empty on the deployed `ca` stage, so digests currently record `email: skipped`.
+> Do step 1 before recording. See `docs/notifications-delivery-status.md`.
+
 ## What the demo shows
 The institute logs in, clicks one button, and an overdue-milestone digest
 (overdue / at-risk counts + per-org breakdown) appears **in-app** *and* arrives
