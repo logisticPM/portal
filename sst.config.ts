@@ -182,7 +182,7 @@ export default $config({
       // ca stage with EXTRACTION_IMPL=bedrock; prod runs BDA so it never bit there).
       { actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"], resources: ["*"] },
       { actions: ["bedrock:InvokeDataAutomationAsync", "bedrock:GetDataAutomationStatus"], resources: ["*"] },
-      { actions: ["textract:AnalyzeDocument", "textract:StartDocumentTextDetection", "textract:GetDocumentTextDetection", "textract:DetectDocumentText"], resources: ["*"] },
+      { actions: ["textract:AnalyzeDocument", "textract:StartDocumentTextDetection", "textract:GetDocumentTextDetection", "textract:DetectDocumentText", "textract:StartDocumentAnalysis", "textract:GetDocumentAnalysis"], resources: ["*"] },
     ];
 
     // Recompute alignment opportunities when a commitment changes. Declared here
