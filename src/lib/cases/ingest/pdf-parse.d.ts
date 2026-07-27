@@ -25,6 +25,14 @@ declare module "pdf-parse/lib/pdf-parse.js" {
     pagerender?: (pageData: PdfPageData) => Promise<string>;
     max?: number;
   }
-  function pdfParse(dataBuffer: Buffer, options?: PdfParseOptions): Promise<PdfParseResult>;
+  // Accepts a plain Uint8Array as well as Buffer: pdf-parse's bundled pdf.js
+  // (v1.10.100) mishandles a Node Buffer's prototype in its Node "fake
+  // worker" postMessage-clone path (LoopbackPort, pdf.js/v1.10.100/build/
+  // pdf.js:3914-3996) for small inputs (~1.1-2.9KB), corrupting the parse
+  // deterministically. A plain Uint8Array over the SAME bytes is unaffected
+  // at every size tested (2026-07-27, this repo: 20/20 fresh-process passes
+  // for Uint8Array vs 10/10 fresh-process failures for Buffer, isolated
+  // single-attempt calls). See src/lib/rap/doc-loader/textlayer.ts.
+  function pdfParse(dataBuffer: Buffer | Uint8Array, options?: PdfParseOptions): Promise<PdfParseResult>;
   export default pdfParse;
 }
