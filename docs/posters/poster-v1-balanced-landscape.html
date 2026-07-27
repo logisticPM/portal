@@ -29,6 +29,8 @@
   .b-stats .n { font-family: var(--disp); font-weight: 820; font-size: 22mm; line-height: 1; letter-spacing: -.02em; color: var(--maroon); }
   .b-stats .s.grey .n { color: var(--muted); }
   .b-stats .l { font-size: 4.4mm; color: var(--muted); margin-top: 1.2mm; max-width: 84mm; line-height: 1.2; }
+  .banner .implic { border-top: 1.4px solid rgba(138,26,43,.35); padding-top: 3mm; margin-top: 1mm; font-family: var(--serif); font-size: 5.6mm; line-height: 1.34; color: var(--ink); }
+  .banner .implic b { font-weight: 700; color: var(--maroon); }
   .banner .b-fig { flex: 0.85; display: flex; flex-direction: column; align-items: center; }
   .banner .b-fig svg { width: 100%; height: auto; max-height: 152mm; }
   .banner .b-fig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 4.1mm; margin-top: .8mm; text-align: center; }
@@ -76,6 +78,29 @@
   .tile { flex: 1; background: #fff; border: 1.2px solid var(--line); border-radius: 2.5mm; padding: 2.4mm 1.6mm; text-align: center; }
   .tile .n { font-family: var(--disp); font-weight: 800; font-size: 7.6mm; line-height: 1; color: var(--ink); }
   .tile .l { font-size: 4.1mm; color: var(--muted); margin-top: 1.1mm; line-height: 1.15; }
+
+  .cimp { border-left: 4px solid var(--blue); background: #E3EAF1; border-radius: 3mm; padding: 3mm 4mm; }
+  .cimp .ct { font-family: var(--mono); font-size: 3.9mm; text-transform: uppercase; letter-spacing: .06em; color: var(--blue); margin-bottom: 1.4mm; }
+  .cimp ul { list-style: none; display: flex; flex-direction: column; gap: 1.1mm; }
+  .cimp li { font-size: 4.9mm; line-height: 1.22; position: relative; padding-left: 3.6mm; }
+  .cimp li::before { content: "▪"; position: absolute; left: 0; color: var(--blue); }
+
+  /* architecture strip (real AWS icons) */
+  .arch { display: flex; align-items: center; gap: 1.4mm; }
+  .arch .n { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .arch .n img { width: 15mm; height: 15mm; display: block; }
+  .arch .n .l { font-size: 3.7mm; color: var(--ink); margin-top: 1.2mm; line-height: 1.1; font-weight: 700; }
+  .arch .n .s { font-family: var(--mono); font-size: 3.2mm; color: var(--muted); line-height: 1.1; }
+  .arch .a { color: var(--faint); font-weight: 700; font-size: 5mm; margin-bottom: 5mm; }
+
+  /* workflow strip */
+  .flow { display: flex; align-items: stretch; gap: 1.6mm; }
+  .flow .st { flex: 1; border: 1.2px solid var(--line2); border-radius: 2.6mm; background: #fff; padding: 2.4mm 2mm; text-align: center; }
+  .flow .st .k { font-family: var(--mono); font-size: 3.4mm; color: var(--maroon); font-weight: 700; }
+  .flow .st .t { font-family: var(--disp); font-weight: 750; font-size: 4.4mm; margin-top: .8mm; line-height: 1.12; }
+  .flow .st .d { font-size: 3.7mm; color: var(--muted); margin-top: .7mm; line-height: 1.14; }
+  .flow .st.human { border-color: var(--maroon); background: #F9EEF0; }
+  .flow .a { align-self: center; color: var(--faint); font-weight: 700; font-size: 4.6mm; }
 
   .kfig svg { width: 100%; height: auto; max-height: 120mm; }
   .kfig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 4mm; margin-top: .8mm; text-align: center; }
@@ -128,6 +153,7 @@
         <div class="s"><div class="n">89%</div><div class="l">three <b>independent</b> model families that agree match injected ground truth</div></div>
         <div class="s grey"><div class="n">54%</div><div class="l">one model run three times — agreement is mostly noise</div></div>
       </div>
+      <div class="implic"><b>So what?</b> If you are deploying AI code review, spend the budget on <b>independent verifiers</b> — different model families — not on more agents of the same kind. Agreement is only evidence when the reviewers could have failed differently.</div>
     </div>
     <div class="b-fig">
       <!--FIG_DECORR-->
@@ -154,6 +180,28 @@
         <div class="tile"><div class="n">106</div><div class="l">commitments</div></div>
         <div class="tile"><div class="n">100</div><div class="l">organizations</div></div>
         <div class="tile"><div class="n">561</div><div class="l">legal decisions</div></div>
+      </div>
+      <div class="who" style="margin-top:1.5mm">How it's built — serverless on AWS</div>
+      <div class="arch">
+        <div class="n"><img src="icons/aws-cloudfront.svg"><div class="l">CloudFront</div><div class="s">edge</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-lambda.svg"><div class="l">Next.js</div><div class="s">on Lambda</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-textract.svg"><div class="l">Textract</div><div class="s">OCR</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-bedrock.svg"><div class="l">Bedrock</div><div class="s">extraction</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-dynamodb.svg"><div class="l">DynamoDB</div><div class="s">×6 tables</div></div>
+      </div>
+      <p style="font-size:4.6mm;color:var(--muted);font-family:var(--serif);font-style:italic;margin-top:.5mm">Data stays in <b>ca-central-1</b>; AI inference geo-routes to us-east-1 — the OCAP residency boundary.</p>
+      <div class="cimp">
+        <div class="ct">What the Institute can now do</div>
+        <ul>
+          <li>See every tracked commitment and its progress in one view</li>
+          <li>Get a weekly digest of what has gone <b>overdue</b></li>
+          <li>Trace any claim back to the published source document</li>
+          <li>Read the legal precedent beside the corporate promise</li>
+        </ul>
       </div>
     </div>
 
@@ -205,6 +253,16 @@
             <span>role-based views (nation · advisor · corporate)</span>
           </div>
         </div>
+      </div>
+      <div class="who" style="margin-top:1.5mm">How a commitment gets in</div>
+      <div class="flow">
+        <div class="st"><div class="k">01</div><div class="t">Upload</div><div class="d">published RAP PDF</div></div>
+        <div class="a">→</div>
+        <div class="st"><div class="k">02</div><div class="t">AI extract</div><div class="d">Textract → Bedrock, grounded to source</div></div>
+        <div class="a">→</div>
+        <div class="st human"><div class="k">03</div><div class="t">Human review</div><div class="d">institute confirms before publish</div></div>
+        <div class="a">→</div>
+        <div class="st"><div class="k">04</div><div class="t">Published</div><div class="d">searchable &amp; tracked</div></div>
       </div>
     </div>
 
