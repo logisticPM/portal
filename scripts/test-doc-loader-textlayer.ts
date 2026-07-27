@@ -23,6 +23,15 @@ check("paragraphs are blank-line separated", text.split("\n\n").length === 3, JS
 check("page order preserved", text.indexOf("Alpha") < text.indexOf("Beta"));
 check("empty paragraphs dropped", !buildTextFromPages([["", "   "], ["Real"]]).includes("[p.1]"));
 
+// A page whose extraction produced zero paragraphs (the "hole" that
+// extractPagesFromPdf's pageIndex-based backfill can leave when a page's
+// pagerender threw and was caught+swallowed by pdf-parse) must not shift
+// later pages' markers — index into `pages` is the source of truth, not a
+// running counter of pages that produced text.
+const withHole = buildTextFromPages([["Page one text"], [], ["Page three text"]]);
+check("a paragraph-less page leaves no marker of its own", !withHole.includes("[p.2]"), withHole);
+check("a later page still reports its TRUE page number past a hole", withHole.includes("[p.3]\nPage three text"), withHole);
+
 // --- groupItemsIntoParagraphs: geometry -------------------------------------
 // transform is a 6-element matrix; [4] is x, [5] is y. Larger y = higher on page.
 const item = (str: string, y: number, x = 50) => ({ str, transform: [1, 0, 0, 1, x, y] });
@@ -43,6 +52,23 @@ check("same-y items form one line ordered by x", oneLine[0] === "Hello world", J
 // Uniform spacing = a single paragraph.
 const uniform = groupItemsIntoParagraphs([item("a", 700), item("b", 688), item("c", 676), item("d", 664)]);
 check("uniform line spacing stays one paragraph", uniform.length === 1, `got ${uniform.length}`);
+
+// A 3-line page has exactly TWO gaps — the specific size where an earlier
+// version of the threshold (upper median = sorted[Math.floor(2/2)] =
+// sorted[1] = the LARGER of the two gaps) picked the outlier gap itself as
+// the baseline, inflating the threshold past the very gap meant to trigger a
+// split. Minimum-gap fixes it: the baseline is the tight, same-paragraph
+// spacing, not the break itself.
+const threeUniform = groupItemsIntoParagraphs([item("First", 700), item("Second", 688), item("Third", 676)]);
+check("3-line page, uniform spacing, stays one paragraph", threeUniform.length === 1, `got ${threeUniform.length}`);
+
+const threeWithBreak = groupItemsIntoParagraphs([item("First", 700), item("Second", 688), item("Third", 636)]);
+check("3-line page, one large gap, splits into two paragraphs", threeWithBreak.length === 2, `got ${threeWithBreak.length}`);
+check(
+  "3-line split keeps the two close lines together",
+  threeWithBreak[0] === "First\nSecond" && threeWithBreak[1] === "Third",
+  JSON.stringify(threeWithBreak),
+);
 
 check("no items yields no paragraphs", groupItemsIntoParagraphs([]).length === 0);
 

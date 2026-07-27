@@ -21,10 +21,12 @@ export interface TextItem {
   transform: number[];
 }
 
-// A new paragraph starts when the vertical gap exceeds this multiple of the
-// page's own median line gap. Relative, not absolute, so it holds across font
-// sizes. 1.5 is the usual typographic paragraph lead; tune only with a
-// measurement, never by feel.
+// A new paragraph starts when the vertical gap exceeds this multiple of a
+// "typical single-line gap" baseline (see groupItemsIntoParagraphs for how
+// that baseline is derived — page-local minimum gap, or font size as a
+// fallback when a page is too sparse to have one). Relative, not absolute, so
+// it holds across font sizes. 1.5 is the usual typographic paragraph lead;
+// tune only with a measurement, never by feel.
 const PARAGRAPH_GAP_RATIO = 1.5;
 // Two glyph runs within this many points of the same baseline are one line.
 const SAME_LINE_EPSILON = 2;
@@ -64,27 +66,34 @@ export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
   // 2. paragraphs: split where the gap exceeds a "typical single-line gap"
   // times PARAGRAPH_GAP_RATIO.
   //
-  // With >=2 gaps (>=3 lines), the baseline is this page's own median gap —
-  // self-adapting to whatever font size and leading the page happens to use.
+  // With >=2 gaps (>=3 lines), the baseline is the page's own MINIMUM gap —
+  // i.e. its tightest, most-likely-same-paragraph line spacing. Reviewed
+  // 2026-07-27: an earlier version used the page's UPPER median instead
+  // (`sorted[Math.floor(n/2)]`), which for exactly 2 gaps (a 3-line page)
+  // picks the LARGER of the two gaps as the baseline — inflating the
+  // threshold past the very gap meant to trigger the split, so a genuine
+  // paragraph break on a 3-line page silently failed to split (reproduced:
+  // gaps [12, 40] -> old threshold 40*1.5=60, so even the 40pt break gap
+  // didn't clear it). Minimum-gap fixes this: threshold 12*1.5=18, so the
+  // 40pt gap correctly splits while the 12pt one doesn't.
   //
   // With exactly ONE gap (a 2-line page) there is no OTHER gap on the page to
-  // build a median from: "median" of a single value degenerates to that
-  // value itself, and a gap can never be > 1.5x itself. Left as-is, every
-  // 2-line page — cover pages, short closing pages, anything sparse, all
-  // common in real RAPs — would silently collapse into a single paragraph no
-  // matter how large the gap actually was (caught 2026-07-27 via this
-  // module's own two-paragraph fixture: a 54pt gap between two 12pt-font
-  // lines was not detected). Fall back to the line's own font size as the
-  // baseline instead — sized so the same 12pt-font fixture still splits
-  // (54 > 12*1.5) while ordinary same-paragraph leading does not (14 < 18).
+  // build ANY page-local baseline from — min, median, or mean of a
+  // single-element set all equal that element itself, so "gap > 1.5x
+  // baseline" is unsatisfiable no matter which aggregate is used; this is an
+  // arithmetic fact, not a choice of statistic. Left unhandled, every 2-line
+  // page — cover pages, short closing pages, anything sparse, all common in
+  // real RAPs — would silently collapse into a single paragraph no matter how
+  // large the gap actually was (caught 2026-07-27 via this module's own
+  // two-paragraph fixture: a 54pt gap between two 12pt-font lines was not
+  // detected). Fall back to the line's own font size as the baseline instead
+  // — sized so the same 12pt-font fixture still splits (54 > 12*1.5) while
+  // ordinary same-paragraph leading does not (14 < 18).
   const gaps = rendered.slice(1).map((l, i) => rendered[i].y - l.y);
   const threshold =
     gaps.length === 1
       ? Math.max(rendered[0].fontSize, rendered[1].fontSize) * PARAGRAPH_GAP_RATIO
-      : (() => {
-          const sorted = [...gaps].sort((a, b) => a - b);
-          return (sorted[Math.floor(sorted.length / 2)] || 0) * PARAGRAPH_GAP_RATIO;
-        })();
+      : Math.min(...gaps) * PARAGRAPH_GAP_RATIO;
 
   const paragraphs: string[] = [];
   let current = [rendered[0].text];
@@ -109,30 +118,49 @@ export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
 // the source buffer). On a cold process this races: the deferred delivery
 // can read a buffer whose backing bytes were already reused for something
 // else, and pdf.js throws a structural parse error (InvalidPDFException /
-// "bad XRef entry") — measured empirically against pdf-lib fixtures
-// (2026-07-27, this repo, Node 24): it always fails LOUD, never returns
-// wrong-but-unflagged text, converges within <=4 consecutive failures per
-// process, and once past that warm-up stays reliable for the rest of the
-// process's life. That last property matters for Lambda: only the first
-// invocation on a fresh (cold) container pays this cost, since a warm
-// container reuses the same process for later invocations. Retrying here is
-// therefore safe (a failure is always an exception we can observe, never
-// silent corruption) and cheap (pure CPU, no repeated I/O) — the alternative
-// would be a document loader that spuriously fails ~1 time in 3 on every cold
-// start. PARSE_RETRY_LIMIT carries 2x headroom over the observed worst case.
+// "bad XRef entry") — measured empirically against THIS module's own fixture
+// (2026-07-27, this repo, Node 24, pdf-lib's default useObjectStreams:true
+// output): it always fails LOUD, never returns wrong-but-unflagged text,
+// converges within <=4 consecutive failures per process, and once past that
+// warm-up stays reliable for the rest of the process's life.
+//
+// Tried and rejected: allocating the input as a non-pooled, exact-size buffer
+// (Buffer.allocUnsafeSlow + copy, avoiding Node's <4096-byte Buffer-pool
+// aliasing) does NOT fix this — measured 15/15 single-attempt failures on
+// this exact fixture with a fully unpooled buffer, and even combined with
+// retry it still needed 2-4 attempts every time, no fewer than plain pooled
+// buffers. So pool aliasing is a real, separate, secondary hazard (worth
+// knowing about) but is not what causes the failures this retry loop guards
+// against; the retry is the load-bearing fix, not the allocation strategy.
+//
+// Retrying is safe (a failure here is always an exception we can observe,
+// never silent corruption — confirmed above) and cheap (pure CPU, no
+// repeated I/O). It also matters less for Lambda than the raw retry count
+// suggests: only the first invocation on a fresh (cold) container pays this
+// cost, since a warm container reuses the same process — and therefore the
+// same already-warmed pdf.js — for every later invocation.
+// PARSE_RETRY_LIMIT carries 2x headroom over the observed worst case.
 const PARSE_RETRY_LIMIT = 8;
 
-async function parseOnce(buf: Buffer): Promise<string[][]> {
+async function parseOnce(buf: Buffer): Promise<{ pages: string[][]; numpages: number }> {
   const pages: string[][] = [];
-  await pdfParse(buf, {
+  const result = await pdfParse(buf, {
     pagerender: async (pageData) => {
-      const content = await pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false });
-      const paras = groupItemsIntoParagraphs(content.items);
-      pages.push(paras);
+      const paras = groupItemsIntoParagraphs((await pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false })).items);
+      // Index by pdf.js's own pageIndex, NOT push order. pdf-parse's page
+      // loop is `doc.getPage(i).then(pagerender).catch(() => "")` (see
+      // node_modules/pdf-parse/lib/pdf-parse.js) — it SWALLOWS any exception
+      // this callback throws (a getTextContent rejection, or a bug in
+      // groupItemsIntoParagraphs) and moves on to the next page. Pushing
+      // would silently skip that page's slot, shifting every later page's
+      // "[p.N]" marker off by one with no exception for the retry loop above
+      // to even see. Assigning by pageIndex means a failed page leaves a
+      // hole (undefined) at its OWN index instead of shifting anything else.
+      pages[pageData.pageIndex] = paras;
       return paras.join("\n\n");
     },
   });
-  return pages;
+  return { pages, numpages: result.numpages };
 }
 
 /** Per-page paragraph arrays, page order preserved. */
@@ -140,7 +168,17 @@ export async function extractPagesFromPdf(buf: Buffer): Promise<string[][]> {
   let lastErr: unknown;
   for (let attempt = 0; attempt < PARSE_RETRY_LIMIT; attempt++) {
     try {
-      return await parseOnce(buf);
+      const { pages, numpages } = await parseOnce(buf);
+      // Backfill any hole left by a page whose pagerender threw (see the
+      // comment above) with an empty paragraph list, up to the document's
+      // real page count — not just `pages.length`, since a hole on the LAST
+      // page would otherwise shrink the array instead of leaving a gap.
+      // buildTextFromPages emits nothing for an empty page and simply moves
+      // on, so later pages keep their true "[p.N]".
+      for (let i = 0; i < numpages; i++) {
+        if (!pages[i]) pages[i] = [];
+      }
+      return pages;
     } catch (err) {
       lastErr = err;
     }
