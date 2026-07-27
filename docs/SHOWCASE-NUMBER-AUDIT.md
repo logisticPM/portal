@@ -82,6 +82,35 @@ F1 comparison is a four-way tie rather than a single-pass win, so the scope matt
 
 ---
 
+## Pre-registration provenance (checked 2026-07-26)
+
+The posters claim "pre-registered on OSF" and the paper is titled *A Pre-Registered
+Study*. **Verified accurate**, with two caveats worth knowing:
+
+- **Registration:** `2z4vj` — "Multi-Agent Architectures for AI-Assisted Code Review —
+  Test-Time Compute Allocation", **registered 2026-07-09 17:29**, i.e. before the
+  confirmatory campaign. Source: `rap-review-research/docs/experiment/15-osf-amendment-capability-submission.md`.
+- **It is under embargo.** `https://api.osf.io/v2/registrations/2z4vj/` returns
+  **404 / Not found** to an anonymous caller, which is how an embargoed registration
+  presents publicly. The posters therefore cite it as **text** — "registration 2z4vj
+  (embargoed)" — and deliberately do **not** carry an OSF QR code, which would send
+  showcase visitors to a private page. Add the QR only once the embargo lifts.
+- ⚠️ **Stale doc:** `rap-review-research/docs/experiment/04-preregistration.md` still
+  reads "Status: Draft for co-author review (not yet submitted to OSF)" (dated
+  2026-07-08). That line is out of date and contradicts the completed registration —
+  worth correcting so it doesn't mislead a co-author or reviewer.
+
+## Paper title (checked against origin/main, 2026-07-26)
+
+Commit `e4800bb` retitled the Week 13 paper. The **current** title is
+**"Evaluating Decorrelation in LLM Code Review: A Pre-Registered Study"** — which is
+exactly what the posters carry as their companion line, so no change was needed. (The
+prior title was "Evaluating Multi-Agent Review Workflows for Automated Code Review: A
+Pre-Registered Study of Decorrelation and Its Limits".) Byline also matches.
+
+> Note: the local `rap-review-research` clone was **98 commits behind** origin/main when
+> this was checked; it was fetched as part of the audit. Re-check before printing.
+
 ## Known scope notes (accurate, but worth knowing if questioned)
 
 - **"No multi-agent arm beats single-pass F1"** is exact on E1 (Holm p<0.001) and holds on
