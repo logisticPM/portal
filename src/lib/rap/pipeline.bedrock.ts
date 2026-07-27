@@ -13,7 +13,7 @@
 import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { resolveBedrockModelId } from "./bedrock-model";
-import { DEFAULT_TARGET_CHARS, type DocChunk, chunkDocument, splitInHalf } from "./chunk";
+import { type DocChunk, chunkDocument, splitInHalf } from "./chunk";
 import { deriveClassification, derivePillars } from "./classify";
 import { selectLoader } from "./doc-loader";
 import {
@@ -351,6 +351,25 @@ export async function runExtractionBedrock(input: { fileName: string; sourceS3Ke
         `The extracted source text contains ${loaded.damagedOffsets.length} unmappable character(s) ` +
         `(offsets ${loaded.damagedOffsets.slice(0, 10).join(", ")}${loaded.damagedOffsets.length > 10 ? ", …" : ""}). ` +
         "The document's embedded fonts lack Unicode mappings for some glyphs, so quotes may not match the source verbatim. Review manually.",
+    });
+  }
+
+  // One document-level issue when most pages carried no extractable text. This
+  // is NOT a scan verdict — a designed RAP legitimately has full-bleed photo
+  // pages and sparse dividers — which is exactly why it is an issue and not a
+  // rejection (see textlayer.ts MIN_PAGE_COVERAGE_RATIO). The reviewer is the
+  // one who can tell a photo-heavy RAP from a partly-scanned one; all we can
+  // honestly say is which pages produced nothing.
+  if (loaded.lowPageCoverage) {
+    const { coveredPages, pageCount } = loaded.lowPageCoverage;
+    issues.push({
+      path: "$document",
+      rule: "low_page_coverage",
+      message:
+        `Only ${coveredPages} of ${pageCount} page(s) carried enough embedded text to extract from. ` +
+        "The remaining pages may be scanned images or photo pages, so this extraction may be INCOMPLETE — " +
+        "any commitment on a page that produced no text is missing entirely, not merely unquoted. " +
+        "Check the source document's empty-looking pages before confirming.",
     });
   }
 

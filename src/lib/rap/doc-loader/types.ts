@@ -13,6 +13,16 @@ export interface LoadResult {
   fidelityDamaged: boolean;
   /** Character offsets into `text` where damage was found. Reviewer context only. */
   damagedOffsets: number[];
+  /**
+   * Set when too few of the document's pages individually carried extractable
+   * text — the document may be partly scanned, so the extraction may be
+   * missing whole pages. NOT a rejection: the pipeline turns this into a
+   * document-level ValidationIssue so the document routes to human review
+   * (see textlayer.ts's MIN_PAGE_COVERAGE_RATIO for why this is an issue and
+   * not an error). Null when coverage is fine, or when the loader has no
+   * per-page view of the document at all (textract).
+   */
+  lowPageCoverage: { coveredPages: number; pageCount: number } | null;
 }
 
 export interface DocLoader {

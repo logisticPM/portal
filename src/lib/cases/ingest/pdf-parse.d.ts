@@ -11,10 +11,18 @@ declare module "pdf-parse/lib/pdf-parse.js" {
     version: string;
   }
   // A pdf.js TextItem: `str` is the glyph run, `transform` is a 6-element
-  // matrix where [4]=x and [5]=y in PDF user space (origin bottom-left).
+  // matrix where [4]=x and [5]=y in PDF user space (origin bottom-left), and
+  // `width` is the run's advance width in those same units — so the run's
+  // right edge is transform[4] + width. Verified against this bundled pdf.js
+  // (2026-07-27): every item in a getTextContent result carries `width`
+  // (e.g. {str:"Recon", width:34.68, transform:[12,0,0,12,50,660]} followed by
+  // {str:"ciliation", transform:[...,84.68,660]} — abutting to the point).
+  // src/lib/rap/doc-loader/textlayer.ts uses it to tell an intra-word run
+  // boundary from a real space, and a column gutter from a word gap.
   interface PdfTextItem {
     str: string;
     transform: number[];
+    width: number;
   }
   interface PdfPageData {
     pageIndex: number;

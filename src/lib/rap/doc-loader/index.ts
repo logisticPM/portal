@@ -3,7 +3,7 @@ import { textlayerLoader } from "./textlayer";
 import type { DocLoader } from "./types";
 
 export * from "./types";
-export { buildTextFromLayoutBlocks, splitOversizedBlockText } from "./textract";
+export { buildTextFromLayoutBlocks } from "./textract";
 
 // Explicit selection only. An unset or unrecognised DOC_LOADER is a deploy
 // misconfiguration, and this project has been bitten twice by quiet defaults

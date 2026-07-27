@@ -108,8 +108,14 @@ export function buildTextFromLayoutBlocks(blocks: Block[]): string {
   const pushParagraph = (page: number | undefined, text: string) => {
     const t = text.trim();
     if (!t) return;
-    for (const piece of splitOversizedBlockText(t, DEFAULT_TARGET_CHARS)) {
-      paragraphs.push(`[p.${page ?? "?"}]\n${piece}`);
+    // Split against the target MINUS the marker about to be prepended —
+    // splitting against the full target then prepending yields a block over
+    // the target, which chunkDocument's splitLargeParagraph re-splits while
+    // keeping the marker only on the first piece. See buildTextFromPages in
+    // textlayer.ts for the same subtraction.
+    const marker = `[p.${page ?? "?"}]\n`;
+    for (const piece of splitOversizedBlockText(t, DEFAULT_TARGET_CHARS - marker.length)) {
+      paragraphs.push(`${marker}${piece}`);
     }
   };
 
@@ -171,6 +177,13 @@ async function loadViaTextract(sourceS3Key: string, fileName: string): Promise<s
     );
     return new TextDecoder().decode(await getDocumentBytes(sourceS3Key));
   }
+  // Anything that is neither a PDF nor the .txt diagnostic path is refused by
+  // FILE TYPE, with the same error the textlayer loader raises — both loaders
+  // sit behind the same DocLoader interface and a caller must not have to know
+  // which one it got in order to know what an unsupported file looks like.
+  // (Before this, an unknown extension fell straight through to the Textract
+  // API and surfaced as whatever AWS chose to say about it.)
+  if (!/\.pdf$/i.test(fileName)) throw new UnsupportedDocumentError(fileName);
   if (!uploadBucket) throw new Error("RAP_UPLOAD_BUCKET not set (needed for Textract S3 input)");
 
   const start = await textract.send(
@@ -207,6 +220,8 @@ export const textractLoader: DocLoader = {
   name: "textract",
   async load({ sourceS3Key, fileName }): Promise<LoadResult> {
     const text = await loadViaTextract(sourceS3Key, fileName);
-    return { text, fidelityDamaged: false, damagedOffsets: [] };
+    // Textract's blocks carry a Page number but this loader never reconstructs
+    // per-page paragraph arrays, so it has no per-page coverage view to report.
+    return { text, fidelityDamaged: false, damagedOffsets: [], lowPageCoverage: null };
   },
 };

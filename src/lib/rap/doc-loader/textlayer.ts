@@ -19,7 +19,19 @@ import { type DocLoader, type LoadResult, ScannedDocumentError, UnsupportedDocum
 export interface TextItem {
   str: string;
   transform: number[];
+  /**
+   * Advance width of this glyph run, in the same user-space points as
+   * transform[4]. pdf.js populates it on every text item, so `transform[4] +
+   * width` is the run's right edge — which is what makes both the intra-word
+   * join and the column detection below possible. Treated defensively at
+   * every use site: a non-finite width degrades to the older, geometry-free
+   * behaviour rather than producing a confident wrong answer.
+   */
+  width: number;
 }
+
+const runLeft = (i: TextItem): number => i.transform[4];
+const runRight = (i: TextItem): number => i.transform[4] + i.width;
 
 // A new paragraph starts when the vertical gap exceeds this multiple of a
 // "typical single-line gap" baseline (see groupItemsIntoParagraphs for how
@@ -36,6 +48,58 @@ const SAME_LINE_EPSILON = 2;
 // than PARAGRAPH_GAP_RATIO.
 const SPARSE_PAGE_GAP_RATIO = 2;
 
+// Two glyph runs on the same baseline are the SAME WORD unless the horizontal
+// gap between them exceeds this multiple of the left run's font size. PDF
+// producers (InDesign in particular) routinely emit a kerned or tracked word
+// as several separately-positioned runs with no space character between them;
+// joining every run with " " turns "Reconciliation" into "Recon ciliation",
+// which then fails validate.ts's verbatim quote check for a reason that has
+// nothing to do with the model. A real inter-word space is ~0.25-0.33x font
+// size in the standard fonts (Helvetica's space glyph is 0.278 em), and a
+// kerning adjustment is well under 0.05 em, so 0.2 sits comfortably between
+// the two bands.
+const WORD_SPACE_RATIO = 0.2;
+
+// --- multi-column pages ----------------------------------------------------
+// Bucketing purely by baseline y merges a two-column page's two columns into
+// one line each ("Left col line one Right col line one"), because both
+// columns share baselines. That is silent: the page number stays correct and
+// validate.ts's quote_not_found still passes, because the interleaved text
+// genuinely IS what the model was shown. The Textract LAYOUT path this loader
+// replaces resolved columns for us (see textract.ts); this is the replacement.
+//
+// A gutter is only accepted as a column boundary when ALL of the following
+// hold. Each guard exists because the failure mode of OVER-detecting is worse
+// than the failure mode of under-detecting: RAPs commonly TABLE their
+// commitments, and reading a table column-major separates every action from
+// its timeline and owner. Under-detection leaves a page exactly as it is
+// today; over-detection actively scrambles the rows commitments live in.
+//
+//  1. The horizontal gap exceeds COLUMN_GUTTER_RATIO of the page's own text
+//     width (max right edge - min left edge, i.e. margins excluded). 0.15 is
+//     deliberately generous: on a 500pt text block that is a 75pt gutter, far
+//     wider than any table's cell padding and wider than a tight two-column
+//     gutter. Consequence, stated plainly: a two-column layout with a narrow
+//     (~20-40pt) gutter is NOT resolved by this and still interleaves. That
+//     is the conservative side of the trade, chosen because we have no
+//     document corpus to measure the real distribution against — the same
+//     posture as every other constant in this file. Tighten it only against
+//     measured documents.
+//  2. The SAME gutter x appears on at least MIN_COLUMN_ROWS lines. One line
+//     with a wide gap is a right-aligned page number, a dot-leaderless table
+//     of contents entry, or a header/footer pair — not a layout structure. A
+//     header plus a footer gives two such lines, so the floor is three.
+//  3. The result is at most MAX_COLUMNS bands, each at least
+//     MIN_COLUMN_WIDTH_RATIO of the text width. Real body columns are wide;
+//     many narrow bands mean a table.
+//
+// When no boundary survives, groupItemsIntoParagraphs takes a single-column
+// path that is byte-identical to its pre-column behaviour.
+const COLUMN_GUTTER_RATIO = 0.15;
+const MIN_COLUMN_ROWS = 3;
+const MAX_COLUMNS = 3;
+const MIN_COLUMN_WIDTH_RATIO = 0.15;
+
 // A glyph run's font size, read straight off its own transform (for
 // unrotated text — the only kind a digitally-produced RAP PDF has —
 // transform = [size, 0, 0, size, x, y], so transform[3] is the size in user
@@ -47,21 +111,35 @@ function approxFontSize(item: TextItem): number {
   return Math.abs(item.transform[3]) || Math.abs(item.transform[0]) || 12;
 }
 
-/** Group a page's glyph runs into paragraphs, in reading order. */
-export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
-  const printable = items.filter((i) => i.str.trim() !== "");
-  if (printable.length === 0) return [];
-
-  // 1. lines: bucket by baseline y (descending — PDF origin is bottom-left)
-  const lines: { y: number; items: TextItem[] }[] = [];
-  for (const it of [...printable].sort((a, b) => b.transform[5] - a.transform[5])) {
-    const y = it.transform[5];
-    const last = lines[lines.length - 1];
-    if (last && Math.abs(last.y - y) <= SAME_LINE_EPSILON) last.items.push(it);
-    else lines.push({ y, items: [it] });
+/**
+ * Join one line's glyph runs (already sorted left-to-right) into text,
+ * inserting a space ONLY where the geometry shows a real gap. See
+ * WORD_SPACE_RATIO. If a run's width is missing or non-finite we cannot
+ * measure the gap, so we fall back to the older unconditional " " — an extra
+ * space is a recoverable nuisance, a missing word boundary is not.
+ */
+function joinRuns(sorted: TextItem[]): string {
+  let out = "";
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0) {
+      const prev = sorted[i - 1];
+      const gap = runLeft(sorted[i]) - runRight(prev);
+      if (!Number.isFinite(gap) || gap > approxFontSize(prev) * WORD_SPACE_RATIO) out += " ";
+    }
+    out += sorted[i].str;
   }
-  const rendered = lines.map((l) => ({
-    y: l.y,
+  return out.replace(/\s+/g, " ").trim();
+}
+
+interface RenderedLine {
+  y: number;
+  fontSize: number;
+  text: string;
+}
+
+function renderLine(y: number, sorted: TextItem[]): RenderedLine {
+  return {
+    y,
     // MIN, not max, across a line's own glyphs: a single larger glyph
     // sharing a baseline with normal body text (a drop cap, an inline
     // heading fragment, a table cell with a bigger font) must not inflate
@@ -70,10 +148,105 @@ export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
     // a genuine paragraph break (reproduced 2026-07-27: a 24pt glyph sharing
     // a line with 12pt text raised a max-based threshold to 36, missing a
     // real 30pt break; min-based gives 12*2=24, correctly catching it).
-    fontSize: Math.min(...l.items.map(approxFontSize)),
-    text: [...l.items].sort((a, b) => a.transform[4] - b.transform[4]).map((i) => i.str).join(" ").replace(/\s+/g, " ").trim(),
-  }));
+    fontSize: Math.min(...sorted.map(approxFontSize)),
+    text: joinRuns(sorted),
+  };
+}
 
+/** Bucket glyph runs into baseline lines (descending y — PDF origin is bottom-left). */
+function bucketIntoLines(printable: TextItem[]): { y: number; items: TextItem[] }[] {
+  const lines: { y: number; items: TextItem[] }[] = [];
+  for (const it of [...printable].sort((a, b) => b.transform[5] - a.transform[5])) {
+    const y = it.transform[5];
+    const last = lines[lines.length - 1];
+    if (last && Math.abs(last.y - y) <= SAME_LINE_EPSILON) last.items.push(it);
+    else lines.push({ y, items: [it] });
+  }
+  for (const l of lines) l.items.sort((a, b) => runLeft(a) - runLeft(b));
+  return lines;
+}
+
+/** Split one line's runs wherever the horizontal gap exceeds `minGutter`. */
+function fragmentLine(sorted: TextItem[], minGutter: number): TextItem[][] {
+  const frags: TextItem[][] = [[sorted[0]]];
+  // Against the running MAX right edge, not just the previous run's: runs are
+  // sorted by left edge, and a short run nested inside a wider one (a
+  // superscript, an overlapping underline glyph) would otherwise report a
+  // false gap to whatever follows it.
+  let reach = runRight(sorted[0]);
+  for (let i = 1; i < sorted.length; i++) {
+    if (runLeft(sorted[i]) - reach > minGutter) frags.push([sorted[i]]);
+    else frags[frags.length - 1].push(sorted[i]);
+    reach = Math.max(reach, runRight(sorted[i]));
+  }
+  return frags;
+}
+
+/**
+ * Column boundary x-positions for this page, or [] when the page is
+ * single-column (the overwhelmingly common case, and the one that must stay
+ * bit-for-bit unchanged). See the COLUMN_GUTTER_RATIO comment block for why
+ * each guard is here.
+ */
+function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]): number[] {
+  const all = lines.flatMap((l) => l.items);
+  // Column geometry is unavailable without run widths — degrade to single
+  // column rather than guess.
+  if (!all.every((i) => Number.isFinite(i.width) && i.width >= 0)) return [];
+  const left = Math.min(...all.map(runLeft));
+  const right = Math.max(...all.map(runRight));
+  const textWidth = right - left;
+  if (!(textWidth > 0)) return [];
+  const minGutter = textWidth * COLUMN_GUTTER_RATIO;
+
+  // Every wide same-baseline gap on the page is a candidate gutter.
+  const candidates: { lo: number; hi: number }[] = [];
+  for (const l of lines) {
+    // Running max right edge, for the same reason fragmentLine uses one.
+    let reach = l.items.length > 0 ? runRight(l.items[0]) : 0;
+    for (let i = 1; i < l.items.length; i++) {
+      const hi = runLeft(l.items[i]);
+      if (hi - reach > minGutter) candidates.push({ lo: reach, hi });
+      reach = Math.max(reach, runRight(l.items[i]));
+    }
+  }
+  if (candidates.length < MIN_COLUMN_ROWS) return [];
+
+  // An x is a boundary when at least MIN_COLUMN_ROWS candidate gutters
+  // straddle it — i.e. the same gutter recurs down the page.
+  const scored = candidates
+    .map((c) => {
+      const mid = (c.lo + c.hi) / 2;
+      return { mid, count: candidates.filter((o) => o.lo < mid && mid < o.hi).length };
+    })
+    .filter((s) => s.count >= MIN_COLUMN_ROWS)
+    .sort((a, b) => b.count - a.count || a.mid - b.mid);
+
+  const boundaries: number[] = [];
+  for (const s of scored) {
+    if (boundaries.some((b) => Math.abs(b - s.mid) < minGutter)) continue; // same gutter, already taken
+    boundaries.push(s.mid);
+  }
+  boundaries.sort((a, b) => a - b);
+  if (boundaries.length === 0 || boundaries.length + 1 > MAX_COLUMNS) return [];
+
+  const edges = [left, ...boundaries, right];
+  for (let i = 1; i < edges.length; i++) {
+    if (edges[i] - edges[i - 1] < textWidth * MIN_COLUMN_WIDTH_RATIO) return []; // too narrow to be a body column
+  }
+  return boundaries;
+}
+
+/** Which column band an x falls in, given ascending boundary positions. */
+function columnOf(x: number, boundaries: number[]): number {
+  let c = 0;
+  for (const b of boundaries) if (x > b) c++;
+  return c;
+}
+
+/** Split a page's rendered lines into paragraphs on vertical gaps. */
+function groupLinesIntoParagraphs(rendered: RenderedLine[]): string[] {
+  if (rendered.length === 0) return [];
   if (rendered.length === 1) return [rendered[0].text];
 
   // 2. paragraphs: split where the gap exceeds a "typical single-line gap"
@@ -150,6 +323,72 @@ export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
   return paragraphs.filter((p) => p.trim() !== "");
 }
 
+/**
+ * Group a page's glyph runs into paragraphs, in reading order.
+ *
+ * Single-column pages (the common case) take the early-return path below and
+ * behave EXACTLY as they did before column support existed: bucket by
+ * baseline, render each line, split on vertical gaps.
+ *
+ * Multi-column pages are emitted COLUMN-MAJOR — all of column 1, then all of
+ * column 2 — because that, not the interleaved baseline order, is how the
+ * page is read. Vertically, the page is first cut into SECTIONS at every
+ * full-width line: a heading that spans the gutter belongs to neither column,
+ * so it is emitted on its own, in document order, ahead of the columns it
+ * introduces. Paragraph grouping then runs INDEPENDENTLY per column, so one
+ * column's line spacing cannot set the other's paragraph threshold.
+ */
+export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
+  const printable = items.filter((i) => i.str.trim() !== "");
+  if (printable.length === 0) return [];
+
+  const lines = bucketIntoLines(printable);
+  const boundaries = detectColumnBoundaries(lines);
+  if (boundaries.length === 0) {
+    return groupLinesIntoParagraphs(lines.map((l) => renderLine(l.y, l.items)));
+  }
+
+  // Recompute the gutter width on the same basis detectColumnBoundaries used,
+  // so a line fragments at exactly the gaps that produced the boundaries.
+  const all = lines.flatMap((l) => l.items);
+  const minGutter = (Math.max(...all.map(runRight)) - Math.min(...all.map(runLeft))) * COLUMN_GUTTER_RATIO;
+
+  // A section is either a run of full-width lines or a run of columnar ones.
+  type Section = { full: true; lines: RenderedLine[] } | { full: false; cols: RenderedLine[][] };
+  const sections: Section[] = [];
+  for (const line of lines) {
+    const frags = fragmentLine(line.items, minGutter);
+    // A fragment straddling a boundary is full-width text (a spanning
+    // heading, a rule, a full-width caption) — it cannot be assigned to one
+    // column without lying about where it belongs.
+    const spans = frags.some((f) =>
+      boundaries.some((b) => runLeft(f[0]) < b && Math.max(...f.map(runRight)) > b),
+    );
+    const last = sections[sections.length - 1];
+    if (spans) {
+      // Rejoin the whole line: a spanning heading is one line, not fragments.
+      const rl = renderLine(line.y, line.items);
+      if (last && last.full) last.lines.push(rl);
+      else sections.push({ full: true, lines: [rl] });
+      continue;
+    }
+    const target: Section = last && !last.full ? last : { full: false, cols: [] };
+    if (target !== last) sections.push(target);
+    for (const f of frags) {
+      const c = columnOf(runLeft(f[0]), boundaries);
+      (target as { full: false; cols: RenderedLine[][] }).cols[c] ??= [];
+      (target as { full: false; cols: RenderedLine[][] }).cols[c].push(renderLine(line.y, f));
+    }
+  }
+
+  const paragraphs: string[] = [];
+  for (const s of sections) {
+    if (s.full) paragraphs.push(...groupLinesIntoParagraphs(s.lines));
+    else for (const col of s.cols) if (col?.length) paragraphs.push(...groupLinesIntoParagraphs(col));
+  }
+  return paragraphs.filter((p) => p.trim() !== "");
+}
+
 /** Per-page paragraph arrays, page order preserved. */
 export async function extractPagesFromPdf(buf: Uint8Array): Promise<string[][]> {
   const pages: string[][] = [];
@@ -193,8 +432,15 @@ export function buildTextFromPages(pages: string[][]): string {
     for (const para of paras) {
       const trimmed = para.trim();
       if (!trimmed) continue;
-      for (const piece of splitOversizedBlockText(trimmed, DEFAULT_TARGET_CHARS)) {
-        out.push(`[p.${idx + 1}]\n${piece}`);
+      // Split against the target MINUS the marker we are about to prepend.
+      // Splitting against the full target and then prepending produces a block
+      // of up to target + marker chars, which chunkDocument's own
+      // splitLargeParagraph then re-splits — and it keeps the "[p.N]" line only
+      // on the FIRST piece, leaving the rest marker-less. That is precisely the
+      // failure this pre-split exists to prevent.
+      const marker = `[p.${idx + 1}]\n`;
+      for (const piece of splitOversizedBlockText(trimmed, DEFAULT_TARGET_CHARS - marker.length)) {
+        out.push(`${marker}${piece}`);
       }
     }
   });
@@ -238,16 +484,34 @@ const MIN_CHARS_PER_PAGE = 50;
 // document.
 const MIN_PAGE_CHARS = 50;
 
-// The share of pages that must clear MIN_PAGE_CHARS. A strict per-page
-// minimum would reject a legitimate RAP that has an ordinary sparse divider
-// page or a full-page figure, so this gates a PROPORTION of pages, not every
-// page individually. 0.6 leaves comfortable room for a handful of such pages
-// in an otherwise genuine document while still catching one that is mostly
-// scanned images. Heuristic, tuned with the same wide margin as the floors
-// above — change only against a measured document.
+// The share of pages that must clear MIN_PAGE_CHARS before the extraction is
+// treated as covering the whole document. A strict per-page minimum would
+// flag a legitimate RAP that has an ordinary sparse divider page or a
+// full-page figure, so this gates a PROPORTION of pages, not every page
+// individually.
+//
+// REVIEWED 2026-07-27 (final whole-branch review), decided with our human
+// partner: falling below this ratio is NOT a scan verdict and no longer
+// throws. It cannot be one. On a 17-page RAP the ratio demands 11 text-
+// bearing pages, so six full-bleed photo pages or sparse section dividers —
+// all ordinary in a designed RAP — would have refused the entire document
+// with a message asserting it "appears to be scanned": confident, plausible,
+// and wrong. At pageCount 2 the ratio silently degenerates into "every page
+// must clear 50 chars", and we already have a real 2-page RAP.
+//
+// So low coverage is now surfaced as a ValidationIssue instead (see
+// LoadResult.lowPageCoverage and pipeline.bedrock.ts). isClean() then returns
+// false, the document routes to human review, and the reviewer sees the
+// sparse extraction alongside an explanation of why it may be incomplete —
+// which is the honest outcome, since we cannot tell a photo-heavy RAP from a
+// partly-scanned one from the text layer alone. The genuine no-text-layer
+// signals (MIN_TOTAL_CHARS, MIN_CHARS_PER_PAGE) still throw.
 const MIN_PAGE_COVERAGE_RATIO = 0.6;
 
-/** Throw ScannedDocumentError when the document carries no usable text layer. */
+/**
+ * Throw ScannedDocumentError when the document carries no usable text layer at
+ * all. Coverage is deliberately NOT checked here — see measurePageCoverage.
+ */
 export function assertHasTextLayer(text: string, pages: string[][], fileName: string): void {
   const pageCount = pages.length;
   // Page markers are ours, not the document's — exclude them so a 40-page scan
@@ -255,24 +519,60 @@ export function assertHasTextLayer(text: string, pages: string[][], fileName: st
   const body = text.replace(/^\[p\.[^\]]*\]$/gm, "").trim();
   if (body.length < MIN_TOTAL_CHARS) throw new ScannedDocumentError(fileName);
   if (pageCount > 0 && body.length / pageCount < MIN_CHARS_PER_PAGE) throw new ScannedDocumentError(fileName);
+}
 
-  // A document-wide average cannot see a document that is mostly blank
-  // scanned pages plus one content-rich outlier — require most pages to
-  // individually carry text, not just the document on average. Measured
-  // from the raw per-page paragraph arrays (never from the joined, "[p.N]"-
-  // carrying `text`), so a page's count can never be inflated by a marker
-  // that isn't real content in the first place.
-  if (pageCount > 0) {
-    const coveredPages = pages.filter(
-      (paragraphs) => paragraphs.reduce((sum, p) => sum + p.trim().length, 0) >= MIN_PAGE_CHARS,
-    ).length;
-    if (coveredPages / pageCount < MIN_PAGE_COVERAGE_RATIO) throw new ScannedDocumentError(fileName);
-  }
+/**
+ * How many pages individually carried meaningful text. A document-wide
+ * average cannot see a document that is mostly blank scanned pages plus one
+ * content-rich outlier (a 20-page doc with one ~1,000-char cover and 19 image
+ * pages clears both floors above), so this counts pages, not characters.
+ *
+ * Measured from the raw per-page paragraph arrays — never from the joined,
+ * "[p.N]"-carrying text — so a page's count can never be inflated by a marker
+ * that isn't real content in the first place.
+ *
+ * `low` is advisory, not a verdict: it raises a ValidationIssue, it does not
+ * reject the document. See MIN_PAGE_COVERAGE_RATIO.
+ */
+export function measurePageCoverage(pages: string[][]): { coveredPages: number; pageCount: number; low: boolean } {
+  const pageCount = pages.length;
+  const coveredPages = pages.filter(
+    (paragraphs) => paragraphs.reduce((sum, p) => sum + p.trim().length, 0) >= MIN_PAGE_CHARS,
+  ).length;
+  return { coveredPages, pageCount, low: pageCount > 0 && coveredPages / pageCount < MIN_PAGE_COVERAGE_RATIO };
+}
+
+/**
+ * Everything this loader does once the bytes are in hand: parse → paragraphs →
+ * "[p.N]" text → fidelity scan → text-layer gate → coverage measurement.
+ *
+ * Split out from `load` deliberately: this composition — that the extension
+ * guard runs, that the fidelity scan runs BEFORE the text-layer gate (U+FFFD
+ * substitution is 1-for-1 so it cannot change the measured lengths, but the
+ * order is still a contract), and that the gate is called at all — is where
+ * every part of this module meets, and it was the one thing no test could
+ * reach while it lived inside an S3-fetching method. Pure apart from the PDF
+ * parse, so scripts/test-doc-loader-textlayer.ts can drive it with synthesised
+ * pdf-lib fixtures.
+ */
+export async function loadFromBytes(bytes: Uint8Array, fileName: string): Promise<LoadResult> {
+  if (!/\.pdf$/i.test(fileName)) throw new UnsupportedDocumentError(fileName);
+  const pages = await extractPagesFromPdf(bytes);
+  const scanned = scanFidelity(buildTextFromPages(pages));
+  assertHasTextLayer(scanned.text, pages, fileName);
+  const coverage = measurePageCoverage(pages);
+  return {
+    ...scanned,
+    lowPageCoverage: coverage.low ? { coveredPages: coverage.coveredPages, pageCount: coverage.pageCount } : null,
+  };
 }
 
 export const textlayerLoader: DocLoader = {
   name: "textlayer",
   async load({ sourceS3Key, fileName }): Promise<LoadResult> {
+    // Checked here as well as in loadFromBytes so an unsupported file fails
+    // BEFORE we pull its bytes out of S3. loadFromBytes repeats it because the
+    // guard is part of its own contract, not this method's.
     if (!/\.pdf$/i.test(fileName)) throw new UnsupportedDocumentError(fileName);
     // Pass the Uint8Array straight through — do NOT wrap it in Buffer.from().
     // getDocumentBytes already returns a Uint8Array. Converting it to a Node
@@ -287,10 +587,6 @@ export const textlayerLoader: DocLoader = {
     // to 8 times to work around what looked like a flaky race; it wasn't one
     // — it was this deterministic, size-dependent Buffer bug, and it doesn't
     // reproduce at all once the input stays a Uint8Array. The retry is gone.)
-    const bytes = await getDocumentBytes(sourceS3Key);
-    const pages = await extractPagesFromPdf(bytes);
-    const scanned = scanFidelity(buildTextFromPages(pages));
-    assertHasTextLayer(scanned.text, pages, fileName);
-    return scanned;
+    return loadFromBytes(await getDocumentBytes(sourceS3Key), fileName);
   },
 };

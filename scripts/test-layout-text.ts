@@ -146,4 +146,29 @@ function layout(id: string, blockType: NonNullable<Block["BlockType"]>, page: nu
   check("sentence 100 survives somewhere", out.includes("Sentence number 130 in"));
 }
 
+// ---------------------------------------------------------------------------
+// (g) The marker must fit INSIDE the size budget, not on top of it. The
+// pre-split above only prevents marker-less pieces if the emitted paragraph —
+// "[p.N]\n" INCLUDED — stays within DEFAULT_TARGET_CHARS. Otherwise
+// chunkDocument's own splitLargeParagraph re-splits the block and keeps the
+// marker on the FIRST piece only, recreating the exact orphan this design
+// exists to prevent.
+//
+// The fixture packs to the boundary deliberately: 200 sentences of exactly 59
+// chars joined by single spaces make a greedy sentence packer land on 60k - 1.
+// Against a 6000 target that is 5999, which +6 for "[p.1]\n" OVERSHOOTS at
+// 6005; against 6000-6 it is 5939, which fits. Check (f)'s 1.5x tolerance
+// above cannot see this.
+// ---------------------------------------------------------------------------
+{
+  const packed = Array.from({ length: 200 }, (_, i) => `S${String(i + 1).padStart(3, "0")} ${"x".repeat(53)}.`).join(" ");
+  const blocks: Block[] = [layout("pk", "LAYOUT_TABLE", 1, ["pkl"]), line("pkl", 1, packed)];
+  const paragraphs = buildTextFromLayoutBlocks(blocks).trim().split(/\n\s*\n/).filter(Boolean);
+  check("boundary-packed block splits into several marked paragraphs", paragraphs.length > 1);
+  check(
+    "no paragraph exceeds the target ONCE THE [p.N] MARKER IS COUNTED",
+    paragraphs.every((p) => p.startsWith("[p.1]\n") && p.length <= DEFAULT_TARGET_CHARS),
+  );
+}
+
 process.exit(fail ? 1 : 0);

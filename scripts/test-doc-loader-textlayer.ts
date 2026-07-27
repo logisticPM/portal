@@ -7,7 +7,14 @@
 // Fixtures are synthesised with pdf-lib so no binary blobs are committed.
 // Run: npx tsx scripts/test-doc-loader-textlayer.ts
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { buildTextFromPages, extractPagesFromPdf, groupItemsIntoParagraphs } from "../src/lib/rap/doc-loader/textlayer";
+import { DEFAULT_TARGET_CHARS } from "../src/lib/rap/chunk";
+import {
+  buildTextFromPages,
+  extractPagesFromPdf,
+  groupItemsIntoParagraphs,
+  loadFromBytes,
+} from "../src/lib/rap/doc-loader/textlayer";
+import { ScannedDocumentError, UnsupportedDocumentError } from "../src/lib/rap/doc-loader/types";
 
 let fail = 0;
 function check(name: string, ok: boolean, extra = "") {
@@ -32,13 +39,55 @@ const withHole = buildTextFromPages([["Page one text"], [], ["Page three text"]]
 check("a paragraph-less page leaves no marker of its own", !withHole.includes("[p.2]"), withHole);
 check("a later page still reports its TRUE page number past a hole", withHole.includes("[p.3]\nPage three text"), withHole);
 
+// --- buildTextFromPages: the marker must fit INSIDE the size budget ---------
+// buildTextFromPages pre-splits an oversized paragraph so that no marker-less
+// piece can reach chunkDocument. That only works if the emitted block —
+// MARKER INCLUDED — stays within DEFAULT_TARGET_CHARS: chunk.ts's own
+// splitLargeParagraph re-splits anything over the target and keeps the "[p.N]"
+// line on the FIRST piece only, so a block that overshoots by even the marker's
+// own length reintroduces exactly the orphaned, marker-less piece the pre-split
+// exists to prevent.
+//
+// The fixture packs to the boundary on purpose: 200 sentences of exactly 59
+// chars joined by single spaces means a greedy sentence packer lands on
+// 60k - 1 chars. Against a 6000 target that is k=100 -> 5999, which +6 for
+// "[p.1]\n" is 6005 and OVERSHOOTS; against 6000-6=5994 it is k=99 -> 5939,
+// which fits. So this check fails if the marker length is not subtracted.
+const packSentence = (n: number) => `S${String(n).padStart(3, "0")} ${"x".repeat(53)}.`;
+const packedPara = Array.from({ length: 200 }, (_, i) => packSentence(i + 1)).join(" ");
+check("packing fixture is built to the boundary", packSentence(1).length === 59 && packedPara.length > DEFAULT_TARGET_CHARS,
+  `${packSentence(1).length} / ${packedPara.length}`);
+const packedBlocks = buildTextFromPages([[packedPara]]).split("\n\n");
+check("an oversized paragraph is split into several marked blocks", packedBlocks.length > 1, `got ${packedBlocks.length}`);
+check("every block keeps its own [p.1] marker", packedBlocks.every((b) => b.startsWith("[p.1]\n")));
+check(
+  "no block exceeds the chunker's target ONCE THE MARKER IS COUNTED",
+  packedBlocks.every((b) => b.length <= DEFAULT_TARGET_CHARS),
+  `max ${Math.max(...packedBlocks.map((b) => b.length))}`,
+);
+
 // --- groupItemsIntoParagraphs: geometry -------------------------------------
 // transform is a 6-element matrix; [0]/[3] are font-size scale, [4] is x,
-// [5] is y. Larger y = higher on page.
-const item = (str: string, y: number, x = 50) => ({ str, transform: [1, 0, 0, 1, x, y] });
+// [5] is y. Larger y = higher on page. `width` is the run's advance width, so
+// its right edge is transform[4] + width — pdf.js populates it on every item.
+// The helpers below estimate it as 0.5 em per character, close enough to a
+// real Helvetica advance for the geometry these fixtures exercise.
+const advance = (str: string, fontSize: number) => str.length * fontSize * 0.5;
+const item = (str: string, y: number, x = 50) => ({ str, width: advance(str, 1), transform: [1, 0, 0, 1, x, y] });
 // Same as `item`, but with a real font-size scale, for tests that exercise
 // the one-gap font-size fallback (which reads transform[3]).
-const itemSized = (str: string, y: number, fontSize: number, x = 50) => ({ str, transform: [fontSize, 0, 0, fontSize, x, y] });
+const itemSized = (str: string, y: number, fontSize: number, x = 50) => ({
+  str,
+  width: advance(str, fontSize),
+  transform: [fontSize, 0, 0, fontSize, x, y],
+});
+// Explicit geometry, for the column and word-spacing fixtures where the exact
+// left and right edges are the thing under test.
+const run = (str: string, x: number, y: number, width: number, fontSize = 12) => ({
+  str,
+  width,
+  transform: [fontSize, 0, 0, fontSize, x, y],
+});
 
 // Three lines 12pt apart, then a 40pt gap, then two more: two paragraphs.
 const paras = groupItemsIntoParagraphs([
@@ -123,6 +172,94 @@ check(
   `got ${mixedGlyphSizeLine.length}`,
 );
 
+// --- glyph runs: a run boundary is not automatically a space ----------------
+// InDesign-class producers emit a kerned or tracked word as several separately
+// positioned runs with NO space character between them. Joining every run with
+// " " turned "Reconciliation" into "Recon ciliation", which then fails
+// validate.ts's verbatim quote check for a reason that has nothing to do with
+// the model. Abutting runs (gap ~0) are one word; a real word space is ~0.28em.
+const abutting = groupItemsIntoParagraphs([
+  run("Recon", 50, 700, 34.68),
+  run("ciliation", 84.68, 700, 40.01), // starts exactly where "Recon" ends
+]);
+check("abutting glyph runs form ONE word", abutting[0] === "Reconciliation", JSON.stringify(abutting[0]));
+
+const spaced = groupItemsIntoParagraphs([
+  run("Action", 50, 700, 36),
+  run("Plan", 89.34, 700, 24), // 3.34pt gap on a 12pt font: a real space (0.278em)
+]);
+check("runs separated by a real space gap form TWO words", spaced[0] === "Action Plan", JSON.stringify(spaced[0]));
+
+// --- multi-column pages -----------------------------------------------------
+// Bucketing purely by baseline y merges a two-column page's columns into one
+// line each, because both columns share baselines. The result is silent
+// nonsense: page numbers stay correct and quote_not_found still passes,
+// because the interleaved text genuinely IS what the model was shown.
+// Text block runs x=50..550 (500pt wide); the gutter is 230..330 (100pt),
+// clear of the 15%-of-text-width floor.
+const twoColumnItems = [0, 1, 2, 3].flatMap((i) => [
+  run(`Left column line ${i + 1}`, 50, 700 - i * 14, 180),
+  run(`Right col line ${i + 1}`, 330, 700 - i * 14, 220),
+]);
+const twoColumn = groupItemsIntoParagraphs(twoColumnItems);
+const twoColumnJoined = twoColumn.join("\n");
+check("a two-column page is NOT interleaved into one line per baseline",
+  !twoColumnJoined.includes("Left column line 1 Right col line 1"), JSON.stringify(twoColumnJoined));
+check("a two-column page reads column-major: all of column 1, then column 2",
+  twoColumnJoined.indexOf("Left column line 4") < twoColumnJoined.indexOf("Right col line 1"),
+  JSON.stringify(twoColumnJoined));
+check("each column becomes its own paragraph (uniform leading within it)",
+  twoColumn.length === 2 &&
+    twoColumn[0] === "Left column line 1\nLeft column line 2\nLeft column line 3\nLeft column line 4" &&
+    twoColumn[1] === "Right col line 1\nRight col line 2\nRight col line 3\nRight col line 4",
+  JSON.stringify(twoColumn));
+
+// A full-width heading spans the gutter, so it belongs to NEITHER column.
+// Chosen behaviour: a spanning line cuts the page into sections, and is
+// emitted whole, in document order, AHEAD of the columns it introduces —
+// never folded into one column, which would attribute it to half the page.
+const headingOverColumns = groupItemsIntoParagraphs([
+  run("Our commitments for the coming year", 50, 730, 500), // spans 50..550, crosses the gutter
+  ...twoColumnItems,
+]);
+check("a full-width heading above two columns is emitted first, on its own",
+  headingOverColumns[0] === "Our commitments for the coming year", JSON.stringify(headingOverColumns[0]));
+check("the columns below the heading still read column-major",
+  headingOverColumns.length === 3 &&
+    headingOverColumns[1].startsWith("Left column line 1") &&
+    headingOverColumns[2].startsWith("Right col line 1"),
+  JSON.stringify(headingOverColumns));
+
+// A SINGLE-COLUMN page must be completely unaffected: same lines, same order,
+// one paragraph. Each line here carries several runs with ordinary word gaps,
+// the shape a real body page has.
+const singleColumnLines = ["Reconciliation is a shared", "responsibility across every", "part of the organisation."];
+const singleColumn = groupItemsIntoParagraphs(
+  singleColumnLines.flatMap((line, i) => {
+    let x = 50;
+    return line.split(" ").map((w) => {
+      const r = run(w, x, 700 - i * 14, advance(w, 12));
+      x += advance(w, 12) + 3.34; // ordinary 0.278em word space
+      return r;
+    });
+  }),
+);
+check("a single-column page is one paragraph in reading order",
+  singleColumn.length === 1 && singleColumn[0] === singleColumnLines.join("\n"), JSON.stringify(singleColumn));
+
+// One wide gap on one or two lines is a right-aligned page number or a
+// header/footer pair, not a column structure. The gutter must recur on at
+// least three lines before it is believed — if that floor were 2, this page
+// would be reordered.
+const rightAligned = groupItemsIntoParagraphs([
+  ...[0, 1, 2, 3].map((i) => run(`Body text line ${i + 1}`, 50, 700 - i * 14, 200)),
+  run("RAP 2026", 480, 700, 60), // header, far right
+  run("12", 540, 658, 12), // footer page number, far right
+]);
+check("a right-aligned header/footer pair is not mistaken for a column",
+  rightAligned.length === 1 && rightAligned[0].startsWith("Body text line 1 RAP 2026"),
+  JSON.stringify(rightAligned));
+
 // --- end-to-end over a synthesised PDF --------------------------------------
 async function makePdf(pages: string[][]): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
@@ -139,6 +276,44 @@ async function makePdf(pages: string[][]): Promise<Uint8Array> {
   return doc.save();
 }
 
+// A hand-built, UNCOMPRESSED one-page PDF. Needed only for the damaged-glyph
+// fixture: pdf-lib refuses to encode a control character ("WinAnsi cannot
+// encode "), and it Flate-compresses its content streams, so there is no
+// way to get a chosen raw glyph byte into a pdf-lib document. Byte 0x01 under
+// WinAnsiEncoding is what this bundled pdf.js hands back as U+0001 (verified
+// 2026-07-27) — the same class of unmapped-glyph damage measured on the real
+// TMX RAP, where every "fi" ligature came back as a NUL.
+function rawPdfWithText(body: string): Uint8Array {
+  const stream = `BT /F1 12 Tf 50 700 Td (${body}) Tj ET`;
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+  ];
+  let out = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objs.forEach((o, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for (const off of offsets) out += `${String(off).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Uint8Array.from(Buffer.from(out, "latin1"));
+}
+
+async function throwsAsync(fn: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await fn();
+    return null;
+  } catch (e) {
+    return e;
+  }
+}
+
 async function main() {
   const pdf = await makePdf([["Page one para"], ["Page two first", "", "Page two second"]]);
   // Pass the Uint8Array pdf-lib gives us straight through — NOT wrapped in
@@ -149,8 +324,65 @@ async function main() {
   check("page 1 text recovered", extracted[0].join(" ").includes("Page one para"));
   check("page 2 split into two paragraphs", extracted[1].length === 2, `got ${extracted[1].length}`);
 
+  // --- loadFromBytes: the COMPOSITION, not the pieces -----------------------
+  // Every check above drives one pure function in isolation. The loader's own
+  // wiring — the extension guard, the fidelity scan, the text-layer gate, the
+  // coverage measurement, and the order they run in — is a separate seam, and
+  // deleting any of those calls used to break no test at all.
+  const bodyLine = "Reconciliation Action Plan commitments for the coming reporting year and beyond.";
+  const goodPdf = await makePdf([
+    [bodyLine, bodyLine, bodyLine],
+    [bodyLine, bodyLine, bodyLine],
+  ]);
+
+  const unsupported = await throwsAsync(() => loadFromBytes(goodPdf, "commitments.docx"));
+  check("a non-PDF filename is refused with UnsupportedDocumentError",
+    unsupported instanceof UnsupportedDocumentError, String(unsupported));
+
+  // A 3-page PDF carrying a single stray glyph is what a scan looks like once
+  // the text layer is read: almost nothing, spread over real pages.
+  const scannedLooking = await makePdf([["7"], [], []]);
+  const scannedErr = await throwsAsync(() => loadFromBytes(scannedLooking, "scan.pdf"));
+  check("a PDF with no usable text layer throws ScannedDocumentError",
+    scannedErr instanceof ScannedDocumentError, String(scannedErr));
+
+  const good = await loadFromBytes(goodPdf, "rap.pdf");
+  check("a good PDF comes back as marked-up text", good.text.startsWith("[p.1]\n") && good.text.includes("[p.2]\n"),
+    JSON.stringify(good.text.slice(0, 60)));
+  check("a good PDF is not flagged as damaged", good.fidelityDamaged === false && good.damagedOffsets.length === 0);
+  check("a good PDF reports no coverage problem", good.lowPageCoverage === null, JSON.stringify(good.lowPageCoverage));
+
+  // Damaged glyphs: the loader must SET the flag, not throw, so the pipeline
+  // can raise one document-level issue explaining the quote mismatches.
+  const damagedPdf = rawPdfWithText(
+    `Reconciliation Action Plan ${String.fromCharCode(1)} commitments text repeated to clear the text-layer floor. ` +
+      "Reconciliation Action Plan commitments text repeated to clear the text-layer floor. " +
+      "Reconciliation Action Plan commitments text repeated to clear the text-layer floor.",
+  );
+  const damaged = await loadFromBytes(damagedPdf, "damaged.pdf");
+  check("a damaged-font PDF sets the fidelity flag rather than throwing",
+    damaged.fidelityDamaged === true && damaged.damagedOffsets.length === 1,
+    JSON.stringify(damaged.damagedOffsets));
+  check("the damaged glyph is rendered visibly as U+FFFD", damaged.text.includes("�"));
+
+  // Low coverage is an ISSUE, not a rejection: page 2 here is a full-page
+  // image (no text at all), which is 1 of 2 pages covered — under the ratio.
+  const halfBlank = await makePdf([[bodyLine, bodyLine, bodyLine, bodyLine, bodyLine], []]);
+  const sparse = await loadFromBytes(halfBlank, "photo-heavy.pdf");
+  check("a page that carried no text is reported as low coverage, not thrown",
+    sparse.lowPageCoverage?.coveredPages === 1 && sparse.lowPageCoverage?.pageCount === 2,
+    JSON.stringify(sparse.lowPageCoverage));
+  check("the low-coverage document still returns its usable text", sparse.text.includes("[p.1]\n"));
+
   console.log(fail === 0 ? "\nall passed" : `\n${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }
 
-main();
+// Without this, an async rejection escapes as an unhandled promise rejection
+// AFTER every synchronous check above has already printed a ✅ — a partial run
+// that reads exactly like a pass.
+main().catch((e) => {
+  console.error(e);
+  console.log(`\n${fail + 1} failed (suite aborted before completing)`);
+  process.exit(1);
+});

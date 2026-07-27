@@ -28,8 +28,12 @@
 // only S3 call in the pipeline is Textract's StartDocumentAnalysis reading the
 // existing object, plus GetDocumentAnalysis polling.
 //
-// Run (see .superpowers/sdd/task-5-brief.md Step 2):
-//   AWS_PROFILE=isb BEDROCK_REGION=ca-central-1 \
+// Run (see .superpowers/sdd/task-5-brief.md Step 2). DOC_LOADER is REQUIRED and
+// has no default — selectLoader() throws without it (src/lib/rap/doc-loader/
+// index.ts). Use "textlayer" in this account: an org SCP denies Textract to its
+// service roles, so "textract" cannot succeed here (docs/ca-extraction-textract-
+// scp.md).
+//   AWS_PROFILE=isb BEDROCK_REGION=ca-central-1 DOC_LOADER=textlayer \
 //     RAP_UPLOAD_BUCKET=indigenomics-portal-ca-rapuploadsbucket-bbhvotne \
 //     SMOKE_KEY=test/BankOfCanada_RAP.pdf \
 //     npx tsx scripts/smoke-extract-bedrock.ts
