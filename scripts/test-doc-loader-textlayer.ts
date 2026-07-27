@@ -10,7 +10,9 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { DEFAULT_TARGET_CHARS } from "../src/lib/rap/chunk";
 import {
   buildTextFromPages,
+  detectColumnBoundaries,
   extractPagesFromPdf,
+  fragmentLine,
   groupItemsIntoParagraphs,
   loadFromBytes,
 } from "../src/lib/rap/doc-loader/textlayer";
@@ -190,45 +192,73 @@ const spaced = groupItemsIntoParagraphs([
 ]);
 check("runs separated by a real space gap form TWO words", spaced[0] === "Action Plan", JSON.stringify(spaced[0]));
 
-// --- multi-column pages -----------------------------------------------------
-// Bucketing purely by baseline y merges a two-column page's columns into one
-// line each, because both columns share baselines. The result is silent
-// nonsense: page numbers stay correct and quote_not_found still passes,
-// because the interleaved text genuinely IS what the model was shown.
+// --- multi-column pages: COLUMN_REORDERING_ENABLED is false -----------------
+// Column reordering is OFF (see COLUMN_REORDERING_ENABLED in textlayer.ts):
+// measured on real RAPs, the gutter heuristic below cannot tell a genuine
+// two-column body page from a commitment TABLE, and reading a table
+// column-major tears every action away from its own timeline and owner.
+// groupItemsIntoParagraphs therefore no longer calls detectColumnBoundaries
+// at all (COLUMN_REORDERING_ENABLED short-circuits it to `[]`), so the tests
+// that used to assert column-major OUTPUT from groupItemsIntoParagraphs are
+// converted below to exercise detectColumnBoundaries and fragmentLine
+// DIRECTLY, as pure functions — that keeps the geometry logic covered and
+// ready for whenever a document corpus + prose-likeness guard justifies
+// re-enabling it. See the "reordering off" and "table not torn apart"
+// sections further down for what groupItemsIntoParagraphs actually does now.
+
 // Text block runs x=50..550 (500pt wide); the gutter is 230..330 (100pt),
 // clear of the 15%-of-text-width floor.
 const twoColumnItems = [0, 1, 2, 3].flatMap((i) => [
   run(`Left column line ${i + 1}`, 50, 700 - i * 14, 180),
   run(`Right col line ${i + 1}`, 330, 700 - i * 14, 220),
 ]);
-const twoColumn = groupItemsIntoParagraphs(twoColumnItems);
-const twoColumnJoined = twoColumn.join("\n");
-check("a two-column page is NOT interleaved into one line per baseline",
-  !twoColumnJoined.includes("Left column line 1 Right col line 1"), JSON.stringify(twoColumnJoined));
-check("a two-column page reads column-major: all of column 1, then column 2",
-  twoColumnJoined.indexOf("Left column line 4") < twoColumnJoined.indexOf("Right col line 1"),
-  JSON.stringify(twoColumnJoined));
-check("each column becomes its own paragraph (uniform leading within it)",
-  twoColumn.length === 2 &&
-    twoColumn[0] === "Left column line 1\nLeft column line 2\nLeft column line 3\nLeft column line 4" &&
-    twoColumn[1] === "Right col line 1\nRight col line 2\nRight col line 3\nRight col line 4",
-  JSON.stringify(twoColumn));
+// The same geometry, pre-bucketed into lines the way bucketIntoLines would —
+// detectColumnBoundaries and fragmentLine both operate on already-bucketed
+// input, so the fixtures below build that shape directly rather than relying
+// on the (unexported) bucketing helper.
+const twoColumnLines = [0, 1, 2, 3].map((i) => ({
+  y: 700 - i * 14,
+  items: [
+    run(`Left column line ${i + 1}`, 50, 700 - i * 14, 180),
+    run(`Right col line ${i + 1}`, 330, 700 - i * 14, 220),
+  ],
+}));
+const twoColumnBoundaries = detectColumnBoundaries(twoColumnLines);
+check("detectColumnBoundaries finds the gutter on a genuine two-column page",
+  twoColumnBoundaries.length === 1 && twoColumnBoundaries[0] > 230 && twoColumnBoundaries[0] < 330,
+  JSON.stringify(twoColumnBoundaries));
+check("fragmentLine splits a two-column line at a gutter-sized threshold",
+  fragmentLine(twoColumnLines[0].items, 50).length === 2);
+check("fragmentLine does NOT split when the threshold exceeds the gutter",
+  fragmentLine(twoColumnLines[0].items, 150).length === 1);
 
-// A full-width heading spans the gutter, so it belongs to NEITHER column.
-// Chosen behaviour: a spanning line cuts the page into sections, and is
-// emitted whole, in document order, AHEAD of the columns it introduces —
-// never folded into one column, which would attribute it to half the page.
-const headingOverColumns = groupItemsIntoParagraphs([
-  run("Our commitments for the coming year", 50, 730, 500), // spans 50..550, crosses the gutter
-  ...twoColumnItems,
-]);
-check("a full-width heading above two columns is emitted first, on its own",
-  headingOverColumns[0] === "Our commitments for the coming year", JSON.stringify(headingOverColumns[0]));
-check("the columns below the heading still read column-major",
-  headingOverColumns.length === 3 &&
-    headingOverColumns[1].startsWith("Left column line 1") &&
-    headingOverColumns[2].startsWith("Right col line 1"),
-  JSON.stringify(headingOverColumns));
+// A full-width heading spans the gutter: fragmentLine keeps it as ONE
+// fragment (its internal word gaps never exceed a gutter-sized threshold),
+// which is the geometric fact groupItemsIntoParagraphs's (currently
+// unreachable) section-splitting logic relies on to keep a spanning heading
+// out of either column.
+const advanceHeading = (str: string, fontSize: number) => str.length * fontSize * 0.5;
+let headingX = 50;
+const headingRuns = "Our commitments for the coming year".split(" ").map((w) => {
+  const r = run(w, headingX, 730, advanceHeading(w, 12));
+  headingX += advanceHeading(w, 12) + 3.34;
+  return r;
+});
+check("fragmentLine keeps a full-width heading as one fragment (spans the gutter)",
+  fragmentLine(headingRuns, 50).length === 1);
+
+// One wide gap on one or two lines is a right-aligned page number or a
+// header/footer pair, not a column structure. The gutter must recur on at
+// least three lines before it is believed — if that floor were 2, this page
+// would be reordered.
+const rightAlignedLines = [0, 1, 2, 3].map((i) => ({
+  y: 700 - i * 14,
+  items: [run(`Body text line ${i + 1}`, 50, 700 - i * 14, 200)],
+}));
+rightAlignedLines[0].items.push(run("RAP 2026", 480, 700, 60)); // header, far right
+rightAlignedLines[1].items.push(run("12", 540, 686, 12)); // footer page number, far right
+check("a right-aligned header/footer pair is not mistaken for a column (MIN_COLUMN_ROWS guard)",
+  detectColumnBoundaries(rightAlignedLines).length === 0);
 
 // A SINGLE-COLUMN page must be completely unaffected: same lines, same order,
 // one paragraph. Each line here carries several runs with ordinary word gaps,
@@ -247,18 +277,61 @@ const singleColumn = groupItemsIntoParagraphs(
 check("a single-column page is one paragraph in reading order",
   singleColumn.length === 1 && singleColumn[0] === singleColumnLines.join("\n"), JSON.stringify(singleColumn));
 
-// One wide gap on one or two lines is a right-aligned page number or a
-// header/footer pair, not a column structure. The gutter must recur on at
-// least three lines before it is believed — if that floor were 2, this page
-// would be reordered.
-const rightAligned = groupItemsIntoParagraphs([
-  ...[0, 1, 2, 3].map((i) => run(`Body text line ${i + 1}`, 50, 700 - i * 14, 200)),
-  run("RAP 2026", 480, 700, 60), // header, far right
-  run("12", 540, 658, 12), // footer page number, far right
+// --- groupItemsIntoParagraphs on a two-column page: reordering OFF ---------
+// KNOWN, DELIBERATE LIMITATION: a genuine two-column page is NOT resolved
+// right now. groupItemsIntoParagraphs takes the single-column path
+// unconditionally (COLUMN_REORDERING_ENABLED = false), so this fixture comes
+// back baseline-interleaved — "Left column line 1 Right col line 1", etc. —
+// exactly as it did before column detection existed, and exactly as it will
+// keep doing until a document corpus + prose-likeness guard justifies turning
+// reordering back on. This is not a bug in this test; it is the accepted,
+// conservative trade the human partner chose over table-shredding.
+const twoColumn = groupItemsIntoParagraphs(twoColumnItems);
+check("KNOWN LIMITATION: a two-column page is interleaved, not column-major, with reordering off",
+  twoColumn.length === 1 &&
+    twoColumn[0] === "Left column line 1 Right col line 1\nLeft column line 2 Right col line 2\n" +
+      "Left column line 3 Right col line 3\nLeft column line 4 Right col line 4",
+  JSON.stringify(twoColumn));
+
+// --- groupItemsIntoParagraphs on a three-column commitment table -----------
+// THE regression this whole revert exists to lock down. Shaped like a real
+// RAP commitment table: three rows, each with an Action / Timeline / Owner
+// cell, gaps between cells (~90-100pt) comfortably inside the "wide gutter"
+// band that made COLUMN_GUTTER_RATIO mistake this table for column geometry
+// when reordering was live (see detectColumnBoundaries check just below —
+// it DOES find boundaries here, which is exactly the danger). With
+// reordering off, each row's action, timeline and owner must stay together,
+// in reading order, in the SAME paragraph — not scattered into separate
+// column-major blocks that let a model attach the wrong owner or timeline to
+// the wrong action.
+const tableItems = [0, 1, 2].flatMap((i) => [
+  run(`Action ${i + 1}: complete the review`, 50, 700 - i * 60, 200),
+  run(`2026 Q${i + 1}`, 340, 700 - i * 60, 60),
+  run(["CPO", "CHRO", "CEO"][i], 500, 700 - i * 60, 50),
 ]);
-check("a right-aligned header/footer pair is not mistaken for a column",
-  rightAligned.length === 1 && rightAligned[0].startsWith("Body text line 1 RAP 2026"),
-  JSON.stringify(rightAligned));
+const tableParas = groupItemsIntoParagraphs(tableItems);
+check("a three-column commitment table is NOT torn apart (regression lock)",
+  tableParas.length === 1 &&
+    tableParas[0] ===
+      "Action 1: complete the review 2026 Q1 CPO\n" +
+        "Action 2: complete the review 2026 Q2 CHRO\n" +
+        "Action 3: complete the review 2026 Q3 CEO",
+  JSON.stringify(tableParas));
+
+// Prove this fixture is a genuine instance of the danger, not a fixture that
+// happens to dodge detection: detectColumnBoundaries DOES find boundaries in
+// this exact geometry. If COLUMN_REORDERING_ENABLED is ever flipped back to
+// true without first fixing table detection, the check above fails loudly.
+const tableLines = [0, 1, 2].map((i) => ({
+  y: 700 - i * 60,
+  items: [
+    run(`Action ${i + 1}: complete the review`, 50, 700 - i * 60, 200),
+    run(`2026 Q${i + 1}`, 340, 700 - i * 60, 60),
+    run(["CPO", "CHRO", "CEO"][i], 500, 700 - i * 60, 50),
+  ],
+}));
+check("detectColumnBoundaries WOULD shred this table if reordering were re-enabled naively",
+  detectColumnBoundaries(tableLines).length === 2, JSON.stringify(detectColumnBoundaries(tableLines)));
 
 // --- end-to-end over a synthesised PDF --------------------------------------
 async function makePdf(pages: string[][]): Promise<Uint8Array> {

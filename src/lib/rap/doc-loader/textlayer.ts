@@ -100,6 +100,37 @@ const MIN_COLUMN_ROWS = 3;
 const MAX_COLUMNS = 3;
 const MIN_COLUMN_WIDTH_RATIO = 0.15;
 
+// Column reordering is OFF. Measured on real RAPs (review, 2026-07-27): the
+// gutter heuristic above does not distinguish a genuine two-column body from
+// a commitment TABLE. A three-column Action / Timeline / Owner table emits
+// "Owner\nCPO\nCHRO\nCEO\nBoard" as its own paragraph, torn away from the
+// actions it belongs to — downstream, the model attaches a plausible but
+// WRONG owner/timeline to an action, and the resulting quote still passes
+// validate.ts's quote_not_found check, because it genuinely is a substring of
+// what the model was shown. Confident, wrong provenance is the one failure
+// mode this project cannot ship, worse than the interleaved-column nonsense
+// this code was written to fix.
+//
+// No threshold value repairs this. COLUMN_GUTTER_RATIO gates on inter-run
+// whitespace, not on the PDF's design gutter, and the two populations are
+// inverted: ragged table cells (numbers, short owner names, uneven padding)
+// produce gaps of roughly 60-100pt, while real two-column body gutters are
+// only 20-40pt. Lowering the ratio to finally catch a real body column makes
+// table-shredding fire MORE often, not less; raising it to spare tables
+// abandons the tight-gutter body-column case entirely. That target case — the
+// one this fix was written for — is STILL interleaved with reordering off,
+// exactly as it was before this code existed; that is the accepted,
+// conservative failure mode, not a regression introduced by this flag.
+//
+// Re-enabling this requires BOTH: (1) a real document corpus measurement of
+// gutter widths across genuine multi-column body pages versus table cell gaps
+// on real RAPs, wide enough to place a threshold that separates the two
+// populations instead of a made-up constant, and (2) a prose-likeness guard
+// on candidate columns (e.g. average words per band, punctuation density) so
+// short, table-cell-shaped bands cannot qualify as a column no matter what
+// their gap width is. Do not flip this back to `true` without both.
+export const COLUMN_REORDERING_ENABLED = false;
+
 // A glyph run's font size, read straight off its own transform (for
 // unrotated text — the only kind a digitally-produced RAP PDF has —
 // transform = [size, 0, 0, size, x, y], so transform[3] is the size in user
@@ -167,7 +198,7 @@ function bucketIntoLines(printable: TextItem[]): { y: number; items: TextItem[] 
 }
 
 /** Split one line's runs wherever the horizontal gap exceeds `minGutter`. */
-function fragmentLine(sorted: TextItem[], minGutter: number): TextItem[][] {
+export function fragmentLine(sorted: TextItem[], minGutter: number): TextItem[][] {
   const frags: TextItem[][] = [[sorted[0]]];
   // Against the running MAX right edge, not just the previous run's: runs are
   // sorted by left edge, and a short run nested inside a wider one (a
@@ -187,8 +218,12 @@ function fragmentLine(sorted: TextItem[], minGutter: number): TextItem[][] {
  * single-column (the overwhelmingly common case, and the one that must stay
  * bit-for-bit unchanged). See the COLUMN_GUTTER_RATIO comment block for why
  * each guard is here.
+ *
+ * Exported for direct testing as a pure function — see
+ * COLUMN_REORDERING_ENABLED: its result is no longer consulted on the live
+ * path, but the geometry logic itself stays exercised.
  */
-function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]): number[] {
+export function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]): number[] {
   const all = lines.flatMap((l) => l.items);
   // Column geometry is unavailable without run widths — degrade to single
   // column rather than guess.
@@ -330,20 +365,27 @@ function groupLinesIntoParagraphs(rendered: RenderedLine[]): string[] {
  * behave EXACTLY as they did before column support existed: bucket by
  * baseline, render each line, split on vertical gaps.
  *
- * Multi-column pages are emitted COLUMN-MAJOR — all of column 1, then all of
- * column 2 — because that, not the interleaved baseline order, is how the
- * page is read. Vertically, the page is first cut into SECTIONS at every
- * full-width line: a heading that spans the gutter belongs to neither column,
- * so it is emitted on its own, in document order, ahead of the columns it
- * introduces. Paragraph grouping then runs INDEPENDENTLY per column, so one
- * column's line spacing cannot set the other's paragraph threshold.
+ * COLUMN_REORDERING_ENABLED is currently false (see its comment), so EVERY
+ * page — including a genuine multi-column one — takes that single-column
+ * path unconditionally right now: `detectColumnBoundaries` is not even
+ * called. The column-major logic below is kept, and stays reachable the
+ * moment the flag flips, but it is dead on the live path today.
+ *
+ * Multi-column pages, when this is enabled, are emitted COLUMN-MAJOR — all of
+ * column 1, then all of column 2 — because that, not the interleaved baseline
+ * order, is how the page is read. Vertically, the page is first cut into
+ * SECTIONS at every full-width line: a heading that spans the gutter belongs
+ * to neither column, so it is emitted on its own, in document order, ahead of
+ * the columns it introduces. Paragraph grouping then runs INDEPENDENTLY per
+ * column, so one column's line spacing cannot set the other's paragraph
+ * threshold.
  */
 export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
   const printable = items.filter((i) => i.str.trim() !== "");
   if (printable.length === 0) return [];
 
   const lines = bucketIntoLines(printable);
-  const boundaries = detectColumnBoundaries(lines);
+  const boundaries = COLUMN_REORDERING_ENABLED ? detectColumnBoundaries(lines) : [];
   if (boundaries.length === 0) {
     return groupLinesIntoParagraphs(lines.map((l) => renderLine(l.y, l.items)));
   }
