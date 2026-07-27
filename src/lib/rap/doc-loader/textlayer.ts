@@ -228,13 +228,46 @@ export function scanFidelity(text: string): { text: string; fidelityDamaged: boo
 const MIN_TOTAL_CHARS = 200;
 const MIN_CHARS_PER_PAGE = 50;
 
+// A page "carries meaningful text" when its OWN paragraphs total at least
+// this many characters. Deliberately separate from MIN_CHARS_PER_PAGE above,
+// which is a document-wide AVERAGE and can be satisfied by a single
+// content-rich page (a cover, a title page) while every other page is a
+// blank scanned image — that gap is exactly what let a 20-page document with
+// one ~1,000-char page and 19 image-only pages pass undetected. Same
+// heuristic basis as its neighbours; change only against a measured
+// document.
+const MIN_PAGE_CHARS = 50;
+
+// The share of pages that must clear MIN_PAGE_CHARS. A strict per-page
+// minimum would reject a legitimate RAP that has an ordinary sparse divider
+// page or a full-page figure, so this gates a PROPORTION of pages, not every
+// page individually. 0.6 leaves comfortable room for a handful of such pages
+// in an otherwise genuine document while still catching one that is mostly
+// scanned images. Heuristic, tuned with the same wide margin as the floors
+// above — change only against a measured document.
+const MIN_PAGE_COVERAGE_RATIO = 0.6;
+
 /** Throw ScannedDocumentError when the document carries no usable text layer. */
-export function assertHasTextLayer(text: string, pageCount: number, fileName: string): void {
+export function assertHasTextLayer(text: string, pages: string[][], fileName: string): void {
+  const pageCount = pages.length;
   // Page markers are ours, not the document's — exclude them so a 40-page scan
   // does not look content-rich purely because it has 40 "[p.N]" lines.
   const body = text.replace(/^\[p\.[^\]]*\]$/gm, "").trim();
   if (body.length < MIN_TOTAL_CHARS) throw new ScannedDocumentError(fileName);
   if (pageCount > 0 && body.length / pageCount < MIN_CHARS_PER_PAGE) throw new ScannedDocumentError(fileName);
+
+  // A document-wide average cannot see a document that is mostly blank
+  // scanned pages plus one content-rich outlier — require most pages to
+  // individually carry text, not just the document on average. Measured
+  // from the raw per-page paragraph arrays (never from the joined, "[p.N]"-
+  // carrying `text`), so a page's count can never be inflated by a marker
+  // that isn't real content in the first place.
+  if (pageCount > 0) {
+    const coveredPages = pages.filter(
+      (paragraphs) => paragraphs.reduce((sum, p) => sum + p.trim().length, 0) >= MIN_PAGE_CHARS,
+    ).length;
+    if (coveredPages / pageCount < MIN_PAGE_COVERAGE_RATIO) throw new ScannedDocumentError(fileName);
+  }
 }
 
 export const textlayerLoader: DocLoader = {
@@ -257,7 +290,7 @@ export const textlayerLoader: DocLoader = {
     const bytes = await getDocumentBytes(sourceS3Key);
     const pages = await extractPagesFromPdf(bytes);
     const scanned = scanFidelity(buildTextFromPages(pages));
-    assertHasTextLayer(scanned.text, pages.length, fileName);
+    assertHasTextLayer(scanned.text, pages, fileName);
     return scanned;
   },
 };
