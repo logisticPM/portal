@@ -125,24 +125,45 @@ destroys page grounding; it is a diagnostic hatch, not a fallback.
 
 ## What to ask for
 
-To unblock `ca` extraction, the org administrator (**derekja@uvic.ca**) needs to permit, for the
-member account's **service roles** and not just SSO principals:
+There is no way around this from the repo, so it is an external ask. The org administrator
+(**derekja@uvic.ca**, management account `123896930307`) needs to permit **Textract for the
+member account's service roles**, not just for SSO principals — both action families are
+currently denied:
 
-- `textract:StartDocumentAnalysis`
-- `textract:GetDocumentAnalysis`
+- `textract:StartDocumentAnalysis` + `textract:GetDocumentAnalysis` (what the LAYOUT path uses)
+- `textract:StartDocumentTextDetection` + `textract:GetDocumentTextDetection` (the fallback,
+  also denied — see below)
 
-in `ca-central-1`. Everything on our side is then already in place.
+in `ca-central-1`. Everything on our side is already in place: the IAM grant in this PR covers
+all four actions, and flipping `EXTRACTION_IMPL=bedrock` on the `ca` deploy is then the only
+remaining step.
 
-### Open question worth one experiment first
+Useful framing for the ask: this is not a request to open Textract to the account — a human SSO
+session can already call it. It is a request to stop denying it to the account's *Lambda
+execution roles*, which is what makes the difference between "a developer can OCR a document by
+hand" and "the product can."
 
-We did **not** establish whether the SCP denies *all* of Textract or only the analysis APIs.
-`textract:StartDocumentTextDetection` is granted in IAM and was never exercised from the Lambda
-role. If the SCP denies only the analysis actions, switching the OCR stage to the async
-text-detection API might dodge it entirely with no external dependency — at a real cost:
-the LAYOUT path was adopted deliberately because a flat `LINE` join carries no paragraph
-boundaries, so `chunkDocument`'s paragraph split never fires (see the comment at
-`pipeline.bedrock.ts:196-201`). Worth measuring before asking, since it may make the ask
-unnecessary.
+### The cheaper workaround was tested and does NOT exist
+
+Before escalating we tested whether the SCP covers only the *analysis* APIs, which would have
+let us dodge it in code by switching the OCR stage to async text detection. **It does not.**
+
+An `OCR_MODE=text` branch was written (swapping `StartDocumentTextDetection` /
+`GetDocumentTextDetection` for the analysis pair, with a `LINE`-block text builder that keeps the
+`[p.N]` page markers), deployed to `ca`, and invoked against the same real PDF:
+
+```
+"error": "... is not authorized to perform: textract:StartDocumentTextDetection
+           with an explicit deny in a service control policy: ... p-9n6l6a99"
+```
+
+Same policy, same principal, different action family. So the deny is **broad across Textract**
+for service roles, not scoped to the analysis actions. There is no in-code route around it.
+
+The `OCR_MODE` branch was **reverted** rather than merged: its only purpose was to dodge this
+SCP, it cannot, and an untested degraded OCR path in the tree would be a liability — someone
+would eventually set it expecting it to help. The measurement is recorded here instead. If the
+SCP is ever partially lifted, the shape of that change is in this PR's history.
 
 ---
 
