@@ -70,7 +70,7 @@ Caption: "Upload → AI extraction → human review → publish → stream-drive
 
 ### Task 4: `03-legal-cases-search-and-briefs.html` (canvas 1600×1000) + render
 
-Two lanes (spec §03): **Ingestion** — harvest → **Textract** fulltext → **Bedrock Titan** embeddings → build **bm25.bin + vectors.bin** → **S3 CasesIndex**; corpus → **LegalCases** (~43k). **Serve** — Web/Lambda loads bm25 (cold start) → **hybrid BM25 + dense** search; **BriefGen** Lambda → **Bedrock** briefing notes; **CaseMonitor** cron (**EventBridge**, weekly) → LegalCases. All us-east-1.
+Two lanes (spec §03): **Ingestion** — harvest → **Textract** fulltext → **Bedrock Titan** embeddings → build **bm25.bin + vectors.bin** → **S3 CasesIndex**; corpus → **LegalCases** (~3.5k cases / 43k items). **Serve** — Web/Lambda loads bm25 (cold start) → **hybrid BM25 + dense** search; **BriefGen** Lambda → **Bedrock** briefing notes; **CaseMonitor** cron (**EventBridge**, weekly) → LegalCases. All us-east-1.
 Caption: "An offline ingest→embed→index pipeline feeds hybrid keyword+vector search and Bedrock-generated briefing notes."
 
 - [ ] Build HTML, render (window 1600,1000), confirm specs, eyeball, iterate.

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="gallery.css">
+<style>
+  .canvas{width:900px;height:462px}
+  .head{padding:22px 30px 2px}
+  .title{font-size:28px}.caption{font-size:15.5px;max-width:840px}
+  .body2{display:flex;gap:22px;margin:8px 30px 22px;align-items:flex-start}
+  .figcard{border:1.5px solid var(--line);border-radius:10px;background:#fff;padding:8px;flex:0 0 auto}
+  .figcard img{width:496px;height:auto;display:block}
+  .panel{flex:1;display:flex;flex-direction:column;gap:12px;padding-top:4px}
+  .panel .h{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--maroon)}
+  .panel p{font-size:14.5px;line-height:1.45;color:var(--ink)}
+  .panel p b{font-weight:700}
+  .pair{display:flex;gap:10px}
+  .pair .c{flex:1;border-radius:8px;padding:9px 11px}
+  .pair .c.win{background:#E0EFE7;border-left:4px solid var(--green)}
+  .pair .c.lose{background:#F3E1E4;border-left:4px solid var(--maroon)}
+  .pair .n{font-family:var(--disp);font-weight:800;font-size:25px;line-height:1;color:var(--green)}
+  .pair .c.lose .n{color:var(--maroon)}
+  .pair .l{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.25}
+  .note2{border-left:4px solid var(--blue);background:#E3EAF1;border-radius:8px;padding:9px 12px;font-size:13.5px;line-height:1.4;color:var(--ink)}
+</style></head>
+<body>
+<div class="canvas">
+  <div class="head">
+    <div class="eyebrow">CS7980 · Indigenomics Portal · Research finding</div>
+    <div class="title">Quality versus cost — the single-pass baseline dominates</div>
+    <div class="caption">Plotting review quality against what it costs to get it puts every multi-agent architecture in the wrong corner.</div>
+  </div>
+  <div class="body2">
+    <div class="figcard"><img src="f1-vs-cost.png" alt="Semantic F1 versus LLM calls per confirmed true positive"></div>
+    <div class="panel">
+      <div class="h">What it shows</div>
+      <p><b>Agentless</b> sits alone in the top-left: <b>fewest calls AND best F1</b>. Every team architecture is strictly worse on both axes at once — there is no quality/cost trade-off to tune, because nothing dominates the baseline.</p>
+      <div class="pair">
+        <div class="c win"><div class="n">0.34</div><div class="l">calls per confirmed finding — Agentless</div></div>
+        <div class="c lose"><div class="n">1.76</div><div class="l">calls per confirmed finding — Consensus</div></div>
+      </div>
+      <div class="note2">Extra agents raise <b>recall</b> (0.62–0.63 vs 0.50) but halve precision, so semantic F1 falls to <b>0.357–0.378</b> against the baseline's <b>0.487</b> — at up to <b>5×</b> the cost.</div>
+    </div>
+  </div>
+</div>
+</body></html>

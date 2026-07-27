@@ -59,7 +59,7 @@ Side path: RapData → **PITR export → S3 RapAnalytics → Athena** (analytics
 Two lanes:
 - **Ingestion (offline pipeline):** harvest court decisions → **Textract** fulltext →
   **Bedrock Titan embeddings** → build **bm25.bin + vectors.bin** → **S3 CasesIndex**;
-  corpus lands in **LegalCases** DynamoDB (~43k items).
+  corpus lands in **LegalCases** DynamoDB (43,443 items ≈ 3,489 case profiles + 39,954 text chunks; 561 promoted to the curated *core* tier).
 - **Serve (request path):** **Next.js/Lambda** loads bm25 from CasesIndex on cold start →
   **hybrid search** (BM25 keyword + dense/Titan vector); **BriefGen** Lambda generates
   briefing notes via **Bedrock**; **CaseMonitor** cron (**EventBridge**, weekly) detects new
