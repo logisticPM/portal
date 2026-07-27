@@ -10,16 +10,19 @@ email channel is currently doing, and exactly which part is gated on AWS rather 
 
 ## Status (TL;DR)
 
-**The notification pipeline is deployed and working end to end except the final SES delivery hop, which is
-unconfigured — not broken.** Digests compute correctly, persist correctly, and render correctly in the
-institute inbox on both `ca` and `production`. No email has been sent on any stage, because no sender or
-recipient is configured and no SES identity is verified in the account.
+**`ca` sends real email as of 2026-07-27. `production` does not yet.**
 
-**This is a configuration gap, not a sandbox limitation.** The two are easy to conflate. SES sandbox does
-**not** prevent the demo from sending real email — sandbox permits verified-sender → verified-recipient
-delivery at 200/day. What it prevents is sending to *arbitrary* recipients, i.e. real institute staff.
-So the showcase path is unblocked by ~10 minutes of identity verification plus a redeploy; only
-production rollout to real users needs AWS production access.
+The audit found the pipeline deployed and correct everywhere except the final SES delivery hop, which was
+unconfigured on both stages — no sender/recipient set, and no verified SES identity anywhere in the
+account. `ca` has since been fixed and verified end to end with a real delivered email (§Evidence).
+`production` is unchanged and still records `skipped` every Monday.
+
+**The gap was configuration, not the sandbox.** The two are easy to conflate, and conflating them
+understates working code. SES sandbox does **not** prevent real email — it permits verified-sender →
+verified-recipient delivery at 200/day, which is what `ca` now does. What sandbox prevents is sending to
+*arbitrary* recipients, i.e. real institute staff. So the showcase path needed ~10 minutes of identity
+verification plus a redeploy; only rollout to real users needs AWS production access, which we have
+**not** requested.
 
 ---
 
@@ -33,22 +36,38 @@ production rollout to real users needs AWS production access.
 | `REPO_IMPL=dynamo` on Web fn | ✅ | ✅ |
 | `ses:SendEmail` IAM grant | ✅ on `WebServerCacentral1Role` | ✅ |
 | Weekly cron (`NotifyDigest`) | ✅ correctly absent (prod-only) | ✅ ENABLED, `cron(0 13 ? * MON *)` |
-| `DIGEST_SENDER` / `DIGEST_RECIPIENT` | ❌ both `''` | ❌ both `''` |
-| Verified SES identities | ❌ none | ❌ none |
-| SES production access | ❌ sandbox | ❌ sandbox |
+| `DIGEST_SENDER` / `DIGEST_RECIPIENT` | ✅ set (redeployed 2026-07-27) | ❌ both `''` |
+| Verified SES identities | ✅ sender + recipient | ❌ none in `us-east-1` |
+| SES production access | ❌ sandbox (fine — see below) | ❌ sandbox |
+| **Email actually delivering** | ✅ **yes, verified** | ❌ records `skipped` |
 
-Both stages are in the same state on the two rows that matter. The infrastructure is complete;
-the credentials for the last hop are not set.
+`ca` is fully wired. `production` still has both gaps and will keep writing `skipped` records until it
+gets the same treatment — note its identities must be verified in **`us-east-1`**; SES verification does
+not cross regions.
 
 ---
 
 ## Evidence
 
-**`ca` — the one digest on record** (`indigenomics-portal-ca-NotificationsTable-okmntofc`):
+**`ca` — before and after the fix** (`indigenomics-portal-ca-NotificationsTable-okmntofc`):
 
 ```
-week=2026-W30  generated=2026-07-26T19:32:25Z  emailStatus=skipped  recipient=null  emailError=none
+week=2026-W30  2026-07-26T19:32:25Z  emailStatus=skipped  recipient=null            # pre-fix
+week=2026-W31  2026-07-27T20:05:51Z  emailStatus=sent     recipient=<institute inbox>
 ```
+
+The `sent` record is corroborated independently by CloudWatch `AWS/SES` over the same window:
+
+```
+Send=3  Delivery=3  Bounce=0  Complaint=0  Reject=0
+```
+
+Three sends = two identity-verification emails + one digest; all three delivered. The per-minute series
+puts one `Send` at 20:05 UTC, matching the digest's `generatedAt` exactly, and arrival in the recipient
+inbox was confirmed by hand.
+
+> `SendQuota.SentLast24Hours` still read `2.0` immediately afterward. That field lags; the CloudWatch
+> `Send`/`Delivery` metrics are the real-time signal. Do not read the quota number as a contradiction.
 
 **`production` — the weekly cron fired on schedule** on Monday 2026-07-27 and produced real numbers:
 
@@ -59,18 +78,18 @@ week=2026-W30  generated=2026-07-26T19:32:25Z  emailStatus=skipped  recipient=nu
 Both prod records (`2026-W30`, `2026-W31`) carry `emailStatus=skipped`. The cron is healthy —
 402ms, 110MB, no errors. It computes the digest correctly every week and then has nowhere to send it.
 
-**SES account state**, both regions:
+**SES account state at audit time**, both regions:
 
 ```
-ProductionAccessEnabled: false        # sandbox
+ProductionAccessEnabled: false        # sandbox — still true today
 SendingEnabled:          true
 Max24HourSend:           200.0
-SentLast24Hours:         0.0
 list-email-identities:   []           # zero verified identities, ca-central-1 AND us-east-1
 ```
 
-No identity has ever been verified anywhere in this account, which is independent confirmation that no
-digest email has ever successfully sent.
+That empty identity list was independent confirmation that no digest email had ever successfully sent
+anywhere in this account. Two identities have since been verified in **`ca-central-1`** only.
+`us-east-1` still has none, which is why `production` cannot send.
 
 ---
 
@@ -140,26 +159,31 @@ request takes AWS a day or more to review — worth filing well ahead of any suc
 
 ## Enabling delivery
 
-### `ca` (demo path)
+### `ca` — **done 2026-07-27**, recorded here so it can be repeated
 
-1. **Verify both identities in SES, region `ca-central-1`.** Verification is per-region — verifying in
-   `us-east-1` does nothing for this stage. Sandbox requires the recipient be verified too, not just the sender.
-   Plus-aliases verify independently but land in one inbox (`you+rapindex@gmail.com` as sender,
-   `you@gmail.com` as recipient), so one mailbox covers both ends.
-2. **Redeploy with the vars exported:**
+1. **Verified both identities in SES, region `ca-central-1`.** Verification is per-region — verifying in
+   `us-east-1` does nothing for this stage. Sandbox requires the recipient be verified too, not just the
+   sender. Both ends confirm via a clicked link; the link expires in 24h.
+2. **Redeployed from `main` with the vars exported:**
    ```
    AWS_PROFILE=isb SST_AWS_REGION=ca-central-1 CASES_EMBED_PROVIDER=stub \
    DIGEST_SENDER=<verified-sender> DIGEST_RECIPIENT=<verified-recipient> \
    npx sst deploy --stage ca
    ```
-3. Sign in as the institute → **Notifications** → **Generate & send now**. The `2026-W30` row regenerates
-   in place (idempotent per ISO week — no duplicate rows) and the badge should flip to `sent`.
+   Deploy these from `main`, not a feature branch — the env vars are baked into the Lambda alongside
+   whatever code is checked out.
+3. Triggered a digest and confirmed `emailStatus=sent` plus SES `Delivery=1` for that minute.
 
-### `production`
+To repeat on demo day: sign in as the institute → **Notifications** → **Generate & send now**. The current
+week's row regenerates **in place** (idempotent per ISO week — no duplicate rows), so retakes are safe.
 
-Same two ingredients, `us-east-1` identities and a prod redeploy with the vars set. Until then the cron
-will keep firing every Monday at 13:00 UTC and writing `skipped` records — harmless and accurate, but it
-means the feature reads as inactive to anyone browsing the prod inbox.
+### `production` — still to do
+
+Same two ingredients: `us-east-1` identities and a prod redeploy with the vars set. Until then the cron
+fires every Monday at 13:00 UTC and writes `skipped` — harmless and accurate, but the feature reads as
+inactive to anyone browsing the prod inbox. Decide deliberately whether prod *should* email, and to whom:
+a real institute distribution list needs SES production access **and** a sender on a project-controlled
+domain with DKIM, not a personal address. Those are one piece of work, not two.
 
 ---
 
@@ -169,5 +193,11 @@ means the feature reads as inactive to anyone browsing the prod inbox.
 - The local harness (`npm run verify:notifications`) passes **44 of 45** checks. The one gap is the
   DynamoDB repo round-trip parity section, which needs DynamoDB Local and did not run in this audit
   (Docker was not running on the auditing machine). It is not a known failure — it is unexercised here.
-- No test covers the live SES path. The first real send will be the first real test of it, which is
-  another reason to do step 1 above before demo day rather than on it.
+- No automated test covers the live SES path, and none has been added. The 2026-07-27 send was a manual
+  one-off; nothing prevents this configuration from silently regressing on a future deploy that forgets
+  to export the vars. Re-check the badge before relying on it.
+- That send was triggered by a throwaway script calling `runDigest()` directly against the `ca` tables,
+  not by the institute button in the deployed app. It proves the code path, the SES identities and the
+  region wiring; it does **not** prove the deployed Lambda's own environment. That env was verified
+  separately (`get-function-configuration` shows both `DIGEST_*` vars set) and the role carries
+  `ses:SendEmail`, so the button is expected to work — but the button itself remains unexercised.

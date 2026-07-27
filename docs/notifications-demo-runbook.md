@@ -4,10 +4,14 @@ Practical steps to record the notifications feature. The feature is delivered on
 branch `feat/overdue-notifications` (spec `docs/superpowers/specs/2026-07-25-…`,
 plan `docs/superpowers/plans/2026-07-25-…`).
 
-> **Current state (2026-07-27):** the SES setup in step 1 below has **not** been done —
-> no identity is verified in `ca-central-1`, and `DIGEST_SENDER`/`DIGEST_RECIPIENT` are
-> empty on the deployed `ca` stage, so digests currently record `email: skipped`.
-> Do step 1 before recording. See `docs/notifications-delivery-status.md`.
+> **Current state (2026-07-27): `ca` is set up and sending — step 1 below is DONE.**
+> Both SES identities are verified in `ca-central-1` and the stage was redeployed with
+> `DIGEST_SENDER`/`DIGEST_RECIPIENT` set; a real digest email was sent and delivered
+> (week `2026-W31`, `email: sent`). You can record the demo as written.
+> Two caveats: the send was verified via a script, so the **button** path itself is still
+> unexercised — click it once before recording. And any future `sst deploy --stage ca` that
+> forgets to export the two `DIGEST_*` vars silently reverts the badge to `skipped`.
+> Full detail: `docs/notifications-delivery-status.md`.
 
 ## What the demo shows
 The institute logs in, clicks one button, and an overdue-milestone digest
