@@ -17,7 +17,7 @@
 // than as a specific failure: every job failed in under a second and the queue
 // showed nothing. Both statuses were already stored; only the query was narrow.
 import { extractionRepo } from "@/lib/rap";
-import { confirmExtractionAction, rejectExtractionAction, resolveOrgAction } from "@/lib/rap/actions";
+import { confirmExtractionAction, dismissExtractionAction, rejectExtractionAction, resolveOrgAction, retryExtractionAction } from "@/lib/rap/actions";
 import { cbrSearchUrl } from "@/lib/rap/registry";
 import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
 import { labelFor } from "@/lib/taxonomy";
@@ -187,7 +187,29 @@ function FailedList({ jobs, now }: { jobs: ExtractionJob[]; now: number }) {
           ) : (
             <div className="text-ink3 text-xs">No error recorded — check CloudWatch for this job id.</div>
           )}
-          <div className="text-ink3 text-[11px] font-mono">job {job.id}</div>
+          <div className="text-ink3 text-[11px] font-mono">
+            job {job.id}
+            {/* Surfaced only after a retry: on a first failure it is noise, but
+                "attempt 3" is what tells an operator the failure is
+                deterministic and retrying again is pointless. */}
+            {job.attempts > 1 ? ` · attempt ${job.attempts}` : ""}
+          </div>
+
+          {/* Plain server-action forms, like Approve/Reject above — no client
+              JS, so these work before hydration. Retry lands the job on PENDING,
+              which moves this row up into the Extracting list on the next
+              refresh; that refresh is already running because inProgress > 0. */}
+          <div className="flex gap-3 pt-2">
+            <form action={retryExtractionAction}>
+              <input type="hidden" name="jobId" value={job.id} />
+              <button className="px-3 py-1.5 rounded bg-rust text-white text-sm">Retry extraction</button>
+            </form>
+            <form action={dismissExtractionAction}>
+              <input type="hidden" name="jobId" value={job.id} />
+              <input type="hidden" name="reviewedBy" value="admin" />
+              <button className="px-3 py-1.5 rounded border border-line text-ink3 text-sm">Dismiss</button>
+            </form>
+          </div>
         </div>
       ))}
     </div>

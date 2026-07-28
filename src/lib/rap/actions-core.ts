@@ -147,3 +147,75 @@ export async function setShowcaseOptInForParty(input: {
   await rapRepo.putClaim({ ...claim, showcaseOptIn: input.optIn, showcaseOptInAt: input.now });
   return { ok: true };
 }
+
+// ===========================================================================
+// FAILED-job recovery. A failed extraction used to be invisible (the review
+// queue listed PENDING_REVIEW only); now it is listed, these are the two ways
+// an operator can act on one.
+// ===========================================================================
+
+/**
+ * Clear a failed job out of the queue, keeping the record and the diagnosis.
+ *
+ * Reuses REJECTED rather than inventing a DISMISSED status: nothing lists
+ * REJECTED, so the job leaves the queue, and every existing query keeps working.
+ *
+ * THE TRAP: rejectJob OVERWRITES reviewNote, which is the only place the
+ * failure reason is stored (markFailed writes it there). Passing a bare
+ * "dismissed" would erase why the job failed at the exact moment someone tidies
+ * up — so the original error is folded into the reason.
+ */
+export async function dismissFailedJob(input: {
+  jobId: string;
+  reviewedBy: string;
+}): Promise<{ ok: boolean; reason?: "not-found" | "not-failed" }> {
+  const job = await extractionRepo.getJob(input.jobId);
+  if (!job) return { ok: false, reason: "not-found" };
+  // Only FAILED: dismissing from PENDING_REVIEW would silently bypass the
+  // review gate, and this action is directly POST-able as a Server Action.
+  if (job.status !== "FAILED") return { ok: false, reason: "not-failed" };
+
+  await extractionRepo.rejectJob(
+    input.jobId,
+    input.reviewedBy,
+    `Dismissed after failure: ${job.reviewNote ?? "no error recorded"}`,
+  );
+  return { ok: true };
+}
+
+/**
+ * Re-dispatch extraction for a failed job, against the same source object.
+ *
+ * `dispatch` is injected so this is testable without invoking Lambda — the same
+ * reason resolveOrgForJob takes a RegistryProvider.
+ *
+ * ORDER MATTERS. requeueJob lands the job on PENDING *before* dispatch, so a
+ * dispatch that throws can be caught and marked FAILED. Marking EXTRACTING
+ * first would strand the job if dispatch never happened: no worker would ever
+ * write to it again and nothing would clear it.
+ *
+ * There is deliberately no automatic retry anywhere above this. Most failures
+ * here are deterministic (a missing source object, an SCP deny, a scanned PDF),
+ * and when the org SCP denied Textract every job failed in under a second — an
+ * auto-retry would have been an unbounded loop against a permanent denial.
+ */
+export async function retryFailedJob(input: {
+  jobId: string;
+  dispatch: (payload: { jobId: string; fileName: string; sourceS3Key: string }) => Promise<void>;
+}): Promise<{ ok: boolean; reason?: "not-found" | "not-failed" | "dispatch-failed" }> {
+  const job = await extractionRepo.getJob(input.jobId);
+  if (!job) return { ok: false, reason: "not-found" };
+  // FAILED only. Re-dispatching a job that is already EXTRACTING would run two
+  // pipelines against one record, interleaving their writes.
+  if (job.status !== "FAILED") return { ok: false, reason: "not-failed" };
+
+  await extractionRepo.requeueJob(input.jobId);
+  try {
+    await input.dispatch({ jobId: job.id, fileName: job.fileName, sourceS3Key: job.sourceS3Key });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await extractionRepo.markFailed(input.jobId, `retry dispatch failed: ${msg}`);
+    return { ok: false, reason: "dispatch-failed" };
+  }
+  return { ok: true };
+}

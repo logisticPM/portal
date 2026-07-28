@@ -104,7 +104,13 @@ function strip<T>(it: Record<string, any>): T {
   return rest as T;
 }
 
-export const itemToJob = (it: Record<string, any>) => strip<ExtractionJob>(it);
+// `attempts` was added after jobs were already in the table, so a stored row
+// may not carry it. Default here rather than making the field optional: every
+// consumer then sees a number, and no backfill is needed.
+export const itemToJob = (it: Record<string, any>) => {
+  const job = strip<ExtractionJob>(it);
+  return { ...job, attempts: job.attempts ?? 1 };
+};
 export const itemToOrg = (it: Record<string, any>) => strip<RapOrganization>(it);
 export const itemToRap = (it: Record<string, any>) => strip<RapDocument>(it);
 export const itemToCommitment = (it: Record<string, any>) => strip<Commitment>(it);

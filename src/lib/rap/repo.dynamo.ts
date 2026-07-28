@@ -77,6 +77,7 @@ export const dynamoExtractionRepo: ExtractionRepo = {
       registryLegalName: null,
       registryStatus: null,
       dataClass: input.dataClass,
+      attempts: 1,
     };
     return putJob(job);
   },
@@ -109,6 +110,20 @@ export const dynamoExtractionRepo: ExtractionRepo = {
   async markFailed(id, error) {
     const job = await getJobOrThrow(id);
     return putJob({ ...job, status: "FAILED", reviewNote: error, updatedAt: now() });
+  },
+
+  // Operator retry — see ExtractionRepo.requeueJob for why this lands on
+  // PENDING rather than EXTRACTING. reviewNote is cleared because a stale error
+  // rendered beside a job that is running again is worse than no error at all.
+  async requeueJob(id) {
+    const job = await getJobOrThrow(id);
+    return putJob({
+      ...job,
+      status: "PENDING",
+      reviewNote: null,
+      attempts: (job.attempts ?? 1) + 1,
+      updatedAt: now(),
+    });
   },
 
   async listByStatus(status: ExtractionStatus) {

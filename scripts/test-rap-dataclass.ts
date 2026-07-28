@@ -17,6 +17,7 @@ const job: ExtractionJob = {
   id: "doc-1",
   fileName: "rap.pdf",
   sourceS3Key: "uploads/doc-1/rap.pdf",
+  attempts: 1,
   status: "PENDING",
   schemaVersion: "test",
   engine: null,

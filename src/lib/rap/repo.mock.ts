@@ -82,6 +82,7 @@ export const mockExtractionRepo: ExtractionRepo = {
       registryLegalName: null,
       registryStatus: null,
       dataClass: input.dataClass,
+      attempts: 1,
     };
     store.jobs.push(job);
     return job;
@@ -115,6 +116,16 @@ export const mockExtractionRepo: ExtractionRepo = {
     const job = findJob(id);
     job.status = "FAILED";
     job.reviewNote = error;
+    job.updatedAt = now();
+    return job;
+  },
+
+  // See ExtractionRepo.requeueJob — PENDING, not EXTRACTING.
+  async requeueJob(id) {
+    const job = findJob(id);
+    job.status = "PENDING";
+    job.reviewNote = null;
+    job.attempts = (job.attempts ?? 1) + 1;
     job.updatedAt = now();
     return job;
   },

@@ -253,6 +253,14 @@ export interface ExtractionJob {
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 
+  // How many times extraction has been dispatched for this job: 1 on creation,
+  // +1 per operator retry. reviewNote holds only the LATEST error, so without
+  // this a job that has failed three different ways is indistinguishable from
+  // one that failed once — which is exactly the signal an operator needs to
+  // decide between "retry again" and "this is deterministic, stop".
+  // Rows created before this field existed read as 1 (see itemToJob).
+  attempts: number;
+
   // --- BN-keyed identity resolution (set at review, before publish) ---
   businessNumber: string | null; // 9-digit BN root, once resolved
   businessNumberSource: "ised" | "self_asserted" | null;
@@ -429,6 +437,19 @@ export interface ExtractionRepo {
   markExtracting(id: string): Promise<ExtractionJob>; // → EXTRACTING
   saveResult(id: string, result: ExtractionResult): Promise<ExtractionJob>; // → PENDING_REVIEW
   markFailed(id: string, error: string): Promise<ExtractionJob>; // → FAILED
+
+  // Operator retry of a FAILED job: back to PENDING, error cleared, attempts+1.
+  //
+  // PENDING and not EXTRACTING, deliberately. The caller dispatches the worker
+  // AFTER this returns, and if that dispatch throws it marks the job FAILED —
+  // which only works from a state the caller still owns. A job left EXTRACTING
+  // by a dispatch that never happened is the one state nothing recovers from:
+  // no worker will ever write to it again, and it sits in the queue forever
+  // (the reason ReviewPanel has a stall indicator at all).
+  //
+  // Like rejectJob, this does NOT check the current status — the repo layer is
+  // a dumb writer here and the FAILED-only guard lives in retryFailedJob.
+  requeueJob(id: string): Promise<ExtractionJob>; // → PENDING
 
   // review queue
   listByStatus(status: ExtractionStatus): Promise<ExtractionJob[]>;
