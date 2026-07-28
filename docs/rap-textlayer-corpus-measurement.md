@@ -256,13 +256,27 @@ on a second document without a gold set ever being built.
 
 ### What the reference found that we could not
 
-**RBC p4 is read wrongly by both branches.** The prose guard correctly refuses it (it is a
-signature grid — see above), but the row-major fallback then **interleaves** the left-column body
-prose with the right-column signature block, because the two regions share baselines. Textract
+**RBC p4 is read wrongly by both branches.** The row-major fallback **interleaves** the left-column
+body prose with the right-column signature block, because the two regions share baselines. Textract
 separates them. Page attribution is unaffected, so grounding still holds, and a quote spanning the
 interleave fails `validate.ts`'s substring check and routes to human review — the safe direction.
-But "the guard rejected it" was being read as "the page is handled", and it is not. **No page in
-the corpus is handled correctly by the fallback when two independent text regions share baselines.**
+But "the guard rejected it" was being read as "the page is handled", and it is not.
+
+**Correction to an earlier claim in this document.** The guard's rejection of p4 was first recorded
+here as a true positive, on the reasoning that column-major reading "would have detached every name
+from its title". That reasoning is **backwards** and the claim is withdrawn. Column-major reading of
+p4 is *correct*: each band holds one signatory's whole block, so the name stays with its own title.
+
+```
+[band 1] Dave McKay / President and Chief Executive Officer, / Royal Bank of Canada
+         Jacynthe Côté / Chair of the Board, / Royal Bank of Canada
+[band 2] Phil Fontaine / Special Advisor / to Royal Bank of Canada
+         Chinyere Eni / Head, RBC Origins
+```
+
+It is the **row-major fallback** that detaches them — names row, then titles row. See
+`docs/rap-p4-interleaving-investigation.md` for the root cause and for three candidate fixes, two of
+which were measured and rejected.
 
 Deloitte's four page disagreements (`ours p24/ref p14`, `ours p3/ref p34`, `ours p18/ref p14`) are
 large jumps, consistent with a repeated boilerplate sentence matching the wrong instance rather than
