@@ -166,7 +166,135 @@ which passes the prose guard and would be read column-major with pairing silentl
 page exists in this corpus — the guard's one rejection (RBC p4) was a signature grid, not a
 commitment table — so that risk is still **untested rather than disproven**.
 
-## What would actually unblock tuning
+---
+
+## UPDATE — the deadlock broke: Textract LAYOUT as an independent reference
+
+**This section supersedes the "what would unblock tuning" conclusion below.** That conclusion was
+that tuning needed a second human-verified gold set. It did not. A cross-engine reference works,
+and the corpus now has one.
+
+### Why this is not circular
+
+Scoring the loader against its own output measures nothing. Scoring it against **Textract LAYOUT**
+is a different proposition: Textract resolves columns with a vision model over the rendered page,
+where we use glyph geometry from the PDF's text layer. The two share no code, no input
+representation and no failure modes. Textract is *not* ground truth — it has its own errors — but
+its errors are **uncorrelated** with ours, which is all a reference needs to carry signal.
+
+### It runs in country, under an SSO session
+
+The org SCP denies Textract to the account's Lambda roles but **not to SSO principals**
+(`docs/ca-extraction-textract-scp.md`). So the reference is produced by a human-run script against
+`ca-central-1` — no cross-border transfer, no BDA, no deploy. Confirmed working 2026-07-27 on five
+documents. This also re-confirms the SCP is principal-conditional, live, at 139 pages of real use.
+
+BDA was considered and rejected as the reference engine: its page numbers are inferred rather than
+read, and page attribution is precisely the property under test.
+
+### Metrics, and the trap in the obvious one
+
+Sentences (≥8 words, normalised as `validate.ts` normalises quotes) are matched between the two
+readings, then:
+
+- **agreeing sentences (absolute)** — matched *and* attributed to the same page. Recall-bearing.
+- **within-page order disagreement** — adjacent transpositions pooled over pages, as a share of
+  orderable pairs. Restricted to same-page pairs because page order is never in doubt; column
+  order within a page is exactly what `COLUMN_GUTTER_RATIO` controls.
+
+The trap is the **ratio** agreeing/matched, which *improves as the loader recovers less text* — a
+smaller matched set is easier to agree on. Ratio 0.20 scores 99.8% on 435 sentences while 0.12
+scores 99.2% on 505, and 0.12 places **67 more sentences correctly**. Never optimise the
+percentage; that mistake was made and caught during this measurement.
+
+### Result: 0.12 is the argmax, on five documents
+
+```
+ratio  BankOfCanad    HydroQuebec    Deloitte_Ex    OPG_Reconci    RBC_Pathway      TOTAL
+ 0.08  109/109 0.5%   103/103 0.0%   116/121 1.0%   45/45 0.0%     97/97 6.0%       470/475  1.60%
+ 0.09  118/118 0.4%   103/103 0.0%   90/93  0.0%    37/37 0.0%     111/111 5.7%     459/462  1.73%
+ 0.10  118/118 0.4%   103/103 0.0%   97/100 1.6%    45/45 0.0%     106/106 4.0%     469/472  1.39%
+ 0.11  118/118 0.4%   102/102 0.0%   96/100 1.8%    40/40 0.0%     105/105 4.1%     461/465  1.42%
+ 0.12  118/118 0.4%   102/102 0.0%   123/127 0.9%   33/33 0.0%     125/125 2.9%     501/505  1.12%   <-- max
+ 0.13  118/118 0.4%   102/102 0.0%   120/125 1.2%   30/30 0.0%     108/108 1.7%     478/483  0.71%
+ 0.14  118/118 0.4%   81/81  0.0%    119/124 1.3%   33/33 0.0%     127/127 1.2%     478/483  0.74%
+ 0.15  118/118 0.4%   81/81  0.0%    124/128 1.2%   33/33 0.0%     105/105 1.5%     461/465  0.75%
+ 0.16  105/105 0.0%   81/81  0.0%    124/128 1.2%   28/28 0.0%     105/105 1.5%     443/447  0.67%
+ 0.18   98/98  0.0%   81/81  0.0%    123/124 1.2%   28/28 0.0%     104/104 1.5%     434/435  0.68%
+ 0.20   89/89  0.0%   81/81  0.0%    130/131 1.2%   28/28 0.0%     106/106 1.5%     434/435  0.74%
+```
+
+**0.12 places the most sentences correctly (501), a clear peak** against 461 at 0.11 and 478 at
+0.13. The lowest order disagreement is 0.16 at 0.67%, but it costs 58 correctly-placed sentences to
+buy 0.45pp — a bad trade.
+
+This is a genuine independent vindication: 0.12 was chosen against Bank of Canada alone, *before*
+any of the other four documents entered the corpus, and it is the argmax across all five. The
+per-document optima do differ (OPG prefers ~0.08–0.10, Deloitte ~0.20), so 0.12 is a pooled
+optimum, not universally best — but it is now **measured on five documents rather than one**.
+
+The earlier finding stands unchanged and is not in tension with this: the *page classification*
+still churns under the constant (92 page-changes across the band). What this shows is that the
+churn is largely on pages where reordering does not change the recovered text much, and that 0.12
+is where the recall-bearing quantity peaks.
+
+### Whole-document agreement at the shipped setting
+
+| Document | Page agreement | Whole-doc order disagreement | Pages flagged |
+| --- | --- | --- | --- |
+| Bank of Canada | 118/118 (100%) | 0.03% | — |
+| Hydro-Québec | 102/102 (100%) | 0.00% | — |
+| OPG | 33/33 (100%) | 0.00% | — |
+| RBC Pathways | 125/125 (100%) | 0.23% | p4 (28.6%), p10 (8.8%) |
+| Deloitte | 123/127 (96.9%) | 2.19% | p12 (26.7%) |
+
+**Bank of Canada's four columnar pages (7, 8, 13, 15) agree with Textract's independent column
+resolution.** Previously we knew only that our reordering produced the right *gold answers*, which
+could have been luck; now we know it produces the right *reading order*. Hydro-Québec's single
+columnar page (p3, 22 sentences) is likewise a perfect match — so column reordering is corroborated
+on a second document without a gold set ever being built.
+
+### What the reference found that we could not
+
+**RBC p4 is read wrongly by both branches.** The prose guard correctly refuses it (it is a
+signature grid — see above), but the row-major fallback then **interleaves** the left-column body
+prose with the right-column signature block, because the two regions share baselines. Textract
+separates them. Page attribution is unaffected, so grounding still holds, and a quote spanning the
+interleave fails `validate.ts`'s substring check and routes to human review — the safe direction.
+But "the guard rejected it" was being read as "the page is handled", and it is not. **No page in
+the corpus is handled correctly by the fallback when two independent text regions share baselines.**
+
+Deloitte's four page disagreements (`ours p24/ref p14`, `ours p3/ref p34`, `ours p18/ref p14`) are
+large jumps, consistent with a repeated boilerplate sentence matching the wrong instance rather than
+real misattribution. Unconfirmed — on the worklist.
+
+### The harness is committed and needs no AWS
+
+`scripts/fixtures/textract-reference/*.json` holds the reference for all five documents as
+**SHA-256 hashes** of normalised sentences plus page and position — 92 KB total. The comparison only
+ever asks "does this sentence appear, and where", which works on an opaque key, so no third-party
+prose is reproduced in the repo. Re-running the sweep costs nothing; regenerating a fixture needs an
+SSO session and a Textract run.
+
+| Script | Purpose |
+| --- | --- |
+| `scripts/fetch-textract-blocks.ts` | pull a completed job's blocks (SSO, ca-central-1) |
+| `scripts/build-textract-reference.ts` | distil blocks into a committable hashed fixture |
+| `scripts/compare-loader-vs-textract.ts` | one document: page + per-page order agreement |
+| `scripts/tune-against-textract.ts` | sweep a constant against every fixture |
+| `scripts/lib/reference-units.ts` | the shared splitter — both sides MUST split identically |
+
+### What is still open
+
+- **RBC p4's interleaving** — a real defect with a known cause and no fix yet.
+- **The all-wide-columns table** risk is still untested; no such page exists in the corpus.
+- A human-verified gold set is still the only way to measure **recall of commitments** (did we find
+  every commitment?). The reference measures *fidelity of reading* — a different question, and the
+  one that was blocking constant tuning.
+
+---
+
+## Superseded — what was thought to be needed before the reference existed
 
 A **human-verified gold set for a second document**. The measurement rig is built and cheap to
 re-run; what is missing is ground truth. Generating a gold set by running the extractor and
