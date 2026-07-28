@@ -68,23 +68,21 @@ const WORD_SPACE_RATIO = 0.2;
 // genuinely IS what the model was shown. The Textract LAYOUT path this loader
 // replaces resolved columns for us (see textract.ts); this is the replacement.
 //
-// A gutter is only accepted as a column boundary when ALL of the following
-// hold. Each guard exists because the failure mode of OVER-detecting is worse
-// than the failure mode of under-detecting: RAPs commonly TABLE their
-// commitments, and reading a table column-major separates every action from
-// its timeline and owner. Under-detection leaves a page exactly as it is
-// today; over-detection actively scrambles the rows commitments live in.
+// Detection runs in three stages, and the split matters — the first stage is
+// what FINDS a gutter, the last is what is allowed to BELIEVE it:
+//
+//  A. detectColumnGutters — pure geometry. Locate the gutter, first roughly
+//     (a recurring wide same-baseline gap) and then EXACTLY (the real band of
+//     whitespace between the columns).
+//  B. columnsLookLikeProse — the prose-likeness guard. A table's cells are
+//     short relative to their band; a prose column's lines fill theirs.
+//  C. detectColumnBoundaries — A gated by B. This is what the live path uses.
+//
+// Stage A's rough pass accepts a candidate gutter only when ALL of the
+// following hold:
 //
 //  1. The horizontal gap exceeds COLUMN_GUTTER_RATIO of the page's own text
-//     width (max right edge - min left edge, i.e. margins excluded). 0.15 is
-//     deliberately generous: on a 500pt text block that is a 75pt gutter, far
-//     wider than any table's cell padding and wider than a tight two-column
-//     gutter. Consequence, stated plainly: a two-column layout with a narrow
-//     (~20-40pt) gutter is NOT resolved by this and still interleaves. That
-//     is the conservative side of the trade, chosen because we have no
-//     document corpus to measure the real distribution against — the same
-//     posture as every other constant in this file. Tighten it only against
-//     measured documents.
+//     width (max right edge - min left edge, i.e. margins excluded).
 //  2. The SAME gutter x appears on at least MIN_COLUMN_ROWS lines. One line
 //     with a wide gap is a right-aligned page number, a dot-leaderless table
 //     of contents entry, or a header/footer pair — not a layout structure. A
@@ -95,41 +93,86 @@ const WORD_SPACE_RATIO = 0.2;
 //
 // When no boundary survives, groupItemsIntoParagraphs takes a single-column
 // path that is byte-identical to its pre-column behaviour.
-const COLUMN_GUTTER_RATIO = 0.15;
+//
+// COLUMN_GUTTER_RATIO = 0.12 is MEASURED, not chosen. Swept over the real
+// 17-page Bank of Canada RAP (the two commitment pages' geometry is committed
+// at scripts/fixtures/textlayer-geometry-bankofcanada-p13-p15.json), the
+// ratios that detect ALL FOUR of that document's genuine two-column pages
+// (7, 8, 13, 15) form a plateau of exactly 0.09–0.15, across which per-page
+// behaviour is identical and gold-commitment recall is flat at its maximum.
+// 0.12 is the centre of that plateau — the same 0.03 of margin either side.
+//
+// What happens off each edge is worth knowing, because it is not what the
+// pre-refinement version of this code did:
+//   • ABOVE 0.15, pages drop out of detection one at a time (p8 at 0.16, p7
+//     at 0.17) — under-detection, which leaves a page exactly as it would be
+//     if it had never been examined.
+//   • BELOW 0.09, pages ALSO drop out, for a non-obvious reason: shorter
+//     ragged line endings start qualifying as candidate gutters, a SECOND
+//     spurious rough boundary survives, and the resulting three-band layout
+//     then fails the MIN_COLUMN_WIDTH_RATIO guard — so the page is left
+//     alone rather than scrambled.
+// Both edges therefore fail safe. This constant is NOT what keeps tables
+// safe; the prose-likeness guard below is.
+const COLUMN_GUTTER_RATIO = 0.12;
 const MIN_COLUMN_ROWS = 3;
 const MAX_COLUMNS = 3;
 const MIN_COLUMN_WIDTH_RATIO = 0.15;
 
-// Column reordering is OFF. Measured on real RAPs (review, 2026-07-27): the
-// gutter heuristic above does not distinguish a genuine two-column body from
-// a commitment TABLE. A three-column Action / Timeline / Owner table emits
-// "Owner\nCPO\nCHRO\nCEO\nBoard" as its own paragraph, torn away from the
-// actions it belongs to — downstream, the model attaches a plausible but
-// WRONG owner/timeline to an action, and the resulting quote still passes
-// validate.ts's quote_not_found check, because it genuinely is a substring of
-// what the model was shown. Confident, wrong provenance is the one failure
-// mode this project cannot ship, worse than the interleaved-column nonsense
-// this code was written to fix.
+// --- the prose-likeness guard ----------------------------------------------
+// The reason column reordering was previously shipped OFF: a three-column
+// Action / Timeline / Owner commitment table has exactly the geometry of a
+// multi-column page, and reading it column-major emits "Owner / CPO / CHRO /
+// CEO" as a paragraph torn away from the actions it belongs to. The model
+// then attaches a plausible but WRONG owner or timeline to an action, and the
+// resulting quote still passes validate.ts's quote_not_found check, because
+// it genuinely is a substring of what the model was shown. Confident, wrong
+// provenance is the one failure mode this project cannot ship.
 //
-// No threshold value repairs this. COLUMN_GUTTER_RATIO gates on inter-run
-// whitespace, not on the PDF's design gutter, and the two populations are
-// inverted: ragged table cells (numbers, short owner names, uneven padding)
-// produce gaps of roughly 60-100pt, while real two-column body gutters are
-// only 20-40pt. Lowering the ratio to finally catch a real body column makes
-// table-shredding fire MORE often, not less; raising it to spare tables
-// abandons the tight-gutter body-column case entirely. That target case — the
-// one this fix was written for — is STILL interleaved with reordering off,
-// exactly as it was before this code existed; that is the accepted,
-// conservative failure mode, not a regression introduced by this flag.
+// No GAP threshold separates the two cases — that was measured and is still
+// true. What does separate them is what the bands CONTAIN. A prose column's
+// lines were broken because they ran out of column, so they fill the band and
+// carry a sentence's worth of characters. A table cell was broken because the
+// cell ended, so it is short in both senses. Both metrics are required: they
+// fail in different directions, and over-detection is the dangerous one.
 //
-// Re-enabling this requires BOTH: (1) a real document corpus measurement of
-// gutter widths across genuine multi-column body pages versus table cell gaps
-// on real RAPs, wide enough to place a threshold that separates the two
-// populations instead of a made-up constant, and (2) a prose-likeness guard
-// on candidate columns (e.g. average words per band, punctuation density) so
-// short, table-cell-shaped bands cannot qualify as a column no matter what
-// their gap width is. Do not flip this back to `true` without both.
-export const COLUMN_REORDERING_ENABLED = false;
+// MEASURED on the committed fixtures (both real BoC pages, plus the two
+// synthetic fixtures the tests use), per band:
+//
+//   fixture / band            contentFill   meanWordChars/line
+//   BoC p13 left                   0.939          27.26
+//   BoC p13 right                  0.964          26.55
+//   BoC p15 left                   0.938          25.24
+//   BoC p15 right                  0.971          29.11
+//   synthetic 2-column left        0.783          15.00
+//   synthetic 2-column right       0.815          13.00
+//   ------------- accept at or above / reject below -----------------------
+//   synthetic table Owner          0.500           3.33
+//   synthetic table Timeline       0.387           6.00
+//
+// The thresholds below are the midpoints of those two gaps (0.500..0.783 and
+// 6..13). Note the table's ACTION band scores 0.816 / 24.00 — prose-like on
+// its own, and higher than either band of the genuine two-column fixture.
+// That is precisely why the guard requires EVERY band to qualify: what
+// identifies a table is the PRESENCE of a label-shaped band, not the absence
+// of a prose-shaped one. A table whose every column is wide and wordy still
+// passes, and would still be read column-major; nothing measured here
+// separates that case, and it is recorded as a known limitation rather than
+// papered over.
+const MIN_BAND_FILL_RATIO = 0.65;
+const MIN_BAND_LINE_CHARS = 10;
+
+// Column reordering is ON, re-enabled 2026-07-27 against the real Bank of
+// Canada RAP after the corpus measurement its previous disabling was gated
+// on. That measurement (see the report in .superpowers/sdd/) found the
+// document's commitment pages are a two-column BULLETED LIST, not a table:
+// with reordering off, every action on p13/p15 interleaves mid-sentence and
+// only 4 of 22 gold actions survive intact. The prose-likeness guard above is
+// the second half of the gate — a table page is detected as multi-column and
+// then REFUSED, so the table-shredding regression stays locked out (see the
+// three-column table test in scripts/test-doc-loader-textlayer.ts, which now
+// runs with reordering enabled).
+export const COLUMN_REORDERING_ENABLED = true;
 
 // A glyph run's font size, read straight off its own transform (for
 // unrotated text — the only kind a digitally-produced RAP PDF has —
@@ -184,8 +227,13 @@ function renderLine(y: number, sorted: TextItem[]): RenderedLine {
   };
 }
 
-/** Bucket glyph runs into baseline lines (descending y — PDF origin is bottom-left). */
-function bucketIntoLines(printable: TextItem[]): { y: number; items: TextItem[] }[] {
+/**
+ * Bucket glyph runs into baseline lines (descending y — PDF origin is
+ * bottom-left). Exported so tests driving real page geometry can feed the
+ * detection functions the SAME line shape the live path builds, rather than a
+ * second implementation of this that could drift from it.
+ */
+export function bucketIntoLines(printable: TextItem[]): { y: number; items: TextItem[] }[] {
   const lines: { y: number; items: TextItem[] }[] = [];
   for (const it of [...printable].sort((a, b) => b.transform[5] - a.transform[5])) {
     const y = it.transform[5];
@@ -197,33 +245,69 @@ function bucketIntoLines(printable: TextItem[]): { y: number; items: TextItem[] 
   return lines;
 }
 
-/** Split one line's runs wherever the horizontal gap exceeds `minGutter`. */
-export function fragmentLine(sorted: TextItem[], minGutter: number): TextItem[][] {
-  const frags: TextItem[][] = [[sorted[0]]];
-  // Against the running MAX right edge, not just the previous run's: runs are
-  // sorted by left edge, and a short run nested inside a wider one (a
-  // superscript, an overlapping underline glyph) would otherwise report a
-  // false gap to whatever follows it.
-  let reach = runRight(sorted[0]);
-  for (let i = 1; i < sorted.length; i++) {
-    if (runLeft(sorted[i]) - reach > minGutter) frags.push([sorted[i]]);
-    else frags[frags.length - 1].push(sorted[i]);
-    reach = Math.max(reach, runRight(sorted[i]));
-  }
-  return frags;
+/**
+ * The band of empty space between two columns: `lo` is the furthest right any
+ * left-column run reaches, `hi` is where the next column's runs begin.
+ *
+ * This is a BAND, not a single x, and that is the whole point. A single
+ * boundary x has to be guessed from ragged line endings, and the guess is
+ * systematically too far left — which is exactly how the previous version
+ * mis-classified lines (see refineGutter).
+ */
+export interface ColumnGutter {
+  lo: number;
+  hi: number;
+}
+
+/** A gutter's midpoint — the single x to use when one is genuinely needed. */
+const gutterMid = (g: ColumnGutter): number => (g.lo + g.hi) / 2;
+
+/**
+ * Turn a rough boundary guess into the page's ACTUAL gutter band.
+ *
+ * WHY THIS EXISTS. The rough pass averages the ends of ragged lines, so its
+ * boundary lands well left of the real gutter — on Bank of Canada p13 it
+ * lands at x=266 when the columns are 300 | 315. Anything derived from that
+ * number is then wrong for every line whose left column runs long: measured
+ * on the real document, five p15 lines and one p13 line had an inter-column
+ * gap SMALLER than the rough gutter width (as little as 15pt), were therefore
+ * treated as full-width spanning lines, and interleaved — which accounted for
+ * every one of the eight gold commitments that a gap-threshold-based version
+ * of this code failed to recover.
+ *
+ * HOW. `hi` is the leftmost x, right of the guess, at which at least
+ * MIN_COLUMN_ROWS runs are ALIGNED. Alignment is what makes a column a
+ * column, and requiring it is what stops a full-width heading — whose words
+ * pdf.js may emit as separate runs scattered across the gutter — from being
+ * mistaken for the next column's left edge. `lo` is then the furthest right
+ * any run reaches without crossing `hi`.
+ *
+ * That construction makes the band a HARD partition: by definition every run
+ * either ends at or before `lo`, starts at or after `hi`, or straddles the
+ * band — there is no fourth case. So membership needs no threshold at all.
+ */
+function refineGutter(all: TextItem[], rough: number, limit: number): ColumnGutter | null {
+  const rightOfGuess = all.filter((r) => runLeft(r) > rough && runLeft(r) < limit).map(runLeft);
+  // Cluster left edges that agree to within a point: real column alignment is
+  // exact in a designed PDF, but nothing is gained by demanding bit equality.
+  const hi = rightOfGuess
+    .filter((x) => rightOfGuess.filter((o) => Math.abs(o - x) <= 1).length >= MIN_COLUMN_ROWS)
+    .sort((a, b) => a - b)[0];
+  if (hi === undefined) return null;
+  const before = all.filter((r) => runRight(r) <= hi).map(runRight);
+  if (before.length === 0) return null;
+  const lo = Math.max(...before);
+  return lo < hi ? { lo, hi } : null;
 }
 
 /**
- * Column boundary x-positions for this page, or [] when the page is
- * single-column (the overwhelmingly common case, and the one that must stay
- * bit-for-bit unchanged). See the COLUMN_GUTTER_RATIO comment block for why
- * each guard is here.
- *
- * Exported for direct testing as a pure function — see
- * COLUMN_REORDERING_ENABLED: its result is no longer consulted on the live
- * path, but the geometry logic itself stays exercised.
+ * Candidate column gutters for this page from GEOMETRY ALONE — no judgement
+ * about whether the page deserves to be read column-major. `detectColumnBoundaries`
+ * is the gated version and the one the live path uses; this one is separately
+ * exported so tests can show that a table's geometry IS detected here and is
+ * refused by the guard, rather than merely slipping past detection.
  */
-export function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]): number[] {
+export function detectColumnGutters(lines: { y: number; items: TextItem[] }[]): ColumnGutter[] {
   const all = lines.flatMap((l) => l.items);
   // Column geometry is unavailable without run widths — degrade to single
   // column rather than guess.
@@ -237,7 +321,9 @@ export function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]
   // Every wide same-baseline gap on the page is a candidate gutter.
   const candidates: { lo: number; hi: number }[] = [];
   for (const l of lines) {
-    // Running max right edge, for the same reason fragmentLine uses one.
+    // Running MAX right edge, not just the previous run's: runs are sorted by
+    // left edge, and a short run nested inside a wider one (a superscript, an
+    // overlapping underline glyph) would otherwise report a false gap.
     let reach = l.items.length > 0 ? runRight(l.items[0]) : 0;
     for (let i = 1; i < l.items.length; i++) {
       const hi = runLeft(l.items[i]);
@@ -247,7 +333,7 @@ export function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]
   }
   if (candidates.length < MIN_COLUMN_ROWS) return [];
 
-  // An x is a boundary when at least MIN_COLUMN_ROWS candidate gutters
+  // An x is a rough boundary when at least MIN_COLUMN_ROWS candidate gutters
   // straddle it — i.e. the same gutter recurs down the page.
   const scored = candidates
     .map((c) => {
@@ -257,26 +343,110 @@ export function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]
     .filter((s) => s.count >= MIN_COLUMN_ROWS)
     .sort((a, b) => b.count - a.count || a.mid - b.mid);
 
-  const boundaries: number[] = [];
+  const rough: number[] = [];
   for (const s of scored) {
-    if (boundaries.some((b) => Math.abs(b - s.mid) < minGutter)) continue; // same gutter, already taken
-    boundaries.push(s.mid);
+    if (rough.some((b) => Math.abs(b - s.mid) < minGutter)) continue; // same gutter, already taken
+    rough.push(s.mid);
   }
-  boundaries.sort((a, b) => a - b);
-  if (boundaries.length === 0 || boundaries.length + 1 > MAX_COLUMNS) return [];
+  rough.sort((a, b) => a - b);
+  if (rough.length === 0 || rough.length + 1 > MAX_COLUMNS) return [];
 
-  const edges = [left, ...boundaries, right];
+  // Refine each rough guess into a real band, searching only as far right as
+  // the next guess so a three-column page cannot resolve two boundaries onto
+  // the same gutter.
+  const gutters: ColumnGutter[] = [];
+  for (let i = 0; i < rough.length; i++) {
+    const g = refineGutter(all, rough[i], rough[i + 1] ?? right);
+    if (!g) return [];
+    if (gutters.length > 0 && g.lo <= gutters[gutters.length - 1].hi) return []; // overlapping bands: not a column layout
+    gutters.push(g);
+  }
+
+  const edges = [left, ...gutters.map(gutterMid), right];
   for (let i = 1; i < edges.length; i++) {
     if (edges[i] - edges[i - 1] < textWidth * MIN_COLUMN_WIDTH_RATIO) return []; // too narrow to be a body column
   }
-  return boundaries;
+  return gutters;
 }
 
-/** Which column band an x falls in, given ascending boundary positions. */
-function columnOf(x: number, boundaries: number[]): number {
+/** Which column band an x falls in. A run starting at or after a gutter's `hi` is past it. */
+function columnOf(x: number, gutters: ColumnGutter[]): number {
   let c = 0;
-  for (const b of boundaries) if (x > b) c++;
+  for (const g of gutters) if (x >= g.hi) c++;
   return c;
+}
+
+/**
+ * Does a run cross a gutter? Such a run belongs to no single column — it is a
+ * spanning heading, a rule, or a full-width caption. See ColumnGutter: this is
+ * exhaustive, every run either crosses or sits cleanly in one band.
+ */
+const crossesGutter = (r: TextItem, gutters: ColumnGutter[]): boolean =>
+  gutters.some((g) => runLeft(r) < g.hi && runRight(r) > g.lo);
+
+/**
+ * Split one line's runs into per-column groups, or report that the line spans
+ * the gutter and so belongs to no column at all.
+ */
+export function splitLineIntoColumns(
+  sorted: TextItem[],
+  gutters: ColumnGutter[],
+): { spans: true } | { spans: false; cols: TextItem[][] } {
+  if (sorted.some((r) => crossesGutter(r, gutters))) return { spans: true };
+  const cols: TextItem[][] = [];
+  for (const r of sorted) (cols[columnOf(runLeft(r), gutters)] ??= []).push(r);
+  return { spans: false, cols };
+}
+
+/**
+ * THE PROSE-LIKENESS GUARD. True when every band looks like a column of
+ * running text rather than a column of table cells. See MIN_BAND_FILL_RATIO
+ * for the measurements behind the two thresholds, and why BOTH must hold for
+ * EVERY band.
+ *
+ * Spanning lines are excluded from the measurement: a full-width heading
+ * belongs to no band, and counting its characters toward one would let a
+ * heading vouch for a table.
+ */
+export function columnsLookLikeProse(lines: { y: number; items: TextItem[] }[], gutters: ColumnGutter[]): boolean {
+  if (gutters.length === 0) return false;
+  const all = lines.flatMap((l) => l.items);
+  const edges = [Math.min(...all.map(runLeft)), ...gutters.map(gutterMid), Math.max(...all.map(runRight))];
+
+  const bands: { left: number; right: number; chars: number[] }[] = edges
+    .slice(1)
+    .map(() => ({ left: Infinity, right: -Infinity, chars: [] }));
+  for (const line of lines) {
+    const split = splitLineIntoColumns(line.items, gutters);
+    if (split.spans) continue;
+    split.cols.forEach((runs, c) => {
+      if (!runs?.length) return;
+      const band = bands[c];
+      band.left = Math.min(band.left, ...runs.map(runLeft));
+      band.right = Math.max(band.right, ...runs.map(runRight));
+      // Word characters only: bullet glyphs and punctuation are not evidence
+      // that a band carries sentences.
+      band.chars.push(runs.map((r) => r.str).join("").replace(/[^\p{L}\p{N}]/gu, "").length);
+    });
+  }
+
+  return bands.every((band, c) => {
+    if (band.chars.length === 0) return false; // an empty band is not a column
+    const width = edges[c + 1] - edges[c];
+    if (!(width > 0)) return false;
+    if ((band.right - band.left) / width < MIN_BAND_FILL_RATIO) return false;
+    return band.chars.reduce((s, n) => s + n, 0) / band.chars.length >= MIN_BAND_LINE_CHARS;
+  });
+}
+
+/**
+ * Column gutters for this page, or [] when the page is single-column (the
+ * overwhelmingly common case, and the one that must stay bit-for-bit
+ * unchanged) OR when the page is multi-column but table-shaped.
+ */
+export function detectColumnBoundaries(lines: { y: number; items: TextItem[] }[]): ColumnGutter[] {
+  const gutters = detectColumnGutters(lines);
+  return columnsLookLikeProse(lines, gutters) ? gutters : [];
 }
 
 /** Split a page's rendered lines into paragraphs on vertical gaps. */
@@ -363,51 +533,35 @@ function groupLinesIntoParagraphs(rendered: RenderedLine[]): string[] {
  *
  * Single-column pages (the common case) take the early-return path below and
  * behave EXACTLY as they did before column support existed: bucket by
- * baseline, render each line, split on vertical gaps.
+ * baseline, render each line, split on vertical gaps. A multi-column page
+ * that fails the prose-likeness guard — a commitment table — takes the same
+ * path, so its rows stay intact.
  *
- * COLUMN_REORDERING_ENABLED is currently false (see its comment), so EVERY
- * page — including a genuine multi-column one — takes that single-column
- * path unconditionally right now: `detectColumnBoundaries` is not even
- * called. The column-major logic below is kept, and stays reachable the
- * moment the flag flips, but it is dead on the live path today.
- *
- * Multi-column pages, when this is enabled, are emitted COLUMN-MAJOR — all of
- * column 1, then all of column 2 — because that, not the interleaved baseline
- * order, is how the page is read. Vertically, the page is first cut into
- * SECTIONS at every full-width line: a heading that spans the gutter belongs
- * to neither column, so it is emitted on its own, in document order, ahead of
- * the columns it introduces. Paragraph grouping then runs INDEPENDENTLY per
- * column, so one column's line spacing cannot set the other's paragraph
- * threshold.
+ * Genuine multi-column pages are emitted COLUMN-MAJOR — all of column 1, then
+ * all of column 2 — because that, not the interleaved baseline order, is how
+ * the page is read. Vertically, the page is first cut into SECTIONS at every
+ * full-width line: a heading that spans the gutter belongs to neither column,
+ * so it is emitted on its own, in document order, ahead of the columns it
+ * introduces. Paragraph grouping then runs INDEPENDENTLY per column, so one
+ * column's line spacing cannot set the other's paragraph threshold.
  */
 export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
   const printable = items.filter((i) => i.str.trim() !== "");
   if (printable.length === 0) return [];
 
   const lines = bucketIntoLines(printable);
-  const boundaries = COLUMN_REORDERING_ENABLED ? detectColumnBoundaries(lines) : [];
-  if (boundaries.length === 0) {
+  const gutters = COLUMN_REORDERING_ENABLED ? detectColumnBoundaries(lines) : [];
+  if (gutters.length === 0) {
     return groupLinesIntoParagraphs(lines.map((l) => renderLine(l.y, l.items)));
   }
-
-  // Recompute the gutter width on the same basis detectColumnBoundaries used,
-  // so a line fragments at exactly the gaps that produced the boundaries.
-  const all = lines.flatMap((l) => l.items);
-  const minGutter = (Math.max(...all.map(runRight)) - Math.min(...all.map(runLeft))) * COLUMN_GUTTER_RATIO;
 
   // A section is either a run of full-width lines or a run of columnar ones.
   type Section = { full: true; lines: RenderedLine[] } | { full: false; cols: RenderedLine[][] };
   const sections: Section[] = [];
   for (const line of lines) {
-    const frags = fragmentLine(line.items, minGutter);
-    // A fragment straddling a boundary is full-width text (a spanning
-    // heading, a rule, a full-width caption) — it cannot be assigned to one
-    // column without lying about where it belongs.
-    const spans = frags.some((f) =>
-      boundaries.some((b) => runLeft(f[0]) < b && Math.max(...f.map(runRight)) > b),
-    );
+    const split = splitLineIntoColumns(line.items, gutters);
     const last = sections[sections.length - 1];
-    if (spans) {
+    if (split.spans) {
       // Rejoin the whole line: a spanning heading is one line, not fragments.
       const rl = renderLine(line.y, line.items);
       if (last && last.full) last.lines.push(rl);
@@ -416,11 +570,11 @@ export function groupItemsIntoParagraphs(items: TextItem[]): string[] {
     }
     const target: Section = last && !last.full ? last : { full: false, cols: [] };
     if (target !== last) sections.push(target);
-    for (const f of frags) {
-      const c = columnOf(runLeft(f[0]), boundaries);
+    split.cols.forEach((runs, c) => {
+      if (!runs?.length) return;
       (target as { full: false; cols: RenderedLine[][] }).cols[c] ??= [];
-      (target as { full: false; cols: RenderedLine[][] }).cols[c].push(renderLine(line.y, f));
-    }
+      (target as { full: false; cols: RenderedLine[][] }).cols[c].push(renderLine(line.y, runs));
+    });
   }
 
   const paragraphs: string[] = [];

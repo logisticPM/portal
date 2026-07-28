@@ -6,15 +6,20 @@
 // budget and cut through commitments.
 // Fixtures are synthesised with pdf-lib so no binary blobs are committed.
 // Run: npx tsx scripts/test-doc-loader-textlayer.ts
+import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { DEFAULT_TARGET_CHARS } from "../src/lib/rap/chunk";
 import {
+  bucketIntoLines,
   buildTextFromPages,
+  columnsLookLikeProse,
   detectColumnBoundaries,
+  detectColumnGutters,
   extractPagesFromPdf,
-  fragmentLine,
   groupItemsIntoParagraphs,
   loadFromBytes,
+  splitLineIntoColumns,
+  type TextItem,
 } from "../src/lib/rap/doc-loader/textlayer";
 import { ScannedDocumentError, UnsupportedDocumentError } from "../src/lib/rap/doc-loader/types";
 
@@ -192,19 +197,14 @@ const spaced = groupItemsIntoParagraphs([
 ]);
 check("runs separated by a real space gap form TWO words", spaced[0] === "Action Plan", JSON.stringify(spaced[0]));
 
-// --- multi-column pages: COLUMN_REORDERING_ENABLED is false -----------------
-// Column reordering is OFF (see COLUMN_REORDERING_ENABLED in textlayer.ts):
-// measured on real RAPs, the gutter heuristic below cannot tell a genuine
-// two-column body page from a commitment TABLE, and reading a table
-// column-major tears every action away from its own timeline and owner.
-// groupItemsIntoParagraphs therefore no longer calls detectColumnBoundaries
-// at all (COLUMN_REORDERING_ENABLED short-circuits it to `[]`), so the tests
-// that used to assert column-major OUTPUT from groupItemsIntoParagraphs are
-// converted below to exercise detectColumnBoundaries and fragmentLine
-// DIRECTLY, as pure functions — that keeps the geometry logic covered and
-// ready for whenever a document corpus + prose-likeness guard justifies
-// re-enabling it. See the "reordering off" and "table not torn apart"
-// sections further down for what groupItemsIntoParagraphs actually does now.
+// --- multi-column pages: COLUMN_REORDERING_ENABLED is true ------------------
+// Reordering was previously shipped OFF because no gutter-WIDTH threshold
+// separates a genuine two-column body page from a commitment TABLE. It is now
+// on, because the discriminator moved: detectColumnGutters is pure geometry,
+// and columnsLookLikeProse is a separate guard that refuses a table's
+// geometry. The tests below exercise all three layers — the geometry, the
+// guard, and their composition — because it is the SPLIT between them, not
+// either half alone, that makes re-enabling safe.
 
 // Text block runs x=50..550 (500pt wide); the gutter is 230..330 (100pt),
 // clear of the 15%-of-text-width floor.
@@ -213,9 +213,9 @@ const twoColumnItems = [0, 1, 2, 3].flatMap((i) => [
   run(`Right col line ${i + 1}`, 330, 700 - i * 14, 220),
 ]);
 // The same geometry, pre-bucketed into lines the way bucketIntoLines would —
-// detectColumnBoundaries and fragmentLine both operate on already-bucketed
-// input, so the fixtures below build that shape directly rather than relying
-// on the (unexported) bucketing helper.
+// the detection functions operate on already-bucketed input, so the fixtures
+// below build that shape directly rather than relying on the (unexported)
+// bucketing helper.
 const twoColumnLines = [0, 1, 2, 3].map((i) => ({
   y: 700 - i * 14,
   items: [
@@ -223,20 +223,21 @@ const twoColumnLines = [0, 1, 2, 3].map((i) => ({
     run(`Right col line ${i + 1}`, 330, 700 - i * 14, 220),
   ],
 }));
-const twoColumnBoundaries = detectColumnBoundaries(twoColumnLines);
+const twoColumnGutters = detectColumnBoundaries(twoColumnLines);
 check("detectColumnBoundaries finds the gutter on a genuine two-column page",
-  twoColumnBoundaries.length === 1 && twoColumnBoundaries[0] > 230 && twoColumnBoundaries[0] < 330,
-  JSON.stringify(twoColumnBoundaries));
-check("fragmentLine splits a two-column line at a gutter-sized threshold",
-  fragmentLine(twoColumnLines[0].items, 50).length === 2);
-check("fragmentLine does NOT split when the threshold exceeds the gutter",
-  fragmentLine(twoColumnLines[0].items, 150).length === 1);
+  twoColumnGutters.length === 1 && twoColumnGutters[0].lo === 230 && twoColumnGutters[0].hi === 330,
+  JSON.stringify(twoColumnGutters));
+const twoColSplit = splitLineIntoColumns(twoColumnLines[0].items, twoColumnGutters);
+check("splitLineIntoColumns puts each side of a two-column line in its own band",
+  !twoColSplit.spans && twoColSplit.cols.length === 2 &&
+    twoColSplit.cols[0][0].str === "Left column line 1" && twoColSplit.cols[1][0].str === "Right col line 1",
+  JSON.stringify(twoColSplit));
 
-// A full-width heading spans the gutter: fragmentLine keeps it as ONE
-// fragment (its internal word gaps never exceed a gutter-sized threshold),
-// which is the geometric fact groupItemsIntoParagraphs's (currently
-// unreachable) section-splitting logic relies on to keep a spanning heading
-// out of either column.
+// A full-width heading crosses the gutter, so it belongs to NO column — that
+// is the geometric fact groupItemsIntoParagraphs's section-splitting relies
+// on to keep a spanning heading out of both columns. Note this is decided per
+// RUN, not per gap: a heading whose words pdf.js emits as separate runs is
+// still caught, because one of those runs must straddle the gutter band.
 const advanceHeading = (str: string, fontSize: number) => str.length * fontSize * 0.5;
 let headingX = 50;
 const headingRuns = "Our commitments for the coming year".split(" ").map((w) => {
@@ -244,8 +245,36 @@ const headingRuns = "Our commitments for the coming year".split(" ").map((w) => 
   headingX += advanceHeading(w, 12) + 3.34;
   return r;
 });
-check("fragmentLine keeps a full-width heading as one fragment (spans the gutter)",
-  fragmentLine(headingRuns, 50).length === 1);
+check("a full-width heading spans the gutter and is assigned to no column",
+  splitLineIntoColumns(headingRuns, twoColumnGutters).spans === true);
+
+// THE failure the gutter-WIDTH approach could not fix, in miniature. This is
+// the real Bank of Canada shape: ONE left-column line very nearly fills its
+// band, leaving a gap to the right column far narrower than the page's
+// typical inter-column gap — 52pt here, against a 60pt threshold; as little
+// as 15pt against 64pt on the real document. A gap-threshold splitter reads
+// exactly that line as full-width and concatenates the two columns
+// mid-sentence, which is what cost the real document 8 of its 22 commitments.
+// Membership in a refined band does not care how wide the gap is.
+const tightLines = [0, 1, 2, 3].map((i) => ({
+  y: 700 - i * 14,
+  items: [
+    i === 3
+      ? run("Left column line that nearly fills its band", 50, 700 - i * 14, 228)
+      : run(`Left column line ${i + 1}`, 50, 700 - i * 14, 180),
+    run(`Right col line ${i + 1}`, 330, 700 - i * 14, 220),
+  ],
+}));
+const tightGutters = detectColumnBoundaries(tightLines);
+check("the gutter is refined to where the columns ACTUALLY are, not to the mean of ragged line ends",
+  tightGutters.length === 1 && tightGutters[0].lo === 278 && tightGutters[0].hi === 330,
+  JSON.stringify(tightGutters));
+const tightSplit = splitLineIntoColumns(tightLines[3].items, tightGutters);
+check("a line whose columns nearly touch is STILL split by band, not by gap width",
+  !tightSplit.spans && tightSplit.cols.length === 2 &&
+    tightSplit.cols[0][0].str === "Left column line that nearly fills its band" &&
+    tightSplit.cols[1][0].str === "Right col line 4",
+  JSON.stringify(tightSplit));
 
 // One wide gap on one or two lines is a right-aligned page number or a
 // header/footer pair, not a column structure. The gutter must recur on at
@@ -277,33 +306,27 @@ const singleColumn = groupItemsIntoParagraphs(
 check("a single-column page is one paragraph in reading order",
   singleColumn.length === 1 && singleColumn[0] === singleColumnLines.join("\n"), JSON.stringify(singleColumn));
 
-// --- groupItemsIntoParagraphs on a two-column page: reordering OFF ---------
-// KNOWN, DELIBERATE LIMITATION: a genuine two-column page is NOT resolved
-// right now. groupItemsIntoParagraphs takes the single-column path
-// unconditionally (COLUMN_REORDERING_ENABLED = false), so this fixture comes
-// back baseline-interleaved — "Left column line 1 Right col line 1", etc. —
-// exactly as it did before column detection existed, and exactly as it will
-// keep doing until a document corpus + prose-likeness guard justifies turning
-// reordering back on. This is not a bug in this test; it is the accepted,
-// conservative trade the human partner chose over table-shredding.
+// --- groupItemsIntoParagraphs on a two-column page --------------------------
+// The capability this whole exercise exists to restore: a genuine two-column
+// page comes back COLUMN-MAJOR, so no sentence is interleaved with its
+// neighbour's. Before this it came back as "Left column line 1 Right col
+// line 1", i.e. every line welded to the wrong continuation.
 const twoColumn = groupItemsIntoParagraphs(twoColumnItems);
-check("KNOWN LIMITATION: a two-column page is interleaved, not column-major, with reordering off",
-  twoColumn.length === 1 &&
-    twoColumn[0] === "Left column line 1 Right col line 1\nLeft column line 2 Right col line 2\n" +
-      "Left column line 3 Right col line 3\nLeft column line 4 Right col line 4",
+check("a two-column page is emitted column-major, not baseline-interleaved",
+  twoColumn.length === 2 &&
+    twoColumn[0] === "Left column line 1\nLeft column line 2\nLeft column line 3\nLeft column line 4" &&
+    twoColumn[1] === "Right col line 1\nRight col line 2\nRight col line 3\nRight col line 4",
   JSON.stringify(twoColumn));
 
 // --- groupItemsIntoParagraphs on a three-column commitment table -----------
-// THE regression this whole revert exists to lock down. Shaped like a real
-// RAP commitment table: three rows, each with an Action / Timeline / Owner
-// cell, gaps between cells (~90-100pt) comfortably inside the "wide gutter"
-// band that made COLUMN_GUTTER_RATIO mistake this table for column geometry
-// when reordering was live (see detectColumnBoundaries check just below —
-// it DOES find boundaries here, which is exactly the danger). With
-// reordering off, each row's action, timeline and owner must stay together,
-// in reading order, in the SAME paragraph — not scattered into separate
-// column-major blocks that let a model attach the wrong owner or timeline to
-// the wrong action.
+// THE regression the earlier revert existed to lock down, now re-run with
+// reordering ON. Shaped like a real RAP commitment table: three rows, each
+// with an Action / Timeline / Owner cell, gaps between cells (~90-100pt)
+// comfortably inside the "wide gutter" band. Each row's action, timeline and
+// owner must stay together, in reading order, in the SAME paragraph — not
+// scattered into separate column-major blocks that let a model attach the
+// wrong owner or timeline to the wrong action, with a quote that still passes
+// validate.ts's quote_not_found check.
 const tableItems = [0, 1, 2].flatMap((i) => [
   run(`Action ${i + 1}: complete the review`, 50, 700 - i * 60, 200),
   run(`2026 Q${i + 1}`, 340, 700 - i * 60, 60),
@@ -318,10 +341,10 @@ check("a three-column commitment table is NOT torn apart (regression lock)",
         "Action 3: complete the review 2026 Q3 CEO",
   JSON.stringify(tableParas));
 
-// Prove this fixture is a genuine instance of the danger, not a fixture that
-// happens to dodge detection: detectColumnBoundaries DOES find boundaries in
-// this exact geometry. If COLUMN_REORDERING_ENABLED is ever flipped back to
-// true without first fixing table detection, the check above fails loudly.
+// Prove the table survives because the PROSE GUARD refuses it, not because it
+// happens to dodge geometric detection. detectColumnGutters — pure geometry —
+// finds both gutters in this exact shape; columnsLookLikeProse is what says
+// no. Delete the guard and the check above fails loudly.
 const tableLines = [0, 1, 2].map((i) => ({
   y: 700 - i * 60,
   items: [
@@ -330,8 +353,99 @@ const tableLines = [0, 1, 2].map((i) => ({
     run(["CPO", "CHRO", "CEO"][i], 500, 700 - i * 60, 50),
   ],
 }));
-check("detectColumnBoundaries WOULD shred this table if reordering were re-enabled naively",
-  detectColumnBoundaries(tableLines).length === 2, JSON.stringify(detectColumnBoundaries(tableLines)));
+const tableGutters = detectColumnGutters(tableLines);
+check("a commitment table's GEOMETRY is genuinely two-gutter (the danger is real)",
+  tableGutters.length === 2, JSON.stringify(tableGutters));
+check("the prose guard REFUSES a table's short label bands",
+  columnsLookLikeProse(tableLines, tableGutters) === false);
+check("so detectColumnBoundaries reports no columns for a table",
+  detectColumnBoundaries(tableLines).length === 0);
+// ...and the same guard must ACCEPT a real two-column page, or it would just
+// be an elaborate way of disabling the feature.
+check("the prose guard ACCEPTS a genuine two-column body page",
+  columnsLookLikeProse(twoColumnLines, detectColumnGutters(twoColumnLines)) === true);
+
+// --- REAL geometry: Bank of Canada RAP pages 13 and 15 ----------------------
+// Every constant above is a heuristic, and heuristics tuned against synthetic
+// fixtures have twice been measured wrong on this branch. This section drives
+// the SAME function the pipeline calls with the ACTUAL glyph runs pdf.js
+// emits for the two pages of the Bank of Canada RAP that carry its
+// commitments — the corpus every earlier round lacked. The PDF itself is not
+// committed (no binary blobs); the geometry is, in
+// scripts/fixtures/textlayer-geometry-bankofcanada-p13-p15.json, dumped from
+// pageData.getTextContent() with {normalizeWhitespace: false,
+// disableCombineTextItems: false}, exactly as extractPagesFromPdf calls it.
+//
+// These pages are a two-COLUMN BULLETED LIST, not a table. With reordering
+// off, the columns interleave mid-sentence and only 4 of the document's 22
+// gold commitments survive intact; the assertions below are what stops that
+// regressing. They assert on OUTPUT — that each action is recoverable as
+// contiguous text — never on restatements of the fixture's own coordinates.
+const realGeometry = JSON.parse(
+  readFileSync(new URL("./fixtures/textlayer-geometry-bankofcanada-p13-p15.json", import.meta.url), "utf8"),
+) as Record<string, TextItem[]>;
+const goldCommitments = JSON.parse(
+  readFileSync(new URL("./fixtures/gold-commitments-bankofcanada.json", import.meta.url), "utf8"),
+) as { page: number; action: string }[];
+
+check("real-geometry fixture carries both commitment pages",
+  realGeometry["13"]?.length > 0 && realGeometry["15"]?.length > 0,
+  `p13 ${realGeometry["13"]?.length} runs / p15 ${realGeometry["15"]?.length} runs`);
+
+// A paragraph keeps the line breaks the PDF wrapped at, so "contiguous" means
+// contiguous after whitespace normalisation — not "on one line".
+const flatten = (s: string) => s.replace(/\s+/g, " ").trim();
+// Straight-vs-curly apostrophe: the PDF uses U+2019, the hand-transcribed gold
+// set uses U+0027. validate.ts's quote rule already folds both away (it
+// compares on [a-z0-9] runs only, for exactly this reason), so folding here
+// keeps this test measuring EXTRACTION rather than transcription.
+const foldQuotes = (s: string) => flatten(s).replace(/[‘’]/g, "'");
+
+for (const page of ["13", "15"] as const) {
+  const paragraphs = groupItemsIntoParagraphs(realGeometry[page]);
+  const flat = paragraphs.map(foldQuotes);
+  const expected = goldCommitments.filter((g) => g.page === Number(page));
+  const missing = expected.filter((g) => !flat.some((p) => p.includes(foldQuotes(g.action))));
+  check(`every gold commitment on real page ${page} survives as contiguous text (${expected.length})`,
+    missing.length === 0,
+    missing.length ? `missing: ${missing.map((m) => m.action.slice(0, 45)).join(" | ")}` : "");
+
+  // Each action must be its OWN paragraph, not merely present somewhere in a
+  // page-sized blob: a paragraph welding two actions together is what the
+  // model turns into one commitment with the wrong scope.
+  const welded = expected.filter((g) => {
+    const host = flat.find((p) => p.includes(foldQuotes(g.action)));
+    return host !== undefined && expected.some((o) => o !== g && host.includes(foldQuotes(o.action)));
+  });
+  check(`no two gold commitments on real page ${page} are welded into one paragraph`,
+    welded.length === 0, welded.map((w) => w.action.slice(0, 40)).join(" | "));
+}
+
+// The specific mechanism, on real coordinates: p13's left column runs out to
+// x=299.99 and its right column starts at x=315.00, so the two are only
+// 15.01pt apart on the page's longest lines — far under any gutter-width
+// threshold that also has to reject tables. Asserting the refined gutter here
+// pins the behaviour that recovered the 8 commitments a threshold lost.
+const realLines13 = bucketIntoLines(realGeometry["13"].filter((i) => i.str.trim() !== ""));
+const realGutters13 = detectColumnBoundaries(realLines13);
+check("the real page 13 gutter is refined to the columns' true edges",
+  realGutters13.length === 1 && Math.abs(realGutters13[0].lo - 299.99) < 0.05 && Math.abs(realGutters13[0].hi - 315) < 0.05,
+  JSON.stringify(realGutters13));
+check("the real two-column commitment page passes the prose guard",
+  columnsLookLikeProse(realLines13, detectColumnGutters(realLines13)) === true);
+
+// The interleaving this replaces, demonstrated rather than described: read the
+// same real page WITHOUT column resolution and the first commitment is welded
+// to the one beside it.
+const interleaved = flatten(
+  realLines13
+    .map((l) => [...l.items].sort((a, b) => a.transform[4] - b.transform[4]).map((i) => i.str).join(" "))
+    .join("\n"),
+);
+check("without column resolution the same real page welds the two columns together",
+  interleaved.includes("Invest in the CBNII to share") &&
+    !interleaved.includes(flatten("Invest in the CBNII to share work and learn best practices in")),
+);
 
 // --- end-to-end over a synthesised PDF --------------------------------------
 async function makePdf(pages: string[][]): Promise<Uint8Array> {
