@@ -212,14 +212,45 @@ cause is a quote spanning a paragraph boundary, where the `[p.N]` marker between
 the quote and breaks the substring check. The direction is safe — a false flag routes to human review and
 can never produce wrong provenance — but it is unfixed. Worth a follow-up.
 
-### `ca` is deployed with
+### Deploying `ca` — use `npm run ca:deploy`
 
 ```
-EXTRACTION_IMPL=bedrock  DOC_LOADER=textlayer
+DIGEST_SENDER=… DIGEST_RECIPIENT=… npm run ca:deploy
 ```
 
-Any future `sst deploy --stage ca` must re-export **both**, plus `DIGEST_SENDER` / `DIGEST_RECIPIENT`,
-or extraction silently reverts to the mock and email silently reverts to `skipped`.
+The script pins `SST_AWS_REGION=ca-central-1`, `EXTRACTION_IMPL=bedrock` and `DOC_LOADER=textlayer`.
+**Do not hand-roll `sst deploy --stage ca`.** Three separate things degrade silently if you do:
+
+- **`SST_AWS_REGION` unset → the whole stack deploys to `us-east-1`.** `sst.config.ts:32` reads
+  `process.env.SST_AWS_REGION ?? "us-east-1"` — a hardcoded default, not the AWS profile's region.
+  This happened on 2026-07-27: a hand-run deploy stood up a complete duplicate `ca` stage in
+  us-east-1 (6 tables, 3 Lambdas, 5 buckets, a CloudFront distribution) before failing on a missing
+  `AuthSecret`. Nothing was lost — SST keeps state per region in separate buckets, so `ca-central-1`
+  was never in the blast radius — but for a stage whose entire purpose is Canadian data residency,
+  wrong-region infrastructure is a governance problem even when empty. It was torn down with
+  `SST_AWS_REGION=us-east-1 sst remove --stage ca`.
+- `EXTRACTION_IMPL` / `DOC_LOADER` unset → extraction silently reverts to the **mock**, which
+  returns canned output keyed off the file name and never reads the PDF.
+- `DIGEST_SENDER` / `DIGEST_RECIPIENT` unset → the notification digest silently becomes `skipped`.
+  These are **not** in the script because they are per-operator addresses, not architecture; export
+  them yourself. See `docs/notifications-delivery-status.md`.
+
+### A related trap: the AWS CLI defaults to the wrong region too
+
+Separately from the above, the `isb` profile has `region = us-east-1`, and `AWS_REGION` /
+`AWS_DEFAULT_REGION` are unset. So **any `aws` command without an explicit `--region` silently
+targets us-east-1** — and resources are named `indigenomics-portal-ca-*` in *both* regions, so the
+name tells you nothing about which one you are looking at:
+
+```
+aws dynamodb list-tables                        →  0 portal-ca tables
+aws dynamodb list-tables --region ca-central-1  →  7 portal-ca tables
+```
+
+This is the more dangerous of the two, because it fails **silently with a plausible answer**. "0
+tables" reads as a finding, not an error — during the incident above it would have looked exactly
+like the `ca-central-1` stage had been destroyed. Always pass `--region` when inspecting `ca`, or
+add an `isb-ca` profile with `region = ca-central-1` and select that instead.
 
 ### Known limitations, carried deliberately
 
