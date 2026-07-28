@@ -207,10 +207,35 @@ verbatim but attributed it to page 12 where gold says 13. All 22 now land on the
 ### What the five validation issues are
 
 All `quote_not_found`, and **none of them on a commitment's action or quote** — four on `pillarRaw` (a
-section heading) and one on `publicationDate`. The commitments themselves validated clean. The likely
-cause is a quote spanning a paragraph boundary, where the `[p.N]` marker between paragraphs lands inside
-the quote and breaks the substring check. The direction is safe — a false flag routes to human review and
-can never produce wrong provenance — but it is unfixed. Worth a follow-up.
+section heading) and one on `publicationDate`. The commitments themselves validated clean. The suspected
+cause was a quote spanning a paragraph boundary, where the `[p.N]` marker between paragraphs lands inside
+the quote and breaks the substring check.
+
+**Confirmed and fixed, 2026-07-28.** The suspicion was right, and it was measurable: diagnosing the live
+Hydro-Québec extraction (job `754decee`) against its own source text showed **3 of its 5**
+`quote_not_found` flags matched perfectly once the injected markers were stripped. `quoteOccursIn` now
+removes them before matching (`validate.ts`), and `[p.N]` is built and matched through one shared
+definition in `doc-loader/types.ts` so the two can no longer drift.
+
+Replaying the stored extraction through the fixed validator — no re-extraction, `scripts/replay-validation.ts`:
+
+```
+stored by rule:   quote_not_found=5  date_format=2
+replayed by rule: quote_not_found=2  date_format=2
+
+CLEARED: commitments[1].deliverable, commitments[34].pillarRaw, commitments[35].pillarRaw
+STILL FLAGGED: sector, frameworkRefs   (+ the 2 unrelated date_format)
+```
+
+The two survivors are the validator **working**: `sector` reproduces the document verbatim and then
+drifts mid-quote, and `frameworkRefs` is an elided quote whose second fragment appears nowhere. Both are
+real model behaviour and are deliberately still flagged — a separate problem from this one, and not
+bundled into the fix.
+
+This mattered more than the count suggests. A rule that false-positives 60% of the time trains reviewers
+to skim past the 40% that are real, and the real ones are exactly the fabrication cases the grounding
+contract exists to catch — the failure mode `validate.ts` already warns about in its own comments
+("a flag that always fires is a flag everyone learns to ignore").
 
 ### Deploying `ca` — use `npm run ca:deploy`
 

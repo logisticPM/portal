@@ -14,7 +14,7 @@ import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { DEFAULT_TARGET_CHARS } from "../chunk";
 import { getDocumentBytes } from "../storage";
 import { splitOversizedBlockText } from "./textract";
-import { type DocLoader, type LoadResult, ScannedDocumentError, UnsupportedDocumentError } from "./types";
+import { type DocLoader, type LoadResult, pageMarker, ScannedDocumentError, UnsupportedDocumentError } from "./types";
 
 export interface TextItem {
   str: string;
@@ -716,7 +716,7 @@ export function buildTextFromPages(pages: string[][]): string {
       // splitLargeParagraph then re-splits — and it keeps the "[p.N]" line only
       // on the FIRST piece, leaving the rest marker-less. That is precisely the
       // failure this pre-split exists to prevent.
-      const marker = `[p.${idx + 1}]\n`;
+      const marker = pageMarker(idx + 1);
       for (const piece of splitOversizedBlockText(trimmed, DEFAULT_TARGET_CHARS - marker.length)) {
         out.push(`${marker}${piece}`);
       }
