@@ -30,6 +30,21 @@ engine and is the stage the outage bit. prod runs BDA (a different failure profi
   - `BriefGen` `Errors >= 1` (same fire-and-forget risk, cheap to add)
   - DLQ `ApproximateNumberOfMessagesVisible >= 1` (Part 2)
   - custom `StuckExtractionJobs >= 1` (Part 3)
+  - custom `FailedExtractionJobs >= 1` (Part 3) — **added after live testing found the gap below**
+
+### Critical finding (live testing, 2026-07-28): built-in Errors misses the motivating case
+
+The worker **catches** its own failures — `stage-extraction.ts` is documented "Never throws":
+it calls `markFailed` and returns `{status:"failed"}`. So the Lambda invocation *succeeds*, and
+the built-in `AWS/Lambda Errors` metric stays 0. The async on-failure DLQ likewise never fires. And
+the job is written `FAILED`, not left `EXTRACTING`, so the stuck-detector doesn't see it either.
+
+That means the exact scenario this PR exists for — the SCP deny, a *handled* failure — would slip
+past every alarm the plan originally listed. The fix: the monitor also emits a
+`FailedExtractionJobs` metric (count of `listByStatus("FAILED")`), with its own alarm. This mirrors
+the #193 FAILED UI and the #194 retry/dismiss flow — it self-clears when the operator resolves the
+failures, and SNS only notifies on state transitions, so no spam. Built-in `Errors`/`Throttles` and
+the DLQ still cover the *other* half: a hard crash or timeout that throws.
 - **Wiring:** SST v3 (Ion) `Function` does not expose alarms first-class. Create
   `aws.cloudwatch.MetricAlarm` through the Pulumi `aws` provider, referencing each function's name.
   `sst.config.ts:81` already carries a standing note to verify transform/resource keys against the
@@ -59,15 +74,15 @@ outage.
   `NotifyDigest` / `CaseMonitor`.
 - **Thin handler** `src/functions/stuck-job-monitor.ts` → testable core, exactly like
   `notify-digest.ts` → `runDigest()`.
-- **Core** `scanStuckExtractions({ now, maxAgeMs })` in `src/lib/rap/monitor.ts`:
+- **Core** `scanExtractionHealth({ now, maxAgeMs })` in `src/lib/rap/monitor.ts`:
   - `extractionRepo.listByStatus("EXTRACTING")` — existing GSI1 point query on `STATUS#EXTRACTING`,
     not a table scan
   - count jobs whose `now - Date.parse(updatedAt) > maxAgeMs`
   - `maxAgeMs` comfortably past the 900s Lambda timeout (20 min) so a legitimately-long extraction
     is never flagged
-  - returns `{ stuckCount, oldestAgeMs, jobIds }`
+  - also counts `listByStatus("FAILED")`; returns `{ stuckCount, failedCount, oldestStuckAgeMs, stuckJobIds }`
 - **Metric via EMF** (Embedded Metric Format): the handler emits one structured-log blob →
-  CloudWatch auto-extracts `StuckExtractionJobs` under namespace `Indigenomics/RapExtraction`. No
+  CloudWatch auto-extracts `StuckExtractionJobs` and `FailedExtractionJobs` under namespace `Indigenomics/RapExtraction`. No
   `PutMetricData`, no extra IAM, no new dependency (hand-rolled, small).
 - The Part 1 alarm on this metric sends the email. The same jobs already show in the #193
   "Extracting" UI with the "taking longer than usual" flag — this is the push half of that pull.
@@ -83,7 +98,7 @@ covered by the framework default. No change ships for this.
 
 - `sst.config.ts` — SNS topic + subscription, SQS DLQ + on-failure destinations, five
   `MetricAlarm`s, `StuckJobMonitor` cron, log retention. `$app.stage === "ca"` gated.
-- `src/lib/rap/monitor.ts` **(new)** — `scanStuckExtractions()` + EMF-emit helper.
+- `src/lib/rap/monitor.ts` **(new)** — `scanExtractionHealth()` (stuck + failed) + EMF-emit helper.
 - `src/functions/stuck-job-monitor.ts` **(new)** — thin handler (counts only, never PII).
 - `scripts/test-stuck-job-monitor.ts` **(new)** — unit tests against the mock repo, `now` injected.
 - `package.json` `ca:deploy` — thread `ALERTS_EMAIL` through.

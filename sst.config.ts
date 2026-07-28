@@ -333,9 +333,15 @@ export default $config({
       // A payload landed in the dead-letter queue — a worker died before it
       // could mark the job failed.
       alarm("ExtractDlqNotEmpty", { namespace: "AWS/SQS", metricName: "ApproximateNumberOfMessagesVisible", statistic: "Maximum", period: 300, dimensions: { QueueName: extractDlq.name } });
-      // A job hung in EXTRACTING without the worker erroring — the SCP-outage
-      // shape built-in metrics miss. period 900 matches StuckJobMonitor's cadence.
+      // A job hung in EXTRACTING without the worker erroring. period 900 matches
+      // StuckJobMonitor's cadence.
       alarm("StuckExtractionJobs", { namespace: "Indigenomics/RapExtraction", metricName: "StuckExtractionJobs", statistic: "Maximum", period: 900, dimensions: { Stage: $app.stage } });
+      // Unresolved FAILED jobs. THIS is what catches the SCP-outage shape: the
+      // worker CATCHES its errors and returns {status:failed} (stage-extraction.ts
+      // "Never throws"), so the Lambda succeeds and AWS/Lambda Errors + the DLQ
+      // never fire. Only a scan of the FAILED partition sees a handled failure.
+      // Self-clears when the operator retries/dismisses (#194).
+      alarm("FailedExtractionJobs", { namespace: "Indigenomics/RapExtraction", metricName: "FailedExtractionJobs", statistic: "Maximum", period: 900, dimensions: { Stage: $app.stage } });
 
       // The scanner that emits the StuckExtractionJobs metric (EMF). Mirrors the
       // NotifyDigest/CaseMonitor cron shape; thin handler over scanStuckExtractions.
