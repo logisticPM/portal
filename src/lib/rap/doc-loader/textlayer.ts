@@ -119,6 +119,39 @@ const MIN_COLUMN_ROWS = 3;
 const MAX_COLUMNS = 3;
 const MIN_COLUMN_WIDTH_RATIO = 0.15;
 
+// Minimum width, in points, of a refined band (see refineGutter) before it is
+// believed to be a real gutter rather than an accident of glyph coordinates.
+//
+// MEASURED on the real Bank of Canada RAP page 11 (a mixed page: two
+// pull-quote boxes set into full-width prose). refineGutter's construction —
+// hi = leftmost aligned right-column start, lo = furthest right any run
+// reaches without crossing hi — makes `lo < hi` true by definition whenever
+// ANY aligned right-column edge exists, even when the "column" it implies is
+// not real. On p11 that produced a band of 347.838..347.940 — 0.102pt wide.
+// Believing it split the page from 9 paragraphs to 14 (mid-sentence breaks
+// 5 -> 10), severing four sentences mid-phrase, e.g. "...where we have been
+// on our" / "Reconciliation journey has led us...". Downstream this is not
+// silent: buildTextFromPages inserts "[p.11]" between the two halves, so a
+// model quote spanning the cut normalizes (per validate.ts's
+// normalizeForQuoteMatch) to "...on our p 11 Reconciliation..." and fails
+// quote_not_found — safe (it routes to human review, never wrong
+// provenance) but a needless regression on a page that was fine before
+// column reordering shipped.
+//
+// Swept against this document, 1pt through 14pt reject the p11 band
+// identically while keeping every genuine gutter on pages 7, 8, 13 and 15;
+// the narrowest of those genuine bands is 15.01pt (p13, refined band
+// 299.99..315.00 — see the real-geometry test below). 1pt is the value
+// chosen: it sits at the tight end of that flat range on purpose, because
+// this guard's only job is to catch geometry that isn't a band at all — the
+// prose-likeness guard is what does the actual table/column discrimination —
+// so it should reject as little else as possible. At 1pt the margin to the
+// nearest genuine gutter is still >15x. Guards against paragraph
+// fragmentation on pull-quote/sidebar-style pages, where full-width prose
+// wrapping around an inset box can make glyph coordinates line up to within a
+// fraction of a point without there being a real column layout underneath.
+const MIN_GUTTER_BAND_PT = 1;
+
 // --- the prose-likeness guard ----------------------------------------------
 // The reason column reordering was previously shipped OFF: a three-column
 // Action / Timeline / Owner commitment table has exactly the geometry of a
@@ -297,7 +330,10 @@ function refineGutter(all: TextItem[], rough: number, limit: number): ColumnGutt
   const before = all.filter((r) => runRight(r) <= hi).map(runRight);
   if (before.length === 0) return null;
   const lo = Math.max(...before);
-  return lo < hi ? { lo, hi } : null;
+  // See MIN_GUTTER_BAND_PT: `lo < hi` alone is true by construction whenever
+  // any aligned right-column edge exists, including for a sub-point band
+  // that is an accident of glyph coordinates rather than a real gutter.
+  return hi - lo >= MIN_GUTTER_BAND_PT ? { lo, hi } : null;
 }
 
 /**

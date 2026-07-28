@@ -276,6 +276,53 @@ check("a line whose columns nearly touch is STILL split by band, not by gap widt
     tightSplit.cols[1][0].str === "Right col line 4",
   JSON.stringify(tightSplit));
 
+// --- refineGutter: MIN_GUTTER_BAND_PT rejects a degenerate sub-point band --
+// Pushing the "nearly fills its band" shape above (52pt) all the way to a
+// SUB-POINT gap reproduces the real Bank of Canada page 11 failure: four
+// lines establish a genuine, wide, recurring gutter (so rough detection and
+// the hi-alignment cluster both fire normally), and a fifth line's left
+// column reaches to within 0.1pt of that same hi. `lo < hi` alone is still
+// true — refineGutter would return a band — but 0.1pt is not a real column
+// gap, it's where this line's glyphs happened to end. That is exactly what
+// happened on the real page 11 (measured band: 347.838..347.940, 0.102pt),
+// which fragmented 4 sentences mid-phrase. See MIN_GUTTER_BAND_PT.
+const nearTouchingLines = [
+  ...twoColumnLines,
+  {
+    y: 700 - 4 * 14,
+    items: [
+      run("Left column line that nearly touches the gutter", 50, 700 - 4 * 14, 279.9), // right edge 329.9, 0.1pt short of hi=330
+      run("Right col line 5", 330, 700 - 4 * 14, 220),
+    ],
+  },
+];
+check("a degenerate sub-point band is REJECTED (MIN_GUTTER_BAND_PT guard)",
+  detectColumnGutters(nearTouchingLines).length === 0,
+  JSON.stringify(detectColumnGutters(nearTouchingLines)));
+
+// Companion: a genuine narrow band — sized to 15pt, the width of the
+// narrowest GENUINE gutter measured on this document (real page 13, refined
+// band 299.99..315.00, see the real-geometry section below) — must still be
+// ACCEPTED at the same 1pt floor. Built the same way as nearTouchingLines
+// (four lines establish the rough gutter, a fifth supplies the tight edge)
+// so the only variable between the two tests is the band width itself.
+const genuineNarrowLines = [
+  ...twoColumnLines,
+  {
+    y: 700 - 4 * 14,
+    items: [
+      run("Left column line that nearly fills a genuine band", 50, 700 - 4 * 14, 265), // right edge 315, 15pt short of hi=330
+      run("Right col line 5", 330, 700 - 4 * 14, 220),
+    ],
+  },
+];
+const genuineNarrowGutters = detectColumnGutters(genuineNarrowLines);
+check("a genuine ~15pt band clears MIN_GUTTER_BAND_PT and is still accepted",
+  genuineNarrowGutters.length === 1 &&
+    genuineNarrowGutters[0].lo === 315 &&
+    genuineNarrowGutters[0].hi === 330,
+  JSON.stringify(genuineNarrowGutters));
+
 // One wide gap on one or two lines is a right-aligned page number or a
 // header/footer pair, not a column structure. The gutter must recur on at
 // least three lines before it is believed — if that floor were 2, this page
