@@ -189,6 +189,31 @@ export default $config({
       { actions: ["textract:AnalyzeDocument", "textract:StartDocumentTextDetection", "textract:GetDocumentTextDetection", "textract:DetectDocumentText", "textract:StartDocumentAnalysis", "textract:GetDocumentAnalysis"], resources: ["*"] },
     ];
 
+    // ---------------------------------------------------------------------
+    // Observability (ca only) — docs/superpowers/specs/2026-07-28-observability-monitoring-design.md
+    //
+    // Closes the PUSH side of failure visibility (#193 opened the pull side).
+    // ca is the target: it runs the real textlayer engine and is the stage the
+    // Textract SCP outage bit. Raw aws.* Pulumi resources because SST v3
+    // Functions expose neither alarms nor async on-failure destinations
+    // first-class. Log RETENTION is intentionally NOT here — SST v3 already
+    // defaults every Lambda log group to 30 days (verified live 2026-07-28).
+    // ---------------------------------------------------------------------
+    const isCa = $app.stage === "ca";
+
+    // Dead-letter capture for the fire-and-forget workers. If a worker dies
+    // BEFORE writing a terminal job status, the job is stranded EXTRACTING and
+    // the event payload is lost; this queue keeps the original
+    // {jobId,fileName,sourceS3Key} for inspection or a #194 hand-retry.
+    // Capture-only — no auto-redrive (the SCP failures were deterministic and
+    // would loop). Created before the workers so its ARN can be granted.
+    const extractDlq = isCa
+      ? new aws.sqs.Queue("ExtractDLQ", { messageRetentionSeconds: 60 * 60 * 24 * 14 }) // 14 days (SQS max)
+      : undefined;
+    // Async on-failure destinations are delivered using the FUNCTION ROLE, not
+    // the Lambda service principal, so the workers need sqs:SendMessage.
+    const dlqSendPerm = extractDlq ? [{ actions: ["sqs:SendMessage"], resources: [extractDlq.arn] }] : [];
+
     // Recompute alignment opportunities when a commitment changes. Declared here
     // (not next to the Alignment table) because it needs `bedrockPerms` above.
     commitments.subscribe("AlignmentEngine", {
@@ -219,7 +244,7 @@ export default $config({
       memory: "1536 MB", // pdf-lib loads the whole PDF in memory to split it
 
       link: [rapData, rapUploads, rapAnalytics],
-      permissions: bedrockPerms,
+      permissions: [...bedrockPerms, ...dlqSendPerm],
       environment: extractionEnv,
     });
 
@@ -234,6 +259,7 @@ export default $config({
       link: [casesIndex],
       permissions: [
         ...bedrockPerms,
+        ...dlqSendPerm,
         // Corpus reads + brief/quota writes on the literal LegalCases table
         // (created out-of-band by the cases:*:cloud pipeline — same reason the
         // Web block wires it by ARN, not link).
@@ -261,6 +287,69 @@ export default $config({
         EMBED_REGION: "us-east-1",
       },
     });
+
+    // Observability wiring (ca only). Everything below is gated on the DLQ
+    // existing, i.e. isCa; on other stages this whole block is skipped.
+    if (extractDlq) {
+      // Attach the DLQ as the async on-failure destination for both workers.
+      for (const [label, fn] of [["RapExtract", rapExtract], ["BriefGen", briefGen]] as const) {
+        new aws.lambda.FunctionEventInvokeConfig(`${label}OnFailure`, {
+          functionName: fn.name,
+          destinationConfig: { onFailure: { destination: extractDlq.arn } },
+        });
+      }
+
+      // Alarm sink: one SNS topic → email. ALERTS_EMAIL defaults to
+      // DIGEST_RECIPIENT so no new REQUIRED var; the subscription needs a
+      // one-time click-confirm on the address AWS emails.
+      const alertsEmail = process.env.ALERTS_EMAIL || process.env.DIGEST_RECIPIENT || "";
+      const alertTopic = new aws.sns.Topic("ObservabilityAlerts", {});
+      if (alertsEmail) {
+        new aws.sns.TopicSubscription("ObservabilityAlertsEmail", {
+          topic: alertTopic.arn,
+          protocol: "email",
+          endpoint: alertsEmail,
+        });
+      }
+
+      // treatMissingData "notBreaching": event-driven metrics (Errors, DLQ
+      // depth) have no datapoint in a quiet period — that is health, not an
+      // alarm. okActions so a recovery also emails an all-clear.
+      const alarm = (name: string, args: any) =>
+        new aws.cloudwatch.MetricAlarm(name, {
+          comparisonOperator: "GreaterThanOrEqualToThreshold",
+          evaluationPeriods: 1,
+          threshold: 1,
+          treatMissingData: "notBreaching",
+          alarmActions: [alertTopic.arn],
+          okActions: [alertTopic.arn],
+          ...args,
+        });
+
+      // Hard failures / throttling on the workers (built-in AWS/Lambda metrics).
+      alarm("RapExtractErrors", { namespace: "AWS/Lambda", metricName: "Errors", statistic: "Sum", period: 300, dimensions: { FunctionName: rapExtract.name } });
+      alarm("RapExtractThrottles", { namespace: "AWS/Lambda", metricName: "Throttles", statistic: "Sum", period: 300, dimensions: { FunctionName: rapExtract.name } });
+      alarm("BriefGenErrors", { namespace: "AWS/Lambda", metricName: "Errors", statistic: "Sum", period: 300, dimensions: { FunctionName: briefGen.name } });
+      // A payload landed in the dead-letter queue — a worker died before it
+      // could mark the job failed.
+      alarm("ExtractDlqNotEmpty", { namespace: "AWS/SQS", metricName: "ApproximateNumberOfMessagesVisible", statistic: "Maximum", period: 300, dimensions: { QueueName: extractDlq.name } });
+      // A job hung in EXTRACTING without the worker erroring — the SCP-outage
+      // shape built-in metrics miss. period 900 matches StuckJobMonitor's cadence.
+      alarm("StuckExtractionJobs", { namespace: "Indigenomics/RapExtraction", metricName: "StuckExtractionJobs", statistic: "Maximum", period: 900, dimensions: { Stage: $app.stage } });
+
+      // The scanner that emits the StuckExtractionJobs metric (EMF). Mirrors the
+      // NotifyDigest/CaseMonitor cron shape; thin handler over scanStuckExtractions.
+      new sst.aws.Cron("StuckJobMonitor", {
+        schedule: "rate(15 minutes)",
+        function: {
+          handler: "src/functions/stuck-job-monitor.handler",
+          timeout: "60 seconds",
+          memory: "256 MB",
+          link: [rapData], // IAM for listByStatus (GSI1 Query); table name via env below
+          environment: { REPO_IMPL: "dynamo", RAP_TABLE: rapData.name, STAGE: $app.stage },
+        },
+      });
+    }
 
     // Scheduled new-case monitor (spec 2026-07-07). Detection-only — additively
     // records newly-published cases as substrate + writes a scan report; NO Bedrock,

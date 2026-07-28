@@ -72,13 +72,12 @@ outage.
 - The Part 1 alarm on this metric sends the email. The same jobs already show in the #193
   "Extracting" UI with the "taking longer than usual" flag — this is the push half of that pull.
 
-## Log retention
+## Log retention — DROPPED (already handled)
 
-- All `ca` Lambda log groups → **30-day** retention (currently never-expire).
-- Two reasons: unbounded cost, and **residency** — document text can appear in logs and living
-  there indefinitely conflicts with the OCAP posture (`data-governance-ocap-residency`).
-- SST v3 path (`transform` on the log group, or an explicit `aws.cloudwatch.LogGroup` with
-  `retentionInDays`) verified against 4.15.2 during implementation.
+The plan assumed log groups never expire. **Verified false on 2026-07-28:** SST v3 defaults every
+Lambda log group to 30-day retention, and every live `ca` group already shows `retentionInDays: 30`
+(the Next.js image optimizer is 3). Nothing to build — the cost/residency concern is already
+covered by the framework default. No change ships for this.
 
 ## Files
 
