@@ -6,6 +6,26 @@
 
 export type LoaderName = "textract" | "textlayer";
 
+/**
+ * The page marker every loader prefixes onto each paragraph, and the pattern
+ * that finds one again.
+ *
+ * These live together because they MUST agree, and until now they did not have
+ * to: the format was a bare template literal in each loader while validate.ts
+ * only mentioned markers in a comment. A quote that spans a paragraph or page
+ * boundary contains one of these in the DOCUMENT but not in the model's quote,
+ * so the verbatim substring check failed on quotes the model had reproduced
+ * perfectly — measured on Hydro-Québec as 3 of 5 quote_not_found flags.
+ *
+ * `"?"` appears when a loader has a paragraph whose page it could not determine
+ * (textract's LAYOUT blocks are not guaranteed to carry Page), so the pattern
+ * has to admit it or those markers would survive stripping.
+ */
+export const pageMarker = (page: number | string) => `[p.${page}]\n`;
+
+/** Matches any marker `pageMarker` can produce, with or without its newline. */
+export const PAGE_MARKER_RE = /\[p\.(?:\d+|\?)\]\n?/g;
+
 export interface LoadResult {
   /** "[p.N]\n<paragraph>" blocks, separated by a blank line. */
   text: string;

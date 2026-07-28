@@ -132,4 +132,85 @@ const commitIssues = issuesFor(withCommit, SOURCE);
 check("a fabricated quote inside a commitment is caught", commitIssues.length === 1);
 check("  ...and reports its path", commitIssues[0]?.path === "commitments[0].action");
 
+// ===========================================================================
+// PAGE MARKERS MUST NOT BREAK A REAL QUOTE.
+//
+// The loaders prefix every paragraph with "[p.N]". A quote that legitimately
+// spans a paragraph or page boundary therefore has a marker sitting inside it
+// in the document and nowhere in the model's quote — and normalisation turns
+// "[p.6]" into the tokens "p 6", so the substring check used to fail on quotes
+// the model had reproduced perfectly.
+//
+// Measured on the live Hydro-Québec extraction (job 754decee, ca stage,
+// 2026-07-28): 3 of its 5 quote_not_found flags were this bug, not the model.
+// The quotes below are the REAL ones from that run.
+// ===========================================================================
+const SPANNING_SOURCE = [
+  "[p.3]\nWe are also committed to ensuring continuous, two-way communication between Hydro-Québec and Indigenous communities. This open communication will help establish a common understanding of our challenges",
+  "[p.4]\nand on that basis, drive sustainable solutions through open communication.",
+].join("\n\n");
+
+// Exactly the quote that flagged as commitments[1].deliverable on the live run.
+const SPANNING_QUOTE =
+  "This open communication will help establish a common understanding of our challenges and on that basis, drive sustainable solutions through open communication.";
+
+check(
+  "a real quote spanning a page marker is NOT flagged",
+  issuesFor(rap(g("x", SPANNING_QUOTE)), SPANNING_SOURCE).length === 0,
+);
+
+// The same span with a marker inside it must still be found when the model
+// quotes only ONE side of the boundary — the ordinary case, previously fine.
+check(
+  "a quote wholly inside one paragraph still passes",
+  issuesFor(rap(g("x", "This open communication will help establish a common understanding")), SPANNING_SOURCE).length === 0,
+);
+
+// THE REGRESSION THAT MATTERS: stripping markers must not let a fabrication in.
+// This welds the tail of p.3 onto an invented clause; it crosses the same
+// boundary as the passing case above, so only the WORDS distinguish them.
+check(
+  "stripping markers does NOT admit a fabrication across the same boundary",
+  issuesFor(
+    rap(g("x", "This open communication will help establish a common understanding of our shareholders and on that basis, increase quarterly dividends.")),
+    SPANNING_SOURCE,
+  ).length === 1,
+);
+
+// A marker must not be quotable as if it were prose.
+check(
+  "the marker text itself is not matchable",
+  issuesFor(rap(g("x", "p.4 and on that basis")), SPANNING_SOURCE).length === 1,
+);
+
+// --- the two live flags that were CORRECT must stay correct ----------------
+// Both are from the same Hydro-Québec run. If a future loosening of this rule
+// silences these, it has gone too far.
+const DRIFT_SOURCE =
+  "[p.4]\nHydro-Québec launched its Action Plan 2035 – Towards a Decarbonized and Prosperous Québec in November 2023. The plan centres around five priorities, one of which is to seek closer collaboration with Indigenous communities.";
+
+check(
+  "a quote that drifts mid-span is still caught (live `sector` flag)",
+  issuesFor(
+    rap(g("energy", "Hydro-Québec launched its Action Plan 2035 – Towards a Decarbonized and Prosperous Québec in November 2023. The plan sets a target of net-zero emissions across all operations.")),
+    DRIFT_SOURCE,
+  ).length === 1,
+);
+
+check(
+  "an elided quote whose SECOND fragment is absent is still caught (live `frameworkRefs` flag)",
+  issuesFor(
+    rap(g("undrip", "Hydro-Québec launched its Action Plan 2035 … we have work to build on our activities in recent decades as a centre of expertise.")),
+    DRIFT_SOURCE,
+  ).length === 1,
+);
+
+check(
+  "an elided quote whose fragments are BOTH present still passes",
+  issuesFor(
+    rap(g("undrip", "Hydro-Québec launched its Action Plan 2035 … seek closer collaboration with Indigenous communities")),
+    DRIFT_SOURCE,
+  ).length === 0,
+);
+
 process.exit(fail ? 1 : 0);

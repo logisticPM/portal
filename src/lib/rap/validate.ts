@@ -10,6 +10,7 @@
 // ===========================================================================
 import { CONFIDENCE_THRESHOLD, isRecurringTimeline, parseDueDate } from "./publish";
 import type { ExtractedRap, Grounded, ValidationIssue } from "./types";
+import { PAGE_MARKER_RE } from "./doc-loader/types";
 
 const isoish = /^\d{4}(-\d{2}(-\d{2})?)?$/; // YYYY or YYYY-MM or YYYY-MM-DD
 
@@ -60,7 +61,24 @@ export const normalizeForQuoteMatch = (s: string) =>
 // this, `pillars` would flag on essentially every RAP, and a flag that always
 // fires is a flag everyone learns to ignore.
 function quoteOccursIn(quote: string, sourceText: string): boolean {
-  const haystack = normalizeForQuoteMatch(sourceText);
+  // Strip OUR OWN page markers before matching. They are not the author's
+  // prose — the loaders inject "[p.N]" ahead of every paragraph — so a quote
+  // that legitimately spans a paragraph or page boundary has one sitting inside
+  // it in the haystack and nowhere in the model's quote. Normalisation turns
+  // "[p.4]" into the tokens "p 4", so the substring check then fails on a quote
+  // the model reproduced perfectly. Measured on the live Hydro-Québec
+  // extraction: 3 of its 5 quote_not_found flags were this, not the model.
+  //
+  // This does NOT loosen the gate. The only spans it newly admits are ones that
+  // were already contiguous prose interrupted by a marker we added; a
+  // fabrication still differs in WORDS and is still caught, which the
+  // fabrication tests below pin. Deliberately not fuzzy matching — that would
+  // trade away the property this whole rule exists to provide.
+  //
+  // Consequence accepted: a quote spanning two pages now validates while its
+  // single `page` names only one of them. Same limitation already carried by
+  // multi-valued fields (see frameworkRefs in types.ts).
+  const haystack = normalizeForQuoteMatch(sourceText.replace(PAGE_MARKER_RE, " "));
   const fragments = quote
     .split(/\s*(?:…|\.\.\.)\s*/)
     .map(normalizeForQuoteMatch)

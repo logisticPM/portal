@@ -6,7 +6,7 @@ import {
 } from "@aws-sdk/client-textract";
 import { DEFAULT_TARGET_CHARS } from "../chunk";
 import { getDocumentBytes } from "../storage";
-import { type DocLoader, type LoadResult, UnsupportedDocumentError } from "./types";
+import { type DocLoader, type LoadResult, pageMarker, UnsupportedDocumentError } from "./types";
 
 const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
@@ -113,7 +113,7 @@ export function buildTextFromLayoutBlocks(blocks: Block[]): string {
     // the target, which chunkDocument's splitLargeParagraph re-splits while
     // keeping the marker only on the first piece. See buildTextFromPages in
     // textlayer.ts for the same subtraction.
-    const marker = `[p.${page ?? "?"}]\n`;
+    const marker = pageMarker(page ?? "?");
     for (const piece of splitOversizedBlockText(t, DEFAULT_TARGET_CHARS - marker.length)) {
       paragraphs.push(`${marker}${piece}`);
     }
