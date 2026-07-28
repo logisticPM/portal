@@ -3,11 +3,26 @@
 // shows its grounding (verbatim quote + page); flagged fields are highlighted so
 // the reviewer's eye goes straight to what the AI was unsure about. This is
 // extraction QA, NOT Indigenomics truth-verification.
+//
+// It ALSO surfaces jobs that have not reached review yet, and jobs that never
+// will. Previously this panel queried PENDING_REVIEW alone, which made two very
+// different situations look identical — and identical to each other:
+//
+//   * still extracting  — dispatched fire-and-forget, ~90s for a 17-page RAP and
+//     several minutes for a large one, during which the document was INVISIBLE
+//   * FAILED            — markFailed() ran, and the job then appeared nowhere at
+//     all, so a hard error was indistinguishable from a slow success
+//
+// The second is why the Textract SCP deny read as "extraction is dead" rather
+// than as a specific failure: every job failed in under a second and the queue
+// showed nothing. Both statuses were already stored; only the query was narrow.
 import { extractionRepo } from "@/lib/rap";
 import { confirmExtractionAction, rejectExtractionAction, resolveOrgAction } from "@/lib/rap/actions";
 import { cbrSearchUrl } from "@/lib/rap/registry";
 import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
 import { labelFor } from "@/lib/taxonomy";
+import { QueueAutoRefresh } from "./QueueAutoRefresh";
+import { elapsedSince, isStalled, orderFailed, orderInProgress } from "./queue-view";
 
 // `<form action>` requires a function returning void | Promise<void>, but
 // resolveOrgAction (a thin shim over the testable resolveOrgForJob core)
@@ -21,10 +36,31 @@ async function resolveOrgFormAction(formData: FormData) {
 }
 
 export async function ReviewPanel() {
-  const jobs = await extractionRepo.listByStatus("PENDING_REVIEW");
+  // One query per status: listByStatus is a GSI1 point query per status value,
+  // so four of them in parallel cost the same round trip as one.
+  const [jobs, pending, extracting, failed] = await Promise.all([
+    extractionRepo.listByStatus("PENDING_REVIEW"),
+    extractionRepo.listByStatus("PENDING"),
+    extractionRepo.listByStatus("EXTRACTING"),
+    extractionRepo.listByStatus("FAILED"),
+  ]);
+
+  // PENDING means the worker has not picked the job up yet; EXTRACTING means it
+  // is mid-pipeline. The distinction matters when diagnosing (a job stuck in
+  // PENDING points at the Lambda invoke, not the pipeline), so the row keeps it
+  // — but both are simply "in progress" to a reviewer.
+  const inProgress = orderInProgress(pending, extracting);
+  const failedJobs = orderFailed(failed);
+  // One clock reading for the whole render, so two rows never disagree about
+  // what time it is. Safe on the server: the route is force-dynamic and
+  // QueueAutoRefresh re-renders it while anything is running.
+  const now = Date.now();
 
   return (
     <div className="space-y-8">
+      {/* Polls only while inProgress.length > 0; renders nothing. */}
+      <QueueAutoRefresh active={inProgress.length} />
+
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · Extraction QA</div>
         <p className="text-ink3 text-sm mt-1">
@@ -32,13 +68,18 @@ export async function ReviewPanel() {
         </p>
       </div>
 
+      {inProgress.length > 0 && <InProgressList jobs={inProgress} now={now} />}
+      {failedJobs.length > 0 && <FailedList jobs={failedJobs} now={now} />}
+
       <p className="text-ink3 text-sm">
         {jobs.length} flagged {jobs.length === 1 ? "document" : "documents"} awaiting review
       </p>
 
       {jobs.length === 0 && (
         <div className="bg-panel rounded border border-line p-8 text-center text-ink3">
-          Nothing to review — the queue is clear.
+          {inProgress.length > 0
+            ? "Nothing to review yet — extraction is still running."
+            : "Nothing to review — the queue is clear."}
         </div>
       )}
 
@@ -86,6 +127,67 @@ export async function ReviewPanel() {
               <button className="px-4 py-2 rounded border border-rust text-rust text-sm">Reject</button>
             </form>
           </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InProgressList({ jobs, now }: { jobs: ExtractionJob[]; now: number }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-ink3 text-xs uppercase tracking-widest">
+        Extracting — {jobs.length} {jobs.length === 1 ? "document" : "documents"}
+      </div>
+      {jobs.map((job) => {
+        const stalled = isStalled(job, now);
+        return (
+          <div key={job.id} className="bg-panel rounded border border-line p-4 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-medium truncate">{job.fileName}</div>
+              <div className="text-ink3 text-sm">
+                {job.status === "PENDING" ? "Queued" : "Reading the document and extracting commitments"} · {elapsedSince(job.createdAt, now)} elapsed
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* aria-hidden: the adjacent text already states the status, so the
+                  animation is decoration and would otherwise be announced twice. */}
+              <span aria-hidden className="inline-block w-2 h-2 rounded-full bg-amber animate-pulse" />
+              <span className={`text-xs uppercase tracking-wide ${stalled ? "text-rust" : "text-amber"}`}>
+                {stalled ? "taking longer than usual" : "in progress"}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-ink3 text-xs">
+        This list refreshes on its own. Extraction runs in the background — you can leave this page.
+      </p>
+    </div>
+  );
+}
+
+// A FAILED job used to appear nowhere, so a hard error looked exactly like an
+// empty queue. markFailed() stores the reason in reviewNote (repo.dynamo.ts),
+// which is the only place the operator can see it without CloudWatch.
+function FailedList({ jobs, now }: { jobs: ExtractionJob[]; now: number }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-rust text-xs uppercase tracking-widest">
+        Failed — {jobs.length} {jobs.length === 1 ? "document" : "documents"}
+      </div>
+      {jobs.map((job) => (
+        <div key={job.id} className="rounded border border-rust/40 bg-rust/5 p-4 space-y-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <div className="font-medium truncate">{job.fileName}</div>
+            <div className="text-ink3 text-xs shrink-0">{elapsedSince(job.updatedAt, now)} ago</div>
+          </div>
+          {job.reviewNote ? (
+            <pre className="text-rust text-xs whitespace-pre-wrap break-words font-mono">{job.reviewNote}</pre>
+          ) : (
+            <div className="text-ink3 text-xs">No error recorded — check CloudWatch for this job id.</div>
+          )}
+          <div className="text-ink3 text-[11px] font-mono">job {job.id}</div>
         </div>
       ))}
     </div>
