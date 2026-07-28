@@ -44,7 +44,11 @@ export interface ValidateOptions {
 //   • a FABRICATION differs in words, so it is caught regardless.
 // Validated on live data (docs/rap-extraction-findings.md §4a): 32/32 real quotes
 // pass this, and it catches 21/32 welded ones in the arm that fabricated.
-const normalizeForQuoteMatch = (s: string) =>
+//
+// Exported (additively) so scripts/score-extraction-vs-gold.ts can score
+// against the SAME rule the pipeline actually applies, rather than an ad-hoc
+// lookalike that would silently drift from what gets accepted here.
+export const normalizeForQuoteMatch = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 
 // An ELIDED quote ("A … B") is honest provenance, not fabrication, and must not
