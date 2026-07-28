@@ -608,6 +608,51 @@ async function main() {
     JSON.stringify(sparse.lowPageCoverage));
   check("the low-coverage document still returns its usable text", sparse.text.includes("[p.1]\n"));
 
+  // --- real geometry: RBC p4, two independent regions sharing baselines -----
+  // Found by the Textract cross-reference at 28.6% within-page order
+  // disagreement, the worst page in an 11-document corpus
+  // (docs/rap-p4-interleaving-investigation.md).
+  //
+  // The page is a CEO letter: body prose in the left band, and a 2x2 SIGNATURE
+  // GRID in the right two bands. The regions share baselines, so reading the
+  // page row-major interleaves them and shreds the prose mid-sentence:
+  //
+  //     ...As a leading financial institution and
+  //     Dave McKay                    Phil Fontaine
+  //     purpose-driven organization, we are deeply committed to...
+  //
+  // Column-major is correct here, and is what MIN_BAND_FILL_RATIO = 0.57
+  // now permits: each band holds one signatory's whole block, so a name stays
+  // with its OWN title. Assertions are on OUTPUT, never on fixture coordinates.
+  const rbcGeometry = JSON.parse(
+    readFileSync(new URL("./fixtures/textlayer-geometry-rbc-p4.json", import.meta.url), "utf8"),
+  ) as Record<string, TextItem[]>;
+  check("RBC p4 fixture loaded", rbcGeometry["4"]?.length > 0, `${rbcGeometry["4"]?.length} runs`);
+
+  const rbcParas = groupItemsIntoParagraphs(rbcGeometry["4"]);
+  const rbcFlat = rbcParas.map((p) => p.replace(/\s+/g, " ").trim());
+  const rbcAll = rbcFlat.join(" ‖ ");
+
+  // (a) the body sentence the signature block used to cut in half
+  check("RBC p4: body prose is not interrupted by the signature block",
+    rbcAll.includes("As a leading financial institution and purpose-driven organization"),
+    rbcAll.includes("financial institution and Dave McKay") ? "still interleaved" : "");
+
+  // (b) each signatory keeps their OWN title — the property row-major destroys
+  check("RBC p4: Dave McKay keeps his own title",
+    /Dave McKay\s+President and Chief Executive Officer/.test(rbcAll));
+  check("RBC p4: Phil Fontaine keeps his own title",
+    /Phil Fontaine\s+Special Advisor/.test(rbcAll));
+  check("RBC p4: Jacynthe Côté keeps her own title",
+    /Jacynthe Côté\s+Chair of the Board/.test(rbcAll));
+  check("RBC p4: Chinyere Eni keeps their own title",
+    /Chinyere Eni\s+Head, RBC Origins/.test(rbcAll));
+
+  // (c) and no name is ever glued to the NEXT column's name, which is what
+  //     row-major produced ("Dave McKay Phil Fontaine")
+  check("RBC p4: adjacent signatories are not concatenated",
+    !/Dave McKay\s+Phil Fontaine/.test(rbcAll) && !/Jacynthe Côté\s+Chinyere Eni/.test(rbcAll));
+
   console.log(fail === 0 ? "\nall passed" : `\n${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }

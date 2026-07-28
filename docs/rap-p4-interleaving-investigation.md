@@ -1,12 +1,14 @@
-# RBC p4 interleaving — root cause, and why three fixes were not shipped
+# RBC p4 interleaving — root cause, three rejected fixes, and the one that shipped
 
 **Date:** 2026-07-27 · Found by the Textract cross-reference
 (`docs/rap-textlayer-corpus-measurement.md`), which flagged p4 at **28.6% within-page order
 disagreement** — the worst page in the corpus.
 
-**Status: root cause understood, NOT fixed.** Two candidate fixes were implemented and measured;
-both are worse. The third needs a constant fitted to a single page. The recommendation is to accept
-this as a documented limitation. Nothing in `src/` was changed.
+**Status: FIXED** — `MIN_BAND_FILL_RATIO` recalibrated 0.65 → 0.57 against real geometry.
+
+Three earlier candidates were rejected first, and the reasoning is kept below because each was
+plausible and two of them were only killed by measurement. The fix that landed is a one-constant
+recalibration justified by a gap between two *measured* values, not by a guess.
 
 ---
 
@@ -82,23 +84,79 @@ more permissive, reorders pages it should not, and recall collapses.
 
 This is the fix that "looked right". It was only caught because the reference harness existed.
 
-## Fix 3 — partition bands by co-occurrence. **Not shipped: needs a constant fitted to n=1.**
+## Fix 3 — partition bands by co-occurrence. **Falsified by evidence.**
 
-A table links every band on every row; two independent regions never share a line. So: build a graph
-over bands, link two bands when they appear on the same non-spanning line, and give each connected
-component its own flow. Tables are untouched by construction — every row links all bands.
+A table links every band on every row, so its co-occurrence rate is ~1.0 regardless of how few rows
+it has. Two independent regions that merely share a page should link on few or no lines. So: build a
+graph over bands, link two bands when they appear on the same non-spanning line, and give each
+connected component its own flow. Tables would be untouched by construction.
 
-The measured co-occurrence on p4 is:
+The rate must be normalised by `min(linesWithA, linesWithB)` and never be an absolute count — an
+absolute threshold of 3 would split a genuine **2-row** commitment table, the exact disaster the
+guard exists to prevent.
+
+Four more documents were downloaded to test this (ATB 76pp, BC Legislative Assembly 12pp, Populous
+Reflect RAP 12pp, FNFA brief 6pp), bringing the corpus to **11 documents**. Two results:
+
+1. **Guard rejections are vanishingly rare** — still only RBC p4, across ~250 pages. Real commitment
+   tables mostly produce *no gutters at all* (Agnico's ESTMA tables, the Reflect RAP tables), so the
+   guard is never consulted for them and they are read row-major by default.
+2. **The discriminator does not work.** Populous p12 is an office address block — three columns,
+   each a city office with its own street address and phone — genuinely independent regions that
+   must be read column-major. It scores:
 
 ```
-bands 0-1: 2 lines      bands 1-2: 5 lines
+Populous p12 (independent regions):  0-1: 1.00   0-2: 1.00   1-2: 1.00
+RBC p4       (independent regions):  0-1: 0.25   0-2: 0.00   1-2: 1.00
+a commitment table:                  ~1.00 on every pair
 ```
 
-Bands 0 and 1 *do* share two lines (a display heading fragment, "Letter from", sitting at the same
-baseline as a line of body text). Separating them therefore requires a threshold of **3** — placed
-between 2 and 5, on the evidence of exactly one page. That is the same n=1 fitting error this
-project documented earlier the same day when rejecting a font-relative gutter criterion, and it
-should not be repeated because the page in question is the one we happen to be looking at.
+Populous p12 is indistinguishable from a table by this metric. Co-occurrence measures *row
+alignment*, and independent regions are frequently row-aligned — an address block and a commitment
+table have the same geometry. **Fix 3 abandoned.**
+
+## Fix 4 — recalibrate MIN_BAND_FILL_RATIO against real geometry. **SHIPPED.**
+
+The same evidence gave the answer. 0.65 was the midpoint of 0.500 (synthetic table) and 0.783
+(synthetic two-column) — **both synthesised**. RBC p4 band 2 supplies a *real* prose band at 0.637,
+so the prose side of the gap reaches lower than the synthetic fixtures implied, and 0.65 sat inside
+it rather than between the two populations.
+
+```
+table side, measured:  0.500   (synthetic table, worst qualifying band)
+prose side, measured:  0.637   (RBC p4 band 2 - REAL geometry)
+midpoint:              0.5685  ->  0.57
+```
+
+Verified against the Textract cross-reference over five documents:
+
+- **0.55-0.62 is a plateau** — identical corpus behaviour throughout, so 0.57 is not perched on an
+  edge. This is the plateau property `COLUMN_GUTTER_RATIO` was originally chosen for and, unlike
+  that constant, it survives contact with the corpus.
+- **Exactly one page in 11 documents changes verdict**: p4 itself.
+- On p4 the loader now recovers **13 intact sentences instead of 7** — row-major had been cutting
+  them in half — and its order disagreement with Textract falls **28.6% -> 23.1%**.
+- Corpus-wide: **507/511 sentences on the correct page, against 501/505** before. RBC alone improves
+  125/125 -> 131/131 matched.
+- `COLUMN_GUTTER_RATIO = 0.12` remains the argmax after the change (507 sentences).
+- The synthetic table at 0.500 stays comfortably refused, asserted directly by the test suite.
+
+**Do not read the pooled order-disagreement figure as a regression.** It rises 1.12% -> 1.64% purely
+because p4 now contributes 78 orderable sentence pairs where it contributed 21; raw inversion counts
+scale quadratically with set size. Per-page, p4 improved on both measures. This is the same set-size
+confound documented in `tune-against-textract.ts`, reappearing one level up at the pooling step.
+
+Regression coverage: `scripts/fixtures/textlayer-geometry-rbc-p4.json` (real glyph geometry, 62
+runs, no binary blob) plus six assertions in `scripts/test-doc-loader-textlayer.ts` — the body
+sentence stays whole, each of the four signatories keeps their own title, and no two adjacent
+signatories are concatenated.
+
+### Residual
+
+p4 still disagrees with Textract at 23.1%. The body prose is now whole and the signatories are
+correctly paired, but the two independent regions are still emitted in a different relative order
+than Textract chooses. That is ordering *between* regions, not corruption *within* them, and no
+commitment is affected. Left as measured.
 
 ## The underlying limitation is geometric, not a bug
 
@@ -116,21 +174,28 @@ the prose-like bands and leave the rest row-major — breaks commitment tables *
 a table's ACTION column is itself prose-like (measured at 0.816 / 24.00, higher than either band of
 the genuine two-column fixture). That is the reason the guard requires every band to qualify.
 
-## Impact of leaving it
+## What is NOT claimed
 
-Bounded and cosmetic:
+The guard remains geometric, and geometry cannot tell a signature grid from a commitment table — both
+are row-aligned; the difference is semantic. This fix moves ONE threshold onto real evidence. It does
+not give the guard a new capability, and the documented limitation stands: **a table whose columns
+are all wide and wordy still passes the guard and would be read column-major, with no validation
+flag.** No such page exists in the 11-document corpus, so that risk is still untested rather than
+disproven.
 
-- **No commitments are on this page.** It is a CEO letter with a signature block.
-- **Page attribution is unaffected** — p4's sentences are all on p4 (RBC scores 125/125).
-- **A quote spanning the interleave fails `validate.ts`'s substring check** and routes to human
-  review. Wrong-looking, never wrong-and-confident.
-- Blast radius is **one page in a 166-page corpus** (it appears twice only because the trimmed RBC
-  file contains the same page).
+Lowering the threshold moves marginally toward that risk, which is why 0.57 was placed at the
+midpoint of a measured gap and verified to change exactly one page in ~250. The synthetic table's
+worst qualifying band (0.500) still fails by a wider relative margin than p4's real prose band
+(0.637) passes.
 
-## If this needs fixing later
+## How to re-run any of this
 
-Fix 3 is the right shape and is safe by construction; it only needs evidence. Collect two or three
-more pages where the guard rejects but the page has independent regions, and the threshold can be
-placed on a measured gap instead of a guess. The rig to find them already exists — run
-`scripts/compare-loader-vs-textract.ts` over new documents and look for pages with high within-page
-order disagreement. `scripts/diagnose-prose-guard.ts` then prints the per-band numbers for any page.
+```
+scripts/diagnose-prose-guard.ts   <pdf> <page>   per-band fill + mean word-chars, both readings
+scripts/scan-guard-rejections.ts  <dir>...       every guard-rejected page, with co-occurrence rates
+scripts/compare-loader-vs-textract.ts <pdf> <ref.json>   per-page order agreement
+scripts/tune-against-textract.ts  <pdf>=<ref.json>...    sweep a constant against the reference
+```
+
+The last two need no AWS — they read the committed hashed fixtures in
+`scripts/fixtures/textract-reference/`.

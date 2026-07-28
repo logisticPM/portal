@@ -209,7 +209,36 @@ const MIN_GUTTER_BAND_PT = 1;
 // passes, and would still be read column-major; nothing measured here
 // separates that case, and it is recorded as a known limitation rather than
 // papered over.
-const MIN_BAND_FILL_RATIO = 0.65;
+//
+// RECALIBRATED 0.65 -> 0.57 on 2026-07-27, against real geometry rather than
+// the synthetic fixtures alone (docs/rap-p4-interleaving-investigation.md).
+//
+// 0.65 was the midpoint of 0.500 (synthetic table) and 0.783 (synthetic
+// two-column) — both SYNTHESISED. RBC p4 supplies a real prose band at 0.637:
+// the right-hand column of a signature grid beside a column of body prose.
+// Under 0.65 that page was refused and read row-major, which interleaved the
+// two regions and cut the body prose mid-sentence, detaching every signatory
+// from their title. So the prose side of the gap reaches lower than the
+// synthetic fixtures implied, and 0.65 sat inside it.
+//
+//   table side, measured:  0.500  (synthetic table, worst qualifying band)
+//   prose side, measured:  0.637  (RBC p4 band 2 — REAL geometry)
+//   midpoint:              0.5685 -> 0.57
+//
+// Verified against the Textract cross-reference over five documents: 0.55-0.62
+// is a plateau (identical corpus behaviour throughout), and exactly one page in
+// 11 documents changes verdict — p4 itself. On that page the loader recovers 13
+// intact sentences instead of 7, and its order disagreement with Textract falls
+// from 28.6% to 23.1%. Corpus-wide, 507/511 sentences land on the correct page
+// against 501/505 before.
+//
+// Do NOT read the pooled order-disagreement figure as a regression: it rises
+// 1.12% -> 1.64% only because p4 now contributes 78 orderable sentence pairs
+// where it contributed 21, and raw inversion counts scale with set size.
+//
+// 0.500 stays comfortably below: the synthetic table is still refused, which
+// scripts/test-doc-loader-textlayer.ts asserts directly.
+const MIN_BAND_FILL_RATIO = 0.57;
 const MIN_BAND_LINE_CHARS = 10;
 
 // Column reordering is ON, re-enabled 2026-07-27 against the real Bank of

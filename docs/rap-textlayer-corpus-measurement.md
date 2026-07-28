@@ -274,9 +274,16 @@ p4 is *correct*: each band holds one signatory's whole block, so the name stays 
          Chinyere Eni / Head, RBC Origins
 ```
 
-It is the **row-major fallback** that detaches them — names row, then titles row. See
-`docs/rap-p4-interleaving-investigation.md` for the root cause and for three candidate fixes, two of
-which were measured and rejected.
+It is the **row-major fallback** that detaches them — names row, then titles row.
+
+**FIXED 2026-07-27.** Root cause: the page was refused because one band missed `MIN_BAND_FILL_RATIO`
+by 0.013 (0.637 vs 0.65) while passing the character test at 14.00 vs 10. That threshold had been
+set as the midpoint of two *synthetic* fixtures; p4 band 2 is the first REAL prose band measured, and
+it sits below it. Recalibrated to the midpoint of the measured gap (table 0.500 … prose 0.637) at
+**0.57**, inside a verified 0.55–0.62 plateau. Exactly one page in 11 documents changes verdict.
+p4 now yields 13 intact sentences instead of 7; corpus-wide 507/511 sentences land on the correct
+page, against 501/505 before. Three earlier candidate fixes were rejected on evidence first — see
+`docs/rap-p4-interleaving-investigation.md`.
 
 Deloitte's four page disagreements (`ours p24/ref p14`, `ours p3/ref p34`, `ours p18/ref p14`) are
 large jumps, consistent with a repeated boilerplate sentence matching the wrong instance rather than
@@ -300,8 +307,11 @@ SSO session and a Textract run.
 
 ### What is still open
 
-- **RBC p4's interleaving** — a real defect with a known cause and no fix yet.
-- **The all-wide-columns table** risk is still untested; no such page exists in the corpus.
+- ~~**RBC p4's interleaving**~~ — fixed, see above.
+- **The all-wide-columns table** risk is still untested. The corpus is now **11 documents / ~250
+  pages** and contains no such page. Notably, real commitment tables (Agnico's ESTMA, the Reflect RAP
+  format) produce **no gutters at all**, so the guard is never consulted for them — which is why
+  guard rejections are vanishingly rare: exactly one page in the whole corpus.
 - A human-verified gold set is still the only way to measure **recall of commitments** (did we find
   every commitment?). The reference measures *fidelity of reading* — a different question, and the
   one that was blocking constant tuning.
