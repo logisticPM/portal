@@ -176,3 +176,65 @@ serves fake extractions with no warning. This is the same failure shape document
 `skipped`. Both are deploy-time env vars with a quiet default. Neither is a bug on its own;
 together they are a pattern worth a deliberate decision about whether "quietly serve something
 plausible" is the right default for this project.
+
+---
+
+## Result — `ca` has a working in-country extraction path (2026-07-27)
+
+The SCP is still in force and Textract is still unavailable. Rather than wait on it, the OCR stage was
+replaced with a loader that reads the PDF's **own embedded text layer**, which needs no AWS text service
+at all. Design: `docs/superpowers/specs/2026-07-27-textract-free-extraction-design.md`.
+
+**Measured live on the `ca` stage** against the 22-entry gold set
+(`scripts/fixtures/gold-commitments-bankofcanada.json`), real Bank of Canada RAP, 17 pages:
+
+```
+gold commitments:      22
+extracted commitments: 25
+action matches:        22/22
+PAGE matches:          22/22   <-- the acceptance bar
+validation issues:     5
+```
+
+For reference the Textract→Claude path scored 26 commitments and BDA 22 on this same document, so recall
+is unchanged while the OCR dependency is gone. Offline, the text-layer output shares **99.0%** of the
+Textract path's vocabulary on p13/p15 (`scripts/measure-textlayer-parity.ts`); the only divergences are
+apostrophe encoding.
+
+**Page grounding — the property that mattered — holds.** The pre-work baseline recovered gold action text
+verbatim but attributed it to page 12 where gold says 13. All 22 now land on their correct physical page.
+
+### What the five validation issues are
+
+All `quote_not_found`, and **none of them on a commitment's action or quote** — four on `pillarRaw` (a
+section heading) and one on `publicationDate`. The commitments themselves validated clean. The likely
+cause is a quote spanning a paragraph boundary, where the `[p.N]` marker between paragraphs lands inside
+the quote and breaks the substring check. The direction is safe — a false flag routes to human review and
+can never produce wrong provenance — but it is unfixed. Worth a follow-up.
+
+### `ca` is deployed with
+
+```
+EXTRACTION_IMPL=bedrock  DOC_LOADER=textlayer
+```
+
+Any future `sst deploy --stage ca` must re-export **both**, plus `DIGEST_SENDER` / `DIGEST_RECIPIENT`,
+or extraction silently reverts to the mock and email silently reverts to `skipped`.
+
+### Known limitations, carried deliberately
+
+- **A table whose columns are all wide and wordy** still passes the prose-likeness guard, would be read
+  column-major, and would lose the pairing between a commitment and its measure — **with no validation
+  flag**. This is the one failure mode here that produces no signal. Re-measured 2026-07-27 across seven
+  documents: no such page occurs in any of them, so the risk is **untested, not disproven**.
+- **Scanned documents fail in region** by design. No cross-border fallback was added.
+- The loader has since been measured against **7 documents / 166 pages** —
+  `docs/rap-textlayer-corpus-measurement.md`. The gates held (no false positives; the fidelity gate
+  caught real Ghostscript ligature corruption in a derived RBC file). The column constant did not:
+  `COLUMN_GUTTER_RATIO = 0.12` has **no plateau** outside Bank of Canada, so column reordering is
+  validated on that one document and merely characterised on the other six.
+- The **gold corpus** is still n=1. That is now the binding constraint on further tuning: a second gold
+  set has to be human-verified, because scoring the extractor against its own output measures nothing.
+
+The SCP escalation above still stands: Textract remains the better OCR path for scanned documents, and
+this work does not replace the need to ask for it.

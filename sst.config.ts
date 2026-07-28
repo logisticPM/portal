@@ -174,6 +174,10 @@ export default $config({
       BDA_PROJECT_ARN: process.env.BDA_PROJECT_ARN ?? (isProd ? RAP_BDA_PROJECT_ARN : ""),
       BDA_PROFILE_ARN: process.env.BDA_PROFILE_ARN ?? (isProd ? RAP_BDA_PROFILE_ARN : ""),
       BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID ?? "",
+      // "textract" | "textlayer" — how a document becomes text. Explicit; the
+      // loader throws on anything else. Defaults to textract so this refactor
+      // is behaviour-neutral; ca flips to textlayer in Task 5 after measurement.
+      DOC_LOADER: process.env.DOC_LOADER ?? "textract",
     };
     const bedrockPerms = [
       // Option B (pipeline.bedrock.ts) streams via InvokeModelWithResponseStream — a
