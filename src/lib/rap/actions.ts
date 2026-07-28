@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { extractionRepo } from "./index";
-import { canPublish, claimOrgForParty, recordRapProgressForParty, resolveOrgForJob, setShowcaseOptInForParty, uploadBNForSession } from "./actions-core";
+import { canPublish, claimOrgForParty, dismissFailedJob, recordRapProgressForParty, resolveOrgForJob, retryFailedJob, setShowcaseOptInForParty, uploadBNForSession } from "./actions-core";
 import type { ProgressStatus } from "./types";
 import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
@@ -153,6 +153,41 @@ export async function rejectExtractionAction(formData: FormData) {
   if (!jobId) return;
 
   await extractionRepo.rejectJob(jobId, reviewedBy, reason);
+  revalidatePath("/extract");
+  redirect("/extract?tab=review");
+}
+
+// Operator clears a FAILED job out of the review queue. Thin shim over the
+// testable core, which is where the FAILED-only guard and the
+// preserve-the-error-message behaviour live.
+export async function dismissExtractionAction(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return;
+  const jobId = String(formData.get("jobId") ?? "").trim();
+  const reviewedBy = String(formData.get("reviewedBy") ?? "admin").trim();
+  if (!jobId) return;
+
+  await dismissFailedJob({ jobId, reviewedBy });
+  revalidatePath("/extract");
+  redirect("/extract?tab=review");
+}
+
+// Operator re-runs extraction for a FAILED job against the same source object.
+// The core takes `dispatch` injected so it is testable without Lambda; here it
+// gets the real invoker. EXTRACTOR_FUNCTION_NAME is unset locally (mock/dev),
+// where there is no async worker to re-dispatch to — so this is a no-op there
+// rather than a confusing partial action.
+export async function retryExtractionAction(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return;
+  const jobId = String(formData.get("jobId") ?? "").trim();
+  const extractorFn = process.env.EXTRACTOR_FUNCTION_NAME;
+  if (!jobId || !extractorFn) return;
+
+  await retryFailedJob({
+    jobId,
+    dispatch: (payload) => invokeExtractor(extractorFn, payload),
+  });
   revalidatePath("/extract");
   redirect("/extract?tab=review");
 }
