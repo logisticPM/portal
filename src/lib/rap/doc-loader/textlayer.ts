@@ -94,7 +94,7 @@ const WORD_SPACE_RATIO = 0.2;
 // When no boundary survives, groupItemsIntoParagraphs takes a single-column
 // path that is byte-identical to its pre-column behaviour.
 //
-// COLUMN_GUTTER_RATIO = 0.12 is MEASURED, not chosen. Swept over the real
+// COLUMN_GUTTER_RATIO = 0.12 is measured on ONE document. Swept over the real
 // 17-page Bank of Canada RAP (the two commitment pages' geometry is committed
 // at scripts/fixtures/textlayer-geometry-bankofcanada-p13-p15.json), the
 // ratios that detect ALL FOUR of that document's genuine two-column pages
@@ -114,6 +114,23 @@ const WORD_SPACE_RATIO = 0.2;
 //     alone rather than scrambled.
 // Both edges therefore fail safe. This constant is NOT what keeps tables
 // safe; the prose-likeness guard below is.
+//
+// THE PLATEAU IS BANK-OF-CANADA-ONLY (re-measured 2026-07-27 over a 7-document
+// / 166-page corpus — docs/rap-textlayer-corpus-measurement.md). Across that
+// corpus NO value has a plateau: sweeping 0.08-0.20 changes the reading order
+// of 92 pages in total, with no zero-churn band anywhere, and a 4x11 grid over
+// this constant and MIN_COLUMN_ROWS gives 44 distinct behaviours from 44
+// settings. The count is not even monotone in the threshold, because minGutter
+// doubles as the dedupe radius at the `rough` loop below and as the noise floor
+// feeding refineGutter — it controls three things, not one.
+//
+// 0.12 nevertheless STAYS: it is the only value verified against ground truth,
+// and the scale-free alternative (minGutter = medianFontSize * K, which is how
+// typographers actually set a gutter) is steadier — 41 page-changes, monotone —
+// yet loses BoC pages 8, 13 and 15 at every K tested, which is precisely the
+// gold-set recall. Read the constant as "best available, validated on one
+// document", not as a general threshold. Behaviour on other documents is
+// unvalidated in BOTH directions.
 const COLUMN_GUTTER_RATIO = 0.12;
 const MIN_COLUMN_ROWS = 3;
 const MAX_COLUMNS = 3;

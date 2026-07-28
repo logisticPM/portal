@@ -225,11 +225,16 @@ or extraction silently reverts to the mock and email silently reverts to `skippe
 
 - **A table whose columns are all wide and wordy** still passes the prose-likeness guard, would be read
   column-major, and would lose the pairing between a commitment and its measure — **with no validation
-  flag**. This is the one failure mode here that produces no signal. It cannot be resolved against a
-  single document; gate it before a second corpus document reaches production.
+  flag**. This is the one failure mode here that produces no signal. Re-measured 2026-07-27 across seven
+  documents: no such page occurs in any of them, so the risk is **untested, not disproven**.
 - **Scanned documents fail in region** by design. No cross-border fallback was added.
-- The tuning corpus is **n=1**. `scripts/fixtures/textlayer-geometry-bankofcanada-p13-p15.json` holds real
-  glyph geometry so a second document is cheap to add.
+- The loader has since been measured against **7 documents / 166 pages** —
+  `docs/rap-textlayer-corpus-measurement.md`. The gates held (no false positives; the fidelity gate
+  caught real Ghostscript ligature corruption in a derived RBC file). The column constant did not:
+  `COLUMN_GUTTER_RATIO = 0.12` has **no plateau** outside Bank of Canada, so column reordering is
+  validated on that one document and merely characterised on the other six.
+- The **gold corpus** is still n=1. That is now the binding constraint on further tuning: a second gold
+  set has to be human-verified, because scoring the extractor against its own output measures nothing.
 
 The SCP escalation above still stands: Textract remains the better OCR path for scanned documents, and
 this work does not replace the need to ask for it.
