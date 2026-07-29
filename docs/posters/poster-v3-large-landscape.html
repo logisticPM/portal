@@ -14,11 +14,9 @@
 
   .title { border-bottom: 3px solid var(--ink); padding-bottom: 4mm; }
   .title .eyebrow { display: flex; justify-content: space-between; align-items: center; font-size: 6.4mm; margin-bottom: 2.6mm; }
-  /* Northeastern wordmark, top-right. Typographic stand-in in Northeastern Red;
-     drop an official northeastern.svg into this folder and swap the span for
-     <img src="northeastern.svg"> to use the real brand asset. */
-  .nu-logo { font-family: var(--disp); font-weight: 300; font-size: 10mm; color: #D41B2C; letter-spacing: .005em; line-height: 1; white-space: nowrap; }
-  .nu-logo b { font-weight: 800; }
+  /* Official Northeastern wordmark (N monogram + "Northeastern University"),
+     Northeastern Red #c8102e, vector — northeastern.svg in this folder. */
+  .nu-logo { height: 14mm; width: auto; display: block; }
   .title h1 { font-size: 28mm; line-height: 1.0; }
   .title h1 .thesis { color: var(--maroon); font-style: normal; }
   .title .story { font-family: var(--serif); font-size: 10.6mm; margin-top: 3.5mm; line-height: 1.26; color: var(--ink); max-width: 1130mm; }
@@ -144,7 +142,7 @@
 <div class="poster">
 
   <header class="title">
-    <div class="eyebrow"><span>CS 7980 · Research Capstone · Khoury College of Computer Sciences · Showcase 2026</span><span class="nu-logo"><b>Northeastern</b> University</span></div>
+    <div class="eyebrow"><span>CS 7980 · Research Capstone · Khoury College of Computer Sciences · Showcase 2026</span><img class="nu-logo" src="northeastern.svg" alt="Northeastern University"></div>
     <h1>We built a reconciliation data platform — <span class="thesis">then used it to test how AI should review code</span></h1>
     <div class="story">A real client needed reconciliation data made legible. We shipped a production platform for the <b>Indigenomics Institute</b> — and its own <b>30 merged pull requests</b> became the industrial dataset for a pre-registered study of multi-agent AI code review.</div>
     <div class="paper">Research companion: “Evaluating Decorrelation in LLM Code Review: A Pre-Registered Study”</div>
