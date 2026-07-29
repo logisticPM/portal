@@ -12,6 +12,7 @@
 // ===========================================================================
 import { BedrockRuntimeClient, InvokeModelWithResponseStreamCommand } from "@aws-sdk/client-bedrock-runtime";
 import { NodeHttpHandler } from "@smithy/node-http-handler";
+import { traced } from "../observability/xray";
 import { resolveBedrockModelId } from "./bedrock-model";
 import { type DocChunk, chunkDocument, splitInHalf } from "./chunk";
 import { deriveClassification, derivePillars } from "./classify";
@@ -55,10 +56,12 @@ const MAX_OUTPUT_TOKENS = 16000;
 // Use an http/1.1 handler with a long request timeout. A large extraction (many
 // pages + a big grounded tool response) is a slow non-streaming generation; the
 // default http2 handler drops it with "http2 request did not get a response".
-const client = new BedrockRuntimeClient({
-  region,
-  requestHandler: new NodeHttpHandler({ requestTimeout: 300_000, connectionTimeout: 10_000 }),
-});
+const client = traced(
+  new BedrockRuntimeClient({
+    region,
+    requestHandler: new NodeHttpHandler({ requestTimeout: 300_000, connectionTimeout: 10_000 }),
+  }),
+);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Max times a chunk may be recursively halved (either on max_tokens truncation

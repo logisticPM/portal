@@ -9,6 +9,7 @@
 // ===========================================================================
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { traced } from "../observability/xray";
 
 const bucket = process.env.RAP_UPLOAD_BUCKET;
 const region = process.env.AWS_REGION ?? process.env.BEDROCK_REGION ?? "ca-central-1";
@@ -18,7 +19,7 @@ export const isUploadConfigured = () => !!bucket;
 let _client: S3Client | null = null;
 function client(): S3Client {
   if (!bucket) throw new Error("RAP_UPLOAD_BUCKET not set — S3 storage is not configured");
-  return (_client ??= new S3Client({ region }));
+  return (_client ??= traced(new S3Client({ region })));
 }
 
 // keep uploads namespaced + collision-free
