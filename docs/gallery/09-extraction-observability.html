@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="gallery.css">
+<style>
+  .canvas{width:1600px;height:1040px}
+  .head{position:absolute;top:0;left:0;right:0}
+  .title{font-size:33px}.caption{font-size:18px;max-width:1250px}
+  .review-g{width:60px;height:60px}
+  /* neutral annotation callout (the amber .note reads as "roadmap"; this one is design context) */
+  .note.info{border-color:#9DB2C6;background:rgba(229,236,242,.6);color:#33475A}
+  .note.info b{color:#1F3A52}
+  .note.info .tag{color:#1F3A52;border-color:#9DB2C6}
+</style></head>
+<body>
+<div class="canvas">
+  <div class="head">
+    <div class="eyebrow">CS7980 · Indigenomics Portal · RAP subsystem</div>
+    <div class="title">Extraction Observability — is anything broken, and where did the time go?</div>
+    <div class="caption">The <b>ca</b>-stage monitoring plane: workers emit traces, failures, and metrics; CloudWatch turns them into six alarms and a one-pane dashboard; a breach emails on-call over SNS.</div>
+  </div>
+
+  <svg class="wires" viewBox="0 0 1600 1040">
+    <defs>
+      <marker id="ah" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#57665D"/></marker>
+      <marker id="ahl" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#9AA79E"/></marker>
+      <marker id="ahs" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#2C5F82"/></marker>
+      <marker id="ahm" markerWidth="10" markerHeight="10" refX="7.5" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#8A1A2B"/></marker>
+    </defs>
+
+    <!-- telemetry / metric emission + trigger + read (grey) -->
+    <g stroke="#57665D" stroke-width="2.4" fill="none" marker-end="url(#ah)">
+      <path d="M174 268 C 300 330, 410 360, 596 384"/>            <!-- RapExtract -> Metrics (Lambda) -->
+      <path d="M174 428 C 300 398, 410 362, 596 386"/>            <!-- BriefGen  -> Metrics -->
+      <path d="M428 418 C 505 411, 545 396, 596 388"/>            <!-- DLQ depth -> Metrics -->
+      <path d="M428 690 C 545 655, 560 480, 596 406"/>            <!-- StuckJobMonitor EMF -> Metrics -->
+      <path d="M174 620 C 232 650, 262 676, 305 695"/>            <!-- EventBridge -> StuckJobMonitor (trigger) -->
+      <path d="M174 792 C 232 766, 262 728, 305 712"/>            <!-- RapData -> StuckJobMonitor (listByStatus) -->
+      <line x1="1238" y1="600" x2="1334" y2="600"/>              <!-- SNS -> Email -->
+    </g>
+
+    <!-- X-Ray trace (blue) -->
+    <g stroke="#2C5F82" stroke-width="2.4" fill="none" marker-end="url(#ahs)">
+      <path d="M174 250 C 232 245, 270 243, 305 243"/>            <!-- RapExtract -> X-Ray -->
+    </g>
+
+    <!-- async on-failure -> DLQ (maroon dashed) -->
+    <g stroke="#8A1A2B" stroke-width="2.2" fill="none" stroke-dasharray="7 5" marker-end="url(#ahm)">
+      <path d="M150 286 C 200 344, 258 402, 304 414"/>            <!-- RapExtract -> DLQ -->
+      <path d="M150 404 C 212 400, 260 418, 304 420"/>            <!-- BriefGen  -> DLQ -->
+    </g>
+
+    <!-- alarm -> SNS -> email (maroon solid) -->
+    <g stroke="#8A1A2B" stroke-width="2.6" fill="none" marker-end="url(#ahm)">
+      <line x1="718" y1="600" x2="1114" y2="600"/>              <!-- Alarms -> SNS -->
+    </g>
+
+    <!-- internal CloudWatch reads (thin light grey) -->
+    <g stroke="#9AA79E" stroke-width="1.8" fill="none" marker-end="url(#ahl)">
+      <line x1="659" y1="452" x2="659" y2="566"/>                <!-- Metrics -> Alarms -->
+      <path d="M718 386 C 772 400, 792 432, 802 468"/>           <!-- Metrics -> Dashboard -->
+      <path d="M718 596 C 772 578, 792 540, 804 514"/>           <!-- Alarms -> Dashboard -->
+    </g>
+  </svg>
+
+  <!-- region: everything here is ca-central-1 -->
+  <div class="region ca" style="left:28px;top:158px;width:1544px;height:840px"><span class="chip">ca-central-1 · extraction observability (ca stage only)</span></div>
+
+  <!-- SOURCES -->
+  <div class="node" style="left:55px;top:225px"><img src="icons/aws-lambda.svg"><div class="lbl">RapExtract</div><div class="svc">worker · Active tracing</div></div>
+  <div class="node" style="left:55px;top:398px"><img src="icons/aws-lambda.svg"><div class="lbl">BriefGen</div><div class="svc">briefing worker</div></div>
+  <div class="node" style="left:55px;top:590px"><img src="icons/aws-eventbridge.svg"><div class="lbl">Schedule</div><div class="svc">rate(15 min)</div></div>
+  <div class="node" style="left:55px;top:770px"><img src="icons/aws-dynamodb.svg"><div class="lbl">RapData</div><div class="svc">job records</div></div>
+
+  <!-- COLLECTORS -->
+  <div class="node" style="left:310px;top:212px"><img src="icons/aws-xray.svg"><div class="lbl">X-Ray</div><div class="svc">per-call breakdown</div></div>
+  <div class="node" style="left:310px;top:392px"><img src="icons/aws-sqs.svg"><div class="lbl">ExtractDLQ</div><div class="svc">on-failure · 14 days</div></div>
+  <div class="node" style="left:310px;top:672px"><img src="icons/aws-lambda.svg"><div class="lbl">StuckJobMonitor</div><div class="svc">scan stuck / failed</div></div>
+
+  <!-- CLOUDWATCH hub -->
+  <div class="group" style="left:580px;top:322px;width:360px;height:362px"><span class="glabel">Amazon CloudWatch</span></div>
+  <div class="node" style="left:600px;top:355px"><img src="icons/aws-cloudwatch.svg"><div class="lbl">Metrics</div><div class="svc">Lambda · SQS · EMF</div></div>
+  <div class="node" style="left:600px;top:570px"><img src="icons/aws-cloudwatch.svg"><div class="lbl">6 Alarms</div><div class="svc">&ge;1 → notify</div></div>
+  <div class="node" style="left:800px;top:460px"><img src="icons/aws-cloudwatch.svg"><div class="lbl">ExtractionHealth</div><div class="svc">5-widget pane</div></div>
+
+  <!-- SINK -->
+  <div class="node" style="left:1120px;top:570px"><img src="icons/aws-sns.svg"><div class="lbl">SNS</div><div class="svc">ObservabilityAlerts</div></div>
+  <div class="node" style="left:1340px;top:570px"><svg class="review-g" viewBox="0 0 60 60"><rect x="8" y="14" width="44" height="32" rx="4" fill="#fff" stroke="#57665D" stroke-width="2.5"/><path d="M10 17 L30 33 L50 17" fill="none" stroke="#57665D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><div class="lbl">Email</div><div class="svc">on-call inbox</div></div>
+
+  <!-- step badges (read order) -->
+  <div class="step" style="left:95px;top:205px">1</div>
+  <div class="step" style="left:350px;top:192px">2</div>
+  <div class="step" style="left:350px;top:372px">3</div>
+  <div class="step" style="left:350px;top:652px">4</div>
+  <div class="step" style="left:640px;top:335px">5</div>
+  <div class="step" style="left:640px;top:550px">6</div>
+  <div class="step" style="left:840px;top:440px">7</div>
+  <div class="step" style="left:1160px;top:550px">8</div>
+
+  <!-- edge labels -->
+  <div class="pill" style="left:196px;top:210px;border-color:#2C5F82;color:#2C5F82">trace</div>
+  <div class="pill" style="left:182px;top:330px;border-color:#8A1A2B;color:#8A1A2B">on-failure</div>
+  <div class="pill" style="left:150px;top:735px">listByStatus</div>
+  <div class="pill" style="left:470px;top:516px">EMF custom</div>
+  <div class="pill" style="left:872px;top:576px;border-color:#8A1A2B;color:#8A1A2B">alarm + OK</div>
+
+  <!-- design note -->
+  <div class="note info" style="left:1010px;top:198px;width:540px">
+    <span class="tag">Design note</span><b>Why a custom scan?</b> The worker catches its own errors and returns <span style="font-family:var(--mono);font-size:13px">{status:&nbsp;failed}</span>, so the Lambda <i>succeeds</i> — the built-in <b>Errors</b> alarm and the DLQ never fire. <b>StuckJobMonitor</b> scans the <b>FAILED</b> + <b>EXTRACTING</b> partitions every 15&nbsp;min and emits two EMF metrics that catch a <i>handled</i> failure — the shape a Textract-SCP outage takes.
+  </div>
+
+  <!-- legend -->
+  <div class="legend" style="left:1010px;top:398px">
+    <div class="row"><span class="sw" style="border-color:#57665D"></span> telemetry / metric emission</div>
+    <div class="row"><span class="sw" style="border-color:#2C5F82"></span> X-Ray trace</div>
+    <div class="row"><span class="sw" style="border-color:#8A1A2B;border-top-style:dashed"></span> async on-failure → DLQ</div>
+    <div class="row"><span class="sw" style="border-color:#8A1A2B"></span> alarm → SNS → email</div>
+    <div class="row"><span class="sw" style="border-color:#9AA79E"></span> CloudWatch internal read</div>
+  </div>
+</div>
+</body></html>
