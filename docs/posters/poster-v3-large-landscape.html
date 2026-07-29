@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>V3 large-type — Indigenomics RAP Data Portal + decorrelation study (Landscape A0)</title>
+<link rel="stylesheet" href="poster.css">
+<style>
+  /* V3 large-type, top-aligned. All sections bumped ~1.12–1.15× over the prior
+     v3 pass; columns are top-aligned (justify-content: flex-start) rather than
+     spread, so each section reads as a dense block from the header down. */
+  @page { size: 1189mm 841mm; margin: 0; }
+  html, body { width: 1189mm; height: 841mm; }
+  .poster { width: 1189mm; height: 841mm; padding: 15mm 24mm 12mm; font-size: 8mm; gap: 8mm; justify-content: flex-start; }
+
+  .title { border-bottom: 3px solid var(--ink); padding-bottom: 4mm; }
+  .title .eyebrow { display: flex; justify-content: space-between; align-items: center; font-size: 6.4mm; margin-bottom: 2.6mm; }
+  /* Northeastern wordmark, top-right. Typographic stand-in in Northeastern Red;
+     drop an official northeastern.svg into this folder and swap the span for
+     <img src="northeastern.svg"> to use the real brand asset. */
+  .nu-logo { font-family: var(--disp); font-weight: 300; font-size: 10mm; color: #D41B2C; letter-spacing: .005em; line-height: 1; white-space: nowrap; }
+  .nu-logo b { font-weight: 800; }
+  .title h1 { font-size: 28mm; line-height: 1.0; }
+  .title h1 .thesis { color: var(--maroon); font-style: normal; }
+  .title .story { font-family: var(--serif); font-size: 10.6mm; margin-top: 3.5mm; line-height: 1.26; color: var(--ink); max-width: 1130mm; }
+  .title .story b { font-weight: 700; }
+  .title .paper { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 7.2mm; margin-top: 2mm; }
+  .title .byline { font-size: 7.2mm; margin-top: 2.8mm; }
+  .title .affil { font-family: var(--disp); color: var(--muted); font-size: 6.6mm; margin-top: 1.4mm; }
+
+  /* contribution strip */
+  .strip { display: flex; align-items: center; gap: 10mm; background: #F5E3E6; border: 2.2px solid var(--maroon); border-radius: 4mm; padding: 6mm 9mm; flex: 0 0 auto; }
+  .strip .se { font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--maroon); font-size: 6.2mm; white-space: nowrap; }
+  .strip .sh { font-family: var(--disp); font-weight: 800; font-size: 13mm; line-height: 1.08; flex: 1; }
+  .strip .sh em { color: var(--maroon); font-style: normal; }
+  .strip .sn { display: flex; gap: 8mm; align-items: baseline; }
+  .strip .sn .n { font-family: var(--disp); font-weight: 820; font-size: 22.5mm; line-height: 1; color: var(--maroon); }
+  .strip .sn .n.grey { color: var(--muted); }
+  .strip .sn .l { font-size: 6.4mm; color: var(--muted); max-width: 72mm; line-height: 1.18; }
+
+  /* three columns: Project | Bridge | Research  (project-weighted) */
+  .cols { display: grid; grid-template-columns: 1.32fr 1.05fr 1fr; gap: 8mm; flex: 0 0 auto; align-items: stretch; }
+  .col { display: flex; flex-direction: column; gap: 4.6mm; justify-content: flex-start; }
+  h2 { font-family: var(--disp); font-weight: 750; text-transform: uppercase; letter-spacing: .03em; font-size: 8.8mm; color: var(--ink); border-bottom: 1.5px solid var(--line2); padding-bottom: 1.8mm; display: flex; align-items: baseline; gap: 2.6mm; }
+  h2 .num { font-family: var(--mono); color: var(--maroon); font-weight: 700; }
+  h2 .scope { font-family: var(--mono); font-size: 5.8mm; color: var(--faint); font-weight: 400; letter-spacing: .04em; }
+  .col p { font-size: 10mm; line-height: 1.34; }
+  .who { font-family: var(--mono); font-size: 6.4mm; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+  .hot { color: var(--maroon); font-weight: 750; }
+  .mono { font-family: var(--mono); }
+  b { font-weight: 750; }
+
+  /* problem → solution → users flow */
+  .psu { display: flex; flex-direction: column; gap: 2.8mm; }
+  .psu .box { border: 1.3px solid var(--line); background: #fff; border-radius: 3mm; padding: 3.6mm 4.6mm; }
+  .psu .box.p { border-left: 4px solid var(--maroon); }
+  .psu .box.s { border-left: 4px solid var(--green); }
+  .psu .box.u { border-left: 4px solid var(--blue); }
+  .psu .bh { font-family: var(--mono); font-size: 6.2mm; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 1.8mm; }
+  .psu .box.p .bh { color: var(--maroon); } .psu .box.s .bh { color: var(--green); } .psu .box.u .bh { color: var(--blue); }
+  .psu ul { list-style: none; display: flex; flex-wrap: wrap; gap: 1.4mm 4mm; }
+  .psu li { font-size: 8.8mm; line-height: 1.25; position: relative; padding-left: 4.8mm; }
+  .psu li::before { content: "▪"; position: absolute; left: 0; color: var(--faint); }
+  .psu .box p { font-size: 9.2mm; }
+  .dn { text-align: center; color: var(--faint); font-size: 7mm; line-height: 1; }
+
+  /* screenshots + annotations */
+  .shots { display: flex; gap: 5mm; }
+  .ss { flex: 1; display: flex; flex-direction: column; }
+  .ss .frame { border: 1.3px solid #CFC7B4; border-radius: 2.5mm; overflow: hidden; background: #EFE9DB; }
+  .ss .bar { display: flex; align-items: center; gap: 1.4mm; padding: 2mm 3mm; background: #E5DBC6; border-bottom: 1px solid #D8CDB6; }
+  .ss .bar i { width: 2.6mm; height: 2.6mm; border-radius: 50%; background: #CDBE9E; }
+  .ss .url { margin-left: 1.6mm; font-family: var(--mono); font-size: 4.6mm; color: #8a7a55; }
+  .ss .win { overflow: hidden; background: #EFE9DB; display: block; }
+  .ss .win img { width: 100%; height: auto; display: block; }
+  .ss .anno { margin-top: 2mm; display: flex; flex-direction: column; gap: 1.4mm; }
+  .ss .anno .t { font-family: var(--disp); font-weight: 750; font-size: 8mm; }
+  .ss .anno span { font-size: 7.8mm; color: var(--muted); line-height: 1.2; padding-left: 5.4mm; position: relative; }
+  .ss .anno span::before { content: "◂"; position: absolute; left: 0; color: var(--blue); }
+
+  /* bridge column — the flow chain grows to fill the column and spreads its
+     nodes evenly, so there is no gap above the anchored architecture figure. */
+  .bflow { display: flex; flex-direction: column; gap: 2.4mm; flex: 1 1 auto; justify-content: space-between; }
+  .bnode { border: 1.4px solid var(--line2); border-radius: 3mm; background: #fff; padding: 4mm 4.4mm; }
+  .bnode.client { border-color: var(--green); background: #E4EAE6; }
+  .bnode.res { border-color: var(--maroon); background: #F5E3E6; }
+  .bnode .bt { font-family: var(--disp); font-weight: 750; font-size: 8.4mm; line-height: 1.1; }
+  .bnode .bs { font-size: 7.6mm; color: var(--muted); margin-top: 1mm; line-height: 1.18; }
+  .bdn { text-align: center; color: var(--faint); font-size: 7mm; line-height: 1; }
+
+  /* the four-architecture figure sits at the column base (the flow chain above
+     grows to fill), so it lines up with the neighbour columns' bottoms. */
+  .archfig { border: 1.3px solid var(--line2); border-radius: 3mm; background: #fff; padding: 3mm; }
+  .archfig svg { width: 100%; height: auto; display: block; }
+
+  /* project architecture strip */
+  .archs { display: flex; align-items: center; gap: 1.4mm; }
+  .archs .n { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .archs .n img { width: 21mm; height: 21mm; display: block; }
+  .archs .n .l { font-size: 6.2mm; color: var(--ink); margin-top: 1.4mm; line-height: 1.1; font-weight: 700; }
+  .archs .n .s { font-family: var(--mono); font-size: 5mm; color: var(--muted); line-height: 1.1; }
+  .archs .a { color: var(--faint); font-weight: 700; font-size: 7mm; margin-bottom: 5mm; }
+  .cimp { border-left: 4px solid var(--blue); background: #E3EAF1; border-radius: 3mm; padding: 3.6mm 4.6mm; }
+  .cimp .ct { font-family: var(--mono); font-size: 6.2mm; text-transform: uppercase; letter-spacing: .06em; color: var(--blue); margin-bottom: 1.8mm; }
+  .cimp ul { list-style: none; display: flex; flex-direction: column; gap: 1.8mm; }
+  .cimp li { font-size: 8.2mm; line-height: 1.22; position: relative; padding-left: 4.8mm; }
+  .cimp li::before { content: "▪"; position: absolute; left: 0; color: var(--blue); }
+
+  .sig { border-left: 4px solid var(--maroon); background: #F9EEF0; border-radius: 3mm; padding: 4mm 4.6mm; display: flex; flex-direction: column; gap: 2.8mm; }
+  .sig .sh { font-family: var(--mono); font-size: 6.2mm; text-transform: uppercase; letter-spacing: .06em; color: var(--maroon); }
+  .sig p { font-size: 8mm; line-height: 1.28; }
+  .sp { display: flex; gap: 4mm; }
+  .sc { flex: 1; background: #fff; border-radius: 2.4mm; padding: 3.2mm 3.8mm; }
+  .sc .sn { font-family: var(--disp); font-weight: 800; font-size: 12mm; line-height: 1; }
+  .sc.a .sn { color: var(--blue); } .sc.b .sn { color: var(--muted); }
+  .sc .sl { font-size: 6mm; color: var(--muted); margin-top: 1.4mm; line-height: 1.18; }
+
+  .kfig svg { width: 100%; height: auto; max-height: 176mm; }
+  .kfig .cap { font-family: var(--serif); font-style: italic; color: var(--muted); font-size: 5.8mm; margin-top: 1mm; text-align: center; }
+
+  /* bottom: project impact | research impact | QR */
+  .foot { display: flex; gap: 7mm; flex: 0 0 auto; }
+  /* impact panels: the shared poster.css .foot forces thin serif-italic, which
+     reads poorly reversed-out — override to bold sans in pure white, and soften
+     the panel from near-black to a deep brand green so it is easier on the eye. */
+  .impact { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7mm; flex: 1; font-family: var(--disp); font-style: normal; }
+  .impact .blk { background: #1C3A2E; color: #fff; border-radius: 4mm; padding: 6.5mm 7mm; display: flex; flex-direction: column; }
+  .impact h3 { font-family: var(--mono); font-size: 6.4mm; text-transform: uppercase; letter-spacing: .12em; color: #F0C65A; }
+  .impact .rule { height: 1.4mm; width: 30mm; background: #F0C65A; border-radius: 1mm; margin: 3mm 0 3.4mm; }
+  .impact ul { list-style: none; display: flex; flex-direction: column; gap: 2.6mm; }
+  .impact li { font-family: var(--disp); font-style: normal; font-weight: 550; font-size: 9.6mm; line-height: 1.3; position: relative; padding-left: 6mm; color: #fff; }
+  .impact li::before { content: "▪"; position: absolute; left: 0; color: #F0C65A; }
+  .impact b { color: #fff; font-weight: 780; }
+  .qr { display: flex; gap: 5mm; flex: 0 0 auto; }
+  .qr .q { background: #fff; border: 1.4px solid var(--line); border-radius: 4mm; padding: 4mm 4mm 3mm; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 70mm; }
+  .qr .q img { width: 50mm; height: 50mm; display: block; }
+  .qr .q .lbl { font-family: var(--mono); font-size: 5.4mm; color: var(--muted); margin-top: 2.4mm; text-align: center; line-height: 1.2; }
+  .qr .q .lbl b { color: var(--ink); display: block; font-size: 6.2mm; }
+
+  .ack { font-family: var(--serif); font-size: 6mm; color: var(--muted); border-top: 1.2px solid var(--line2); padding-top: 2.6mm; display: flex; justify-content: space-between; gap: 12mm; flex: 0 0 auto; }
+  .ack b { color: var(--ink); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="poster">
+
+  <header class="title">
+    <div class="eyebrow"><span>CS 7980 · Research Capstone · Khoury College of Computer Sciences · Showcase 2026</span><span class="nu-logo"><b>Northeastern</b> University</span></div>
+    <h1>We built a reconciliation data platform — <span class="thesis">then used it to test how AI should review code</span></h1>
+    <div class="story">A real client needed reconciliation data made legible. We shipped a production platform for the <b>Indigenomics Institute</b> — and its own <b>30 merged pull requests</b> became the industrial dataset for a pre-registered study of multi-agent AI code review.</div>
+    <div class="paper">Research companion: “Evaluating Decorrelation in LLM Code Review: A Pre-Registered Study”</div>
+    <div class="byline"><b>En-Ping Su · Tong Wu · Shiting Huang · Mengshan Li</b></div>
+    <div class="affil">Khoury College of Computer Sciences, Northeastern University · Vancouver&nbsp;&nbsp;·&nbsp;&nbsp;Advisor: Yvonne Coady&nbsp;&nbsp;·&nbsp;&nbsp;Industry Partner: Indigenomics Institute (Carol Anne Hilton, Founder)</div>
+  </header>
+
+  <section class="strip">
+    <div class="se">Research<br>contribution</div>
+    <div class="sh">More AI reviewers don't help — <em>decorrelation does.</em> Agreement predicts truth only when the reviewers are independent.</div>
+    <div class="sn">
+      <div><div class="n">89%</div><div class="l">3 independent families agree → matches ground truth</div></div>
+      <div><div class="n grey">54%</div><div class="l">one model, three runs → mostly noise</div></div>
+    </div>
+  </section>
+
+  <section class="cols">
+    <!-- LEFT: PROJECT -->
+    <div class="col">
+      <h2><span class="num">01</span> The project — RAP Data Portal</h2>
+      <div class="psu">
+        <div class="box p">
+          <div class="bh">Problem</div>
+          <p>Companies publish reconciliation commitments. Legal precedents sit scattered across court records. There is no searchable, verifiable, unified view — so nobody can track progress.</p>
+        </div>
+        <div class="dn">↓</div>
+        <div class="box s">
+          <div class="bh">Our solution</div>
+          <ul>
+            <li>Searchable RAP commitments</li><li>Legal precedent database</li>
+            <li>AI extraction from PDFs</li><li>Human review workflow</li>
+            <li>AWS serverless hosting</li><li>Authentication &amp; roles</li>
+            <li>Progress tracking</li><li>Coverage analytics</li>
+          </ul>
+        </div>
+        <div class="dn">↓</div>
+        <div class="box u">
+          <div class="bh">Who uses it</div>
+          <ul>
+            <li>Indigenomics Institute</li><li>Indigenous organizations</li>
+            <li>Corporate partners</li><li>Researchers &amp; legal advisors</li>
+          </ul>
+        </div>
+      </div>
+      <div class="shots">
+        <div class="ss">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i><span class="url">indigenomics · RAP Index</span></div>
+            <div class="win"><img src="rap.png" alt="RAP Index"></div>
+          </div>
+          <div class="anno">
+            <div class="t">RAP Index</div>
+            <span>106 commitments · 100 organizations</span>
+            <span>63% average progress tracked</span>
+          </div>
+        </div>
+        <div class="ss">
+          <div class="frame">
+            <div class="bar"><i></i><i></i><i></i><span class="url">indigenomics · Legal Cases</span></div>
+            <div class="win"><img src="legal.png" alt="Legal Cases"></div>
+          </div>
+          <div class="anno">
+            <div class="t">Legal Cases</div>
+            <span>561 economic-justice decisions</span>
+            <span>citation-anchored, role-based views</span>
+          </div>
+        </div>
+      </div>
+      <div class="who" style="margin-top:1mm">Architecture — serverless on AWS</div>
+      <div class="archs">
+        <div class="n"><img src="icons/aws-cloudfront.svg"><div class="l">CloudFront</div><div class="s">edge</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-lambda.svg"><div class="l">Next.js</div><div class="s">on Lambda</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-textract.svg"><div class="l">Textract</div><div class="s">OCR</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-bedrock.svg"><div class="l">Bedrock</div><div class="s">extraction</div></div>
+        <div class="a">→</div>
+        <div class="n"><img src="icons/aws-dynamodb.svg"><div class="l">DynamoDB</div><div class="s">×6 tables</div></div>
+      </div>
+      <div class="cimp">
+        <div class="ct">What the Institute can now do</div>
+        <ul>
+          <li>See every tracked commitment and its progress in one view</li>
+          <li>Get a weekly digest of what has gone <b>overdue</b></li>
+          <li>Trace any claim back to the published source document</li>
+          <li>Read the legal precedent beside the corporate promise</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- CENTRE: BRIDGE -->
+    <div class="col">
+      <h2><span class="num">02</span> How it became research</h2>
+      <div class="bflow">
+        <div class="bnode client"><div class="bt">Client problem</div><div class="bs">reconciliation data scattered &amp; unverifiable</div></div>
+        <div class="bdn">↓</div>
+        <div class="bnode"><div class="bt">We built the portal</div><div class="bs">production platform, shipped on AWS</div></div>
+        <div class="bdn">↓</div>
+        <div class="bnode"><div class="bt">179 pull requests</div><div class="bs">30 of them ours — real, merged, AI-reviewed</div></div>
+        <div class="bdn">↓</div>
+        <div class="bnode"><div class="bt">Benchmark dataset</div><div class="bs">E1 Qodo · E2 SWE-PRBench · E3 our portal — 2,415 reviews</div></div>
+        <div class="bdn">↓</div>
+        <div class="bnode res"><div class="bt">Four AI review architectures</div><div class="bs">each rung adds exactly one capability</div></div>
+      </div>
+      <div class="archfig"><!--FIG_ARCH--></div>
+    </div>
+
+    <!-- RIGHT: RESEARCH -->
+    <div class="col">
+      <h2><span class="num">03</span> What we found <span class="scope">· E1 · Qodo, 99 PRs</span></h2>
+      <p><b>Structure is null.</b> No multi-agent arm beats single-pass F1; specialists tie compute-matched sampling (<span class="mono">p=0.73</span>); peer debate adds nothing over a manager (<span class="mono">p=0.12</span>).</p>
+      <div class="kfig">
+        <!--FIG_NULL-->
+      </div>
+      <p><b>Extra agents buy recall at a price</b> — up to <span class="hot">5×</span> the cost per confirmed finding.</p>
+      <div class="kfig">
+        <!--FIG_COST-->
+      </div>
+      <p><b>Bounded.</b> Recall plateaus at <span class="hot">≈0.83</span>; on our own unlabeled code, LLM judges disagree (<span class="hot">κ=0.03</span>).</p>
+      <div class="sig">
+        <div class="sh">Where the signal lives</div>
+        <p>Agreement recovers <b>universal functional bugs</b> far better than project-specific conventions — which is why the ceiling exists.</p>
+        <div class="sp">
+          <div class="sc a"><div class="sn">43%</div><div class="sl">functional-bug recall at 3 independent families agreeing</div></div>
+          <div class="sc b"><div class="sn">18%</div><div class="sl">rule-violation recall at the same depth</div></div>
+        </div>
+        <p style="font-size:6.4mm;color:var(--muted);font-family:var(--serif);font-style:italic">Pair decorrelated review with a deterministic linter.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BOTTOM -->
+  <section class="foot">
+    <div class="impact">
+      <div class="blk"><h3>Project impact</h3><div class="rule"></div>
+        <ul>
+          <li>Production platform <b>delivered</b> to the Indigenomics Institute</li>
+          <li>Reconciliation commitments made <b>searchable and verifiable</b></li>
+          <li>Indigenous legal precedent <b>explorer</b>, citation-anchored</li>
+        </ul>
+      </div>
+      <div class="blk"><h3>Research impact</h3><div class="rule"></div>
+        <ul>
+          <li>First <b>compute-matched</b> comparison of review architectures</li>
+          <li><b>Independence beats more agents</b> — decorrelate your verifiers</li>
+          <li>Guidance for anyone deploying AI code review in production</li>
+        </ul>
+      </div>
+    </div>
+    <div class="qr">
+      <div class="q"><img src="qr-code.svg" alt="QR to code"><div class="lbl"><b>Code &amp; data</b>rap-review-research</div></div>
+      <div class="q"><img src="qr-demo.svg" alt="QR to live demo"><div class="lbl"><b>Live portal</b>try the demo</div></div>
+    </div>
+  </section>
+
+  <div class="ack">
+    <span><b>Acknowledgements.</b> Lino Coria Mendoza (weekly progress check-ins) · Indigenomics Institute: Shawn Anderson (technical contact), Eve Marenghi (scheduling), K. Krasnow Waterman (legal advice) · Compute: AWS Bedrock.</span>
+    <span style="white-space:nowrap"><b>Pre-registered on OSF</b> (embargoed)</span>
+  </div>
+
+</div>
+</body>
+</html>
