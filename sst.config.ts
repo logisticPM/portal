@@ -315,8 +315,10 @@ export default $config({
       // treatMissingData "notBreaching": event-driven metrics (Errors, DLQ
       // depth) have no datapoint in a quiet period — that is health, not an
       // alarm. okActions so a recovery also emails an all-clear.
-      const alarm = (name: string, args: any) =>
-        new aws.cloudwatch.MetricAlarm(name, {
+      // Collected so the dashboard's status widget can reference every ARN.
+      const alarms: any[] = [];
+      const alarm = (name: string, args: any) => {
+        const a = new aws.cloudwatch.MetricAlarm(name, {
           comparisonOperator: "GreaterThanOrEqualToThreshold",
           evaluationPeriods: 1,
           threshold: 1,
@@ -325,6 +327,9 @@ export default $config({
           okActions: [alertTopic.arn],
           ...args,
         });
+        alarms.push(a);
+        return a;
+      };
 
       // Hard failures / throttling on the workers (built-in AWS/Lambda metrics).
       alarm("RapExtractErrors", { namespace: "AWS/Lambda", metricName: "Errors", statistic: "Sum", period: 300, dimensions: { FunctionName: rapExtract.name } });
@@ -354,6 +359,95 @@ export default $config({
           link: [rapData], // IAM for listByStatus (GSI1 Query); table name via env below
           environment: { REPO_IMPL: "dynamo", RAP_TABLE: rapData.name, STAGE: $app.stage },
         },
+      });
+
+      // One-pane extraction health, for the demo and for on-call. Read top-to-
+      // bottom: are we healthy (alarm grid) → is anything queued wrong (custom
+      // counts) → is the worker erroring/throttling → how long is it taking →
+      // did anything hit the DLQ. $jsonStringify resolves the function/queue
+      // name Outputs into the dashboard body. 24-column grid.
+      const G = "Indigenomics/RapExtraction"; // custom namespace
+      const REGION = process.env.SST_AWS_REGION ?? "us-east-1";
+      new aws.cloudwatch.Dashboard("ExtractionHealth", {
+        dashboardName: `indigenomics-${$app.stage}-extraction-health`,
+        dashboardBody: $jsonStringify({
+          widgets: [
+            // Row 0 — alarm status grid (green/red at a glance).
+            {
+              type: "alarm",
+              x: 0, y: 0, width: 24, height: 3,
+              properties: { title: "Alarms", alarms: alarms.map((a) => a.arn) },
+            },
+            // Row 1 — extraction queue health (the two custom EMF metrics).
+            {
+              type: "metric",
+              x: 0, y: 3, width: 12, height: 6,
+              properties: {
+                title: "Extraction queue health (jobs)",
+                region: REGION,
+                stat: "Maximum",
+                period: 900,
+                view: "timeSeries",
+                yAxis: { left: { min: 0 } },
+                metrics: [
+                  [G, "FailedExtractionJobs", "Stage", $app.stage, { label: "Failed (unresolved)" }],
+                  [G, "StuckExtractionJobs", "Stage", $app.stage, { label: "Stuck in EXTRACTING" }],
+                ],
+              },
+            },
+            // Row 1 — worker invocations + hard errors/throttles.
+            {
+              type: "metric",
+              x: 12, y: 3, width: 12, height: 6,
+              properties: {
+                title: "RapExtract worker (5-min sums)",
+                region: REGION,
+                stat: "Sum",
+                period: 300,
+                view: "timeSeries",
+                yAxis: { left: { min: 0 } },
+                metrics: [
+                  ["AWS/Lambda", "Invocations", "FunctionName", rapExtract.name, { label: "Invocations" }],
+                  ["AWS/Lambda", "Errors", "FunctionName", rapExtract.name, { label: "Errors (throws/timeouts)" }],
+                  ["AWS/Lambda", "Throttles", "FunctionName", rapExtract.name, { label: "Throttles" }],
+                ],
+              },
+            },
+            // Row 2 — extraction duration (the 90s–7min question) vs the 900s cap.
+            {
+              type: "metric",
+              x: 0, y: 9, width: 12, height: 6,
+              properties: {
+                title: "RapExtract duration (ms) — ceiling is the 900s timeout",
+                region: REGION,
+                period: 300,
+                view: "timeSeries",
+                yAxis: { left: { min: 0 } },
+                metrics: [
+                  ["AWS/Lambda", "Duration", "FunctionName", rapExtract.name, { stat: "p50", label: "p50" }],
+                  ["AWS/Lambda", "Duration", "FunctionName", rapExtract.name, { stat: "p90", label: "p90" }],
+                  ["AWS/Lambda", "Duration", "FunctionName", rapExtract.name, { stat: "Maximum", label: "max" }],
+                ],
+              },
+            },
+            // Row 2 — dead-letter depth (hard-crash capture).
+            {
+              type: "metric",
+              x: 12, y: 9, width: 12, height: 6,
+              properties: {
+                title: "Dead-letter queue depth",
+                region: REGION,
+                stat: "Maximum",
+                period: 300,
+                view: "timeSeries",
+                yAxis: { left: { min: 0 } },
+                metrics: [
+                  ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", extractDlq.name, { label: "Messages in DLQ" }],
+                ],
+              },
+            },
+          ],
+        }),
       });
     }
 
