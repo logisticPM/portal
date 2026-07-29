@@ -214,6 +214,18 @@ export default $config({
     // the Lambda service principal, so the workers need sqs:SendMessage.
     const dlqSendPerm = extractDlq ? [{ actions: ["sqs:SendMessage"], resources: [extractDlq.arn] }] : [];
 
+    // X-Ray (ca only) — docs/superpowers/specs/2026-07-28-xray-tracing-design.md.
+    // Per-request tracing of the extraction worker: S3 → loader → Bedrock →
+    // DynamoDB, with timings, so a slow/failed extraction resolves into WHERE.
+    // The worker's role needs to emit segments; Active tracing is set on the
+    // function below. Verified NOT SCP-blocked (unlike CloudTrail on this
+    // Control-Tower account). The SDK-client wrapping (src/lib/observability/
+    // xray.ts) only activates where AWS_XRAY_DAEMON_ADDRESS is set — i.e. this
+    // function — so nothing else changes.
+    const xrayPerm = isCa
+      ? [{ actions: ["xray:PutTraceSegments", "xray:PutTelemetryRecords", "xray:GetSamplingRules", "xray:GetSamplingTargets"], resources: ["*"] }]
+      : [];
+
     // Recompute alignment opportunities when a commitment changes. Declared here
     // (not next to the Alignment table) because it needs `bedrockPerms` above.
     commitments.subscribe("AlignmentEngine", {
@@ -244,8 +256,13 @@ export default $config({
       memory: "1536 MB", // pdf-lib loads the whole PDF in memory to split it
 
       link: [rapData, rapUploads, rapAnalytics],
-      permissions: [...bedrockPerms, ...dlqSendPerm],
+      permissions: [...bedrockPerms, ...dlqSendPerm, ...xrayPerm],
       environment: extractionEnv,
+      // Active tracing (ca only) — originate an X-Ray trace per invocation so
+      // the wrapped SDK clients' calls appear as timed subsegments.
+      ...(isCa
+        ? { transform: { function: (args: any) => { args.tracingConfig = { mode: "Active" }; } } }
+        : {}),
     });
 
     // Async briefing-note generator (spec 2026-07-05). Generation takes 15-60s —

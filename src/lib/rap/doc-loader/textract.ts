@@ -6,11 +6,12 @@ import {
 } from "@aws-sdk/client-textract";
 import { DEFAULT_TARGET_CHARS } from "../chunk";
 import { getDocumentBytes } from "../storage";
+import { traced } from "../../observability/xray";
 import { type DocLoader, type LoadResult, pageMarker, UnsupportedDocumentError } from "./types";
 
 const region = process.env.BEDROCK_REGION ?? "ca-central-1";
 const uploadBucket = process.env.RAP_UPLOAD_BUCKET;
-const textract = new TextractClient({ region });
+const textract = traced(new TextractClient({ region }));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Layout block types that carry emittable body text. LAYOUT_HEADER / LAYOUT_FOOTER
