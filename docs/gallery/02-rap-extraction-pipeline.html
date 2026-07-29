@@ -50,6 +50,9 @@
   <div class="node" style="left:60px;top:200px"><svg class="review-g" viewBox="0 0 60 60"><rect x="6" y="10" width="48" height="34" rx="4" fill="#fff" stroke="#57665D" stroke-width="2.5"/><rect x="6" y="10" width="48" height="9" rx="4" fill="#57665D"/><rect x="24" y="46" width="12" height="6" fill="#57665D"/><rect x="18" y="52" width="24" height="3" rx="1.5" fill="#57665D"/></svg><div class="lbl">Browser</div><div class="svc">supplier upload</div></div>
   <div class="node" style="left:270px;top:200px"><img src="icons/aws-s3.svg"><div class="lbl">S3 RapUploads</div><div class="svc">presigned PUT</div></div>
   <div class="node" style="left:480px;top:200px"><img src="icons/aws-lambda.svg"><div class="lbl">RapExtract</div><div class="svc">async worker · 900s</div></div>
+  <!-- worker observability tags (ca) — see 09-extraction-observability -->
+  <div class="pill" style="left:602px;top:252px;border-color:#2C5F82;color:#2C5F82">X-Ray (ca)</div>
+  <div class="pill" style="left:602px;top:275px;border-color:#8A1A2B;color:#8A1A2B">&rarr; DLQ (ca)</div>
   <div class="node" style="left:720px;top:200px"><img src="icons/aws-dynamodb.svg"><div class="lbl">RapData</div><div class="svc">PITR + stream</div></div>
   <div class="node" style="left:960px;top:200px"><img src="icons/aws-lambda.svg"><div class="lbl">RollupAggregator</div><div class="svc">dashboard rollups</div></div>
 
@@ -57,7 +60,8 @@
   <div class="group" style="left:415px;top:330px;width:270px;height:150px"><span class="glabel">extraction engine</span></div>
   <div class="node" style="left:425px;top:346px"><img src="icons/aws-bedrock.svg"><div class="lbl">Bedrock</div><div class="svc">BDA · Claude</div></div>
   <div class="node" style="left:555px;top:346px"><img src="icons/aws-textract.svg"><div class="lbl">Textract</div><div class="svc">LAYOUT OCR</div></div>
-  <div class="pill" style="left:420px;top:494px">engine = BDA / Textract→Claude / mock</div>
+  <div class="pill" style="left:420px;top:492px">prod = BDA + Textract</div>
+  <div class="pill" style="left:420px;top:518px">ca = Bedrock + text-layer &middot; mock</div>
 
   <!-- REVIEW + PUBLISH -->
   <div class="node" style="left:720px;top:460px"><svg class="review-g" viewBox="0 0 60 60"><rect x="12" y="8" width="36" height="46" rx="4" fill="#fff" stroke="#8A1A2B" stroke-width="2.5"/><rect x="22" y="4" width="16" height="8" rx="2" fill="#8A1A2B"/><path d="M19 26 l5 5 l9-11" fill="none" stroke="#1B6A52" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><line x1="19" y1="40" x2="41" y2="40" stroke="#C4CCBD" stroke-width="2.5"/><line x1="19" y1="47" x2="35" y2="47" stroke="#C4CCBD" stroke-width="2.5"/></svg><div class="lbl">Review queue</div><div class="svc">institute · REVIEW_MODE</div></div>
