@@ -2,7 +2,7 @@
 // in-memory searcher, profiles hydrate identically, embedder metadata preserved.
 import assert from "node:assert/strict";
 import { makeInMemorySearcher, rankWithSearcher, type RetrievalUnit } from "../src/lib/cases/search/hybrid";
-import { buildArtifacts, loadArtifacts } from "../src/lib/cases/search/artifact";
+import { buildArtifacts, loadArtifacts, parseVectorsBuffer } from "../src/lib/cases/search/artifact";
 import type { LegalCase } from "../src/lib/cases/types";
 
 const mkCase = (id: string, styleOfCause: string): LegalCase => ({ id, styleOfCause } as LegalCase);
@@ -20,7 +20,7 @@ const units: RetrievalUnit[] = [
 
 (async () => {
   const built = buildArtifacts({ units, cases, embedderId: "stub-hash-v1", vdim: 4 });
-  const loaded = loadArtifacts(built.bm25, built.vectors);
+  const loaded = loadArtifacts(built.bm25, parseVectorsBuffer(built.vectors!));
 
   assert.equal(loaded.embedderId, "stub-hash-v1");
   assert.equal(loaded.vdim, 4);
@@ -44,7 +44,7 @@ const units: RetrievalUnit[] = [
   const buildA = buildArtifacts({ units, cases, embedderId: "stub-hash-v1", vdim: 4 });
   const buildB = buildArtifacts({ units, cases, embedderId: "stub-hash-v1", vdim: 4 });
   assert.notEqual(buildA.buildId, buildB.buildId, "two builds must get distinct buildIds");
-  const mixed = loadArtifacts(buildA.bm25, buildB.vectors);
+  const mixed = loadArtifacts(buildA.bm25, parseVectorsBuffer(buildB.vectors!));
   assert.deepEqual(mixed.searcher.denseRank(vec(1, 0)), [], "buildId mismatch → empty dense list");
   assert.deepEqual(rankWithSearcher(mixed.searcher, "duty to consult", null), rankWithSearcher(mem, "duty to consult", null), "buildId mismatch must not affect bm25");
 
