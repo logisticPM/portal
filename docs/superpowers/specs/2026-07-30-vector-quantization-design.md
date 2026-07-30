@@ -189,9 +189,40 @@ float32 source of truth, and every non-search feature. `bm25.bin` and its key ar
 - `hamming`: identical → 0; one flipped bit → 1; offset arithmetic across rows.
 - `dotInt8`: monotone agreement with float32 `dot` on random unit vectors (rank order preserved on a
   sample, which is the property the ranking relies on).
-- **End-to-end agreement on synthetic data**: 2,000 random unit vectors, 50 random queries → assert
-  quantized-with-rescore Recall@10 vs exact float32 ≥ 0.95 (the same criterion the real-data gate
-  uses, so the test fails for the same reason production would).
+- **End-to-end agreement on synthetic data** — with a **clustered** corpus (100 centres, unit-scaled
+  noise, cluster-mates ≈ 0.64 cosine), plus a **relative** assertion: the binary candidate stage must
+  not cost more than 0.02 Recall@10 against scoring every vector with int8. **Not an absolute gate**
+  — see the finding below.
+
+### Finding from implementing this test (T1, measured)
+
+An **i.i.d.-uniform random corpus is not a valid test bed for quantization**, and the first attempt
+proved it: at 1024 dims the pairwise cosines of random unit vectors concentrate near 0 (sd ≈ 1/√1024
+≈ 0.031), so the "true top-10" are separated by ~0.003 — below any quantizer's resolution. Measured
+there: pipeline Recall@10 **0.8120**, and int8 over the *whole* corpus only **0.8480**, i.e. the test
+was asking the quantizer to resolve differences finer than its own precision. (A first clustering
+attempt also failed for a separate reason worth recording: scaling noise **per component** at ±0.5
+swamps a 1024-d unit vector's ~±0.031 components ~16×, reproducing the flat case exactly. Noise must
+scale a random **unit** direction.)
+
+With a properly clustered corpus the numbers become informative:
+
+| Measurement | Value |
+|---|---|
+| binary top-200 coverage of the true top-10 | **1.0000** |
+| int8 scored over the full corpus (ceiling) | 0.9320 |
+| **binary + int8 rescore (the pipeline)** | **0.9320 — exactly equal** |
+
+**The two-stage design costs literally nothing**: candidate generation is lossless and accuracy is
+determined entirely by int8. The absolute number is a function of the invented geometry (with 20
+members per cluster, true ranks 10 and 11 are both cluster-mates ~0.005 apart), so the unit test
+keeps only a loose 0.85 sanity floor plus the relative assertion, and **the authoritative Recall@10
+≥ 0.95 gate stays where it belongs: on real corpus vectors in `cases-quant-eval`.**
+
+**Consequence for that gate:** if the real measurement also lands near 0.93, **raising
+`DENSE_RESCORE_N` will not help** — coverage is already perfect. The fix would be a finer rescoring
+tier: make **int8 resident** (246 MB, still fits) and drop binary, or fetch the true **float32** for
+the top-50 from DynamoDB (which remains the source of truth) and rescore exactly.
 - Artifact round-trip: `buildArtifacts` → `loadArtifacts` → `denseRank` returns the **full** id list
   (contract) and its head matches the exact float32 ordering on a small fixture.
 
