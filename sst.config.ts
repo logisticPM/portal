@@ -271,8 +271,8 @@ export default $config({
     // search artifact loads from casesIndex on cold start.
     const briefGen = new sst.aws.Function("BriefGen", {
       handler: "src/functions/brief-generate.handler",
-      timeout: "120 seconds",
-      memory: "1536 MB", // bm25 artifact (~60MB) + generation headroom
+      timeout: "300 seconds", // async worker — nobody waits on a request budget; Sonnet is slower per token than Llama
+      memory: "2048 MB", // bm25 artifact (157MB today, grows with the corpus) × the alignment copy + generation headroom
       link: [casesIndex],
       permissions: [
         ...bedrockPerms,
@@ -294,11 +294,30 @@ export default $config({
         // Explicit us-east-1: the Llama model lives there; do NOT inherit the
         // extraction stack's ca-central-1.
         BEDROCK_REGION: "us-east-1",
-        // Dense retrieval (spec 2026-07-06): query-side Bedrock embedding for
-        // hybrid search. Matches the embedder that wrote the vectors so the
-        // stored/active embedder ids agree and dense engages. EMBED_REGION pins
-        // us-east-1 (where Titan v2 + the vectors live).
-        EMBED_PROVIDER: "bedrock",
+        // Briefing model: Claude Sonnet 4.6 via the `us.` CROSS-REGION INFERENCE
+        // PROFILE. The bare id ("anthropic.claude-sonnet-4-6") is rejected by Bedrock
+        // for on-demand invoke ("...isn't supported. Retry your request with the ID or
+        // ARN of an inference profile") — the mistake that made us believe for four
+        // weeks that this account had no Claude access. There is no "ca." geo prefix.
+        // src/lib/rap/bedrock-model.ts verified this id from us-east-1 AND ca-central-1
+        // (2026-07-16). Cases-domain calls go through Bedrock Converse, whose shape is
+        // uniform across model families, so no code change is needed.
+        // NOTE: the value that actually takes effect is the one on the WEB function —
+        // actions.ts records the model on the brief and run.ts prefers `brief.model`.
+        // This one is the worker's fallback for records created before it was set.
+        BRIEF_MODEL: process.env.BRIEF_MODEL ?? "us.anthropic.claude-sonnet-4-6",
+        // Dense is OFF for this worker (2026-07-30 incident). build-index gates the
+        // vectors download on isRealProvider(), so "bedrock" here made every cold start
+        // fetch the ~985MB vectors segment — which costs THREE concurrent copies (S3
+        // byte array → Buffer.from → the 4-byte-alignment copy in artifact.ts), peaking
+        // ~3.5GB and killing the process. An OOM/timeout is uncatchable, so briefs were
+        // stranded at "pending" forever (briefs/run.ts documents exactly this hole) —
+        // silently, from 2026-07-09 (when the artifact grew 301MB→979MB) until a client
+        // demo hit it. BM25-only loads just bm25.bin. Raising memory was rejected: the
+        // 3-copy peak needs >4GB and the artifact keeps growing. P1 restores the dense
+        // signal from core pvec (~2.2MB, already in the table) instead of this artifact.
+        // Set BRIEF_EMBED_PROVIDER=bedrock to opt back in (needs the P1 work first).
+        EMBED_PROVIDER: process.env.BRIEF_EMBED_PROVIDER ?? "stub",
         EMBED_MODEL: "amazon.titan-embed-text-v2:0",
         EMBED_DIM: "1024",
         EMBED_REGION: "us-east-1",
@@ -587,17 +606,29 @@ export default $config({
         // Present → requestBriefing hands generation to the worker; unset locally
         // → the action runs generation inline (next dev has no request timeout).
         BRIEF_FUNCTION_NAME: briefGen.name,
+        // Briefing model — THIS is the value that takes effect: actions.ts records
+        // `model` on the brief record at creation time and run.ts prefers
+        // `brief.model` over its own env, so setting this only on BriefGen would be a
+        // no-op. Claude Sonnet 4.6 via the `us.` CROSS-REGION INFERENCE PROFILE; the
+        // bare id is rejected by Bedrock for on-demand invoke (see the BriefGen block
+        // and src/lib/rap/bedrock-model.ts). Web only records the id — BriefGen invokes.
+        BRIEF_MODEL: process.env.BRIEF_MODEL ?? "us.anthropic.claude-sonnet-4-6",
         // Dense retrieval (spec 2026-07-06). EMBED_REGION=us-east-1 overrides the
         // inherited extractionEnv BEDROCK_REGION=ca-central-1 for cases embedding
         // ONLY — RAP extraction still uses ca-central-1. The query router keeps
         // dense's embed call to conceptual/topical queries; known-item stays BM25.
         //
-        // Overridable because dense loads the ~979MB vectors.bin into the request
-        // Lambda — which OOMs even at the account's 3008MB Lambda cap (observed on
-        // the ca stage). Set CASES_EMBED_PROVIDER=stub to run BM25-only (loads just
-        // the ~155MB bm25.bin, fits comfortably) until dense retrieval is moved off
-        // the request path or a Lambda memory-quota increase is granted.
-        EMBED_PROVIDER: process.env.CASES_EMBED_PROVIDER ?? "bedrock",
+        // DEFAULTS TO STUB (BM25-only) as of 2026-07-30. Dense loads the ~985MB
+        // vectors.bin into this request Lambda, which OOMs even at the account's
+        // 3008MB cap (observed on the ca stage) — and the load costs THREE concurrent
+        // copies (S3 byte array → Buffer.from → artifact.ts's alignment copy), so no
+        // available memory tier can hold it. The default used to be "bedrock", which
+        // meant production (deploy.yml passes no CASES_EMBED_PROVIDER) was configured
+        // for a load that cannot succeed — the same root cause that left briefings
+        // stranded at "pending". BM25-only loads just bm25.bin (~157MB) and fits.
+        // Set CASES_EMBED_PROVIDER=bedrock to opt back in once dense moves off the
+        // request path (P1: core pvec, ~2.2MB, already in the table).
+        EMBED_PROVIDER: process.env.CASES_EMBED_PROVIDER ?? "stub",
         EMBED_MODEL: "amazon.titan-embed-text-v2:0",
         EMBED_DIM: "1024",
         EMBED_REGION: "us-east-1",
