@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import { toBinary, toInt8, hamming, dotInt8, BITS_PER_BYTE } from "../src/lib/cases/search/quantize";
 import { dot } from "../src/lib/cases/search/hybrid";
+import { buildArtifacts, loadArtifacts, parseVectorsBuffer, VECTORS_KEY, VECTORS_FORMAT_VERSION } from "../src/lib/cases/search/artifact";
+import type { RetrievalUnit } from "../src/lib/cases/search/hybrid";
+import type { LegalCase } from "../src/lib/cases/types";
 
 const unit = (dim: number, rnd: () => number) => {
   const v = new Float32Array(dim);
@@ -119,6 +122,37 @@ const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed
   // near 0.93, raising DENSE_RESCORE_N will NOT help (coverage is already perfect) — the fix is a
   // finer rescoring tier (int8 resident, or fetch true float32 for the top-50 from DynamoDB).
   assert.ok(recall10 >= 0.85, `sanity floor: Recall@10 ${recall10.toFixed(4)} is low enough to indicate a bug, not quantization error`);
+
+  // --- artifact round-trip: quantized sections + full-list denseRank contract ---
+  assert.equal(VECTORS_FORMAT_VERSION, 2);
+  assert.ok(VECTORS_KEY.includes("/v2/"), "vectors key carries its own version");
+
+  const DIM2 = 64, N2 = 40;
+  const rvecs = Array.from({ length: N2 }, () => unit(DIM2, rnd));
+  const units: RetrievalUnit[] = rvecs.map((v, i) => ({
+    unitId: `u-${i}`, caseId: `c-${i % 4}`, text: `unit ${i} aboriginal title treaty`, vec: v,
+  }));
+  const caseMap = new Map<string, LegalCase>(
+    [0, 1, 2, 3].map((i) => [`c-${i}`, { id: `c-${i}`, citation: `2020 SCC ${i}` } as unknown as LegalCase]),
+  );
+  const built = buildArtifacts({ units, cases: caseMap, embedderId: "test:e", vdim: DIM2 });
+  assert.ok(built.vectors, "vectors artifact written");
+
+  const vsrc = parseVectorsBuffer(built.vectors!);
+  assert.equal(vsrc.vdim, DIM2);
+  assert.equal(vsrc.count, N2);
+  assert.equal(vsrc.bin.length, N2 * (DIM2 / 8), "binary block is count × dim/8 bytes");
+  assert.ok(vsrc.readInt8Row, "int8 accessor present for an in-memory source");
+
+  const loaded = loadArtifacts(built.bm25, vsrc);
+  const qv = rvecs[7];
+  const ranked = loaded.searcher.denseRank(qv);
+  assert.equal(ranked.length, N2, "denseRank returns the FULL list (RRF fusion contract)");
+  assert.equal(ranked[0].id, "u-7", "a vector queried by itself ranks first");
+  const exactTop5 = rvecs.map((v, i) => ({ i, s: dot(qv, v) })).sort((x, y) => y.s - x.s).slice(0, 5).map((r) => `u-${r.i}`);
+  const gotTop5 = ranked.slice(0, 5).map((r) => r.id);
+  assert.ok(exactTop5.filter((id) => gotTop5.includes(id)).length >= 4, `head matches exact float32 (${gotTop5} vs ${exactTop5})`);
+  assert.equal(loaded.searcher.caseOf("u-7"), "c-3", "caseOf still resolves");
 
   console.log("✅ test-cases-quantize passed");
 })().catch((e) => { console.error(e); process.exit(1); });

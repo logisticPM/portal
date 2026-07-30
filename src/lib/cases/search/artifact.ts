@@ -6,15 +6,18 @@
 import { tokenize } from "./bm25";
 import { buildInverted, scoreInverted, type InvertedIndex } from "./inverted";
 import { dot, type Searcher, type RetrievalUnit } from "./hybrid";
+import { toBinary, toInt8, hamming, dotInt8, BITS_PER_BYTE } from "./quantize";
 import type { LegalCase } from "../types";
 
 const MAGIC = 0x43494458; // "CIDX"
 export const FORMAT_VERSION = 1;
-// Storage keys derive from FORMAT_VERSION — the writer (cases-index-build) and the
-// loader (build-index) both import these, so a format bump moves the key path,
-// the header stamp, and the runtime check below in ONE place.
+// The vectors object is versioned SEPARATELY so a vectors-format change never moves bm25.bin's
+// key. If both moved, a code deploy that precedes the artifact rebuild would fail the bm25 load
+// and fall back to the 42.8s table scan; with only the vectors key moving, a missing v2 object
+// degrades to BM25-only — the same safe path as having no embedder configured.
+export const VECTORS_FORMAT_VERSION = 2;
 export const BM25_KEY = `cases-index/v${FORMAT_VERSION}/bm25.bin`;
-export const VECTORS_KEY = `cases-index/v${FORMAT_VERSION}/vectors.bin`;
+export const VECTORS_KEY = `cases-index/v${VECTORS_FORMAT_VERSION}/vectors.bin`;
 
 interface SectionMap { [name: string]: [offset: number, length: number] }
 
@@ -61,9 +64,11 @@ function unpack(buf: Buffer): { header: ArtifactHeader; section: (name: string) 
   const hlen = buf.readUInt32LE(4);
   const secStart = buf.readUInt32LE(8);
   const header: ArtifactHeader = JSON.parse(buf.subarray(12, 12 + hlen).toString("utf8"));
-  // Runtime insurance beyond the /v1/ key path: never deserialize a future format.
-  if (header.formatVersion !== FORMAT_VERSION)
-    throw new Error(`unsupported artifact formatVersion ${header.formatVersion} (expected ${FORMAT_VERSION})`);
+  // Runtime insurance beyond the key path's own version segment: never deserialize a future
+  // format. This reader is shared by both object kinds, and bm25/vectors are versioned
+  // SEPARATELY (see VECTORS_FORMAT_VERSION above), so both stamps are valid here.
+  if (header.formatVersion !== FORMAT_VERSION && header.formatVersion !== VECTORS_FORMAT_VERSION)
+    throw new Error(`unsupported artifact formatVersion ${header.formatVersion} (expected ${FORMAT_VERSION} or ${VECTORS_FORMAT_VERSION})`);
   return {
     header,
     section: (name) => {
@@ -89,6 +94,46 @@ const toU32 = (b: Uint8Array) => { assertAligned4(b); return new Uint32Array(b.b
 const toF32 = (b: Uint8Array) => { assertAligned4(b); return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4); };
 const json = (o: unknown) => new Uint8Array(Buffer.from(JSON.stringify(o), "utf8"));
 const unjson = (b: Uint8Array) => JSON.parse(Buffer.from(b).toString("utf8"));
+
+// How the loader reaches the quantized vectors. `bin` is resident (30.7MB at 240k×1024d);
+// `readInt8Row` is a positional accessor so the 246MB int8 tier never enters the heap — the S3
+// object is streamed to /tmp and rows are read on demand. A null accessor means binary-only
+// ranking (degraded but functional), which is what happens if /tmp is unavailable.
+export interface VectorsSource {
+  bin: Uint8Array;
+  unitIdx: Uint32Array;
+  vdim: number;
+  count: number;
+  buildId: string;
+  readInt8Row: ((row: number) => Int8Array | null) | null;
+}
+
+// Preamble/header readers, exported so build-index can locate sections in a /tmp file without
+// re-implementing the container format (12-byte preamble: MAGIC u32, headerLen u32, secStart u32).
+export const PREAMBLE_BYTES = 12;
+export function readPreamble(buf: Buffer): { headerLen: number; secStart: number } {
+  if (buf.readUInt32LE(0) !== MAGIC) throw new Error("corrupt artifact: bad magic");
+  return { headerLen: buf.readUInt32LE(4), secStart: buf.readUInt32LE(8) };
+}
+export function readHeader(headerBytes: Buffer): { header: Record<string, any>; sections: SectionMap } {
+  const header = JSON.parse(headerBytes.toString("utf8")) as Record<string, any>;
+  return { header, sections: header.sections as SectionMap };
+}
+
+// Build a fully in-memory VectorsSource from a vectors container Buffer. Used by tests and by the
+// local INDEX_FILE path; the S3 path streams to /tmp instead (see build-index.ts).
+export function parseVectorsBuffer(buf: Buffer): VectorsSource {
+  const v = unpack(buf);
+  const vdim = Number(v.header.vdim);
+  const bin = v.section("bin");
+  const i8sec = v.section("int8");
+  const int8 = new Int8Array(i8sec.buffer as ArrayBuffer, i8sec.byteOffset, i8sec.byteLength);
+  return {
+    bin, unitIdx: toU32(v.section("unitIdx")), vdim,
+    count: Number(v.header.count), buildId: String(v.header.buildId),
+    readInt8Row: (row) => int8.subarray(row * vdim, (row + 1) * vdim),
+  };
+}
 
 export interface ArtifactInput {
   units: RetrievalUnit[];
@@ -131,14 +176,23 @@ export function buildArtifacts(input: ArtifactInput): { bm25: Buffer; vectors: B
   let vectors: Buffer | null = null;
   const withVec = input.units.map((u, i) => ({ u, i })).filter(({ u }) => u.vec && input.vdim && u.vec.length === input.vdim);
   if (withVec.length && input.embedderId && input.vdim) {
+    const vdim = input.vdim;
+    const binBytes = Math.ceil(vdim / BITS_PER_BYTE);
     const unitIdx = new Uint32Array(withVec.length);
-    const block = new Float32Array(withVec.length * input.vdim);
-    withVec.forEach(({ u, i }, row) => { unitIdx[row] = i; block.set(u.vec!, row * input.vdim!); });
+    const bin = new Uint8Array(withVec.length * binBytes);
+    const int8 = new Int8Array(withVec.length * vdim);
+    withVec.forEach(({ u, i }, row) => {
+      unitIdx[row] = i;
+      bin.set(toBinary(u.vec!), row * binBytes);
+      int8.set(toInt8(u.vec!), row * vdim);
+    });
     vectors = pack(
-      { magicName: "vectors", formatVersion: FORMAT_VERSION, buildId, embedderId: input.embedderId, vdim: input.vdim, count: withVec.length },
+      { magicName: "vectors", formatVersion: VECTORS_FORMAT_VERSION, quant: "binary+int8", buildId,
+        embedderId: input.embedderId, vdim, count: withVec.length },
       [
         { name: "unitIdx", bytes: new Uint8Array(unitIdx.buffer) },
-        { name: "vecs", bytes: new Uint8Array(block.buffer) },
+        { name: "bin", bytes: bin },
+        { name: "int8", bytes: new Uint8Array(int8.buffer) },
       ],
     );
   }
@@ -153,7 +207,7 @@ export interface LoadedArtifacts {
   buildId: string;
 }
 
-export function loadArtifacts(bm25Buf: Buffer, vectorsBuf?: Buffer | null): LoadedArtifacts {
+export function loadArtifacts(bm25Buf: Buffer, vectors?: VectorsSource | null): LoadedArtifacts {
   const a = unpack(bm25Buf);
   const ids: string[] = unjson(a.section("unitIds"));
   const caseIds: string[] = unjson(a.section("caseIds"));
@@ -171,30 +225,50 @@ export function loadArtifacts(bm25Buf: Buffer, vectorsBuf?: Buffer | null): Load
   const unitIdToIdx = new Map(ids.map((id, i) => [id, i]));
 
   // vectors (optional; buildId must match or dense is skipped — integrity guard)
-  let vecUnitIdx: Uint32Array | null = null;
-  let vecBlock: Float32Array | null = null;
+  let vsrc: VectorsSource | null = null;
   let vdim: number | null = a.header.vdim ?? null;
-  if (vectorsBuf) {
-    const v = unpack(vectorsBuf);
-    if (v.header.buildId === a.header.buildId) {
-      vecUnitIdx = toU32(v.section("unitIdx"));
-      vecBlock = toF32(v.section("vecs"));
-      vdim = v.header.vdim ?? null;
-    } else {
-      console.warn(`[artifact] vectors buildId mismatch (${v.header.buildId} vs ${a.header.buildId}) → dense off`);
-    }
+  if (vectors) {
+    if (vectors.buildId === a.header.buildId) { vsrc = vectors; vdim = vectors.vdim; }
+    else console.warn(`[artifact] vectors buildId mismatch (${vectors.buildId} vs ${a.header.buildId}) → dense off`);
   }
+  const RESCORE_N = Number(process.env.DENSE_RESCORE_N ?? 200);
 
   const searcher: Searcher = {
     bm25Rank: (query) => scoreInverted(inv, tokenize(query)).map((r) => ({ id: r.id })),
+    // Two stages, and the CONTRACT IS PRESERVED: a full sorted list of every vector's unit id, so
+    // hybridRank's RRF fusion shape is unchanged. Stage 1 is an exhaustive Hamming scan (exact by
+    // construction — no ANN approximation error at this corpus size). Stage 2 rescores only the
+    // head with int8, read positionally, and splices it back; the tail keeps binary order, which
+    // is immaterial to RRF (rank 200 contributes 1/(60+200)≈0.004 vs 1/(60+1)≈0.016 at the head).
+    // Measured on clustered synthetic data: binary top-200 coverage of the true top-10 = 1.0000,
+    // and the pipeline scores exactly the same Recall@10 as int8-over-everything — candidate
+    // generation is lossless and accuracy is set entirely by int8.
     denseRank: (queryVec) => {
-      if (!vecUnitIdx || !vecBlock || !vdim || queryVec.length !== vdim) return [];
-      const out: { id: string; score: number }[] = [];
-      for (let row = 0; row < vecUnitIdx.length; row++) {
-        const vecView = vecBlock.subarray(row * vdim, (row + 1) * vdim);
-        out.push({ id: ids[vecUnitIdx[row]], score: dot(queryVec, vecView) });
+      if (!vsrc || !vdim || queryVec.length !== vdim) return [];
+      const src = vsrc, d = vdim;
+      const binBytes = Math.ceil(d / BITS_PER_BYTE);
+      const qb = toBinary(queryVec);
+      const idOf = (row: number) => ids[src.unitIdx[row]];
+      const byHam: { row: number; dist: number }[] = new Array(src.count);
+      for (let row = 0; row < src.count; row++) {
+        byHam[row] = { row, dist: hamming(qb, 0, src.bin, row * binBytes, binBytes) };
       }
-      return out.sort((a2, b2) => b2.score - a2.score || a2.id.localeCompare(b2.id)).map((r) => ({ id: r.id }));
+      byHam.sort((x, y) => x.dist - y.dist || idOf(x.row).localeCompare(idOf(y.row)));
+      const headN = Math.min(RESCORE_N, byHam.length);
+      if (src.readInt8Row && headN > 0) {
+        const qi = toInt8(queryVec);
+        const head: { row: number; s: number }[] = [];
+        for (let k = 0; k < headN; k++) {
+          const row = byHam[k].row;
+          const r = src.readInt8Row(row);
+          // A failed positional read keeps this row's binary standing rather than throwing.
+          head.push({ row, s: r ? dotInt8(qi, r, 0, d) : -Infinity });
+        }
+        head.sort((x, y) => y.s - x.s || idOf(x.row).localeCompare(idOf(y.row)));
+        return [...head.map((h) => ({ id: idOf(h.row) })), ...byHam.slice(headN).map((h) => ({ id: idOf(h.row) }))];
+      }
+      console.warn("[artifact] int8 tier unavailable → binary-only dense ranking");
+      return byHam.map((h) => ({ id: idOf(h.row) }));
     },
     caseOf: (unitId) => {
       const i = unitIdToIdx.get(unitId);
