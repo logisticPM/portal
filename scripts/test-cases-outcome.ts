@@ -9,6 +9,7 @@ import {
 import type { LlmModel } from "../src/lib/cases/ingest/llm";
 import { textFromConverse, DUAL_LLM_MAX_TOKENS } from "../src/lib/cases/ingest/llm";
 import { mergeOutcome, classifyOutcome } from "../src/lib/cases/ingest/outcome-labeler";
+import { verifyGoldLabel, type GoldLabel } from "../src/lib/cases/eval/outcome-gold";
 
 const p = (n: number, text: string): CaseChunk => ({ paragraph: `para-${n}`, text });
 const long = (n: number, fill: string) => p(n, fill.repeat(400)); // 400 * fill.length chars
@@ -204,6 +205,31 @@ const raw = (w: any, t: any, der: OutcomeDerivation | null) => ({ winType: w, ou
   assert.equal(r.winType, "doctrine_win", "still recorded — it is a legitimate label");
   assert.equal(r.outcomeMeta.needsReview, true, "but never unreviewed, since it is uncheckable");
 }
+
+// --- verifyGoldLabel: quote-verified gold labels ---
+const gold = (over: Partial<GoldLabel> = {}): GoldLabel => ({
+  caseId: "c1", movingPartyIsIndigenous: false, granted: "refused", winType: "party_win",
+  movingPartyQuote: "The Attorney General of Canada appeals the decision below.",
+  citedPara: "para-2", labeller: "consensus-4", confidence: "high", ...over,
+});
+const goldChunks = [
+  p(1, "This is an appeal from a judicial review."),
+  p(2, "The Attorney General of Canada appeals the decision below."),
+];
+
+// A quote that really is in the cited paragraph passes.
+assert.equal(verifyGoldLabel(gold(), goldChunks), null);
+// Whitespace differences must not reject a good label.
+assert.equal(verifyGoldLabel(gold({ movingPartyQuote: "The Attorney General of Canada   appeals\nthe decision below." }), goldChunks), null);
+// A quote in a DIFFERENT paragraph than cited is accepted but reported.
+assert.match(String(verifyGoldLabel(gold({ citedPara: "para-1" }), goldChunks)), /para-2/);
+// THE POINT: a quote that appears nowhere is rejected. This is what makes an
+// unaided inference impossible to record as a label.
+assert.match(String(verifyGoldLabel(gold({ movingPartyQuote: "The First Nation brought this application." }), goldChunks)), /not found/);
+// An empty quote is rejected — every label must carry evidence.
+assert.match(String(verifyGoldLabel(gold({ movingPartyQuote: "  " }), goldChunks)), /empty/);
+// A label inconsistent with its own derivation is rejected: gold must be coherent.
+assert.match(String(verifyGoldLabel(gold({ movingPartyIsIndigenous: true, winType: "party_win" }), goldChunks)), /contradict/);
 
 // --- classifyOutcome with injected models (merge wiring, end to end) ---
 // Async work lives in an IIFE: this file compiles as CJS, so there is no top-level await.
