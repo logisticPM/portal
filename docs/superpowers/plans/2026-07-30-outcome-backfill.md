@@ -203,7 +203,10 @@ export function dispositionWindow(styleOfCause: string, chunks: CaseChunk[]): st
   // A first paragraph larger than the head budget keeps its START — the mirror of the
   // tail rule. Dropping the opening outright would lose who the parties are, and
   // winType is defined relative to the Indigenous party, so that loss is not survivable.
-  const truncatedHead = headEnd === 0 && tailStart > 0;
+  // NB: the condition is `headEnd === 0` alone. Adding `&& tailStart > 0` looks harmless
+  // but breaks the single-chunk case, where tailStart is 0 and the opening then vanishes
+  // with no omission marker. See the post-review corrections at the end of this plan.
+  const truncatedHead = headEnd === 0;
   const headLines = truncatedHead ? [lines[0].slice(0, HEAD_CHARS) + "…"] : lines.slice(0, headEnd);
 
   const omitted = tailStart - (truncatedHead ? 1 : headEnd);
@@ -661,6 +664,28 @@ Step 1 spreads `...c.outcome`), no enum change, no retrieval or UI change, core 
 **Placeholder scan.** No TBD/TODO. Every code step carries complete code; every run step carries an
 exact command and expected result. The one file without a unit test (the runner) says so and says
 why.
+
+---
+
+## Post-review corrections
+
+A whole-branch review after T3 found two real defects and four gaps. All are fixed in `fd936bb`;
+recorded here because each was a hole in this plan, not in the implementation of it.
+
+| # | Severity | What was wrong |
+|---|---|---|
+| 1 | **Critical** | `truncatedHead = headEnd === 0 && tailStart > 0` suppressed `[OPENING]` entirely for a **single-chunk** case (`tailStart` is 0 there), silently discarding the party names — and `winType` is defined relative to the Indigenous party. Worse, both models then read the same truncated window and tend to *agree*, so the wrong label ships with `confidence: "high"`. Fixed by dropping the second conjunct. |
+| 2 | **Important** | `caseToItems` derives `GSI2PK: gsi2WinType(c.outcome.winType)`, but the runner rewrote `data.outcome` without touching the top-level `GSI2PK` — so every backfilled row would have sat in the `WINTYPE#unclassified` partition forever while the base table said otherwise. A `Query` on `WINTYPE#party_win` would return zero while `listFacets` reported hundreds. Fixed by moving both in one atomic write. |
+| 3 | Minor | Truncating an oversized final paragraph ate its `para-N: ` prefix — defeating the review script, whose premise is locating the disposition by id. |
+| 4 | Minor | `if (!c) continue;` was the one untallied skip path. Now counted as `missing`. |
+| 5 | Minor | No test for the single-chunk case (where #1 lived) or for empty `chunks`. Both added. |
+| 6 | Minor | The `long` test helper's comment said "~2400 chars" and was wrong at three of four call sites, making the budget arithmetic unverifiable by reading. |
+
+Both #1 and #2 share a shape worth naming: **a derived value that is written in one place and updated
+in another.** The head/tail pair and the `data.outcome`/`GSI2PK` pair each had one half maintained and
+the other half silently stale. Neither typechecks as an error.
+
+---
 
 **Type consistency.** `RawOutcome` is declared once, in `outcome-rubric.ts`, and imported by
 `outcome-labeler.ts` — not redeclared. `ClassifiedOutcome` is returned by both `mergeOutcome` and

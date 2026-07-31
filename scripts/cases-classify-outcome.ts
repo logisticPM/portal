@@ -49,6 +49,10 @@ async function main() {
     await ddbDoc.send(new UpdateCommand({
       TableName: TABLE,
       Key: caseKeys.profile(c.id),
+      // Case fields live under the PROFILE's `data` attribute, and DATA is a
+      // DynamoDB reserved word — alias every path segment. GSI2PK is top-level and
+      // not reserved, so it needs no alias.
+      //
       // GSI2PK is DERIVED from winType (see gsi2WinType in cases-table.ts), so it must
       // move in the same write — otherwise the win-type browse index keeps pointing at
       // the pre-backfill value and silently disagrees with the base table forever.
