@@ -33,6 +33,8 @@ const kitchenSink: Required<LegalCase> = {
   nations: ["Test Nation"], themes: ["land_rights", "fiduciary"],
   outcome: { outcomeType: "precedent", winType: "party_win", whoWon: "Test Nation",
     holding: "A holding that exercises every optional field." },
+  outcomeMeta: { method: "dual_llm", models: ["model-a", "model-b"], agreement: "full",
+    confidence: "high", needsReview: false, rubricVersion: "2026-07-30.1" },
   economic: {
     valueType: "settlement", settlementAmount: 1_000_000, resourceRevenue: 500_000,
     equityStake: 10, economicSummary: "A settlement plus revenue share plus equity.",
