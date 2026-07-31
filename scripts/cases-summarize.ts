@@ -26,6 +26,7 @@ async function main() {
   const stats = { generated: 0, skipped_curated: 0, skipped_already_generated: 0, skipped_not_core: 0, skipped_no_fulltext: 0 };
   const failed: string[] = [];
   let kept = 0, dropped = 0, done = 0;
+  const allDrops: import("../src/lib/cases/ingest/summarizer").ClaimDrop[] = [];
 
   for (const p of profiles) {
     // Curated cases short-circuit on the PROFILE alone; others need chunks reassembled.
@@ -34,6 +35,7 @@ async function main() {
     if (!c) continue;
     const target = redo ? { ...c, summary: undefined, summaryMeta: undefined } : c;
     const r = await summarizeCase(target, model);
+    if (r.drops) allDrops.push(...r.drops);
     if (r.status === "generated" && r.summary && r.meta) {
       await ddbDoc.send(new UpdateCommand({
         TableName: TABLE,
@@ -56,6 +58,27 @@ async function main() {
 
   console.log(`✅ summarize: generated ${stats.generated} · curated ${stats.skipped_curated} · already-generated ${stats.skipped_already_generated} · no-fulltext ${stats.skipped_no_fulltext} · failed ${failed.length} of ${profiles.length}`);
   console.log(`   claims kept ${kept} · dropped ${dropped}`);
+  if (allDrops.length) {
+    const by = (reason: string) => allDrops.filter((d) => d.reason === reason).length;
+    const noSpan = allDrops.filter((d) => d.reason === "no_span");
+    const bucket = (lo: number, hi: number) => noSpan.filter((d) => d.bestOverlap >= lo && d.bestOverlap < hi).length;
+    console.log(`   drop diagnostics: no_span ${by("no_span")} · quote_too_short ${by("quote_too_short")} · no_text ${by("no_text")} · cited-para-not-found ${allDrops.filter((d) => !d.citedParaFound).length}`);
+    // The >=0.5 bucket IS the population span alignment could recover. If it is a few percent,
+    // that feature is not worth building — and we will have said so with a number from our own
+    // corpus rather than from a paper about a different pipeline.
+    //
+    // The boundaries follow from how LCS behaves, not from round numbers. One substitution
+    // mid-quote splits the quote, so the metric returns the longer surviving fragment — about
+    // HALF. That makes ~0.5 the worst case for a single-word garble, and 0.25 roughly the
+    // two-edit case. A measured genuine paraphrase sits near 0.13.
+    //   >=0.5  at most one edit, or edits near the ends — near-verbatim, recoverable
+    //   0.25–0.5  several edits — ambiguous
+    //   <0.25  no contiguous span survives — a real paraphrase, correctly dropped
+    console.log(`   no_span overlap: >=0.5 → ${noSpan.filter((d) => d.bestOverlap >= 0.5).length} · 0.25–0.5 → ${bucket(0.25, 0.5)} · <0.25 → ${bucket(0, 0.25)}`);
+    const near = noSpan.filter((d) => d.bestOverlap >= 0.5).slice(0, 5)
+      .map((d) => `${d.citedPara}(${d.bestOverlap.toFixed(2)})`).join(" · ");
+    if (near) console.log(`   near-miss samples: ${near}`);
+  }
   if (failed.length) console.log("   failed ids:", failed.join(", "));
 }
 main().catch((e) => { console.error("❌ cases-summarize failed:", e); process.exit(1); });
