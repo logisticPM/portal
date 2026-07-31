@@ -38,7 +38,10 @@ Append to the async IIFE in `scripts/test-cases-briefs.ts`, before its final `co
 ```ts
   // --- verifyBriefing: principles may only cite precedents the reader can SEE ---
   // A precedent dropped for an empty `establishes` must not leave a principle citing it.
-  const retrieved = ["a", "b", "c"];
+  // NB: named depFilterIds, not `retrieved` — this file already declares a `retrieved`
+  // at ~line 63 and the whole suite is one async IIFE, so that would be a duplicate
+  // const in the same scope and the file would not even parse.
+  const depFilterIds = ["a", "b", "c"];
   const droppedEstablishes = verifyBriefing({
     background: "bg",
     precedents: [
@@ -52,7 +55,7 @@ Append to the async IIFE in `scripts/test-cases-briefs.ts`, before its final `co
       { text: "principle citing both", caseIds: ["a", "c"] },
     ],
     considerations: "cons",
-  }, retrieved);
+  }, depFilterIds);
   assert.ok(droppedEstablishes, "2 surviving precedents → publishes");
   assert.deepEqual(droppedEstablishes!.body.precedents.map((p) => p.caseId), ["a", "b"]);
   assert.equal(droppedEstablishes!.body.principles.length, 2, "the c-only principle is dropped entirely");
