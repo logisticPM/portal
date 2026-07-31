@@ -47,8 +47,14 @@ and more specific than the next, and the last one is the one nobody has measured
 | # | Bucket | Test | Meaning |
 |---|---|---|---|
 | 1 | `locate_bug` | the quote **is** contiguously present in some chunk | Should be impossible — `locate()` searches every chunk with `includes()`. A non-zero count is a bug in `locate`, not a model problem. |
-| 2 | `assembly_boundary` | present in `assembleInput(chunks, holding)` but not in any chunk or document-adjacent pair | The model quoted across a seam that exists only in the prompt. **Recoverable, and our fault.** |
-| 3 | `marker_bleed` | the quote contains `[para ` | The model swept a paragraph marker into its quote. **Recoverable, and our fault.** |
+| 2 | `marker_bleed` | the quote contains `[para ` | The model swept a paragraph marker into its quote. **Recoverable, and our fault.** |
+| 3 | `assembly_boundary` | present in `assembleInput(chunks, holding)` but not in any chunk or document-adjacent pair | The model quoted across a seam that exists only in the prompt. **Recoverable, and our fault.** |
+
+**`marker_bleed` must be tested before `assembly_boundary`** — corrected 2026-07-31 while planning. A
+quote containing `[para ` is *definitionally* present in the assembled text, since that is where the
+markers live, so testing `assembly_boundary` first would silently absorb every marker case and the
+`marker_bleed` bucket would read zero no matter how often it happened. This is exactly the overlap
+the ordering regression test exists to catch, and the spec's own first draft had it backwards.
 | 4 | `normalization` | matches after a widened fold (spaces around punctuation, ellipsis forms, non-breaking space, soft hyphen, ligatures) | A character class `normWs` misses. **Recoverable, cheap.** |
 | 5 | `transcription` | not in the assembled input, but LCS ≥ 0.5 against some chunk | The model garbled a real passage. Recoverable only by span alignment. |
 | 6 | `unseen` | **not present in the assembled input at all**, and LCS < 0.5 | The model produced a quote it was never shown. |
