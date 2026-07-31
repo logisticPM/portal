@@ -35,6 +35,7 @@ export interface OutcomeMeta {
   confidence: "high" | "low";
   needsReview: boolean;
   rubricVersion?: string;
+  contradictions?: number;   // responses whose winType contradicted their own derivation
 }
 
 // The classifier's stated reasoning, reduced to closed values so it can be checked

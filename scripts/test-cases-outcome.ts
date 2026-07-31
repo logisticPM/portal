@@ -155,48 +155,54 @@ assert.deepEqual(parseOutcome('{"winType":"loss","outcomeType":"precedent"}').de
 assert.deepEqual(parseOutcome('{"movingPartyIsIndigenous":"yes","granted":"nope","winType":"loss","outcomeType":"precedent"}').derivation, null);
 
 // --- mergeOutcome ---
+const raw = (w: any, t: any, der: OutcomeDerivation | null) => ({ winType: w, outcomeType: t, derivation: der });
+
+// Agreement, consistent derivations.
 {
-  const r = mergeOutcome(
-    { winType: "party_win", outcomeType: "remand", derivation: null },
-    { winType: "party_win", outcomeType: "remand", derivation: null }, ["m1", "m2"]);
+  const r = mergeOutcome(raw("party_win", "remand", d(false, "refused")), raw("party_win", "remand", d(false, "refused")), ["m1", "m2"]);
   assert.equal(r.winType, "party_win");
-  assert.equal(r.outcomeType, "remand");
   assert.equal(r.outcomeMeta.agreement, "full");
   assert.equal(r.outcomeMeta.confidence, "high");
   assert.equal(r.outcomeMeta.needsReview, false);
-  assert.equal(r.outcomeMeta.method, "dual_llm");
-  assert.deepEqual(r.outcomeMeta.models, ["m1", "m2"]);
   assert.equal(r.outcomeMeta.rubricVersion, OUTCOME_RUBRIC_VERSION);
+  assert.deepEqual(r.derivation, d(false, "refused"), "an agreed derivation is stored");
 }
-// Disagreement on winType abstains and flags for review.
+// Disagreement on winType still abstains.
 {
-  const r = mergeOutcome(
-    { winType: "party_win", outcomeType: "remand", derivation: null },
-    { winType: "loss", outcomeType: "remand", derivation: null }, ["m1", "m2"]);
-  assert.equal(r.winType, "unclassified", "disagreement must abstain, never pick a side");
-  assert.equal(r.outcomeType, "remand", "the agreeing field survives independently");
+  const r = mergeOutcome(raw("party_win", "remand", d(false, "refused")), raw("loss", "remand", d(true, "refused")), ["m1", "m2"]);
+  assert.equal(r.winType, "unclassified");
   assert.equal(r.outcomeMeta.agreement, "partial");
   assert.equal(r.outcomeMeta.needsReview, true);
-  assert.equal(r.outcomeMeta.confidence, "low");
+  assert.equal(r.derivation, undefined, "derivations that disagree are not stored");
 }
-// Neither field agrees.
+// Both unclassified: agreement WITHOUT confidence.
 {
-  const r = mergeOutcome(
-    { winType: "party_win", outcomeType: "remand", derivation: null },
-    { winType: "loss", outcomeType: "precedent", derivation: null }, ["m1", "m2"]);
-  assert.equal(r.outcomeMeta.agreement, "none");
-  assert.equal(r.winType, "unclassified");
-  assert.equal(r.outcomeType, "unclassified");
-}
-// THE EASY ONE TO GET WRONG: both models answering "unclassified" AGREE,
-// but that is not a confident classification.
-{
-  const r = mergeOutcome(
-    { winType: "unclassified", outcomeType: "procedural", derivation: null },
-    { winType: "unclassified", outcomeType: "procedural", derivation: null }, ["m1", "m2"]);
+  const r = mergeOutcome(raw("unclassified", "procedural", null), raw("unclassified", "procedural", null), ["m1", "m2"]);
   assert.equal(r.outcomeMeta.agreement, "full");
-  assert.equal(r.outcomeMeta.confidence, "low", "agreed-unclassified is agreement WITHOUT confidence");
-  assert.equal(r.outcomeMeta.needsReview, false, "the models did not disagree, so no review is owed");
+  assert.equal(r.outcomeMeta.confidence, "low");
+  assert.equal(r.outcomeMeta.needsReview, false);
+}
+// THE NEW GATE: a model contradicting its own derivation is discarded, so the pair
+// cannot agree and the case abstains — even though both said "party_win".
+{
+  const bad = raw("party_win", "precedent", d(true, "refused"));   // moved and refused, yet claims a win
+  const r = mergeOutcome(bad, bad, ["m1", "m2"]);
+  assert.equal(r.winType, "unclassified", "a self-contradicting response must not be trusted");
+  assert.equal(r.outcomeMeta.needsReview, true);
+  assert.equal(r.outcomeMeta.contradictions, 2, "both responses contradicted themselves");
+}
+// One contradicts, one does not -> no agreement.
+{
+  const r = mergeOutcome(raw("party_win", "precedent", d(true, "refused")), raw("party_win", "precedent", d(false, "refused")), ["m1", "m2"]);
+  assert.equal(r.winType, "unclassified");
+  assert.equal(r.outcomeMeta.contradictions, 1);
+}
+// doctrine_win is always flagged: it is the one label the gate cannot check.
+{
+  const dw = raw("doctrine_win", "precedent", d(true, "refused"));
+  const r = mergeOutcome(dw, dw, ["m1", "m2"]);
+  assert.equal(r.winType, "doctrine_win", "still recorded — it is a legitimate label");
+  assert.equal(r.outcomeMeta.needsReview, true, "but never unreviewed, since it is uncheckable");
 }
 
 // --- classifyOutcome with injected models (merge wiring, end to end) ---

@@ -77,6 +77,7 @@ export function itemToCase(it: any): LegalCase {
       winType: d.outcome.winType,
       whoWon: d.outcome.whoWon,
       holding: d.outcome.holding,
+      ...(d.outcome.derivation !== undefined ? { derivation: d.outcome.derivation } : {}),
     },
     ...(d.outcomeMeta !== undefined ? { outcomeMeta: d.outcomeMeta } : {}),
     ...(d.economic !== undefined ? {
