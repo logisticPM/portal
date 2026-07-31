@@ -19,6 +19,7 @@
 | `src/lib/cases/ingest/outcome-rubric.ts` (create) | The versioned methodology: rubric text, the head+tail window, the prompt, and the response parser. Pure — no I/O. |
 | `src/lib/cases/ingest/outcome-labeler.ts` (create) | Dual-model orchestration and the merge rule. |
 | `src/lib/cases/types.ts` (modify) | `OutcomeMeta` + `outcomeMeta?` on `LegalCase`. Additive only. |
+| `src/lib/dynamo/cases-table.ts` + `scripts/test-cases-table.ts` (modify) | **Not in the original plan — found during T2.** `itemToCase` rebuilds `LegalCase` field by field and TypeScript does *not* error on an omission, so a new field is silently dropped on round-trip; `test-cases-table.ts` types its fixture as `Required<LegalCase>` precisely to turn that into a compile error. `outcomeMeta` must be added to both. This is load-bearing for T3: without it the runner's "already classified" check never fires and the review script sees nothing. |
 | `scripts/test-cases-outcome.ts` (create) | Offline tests for both modules. |
 | `scripts/cases-classify-outcome.ts` (create) | Batch runner. Writes the PROFILE item only. |
 | `scripts/cases-outcome-review.ts` (create) | Read-only. One line per case for human review. |
