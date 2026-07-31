@@ -79,6 +79,19 @@ const long = (n: number, fill: string) => p(n, fill.repeat(400)); // ~2400 chars
   const out = dispositionWindow("E v. F", chunks);
   assert.match(out, /THE APPEAL IS ALLOWED\./, "must not truncate away the disposition");
 }
+// Mirror rule: a FIRST paragraph larger than the head budget keeps its START and is
+// still included. Dropping it would lose the party names that winType is relative to.
+{
+  const chunks = [
+    p(1, "PARTIES: Alpha Nation v. Beta. " + "z ".repeat(3000)),
+    long(2, "mid "),
+    p(3, "The appeal is dismissed."),
+  ];
+  const out = dispositionWindow("M v. N", chunks);
+  assert.match(out, /\[OPENING\]/, "an oversized opening must be truncated, not dropped");
+  assert.match(out, /para-1: PARTIES: Alpha Nation v\. Beta\./, "the opening keeps its START");
+  assert.match(out, /para-3: The appeal is dismissed\./);
+}
 
 // --- dispositionSentence ---
 assert.equal(
@@ -186,10 +199,15 @@ export function dispositionWindow(styleOfCause: string, chunks: CaseChunk[]): st
     used += lines[headEnd].length + 1;
     headEnd++;
   }
+  // A first paragraph larger than the head budget keeps its START — the mirror of the
+  // tail rule. Dropping the opening outright would lose who the parties are, and
+  // winType is defined relative to the Indigenous party, so that loss is not survivable.
+  const truncatedHead = headEnd === 0 && tailStart > 0;
+  const headLines = truncatedHead ? [lines[0].slice(0, HEAD_CHARS) + "…"] : lines.slice(0, headEnd);
 
-  const omitted = tailStart - headEnd;
+  const omitted = tailStart - (truncatedHead ? 1 : headEnd);
   const parts = [header, ""];
-  if (headEnd > 0) parts.push("[OPENING]", lines.slice(0, headEnd).join("\n"), "");
+  if (headLines.length > 0) parts.push("[OPENING]", headLines.join("\n"), "");
   if (omitted > 0) parts.push(`[... ${omitted} paragraph${omitted === 1 ? "" : "s"} omitted ...]`, "");
   parts.push("[DISPOSITION]", tailLines.join("\n"));
   return parts.join("\n");
