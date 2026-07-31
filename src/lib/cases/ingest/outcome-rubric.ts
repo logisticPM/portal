@@ -109,7 +109,7 @@ export interface RawOutcome {
   derivation: OutcomeDerivation | null;
 }
 
-const GRANTED = ["granted", "refused", "partly"] as const;
+export const ALL_GRANTED = ["granted", "refused", "partly"] as const;
 
 export function outcomePrompt(styleOfCause: string, chunks: CaseChunk[]): string {
   const wins = ALL_WINTYPES.map((k) => `- ${k}: ${WINTYPE_RUBRIC[k]}`).join("\n");
@@ -148,7 +148,7 @@ export function parseOutcome(raw: string): RawOutcome {
       : null;
     const g = typeof o?.granted === "string" ? o.granted.trim().toLowerCase() : "";
     const derivation: OutcomeDerivation | null =
-      mine !== null && (GRANTED as readonly string[]).includes(g)
+      mine !== null && (ALL_GRANTED as readonly string[]).includes(g)
         ? { movingPartyIsIndigenous: mine, granted: g as OutcomeDerivation["granted"] }
         : null;
     return {

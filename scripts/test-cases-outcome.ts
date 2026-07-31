@@ -285,6 +285,23 @@ assert.match(String(verifyGoldLabel(gold({ movingPartyQuote: "  " }), goldChunks
 // A label inconsistent with its own derivation is rejected: gold must be coherent.
 assert.match(String(verifyGoldLabel(gold({ movingPartyIsIndigenous: true, winType: "party_win" }), goldChunks)), /contradict/);
 
+// Fix 3: a short quote can no longer establish who moved.
+assert.match(String(verifyGoldLabel(gold({ movingPartyQuote: "the applicant" }), goldChunks)), /too short/);
+assert.match(String(verifyGoldLabel(gold({ movingPartyQuote: "." }), goldChunks)), /too short/);
+// Fix 3: an ambiguous quote matching several paragraphs is rejected — this is also what
+// stops a genuine quote being misattributed to an opening summary.
+{
+  const dup = "The Attorney General of Canada appeals the decision below.";
+  assert.match(String(verifyGoldLabel(gold({ movingPartyQuote: dup }), [p(1, dup), p(7, dup)])), /matches 2 paragraphs/);
+}
+// Fix 2: gold closed values are validated, so a mis-cased `granted` cannot silently
+// invert the expected polarity.
+assert.match(String(verifyGoldLabel(gold({ granted: "Partly" as any }), goldChunks)), /not one of/);
+assert.match(String(verifyGoldLabel(gold({ granted: "allowed" as any }), goldChunks)), /not one of/);
+assert.match(String(verifyGoldLabel(gold({ winType: "PARTY_WIN" as any }), goldChunks)), /not a recognized WinType/);
+// A legal `partly` gold record still passes.
+assert.equal(verifyGoldLabel(gold({ granted: "partly", winType: "mixed" }), goldChunks), null);
+
 // --- classifyOutcome with injected models (merge wiring, end to end) ---
 // Async work lives in an IIFE: this file compiles as CJS, so there is no top-level await.
 (async () => {
