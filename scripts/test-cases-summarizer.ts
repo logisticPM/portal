@@ -27,7 +27,7 @@ import assert from "node:assert/strict";
   assert.equal(second, "counted-output");
   assert.equal(calls, 1, "second call must be a cache hit, not a model call");
 
-  const { parseClaims, verifyClaims, normWs } = await import("../src/lib/cases/ingest/summarizer");
+  const { parseClaims, verifyClaims, normWs, longestCommonSubstringLen } = await import("../src/lib/cases/ingest/summarizer");
 
   // --- parser ---
   const good = `Here is the summary:\n{"claims":[{"text":"T","quote":"Q","paragraph":12}]}\nDone.`;
@@ -286,6 +286,58 @@ import assert from "node:assert/strict";
   const back = reassembleCase(items[0], items.slice(1));
   assert.deepEqual(back.summary, withMeta.summary);
   assert.deepEqual(back.summaryMeta, withMeta.summaryMeta);
+
+  // --- longestCommonSubstringLen ---
+  assert.equal(longestCommonSubstringLen("abcdef", "abcdef"), 6, "identical");
+  assert.equal(longestCommonSubstringLen("abc", "xyz"), 0, "disjoint");
+  assert.equal(longestCommonSubstringLen("xxhello worldyy", "zzhello worldww"), 11, "shared middle");
+  assert.equal(longestCommonSubstringLen("", "abc"), 0, "empty");
+
+  // --- verifyClaims diagnostics: categorise WITHOUT changing what survives ---
+  const diagChunks = [
+    { paragraph: "para-1", text: "The Crown owed a fiduciary duty to the Nation in these circumstances." },
+    { paragraph: "para-2", text: "Compensation was assessed at fair market value as of the date of taking." },
+  ];
+  const diag = verifyClaims([
+    { text: "", quote: "The Crown owed a fiduciary duty to the Nation", paragraph: "para-1" },
+    { text: "short quote", quote: "too short", paragraph: "para-1" },
+    { text: "near miss", quote: "The Crown owed a fiduciary duty to the People in these circumstances.", paragraph: "para-1" },
+    { text: "paraphrase", quote: "The government had to act in the best interests of the community here.", paragraph: "para-2" },
+    { text: "bad para id", quote: "Some quote that is long enough to pass the length rule", paragraph: "para-999" },
+  ], diagChunks, "https://x/y");
+
+  assert.equal(diag.anchors.length, 0, "none of these verify");
+  assert.equal(diag.drops.length, 5, "one diagnostic per dropped claim");
+  assert.equal(diag.drops[0].reason, "no_text");
+  assert.equal(diag.drops[1].reason, "quote_too_short");
+
+  const nearMiss = diag.drops[2];
+  assert.equal(nearMiss.reason, "no_span");
+  assert.equal(nearMiss.citedParaFound, true);
+  // A single substitution mid-quote splits the LCS, so the metric returns the longer
+  // surviving fragment — about half the quote. 0.5 is therefore the worst case for a
+  // one-word garble, not an arbitrary floor. (Measured: 0.57 here vs 0.13 for the
+  // paraphrase below — the separation is what matters, and it is ~4x.)
+  assert.ok(nearMiss.bestOverlap >= 0.5, `near miss has high overlap, got ${nearMiss.bestOverlap.toFixed(2)}`);
+
+  const paraphrase = diag.drops[3];
+  assert.equal(paraphrase.reason, "no_span");
+  assert.equal(paraphrase.citedParaFound, true);
+  assert.ok(paraphrase.bestOverlap < nearMiss.bestOverlap, "a paraphrase overlaps less than a near miss");
+
+  assert.equal(diag.drops[4].citedParaFound, false, "para-999 does not resolve");
+  assert.equal(diag.drops[4].bestOverlap, 0, "no cited paragraph → overlap 0");
+
+  // --- REGRESSION: diagnostics must not change accepted claims or the dropped count ---
+  const regChunks = [{ paragraph: "para-1", text: "The Nation established Aboriginal title over the claim area." }];
+  const regClaims = [
+    { text: "title established", quote: "The Nation established Aboriginal title", paragraph: "para-1" },
+    { text: "nope", quote: "a quote that simply is not present anywhere", paragraph: "para-1" },
+  ];
+  const reg = verifyClaims(regClaims, regChunks, "https://x/y");
+  assert.equal(reg.anchors.length, 1, "the verifiable claim still survives");
+  assert.equal(reg.anchors[0].sourceParagraph, "para-1");
+  assert.equal(reg.dropped, 1, "dropped count unchanged");
 
   console.log("✅ test-cases-summarizer passed");
 })();
