@@ -186,5 +186,48 @@ import assert from "node:assert/strict";
   for (const q of adviceSeeking) assert.ok(isAdviceSeeking(q), `should flag advice: ${q}`);
   for (const q of informational) assert.ok(!isAdviceSeeking(q), `should NOT flag info: ${q}`);
 
+  // --- verifyBriefing: principles may only cite precedents the reader can SEE ---
+  // A precedent dropped for an empty `establishes` must not leave a principle citing it.
+  const depFilterIds = ["a", "b", "c"];
+  const droppedEstablishes = verifyBriefing({
+    background: "bg",
+    precedents: [
+      { caseId: "a", establishes: "A holds x", relevance: "matters" },
+      { caseId: "b", establishes: "B holds y", relevance: "matters" },
+      { caseId: "c", establishes: "   ", relevance: "matters" }, // dropped: empty establishes
+    ],
+    principles: [
+      { text: "principle citing a surviving precedent", caseIds: ["a"] },
+      { text: "principle citing the dropped precedent only", caseIds: ["c"] },
+      { text: "principle citing both", caseIds: ["a", "c"] },
+    ],
+    considerations: "cons",
+  }, depFilterIds);
+  assert.ok(droppedEstablishes, "2 surviving precedents → publishes");
+  assert.deepEqual(droppedEstablishes!.body.precedents.map((p) => p.caseId), ["a", "b"]);
+  assert.equal(droppedEstablishes!.body.principles.length, 2, "the c-only principle is dropped entirely");
+  assert.deepEqual(droppedEstablishes!.body.principles[0].caseIds, ["a"]);
+  assert.deepEqual(droppedEstablishes!.body.principles[1].caseIds, ["a"], "c is stripped from the mixed principle");
+
+  // A precedent dropped by the 6-entry cap must also not be citable.
+  const sevenIds = ["p1", "p2", "p3", "p4", "p5", "p6", "p7"];
+  const capped = verifyBriefing({
+    background: "bg",
+    precedents: sevenIds.map((id) => ({ caseId: id, establishes: `${id} holds`, relevance: "matters" })),
+    principles: [{ text: "cites the capped-out 7th", caseIds: ["p7"] }],
+    considerations: "cons",
+  }, sevenIds);
+  assert.ok(capped, "publishes");
+  assert.equal(capped!.body.precedents.length, 6, "capped at 6");
+  assert.equal(capped!.body.principles.length, 0, "a principle citing only the capped-out precedent is dropped");
+
+  // Regression: the <2 surviving precedents rule still refuses.
+  assert.equal(verifyBriefing({
+    background: "bg",
+    precedents: [{ caseId: "a", establishes: "A holds", relevance: "matters" }],
+    principles: [{ text: "p", caseIds: ["a"] }],
+    considerations: "cons",
+  }, ["a"]), null, "<2 precedents → refuse");
+
   console.log("✅ test-cases-briefs passed");
 })().catch((e) => { console.error(e); process.exit(1); });

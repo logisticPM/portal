@@ -85,8 +85,14 @@ export function verifyBriefing(
       return true;
     })
     .slice(0, 6);
+  // A principle may only cite precedents the reader can actually SEE. `valid` (the retrieved set)
+  // is the wrong gate: a precedent can be dropped for an empty establishes/relevance, as a
+  // duplicate, or by the 6-entry cap, and a principle citing it would render as a dangling
+  // reference to a case with no entry on the page. Computed AFTER the cap, so cap-trimmed
+  // precedents are excluded too. This can only ever tighten output.
+  const survivingIds = new Set(precedents.map((p) => p.caseId));
   const principles = body.principles
-    .map((pr) => ({ text: pr.text.trim(), caseIds: pr.caseIds.map((id) => id.trim()).filter((id) => valid.has(id)) }))
+    .map((pr) => ({ text: pr.text.trim(), caseIds: pr.caseIds.map((id) => id.trim()).filter((id) => survivingIds.has(id)) }))
     .filter((pr) => pr.text && pr.caseIds.length > 0)
     .slice(0, 4);
   const dropped = (body.precedents.length - precedents.length) + (body.principles.length - principles.length);

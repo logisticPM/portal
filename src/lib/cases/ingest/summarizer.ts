@@ -14,6 +14,7 @@ export interface SummarizeResult {
   summary?: CitationAnchored;
   meta?: SummaryMeta;
   claimsDropped: number; // claims returned by the model but not kept (failed verification or past the 6 cap)
+  drops?: ClaimDrop[];
 }
 
 // Fold typographic punctuation the model may ASCII-fy when emitting JSON.
@@ -56,17 +57,70 @@ export function parseClaims(raw: string): RawClaim[] | null {
 // points at the first chunk of the pair). A quote found nowhere is dropped —
 // fabrications still cannot pass. Paraphrase fidelity is human-spot-checked
 // (spec Q3).
+export type ClaimDropReason = "no_text" | "quote_too_short" | "no_span" | "over_cap";
+
+// Why a claim was dropped. Diagnostics only — nothing here changes what survives.
+//
+// `bestOverlap` is scored against the BEST-matching chunk, not the cited one. That is
+// deliberate and was got wrong once: locate() already searches every chunk and every
+// adjacent pair before giving up, precisely because models misattribute paragraph ids
+// about half the time (see the note above verifyClaims). Scoring only the cited
+// paragraph therefore marked a recoverable garble as a paraphrase whenever the id was
+// wrong too — biasing the one number this instrument exists to produce toward
+// "not worth building".
+//
+// `overlapMeasured` distinguishes "we did not compute this" from "we computed zero".
+// Treating the first as the second inflates the correctly-dropped bucket with claims
+// that were never examined.
+export interface ClaimDrop {
+  reason: ClaimDropReason;
+  quoteLen: number;
+  citedPara: string;
+  citedParaFound: boolean;
+  overlapMeasured: boolean;
+  bestOverlap: number;
+  bestPara: string | null;
+}
+
+// Scanning every chunk costs ~65ms per drop on a large case — trivial for a batch, but
+// not for the interactive case-QA path, which also calls verifyClaims. Off by default;
+// summarizeCase (batch-only) turns it on.
+export interface VerifyClaimsOpts { measureOverlap?: boolean }
+
+// Longest common contiguous substring length. Two-row DP: O(n·m) time, O(min(n,m)) space. Only
+// ever runs on the drop path, on a quote of at most a few hundred chars against a ~2KB chunk.
+export function longestCommonSubstringLen(a: string, b: string): number {
+  if (!a || !b) return 0;
+  const [s, t] = a.length <= b.length ? [a, b] : [b, a];
+  let prev = new Uint32Array(s.length + 1);
+  let cur = new Uint32Array(s.length + 1);
+  let best = 0;
+  for (let j = 1; j <= t.length; j++) {
+    for (let i = 1; i <= s.length; i++) {
+      cur[i] = s[i - 1] === t[j - 1] ? prev[i - 1] + 1 : 0;
+      if (cur[i] > best) best = cur[i];
+    }
+    const swap = prev; prev = cur; cur = swap;
+    cur.fill(0);
+  }
+  return best;
+}
+
 export function verifyClaims(
-  claims: RawClaim[], chunks: CaseChunk[], sourceUrl: string,
-): { anchors: CitationAnchor[]; dropped: number } {
+  claims: RawClaim[], chunks: CaseChunk[], sourceUrl: string, opts?: VerifyClaimsOpts,
+): { anchors: CitationAnchor[]; dropped: number; drops: ClaimDrop[] } {
   // Preconditions: chunk ids are unique (chunkText assigns para-${i+1}; duplicates
   // would first-win under find), and ARRAY ORDER = CONTIGUOUS DOCUMENT ORDER
   // (chunkText splits sequentially, reassembleCase sorts by CHUNK#%04d SK) — the
   // adjacent-pair window's safety argument depends on it: joining chunks i,i+1
   // reconstructs real judgment text; joining non-adjacent chunks would not.
   const norm = chunks.map((ch) => ({ para: String(ch.paragraph), text: normWs(ch.text) }));
+  // Shared so `locate` and the drop diagnostics always agree on what "the cited
+  // paragraph" means — the bare-"N" acceptance below is easy to widen in one place
+  // and forget in the other.
+  const findCited = (citedPara: string) => norm.find((n) => n.para === citedPara || n.para === `para-${citedPara}`);
   const locate = (quote: string, citedPara: string): string | null => {
-    const cited = norm.find((n) => n.para === citedPara || n.para === `para-${citedPara}`);
+    const cited = findCited(citedPara);
     if (cited && cited.text.includes(quote)) return cited.para;
     const holder = norm.find((n) => n.text.includes(quote));
     if (holder) return holder.para;
@@ -75,16 +129,39 @@ export function verifyClaims(
     }
     return null;
   };
+  const measure = opts?.measureOverlap === true;
   const anchors: CitationAnchor[] = [];
+  const drops: ClaimDrop[] = [];
+  const record = (reason: ClaimDropReason, quote: string, citedPara: string) => {
+    const canMeasure = measure && reason === "no_span" && quote.length > 0;
+    let bestOverlap = 0;
+    let bestPara: string | null = null;
+    if (canMeasure) {
+      for (const n of norm) {
+        const o = longestCommonSubstringLen(quote, n.text) / quote.length;
+        if (o > bestOverlap) { bestOverlap = o; bestPara = n.para; }
+      }
+    }
+    drops.push({
+      reason, quoteLen: quote.length, citedPara, citedParaFound: !!findCited(citedPara),
+      overlapMeasured: canMeasure, bestOverlap, bestPara,
+    });
+  };
   for (const cl of claims) {
-    if (anchors.length >= 6) break; // keep the first 6 in model output order
     const quote = normWs(cl.quote ?? "");
     const text = (cl.text ?? "").trim();
-    if (!text || quote.length < 15) continue;
-    const para = locate(quote, String(cl.paragraph ?? ""));
+    const citedPara = String(cl.paragraph ?? "");
+    // Was `break`. Recording the remainder instead makes `drops.length === dropped` an
+    // invariant, so the histogram's population matches the dropped count printed beside
+    // it. Behaviour is unchanged: once anchors hits 6 no later claim could anchor anyway.
+    if (anchors.length >= 6) { record("over_cap", quote, citedPara); continue; }
+    if (!text) { record("no_text", quote, citedPara); continue; }
+    if (quote.length < 15) { record("quote_too_short", quote, citedPara); continue; }
+    const para = locate(quote, citedPara);
     if (para !== null) anchors.push({ text, sourceParagraph: para, sourceUrl });
+    else record("no_span", quote, citedPara);
   }
-  return { anchors, dropped: claims.length - anchors.length };
+  return { anchors, dropped: claims.length - anchors.length, drops };
 }
 
 const ECON_RE = /compensation|damages|royalt|revenue|settlement|\$/i;
@@ -155,12 +232,13 @@ export async function summarizeCase(c: LegalCase, model: LlmModel): Promise<Summ
   if (!claims) claims = parseClaims(await model.call(prompt + RETRY_SUFFIX));
   if (!claims) return { status: "failed", claimsDropped: 0 };
 
-  const { anchors, dropped } = verifyClaims(claims, c.chunks, c.provenance.sourceUrl);
-  if (anchors.length < 2) return { status: "failed", claimsDropped: dropped };
+  const { anchors, dropped, drops } = verifyClaims(claims, c.chunks, c.provenance.sourceUrl, { measureOverlap: true });
+  if (anchors.length < 2) return { status: "failed", claimsDropped: dropped, drops };
   return {
     status: "generated",
     summary: { claims: anchors },
     meta: { method: "llm", model: model.id, generatedAt: new Date().toISOString(), claimsDropped: dropped },
     claimsDropped: dropped,
+    drops,
   };
 }
