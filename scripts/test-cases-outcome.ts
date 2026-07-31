@@ -5,6 +5,7 @@ import {
   dispositionWindow, dispositionSentence, outcomePrompt, parseOutcome,
 } from "../src/lib/cases/ingest/outcome-rubric";
 import type { LlmModel } from "../src/lib/cases/ingest/llm";
+import { textFromConverse, DUAL_LLM_MAX_TOKENS } from "../src/lib/cases/ingest/llm";
 import { mergeOutcome, classifyOutcome } from "../src/lib/cases/ingest/outcome-labeler";
 
 const p = (n: number, text: string): CaseChunk => ({ paragraph: `para-${n}`, text });
@@ -98,6 +99,23 @@ assert.deepEqual(parseOutcome("not json at all"),
   { winType: "unclassified", outcomeType: "unclassified" });
 assert.ok(ALL_OUTCOMETYPES.includes("procedural"));
 assert.ok(WINTYPE_RUBRIC.party_win.length > 0);
+
+// --- textFromConverse ---
+// Normal: join text parts, skip structured reasoning blocks.
+assert.equal(
+  textFromConverse("m", [{ reasoningContent: { reasoningText: { text: "thinking..." } } }, { text: '{"a":1}' }], "end_turn", 2048),
+  '{"a":1}', "reasoning blocks are skipped, text is kept");
+assert.equal(textFromConverse("m", [{ text: "a" }, { text: "b" }], "end_turn", 2048), "ab");
+// Empty but a clean stop is a legitimate empty answer, not an error.
+assert.equal(textFromConverse("m", [], "end_turn", 2048), "");
+// THE POINT: a model that spent its whole budget reasoning must NOT look like abstention.
+assert.throws(
+  () => textFromConverse("kimi", [{ reasoningContent: { reasoningText: { text: "..." } } }], "max_tokens", 256),
+  /truncated/,
+  "empty text + max_tokens must throw, or truncation is indistinguishable from abstention");
+// Truncated but text present: usable, no throw.
+assert.equal(textFromConverse("m", [{ text: '{"a":1}' }], "max_tokens", 256), '{"a":1}');
+assert.ok(DUAL_LLM_MAX_TOKENS >= 2048, "the reasoning-first prompt needs room");
 
 // --- mergeOutcome ---
 {

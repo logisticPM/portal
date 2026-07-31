@@ -10,6 +10,11 @@ import { ALL_THEMES } from "./rubric";
 
 const CACHE = path.join(process.cwd(), "scripts", ".cache", "llm");
 
+// The reasoning-first outcome prompt makes every model emit a derivation before its
+// label, and thinking models spend hundreds of tokens before any text at all. 256
+// (the old default) starves them.
+export const DUAL_LLM_MAX_TOKENS = 2048;
+
 export interface LlmModel { id: string; call: (prompt: string) => Promise<string>; }
 
 export interface CallOpts { maxTokens?: number }
@@ -19,7 +24,9 @@ export interface CallOpts { maxTokens?: number }
 export function configuredModels(): LlmModel[] {
   const ids = (process.env.LABEL_MODELS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (ids.length < 2) throw new Error("Set LABEL_MODELS to two comma-separated model ids (different families).");
-  return ids.map((id) => modelFromId(id));
+  // CallOpts are not part of the cache key, so raising this does NOT invalidate any
+  // cached response.
+  return ids.map((id) => modelFromId(id, { maxTokens: DUAL_LLM_MAX_TOKENS }));
 }
 
 // Build a single LlmModel from a model id, baking call options into the closure
@@ -46,6 +53,27 @@ function stubLabelResponse(modelId: string, prompt: string): string {
   return JSON.stringify(picked);
 }
 
+// Converse response -> text. Structured `reasoningContent` blocks are skipped; only
+// text parts are joined.
+//
+// A model that spends its entire budget on reasoning returns NO text part and
+// stopReason "max_tokens". Returning "" there would be parsed downstream as
+// "unclassified" — making a truncated model indistinguishable from one that
+// scrupulously abstained. This pipeline's whole method rests on abstention meaning
+// something, so truncation must be an error, not a quiet empty string.
+export function textFromConverse(
+  modelId: string, parts: unknown[], stopReason: string | undefined, maxTokens: number,
+): string {
+  const text = parts
+    .map((p) => (p && typeof p === "object" && "text" in p && typeof (p as { text?: unknown }).text === "string"
+      ? (p as { text: string }).text : ""))
+    .join("");
+  if (!text.trim() && stopReason === "max_tokens") {
+    throw new Error(`${modelId}: response truncated at maxTokens=${maxTokens} with no text part — raise maxTokens`);
+  }
+  return text;
+}
+
 // Bedrock Converse API — uniform request/response across model families (Claude,
 // Nova, Llama, …), which is what LABEL_MODELS' two-different-families requirement
 // needs (no per-family body formats). Lazy import keeps the stub path offline.
@@ -57,13 +85,13 @@ function bedrockConverse() {
       const client = new m.BedrockRuntimeClient({ region });
       return {
         send: async (modelId: string, prompt: string, opts?: CallOpts) => {
+          const maxTokens = opts?.maxTokens ?? 256;
           const res = await client.send(new m.ConverseCommand({
             modelId,
             messages: [{ role: "user", content: [{ text: prompt }] }],
-            inferenceConfig: { temperature: 0, maxTokens: opts?.maxTokens ?? 256 },
+            inferenceConfig: { temperature: 0, maxTokens },
           }));
-          const parts = res.output?.message?.content ?? [];
-          return parts.map((p) => ("text" in p && p.text ? p.text : "")).join("");
+          return textFromConverse(modelId, res.output?.message?.content ?? [], res.stopReason, maxTokens);
         },
       };
     });
