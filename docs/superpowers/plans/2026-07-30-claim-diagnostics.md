@@ -323,11 +323,22 @@ Immediately after the existing `console.log(\`   claims kept ${kept} · dropped 
     const noSpan = allDrops.filter((d) => d.reason === "no_span");
     const bucket = (lo: number, hi: number) => noSpan.filter((d) => d.bestOverlap >= lo && d.bestOverlap < hi).length;
     console.log(`   drop diagnostics: no_span ${by("no_span")} · quote_too_short ${by("quote_too_short")} · no_text ${by("no_text")} · cited-para-not-found ${allDrops.filter((d) => !d.citedParaFound).length}`);
-    // The >=0.8 bucket IS the population span alignment could recover. If it is a few percent,
+    // The >=0.5 bucket IS the population span alignment could recover. If it is a few percent,
     // that feature is not worth building — and we will have said so with a number from our own
     // corpus rather than from a paper about a different pipeline.
-    console.log(`   no_span overlap: >=0.8 → ${noSpan.filter((d) => d.bestOverlap >= 0.8).length} · 0.4–0.8 → ${bucket(0.4, 0.8)} · <0.4 → ${bucket(0, 0.4)}`);
-    const near = noSpan.filter((d) => d.bestOverlap >= 0.8).slice(0, 5)
+    //
+    // The boundaries follow from how LCS behaves, not from round numbers. One substitution
+    // mid-quote splits the quote, so the metric returns the longer surviving fragment — about
+    // HALF. That makes ~0.5 the worst case for a single-word garble, and 0.25 roughly the
+    // two-edit case. A measured genuine paraphrase sits near 0.13.
+    //   >=0.5  at most one edit, or edits near the ends — near-verbatim, recoverable
+    //   0.25–0.5  several edits — ambiguous
+    //   <0.25  no contiguous span survives — a real paraphrase, correctly dropped
+    // An earlier draft of this plan used 0.8 as the recoverable threshold. That was wrong: it
+    // would have caught only quotes garbled at the very edges and reported the recoverable
+    // population as near-zero regardless of the truth.
+    console.log(`   no_span overlap: >=0.5 → ${noSpan.filter((d) => d.bestOverlap >= 0.5).length} · 0.25–0.5 → ${bucket(0.25, 0.5)} · <0.25 → ${bucket(0, 0.25)}`);
+    const near = noSpan.filter((d) => d.bestOverlap >= 0.5).slice(0, 5)
       .map((d) => `${d.citedPara}(${d.bestOverlap.toFixed(2)})`).join(" · ");
     if (near) console.log(`   near-miss samples: ${near}`);
   }

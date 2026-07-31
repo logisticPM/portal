@@ -96,9 +96,18 @@ export function verifyClaims(
 
 | Pattern | Reading |
 |---|---|
-| `citedParaFound` true and **bestOverlap high** (≳0.8) | Right paragraph, garbled transcription — **span alignment would recover these** |
-| `citedParaFound` true and **bestOverlap low** (≲0.4) | Genuine paraphrase — there is no span to align to; the claim was correctly discarded |
+| `citedParaFound` true and **bestOverlap high** (≳0.5) | Right paragraph, garbled transcription — **span alignment would recover these** |
+| `citedParaFound` true and **bestOverlap low** (≲0.25) | Genuine paraphrase — there is no span to align to; the claim was correctly discarded |
 | `citedParaFound` false | The model invented a paragraph id — a separate failure worth counting |
+
+**Where those thresholds come from** (corrected 2026-07-31, after measuring): this draft originally
+said ≳0.8 / ≲0.4, chosen as round numbers rather than derived. That was wrong. A single substitution
+in the *middle* of a quote leaves no contiguous match spanning the edit, so LCS returns the longer
+surviving fragment — about **half** the quote. A one-word garble therefore cannot reach 0.8 unless the
+edit sits near an end, and an 0.8 threshold would have reported the recoverable population as
+near-zero no matter what the truth was — defeating the only purpose this instrument has. Measured on
+a realistic fixture: one-word substitution **0.57**, genuine paraphrase **0.13**. The separation is
+~4×, which is the signal; the boundary belongs at 0.5, with ~0.25 marking the two-edit case.
 
 It is computed **only against the cited paragraph**, not every chunk. That is deliberate on two
 grounds: it is the exact hypothesis under test ("right document, wrong span"), and scanning all
@@ -118,11 +127,11 @@ Aggregate `drops` across the batch and print, after the existing summary lines:
 
 ```
    drop diagnostics: no_span 402 · quote_too_short 88 · no_text 12 · cited-para-not-found 31
-   no_span overlap: ≥0.8 → 24 · 0.4–0.8 → 61 · <0.4 → 317
-   near-miss samples (overlap ≥0.8): 2010-scc-17 para-14 (0.93) · 2004-scc-73 para-8 (0.87) · …
+   no_span overlap: ≥0.5 → 24 · 0.25–0.5 → 61 · <0.25 → 317
+   near-miss samples (overlap ≥0.5): 2010-scc-17 para-14 (0.78) · 2004-scc-73 para-8 (0.61) · …
 ```
 
-The `≥0.8` bucket **is the recoverable population**. If it is a few percent, span alignment is not
+The `≥0.5` bucket **is the recoverable population**. If it is a few percent, span alignment is not
 worth building and we will have said so with a number. If it is large, the follow-up has both a
 justification and a threshold that came from our own data rather than from a paper about a different
 pipeline.
