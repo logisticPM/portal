@@ -4,6 +4,8 @@ import {
   OUTCOME_RUBRIC_VERSION, WINTYPE_RUBRIC, ALL_WINTYPES, ALL_OUTCOMETYPES,
   dispositionWindow, dispositionSentence, outcomePrompt, parseOutcome,
 } from "../src/lib/cases/ingest/outcome-rubric";
+import type { LlmModel } from "../src/lib/cases/ingest/llm";
+import { mergeOutcome, classifyOutcome } from "../src/lib/cases/ingest/outcome-labeler";
 
 const p = (n: number, text: string): CaseChunk => ({ paragraph: `para-${n}`, text });
 const long = (n: number, fill: string) => p(n, fill.repeat(400)); // ~2400 chars each
@@ -81,4 +83,66 @@ assert.deepEqual(parseOutcome("not json at all"),
 assert.ok(ALL_OUTCOMETYPES.includes("procedural"));
 assert.ok(WINTYPE_RUBRIC.party_win.length > 0);
 
-console.log("✅ test-cases-outcome (rubric) passed");
+// --- mergeOutcome ---
+{
+  const r = mergeOutcome(
+    { winType: "party_win", outcomeType: "remand" },
+    { winType: "party_win", outcomeType: "remand" }, ["m1", "m2"]);
+  assert.equal(r.winType, "party_win");
+  assert.equal(r.outcomeType, "remand");
+  assert.equal(r.outcomeMeta.agreement, "full");
+  assert.equal(r.outcomeMeta.confidence, "high");
+  assert.equal(r.outcomeMeta.needsReview, false);
+  assert.equal(r.outcomeMeta.method, "dual_llm");
+  assert.deepEqual(r.outcomeMeta.models, ["m1", "m2"]);
+  assert.equal(r.outcomeMeta.rubricVersion, OUTCOME_RUBRIC_VERSION);
+}
+// Disagreement on winType abstains and flags for review.
+{
+  const r = mergeOutcome(
+    { winType: "party_win", outcomeType: "remand" },
+    { winType: "loss", outcomeType: "remand" }, ["m1", "m2"]);
+  assert.equal(r.winType, "unclassified", "disagreement must abstain, never pick a side");
+  assert.equal(r.outcomeType, "remand", "the agreeing field survives independently");
+  assert.equal(r.outcomeMeta.agreement, "partial");
+  assert.equal(r.outcomeMeta.needsReview, true);
+  assert.equal(r.outcomeMeta.confidence, "low");
+}
+// Neither field agrees.
+{
+  const r = mergeOutcome(
+    { winType: "party_win", outcomeType: "remand" },
+    { winType: "loss", outcomeType: "precedent" }, ["m1", "m2"]);
+  assert.equal(r.outcomeMeta.agreement, "none");
+  assert.equal(r.winType, "unclassified");
+  assert.equal(r.outcomeType, "unclassified");
+}
+// THE EASY ONE TO GET WRONG: both models answering "unclassified" AGREE,
+// but that is not a confident classification.
+{
+  const r = mergeOutcome(
+    { winType: "unclassified", outcomeType: "procedural" },
+    { winType: "unclassified", outcomeType: "procedural" }, ["m1", "m2"]);
+  assert.equal(r.outcomeMeta.agreement, "full");
+  assert.equal(r.outcomeMeta.confidence, "low", "agreed-unclassified is agreement WITHOUT confidence");
+  assert.equal(r.outcomeMeta.needsReview, false, "the models did not disagree, so no review is owed");
+}
+
+// --- classifyOutcome with injected models (merge wiring, end to end) ---
+// Async work lives in an IIFE: this file compiles as CJS, so there is no top-level await.
+(async () => {
+  const mk = (id: string, w: string): LlmModel =>
+    ({ id, call: async () => JSON.stringify({ winType: w, outcomeType: "precedent" }) });
+  const chunks = [p(1, "The appeal is allowed.")];
+  const agree = await classifyOutcome("I v. J", chunks,
+    [mk("fake:agree-a", "party_win"), mk("fake:agree-b", "party_win")]);
+  assert.equal(agree.winType, "party_win");
+  assert.equal(agree.outcomeMeta.confidence, "high");
+
+  const clash = await classifyOutcome("K v. L", chunks,
+    [mk("fake:clash-a", "party_win"), mk("fake:clash-b", "loss")]);
+  assert.equal(clash.winType, "unclassified");
+  assert.equal(clash.outcomeMeta.needsReview, true);
+
+  console.log("✅ test-cases-outcome passed");
+})();

@@ -26,6 +26,17 @@ export interface SummaryMeta {
   claimsDropped?: number;
 }
 
+// Provenance for the classified outcome. Separate from ThemeLabelMeta (rather than
+// reused) because it pins the rubric version and the two will drift.
+export interface OutcomeMeta {
+  method: "curated" | "dual_llm";
+  models?: string[];
+  agreement?: "full" | "partial" | "none";
+  confidence: "high" | "low";
+  needsReview: boolean;
+  rubricVersion?: string;
+}
+
 export interface CaseOutcome {
   outcomeType: OutcomeType;
   winType: WinType;
@@ -94,6 +105,7 @@ export interface LegalCase {
   nations: string[];
   themes: Theme[];
   outcome: CaseOutcome;
+  outcomeMeta?: OutcomeMeta;
   economic?: EconomicDimension;
   valueRealization?: ValueRealization;
   summary?: CitationAnchored;
