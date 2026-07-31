@@ -76,19 +76,23 @@ The `dropped` count keeps its existing meaning (cap-trims and duplicates count),
 changes** — the same claims survive, with the same anchors.
 
 ```ts
-export type ClaimDropReason = "no_text" | "quote_too_short" | "no_span";
+export type ClaimDropReason = "no_text" | "quote_too_short" | "no_span" | "over_cap";
 
 export interface ClaimDrop {
   reason: ClaimDropReason;
-  quoteLen: number;      // normalized quote length
-  citedPara: string;     // what the model claimed, verbatim from its output
+  quoteLen: number;        // normalized quote length
+  citedPara: string;       // what the model claimed, verbatim from its output
   citedParaFound: boolean; // did that paragraph id resolve to a real chunk?
-  bestOverlap: number;   // no_span only: longest common substring with the CITED paragraph,
-                         // as a fraction of the quote length. 0 when the paragraph didn't resolve.
+  overlapMeasured: boolean; // false = not computed. NOT the same as an overlap of zero.
+  bestOverlap: number;     // no_span only: longest common substring against the BEST-matching
+                           // chunk, as a fraction of quote length.
+  bestPara: string | null; // which chunk produced bestOverlap
 }
 
+export interface VerifyClaimsOpts { measureOverlap?: boolean }
+
 export function verifyClaims(
-  claims: RawClaim[], chunks: CaseChunk[], sourceUrl: string,
+  claims: RawClaim[], chunks: CaseChunk[], sourceUrl: string, opts?: VerifyClaimsOpts,
 ): { anchors: CitationAnchor[]; dropped: number; drops: ClaimDrop[] };
 ```
 
@@ -109,10 +113,34 @@ near-zero no matter what the truth was — defeating the only purpose this instr
 a realistic fixture: one-word substitution **0.57**, genuine paraphrase **0.13**. The separation is
 ~4×, which is the signal; the boundary belongs at 0.5, with ~0.25 marking the two-edit case.
 
-It is computed **only against the cited paragraph**, not every chunk. That is deliberate on two
-grounds: it is the exact hypothesis under test ("right document, wrong span"), and scanning all
-chunks per dropped claim would be O(chunks × quote × para) per claim, which is too slow for a
-559-case batch.
+It is computed against the **best-matching chunk**, not the cited one. *(Corrected 2026-07-31; this
+draft originally specified cited-only, and that was wrong.)*
+
+The reasoning for cited-only was that it is "the exact hypothesis under test — right document, wrong
+span", plus a performance concern about scanning every chunk. Both fail:
+
+- **It contradicts a measured finding recorded 60 lines above `verifyClaims` in the same file:**
+  *"models frequently misattribute paragraph ids (measured 2026-07-05: strict cited-paragraph
+  matching dropped half of all honest claims)."* That is precisely why `locate()` searches the cited
+  chunk, then every chunk, then adjacent pairs. A claim only reaches the `no_span` drop path after
+  all of that fails — so a genuinely recoverable garble whose id was *also* wrong scored ~0.12
+  instead of ~0.57 and was filed as a paraphrase. On the order of **half** the recoverable
+  population, misfiled, entirely in the direction of "don't build it".
+- **The performance concern was wrong by orders of magnitude of significance.** Measured: ~65 ms per
+  drop on a large case, so ~37 seconds across a batch that makes 559 LLM calls.
+
+The scan is opt-in (`measureOverlap`) because `verifyClaims` is also on the interactive case-QA
+path; `summarizeCase` — batch-only — enables it. `bestPara` records which chunk won, so a
+`bestPara !== citedPara` count also quantifies the misattribution rate directly.
+
+`overlapMeasured` exists for the same class of reason: an unmeasured drop reporting `bestOverlap: 0`
+is indistinguishable from a measured zero, and would pad the "correctly dropped" bucket with claims
+never examined. The histogram buckets only measured drops.
+
+`over_cap` exists so that **`drops.length === dropped`** is an invariant. Claims past the 6-anchor
+cap were previously counted in `dropped` but never recorded, so the histogram silently described a
+smaller population than the total printed beside it — and any "recoverable rate" computed from it
+used a denominator containing claims the instrument never looked at.
 
 Implementation: a pure `longestCommonSubstringLen(a, b)` using the standard two-row DP (O(n·m) time,
 O(min(n,m)) space). It runs only on the drop path, on a quote of at most a few hundred characters
