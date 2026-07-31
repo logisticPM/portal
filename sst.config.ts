@@ -190,16 +190,22 @@ export default $config({
     ];
 
     // ---------------------------------------------------------------------
-    // Observability (ca only) — docs/superpowers/specs/2026-07-28-observability-monitoring-design.md
+    // Observability (ca + production) — docs/superpowers/specs/2026-07-28-observability-monitoring-design.md
     //
     // Closes the PUSH side of failure visibility (#193 opened the pull side).
-    // ca is the target: it runs the real textlayer engine and is the stage the
-    // Textract SCP outage bit. Raw aws.* Pulumi resources because SST v3
-    // Functions expose neither alarms nor async on-failure destinations
-    // first-class. Log RETENTION is intentionally NOT here — SST v3 already
-    // defaults every Lambda log group to 30 days (verified live 2026-07-28).
+    // Two stages run REAL extraction and so get the full stack: `ca` (the real
+    // textlayer engine, and the stage the Textract SCP outage bit) and
+    // `production` (the live, client-facing stage running real BDA — it was
+    // previously blind, which is backwards for the demo stage). Raw aws.* Pulumi
+    // resources because SST v3 Functions expose neither alarms nor async
+    // on-failure destinations first-class. Log RETENTION is intentionally NOT
+    // here — SST v3 already defaults every Lambda log group to 30 days
+    // (verified live 2026-07-28). Every resource below is stage-scoped by
+    // SST/Pulumi, so ca and production get independent copies (no collision).
     // ---------------------------------------------------------------------
     const isCa = $app.stage === "ca";
+    // Gate for the observability stack: the stages that run real extraction.
+    const observe = isCa || isProd;
 
     // Dead-letter capture for the fire-and-forget workers. If a worker dies
     // BEFORE writing a terminal job status, the job is stranded EXTRACTING and
@@ -207,22 +213,23 @@ export default $config({
     // {jobId,fileName,sourceS3Key} for inspection or a #194 hand-retry.
     // Capture-only — no auto-redrive (the SCP failures were deterministic and
     // would loop). Created before the workers so its ARN can be granted.
-    const extractDlq = isCa
+    const extractDlq = observe
       ? new aws.sqs.Queue("ExtractDLQ", { messageRetentionSeconds: 60 * 60 * 24 * 14 }) // 14 days (SQS max)
       : undefined;
     // Async on-failure destinations are delivered using the FUNCTION ROLE, not
     // the Lambda service principal, so the workers need sqs:SendMessage.
     const dlqSendPerm = extractDlq ? [{ actions: ["sqs:SendMessage"], resources: [extractDlq.arn] }] : [];
 
-    // X-Ray (ca only) — docs/superpowers/specs/2026-07-28-xray-tracing-design.md.
-    // Per-request tracing of the extraction worker: S3 → loader → Bedrock →
+    // X-Ray (ca + production) — docs/superpowers/specs/2026-07-28-xray-tracing-design.md.
+    // Per-request tracing of the extraction worker: S3 → loader → Bedrock/BDA →
     // DynamoDB, with timings, so a slow/failed extraction resolves into WHERE.
     // The worker's role needs to emit segments; Active tracing is set on the
     // function below. Verified NOT SCP-blocked (unlike CloudTrail on this
     // Control-Tower account). The SDK-client wrapping (src/lib/observability/
     // xray.ts) only activates where AWS_XRAY_DAEMON_ADDRESS is set — i.e. this
-    // function — so nothing else changes.
-    const xrayPerm = isCa
+    // function — so nothing else changes. On production the wrapped BDA client
+    // (pipeline.bda.ts) puts the InvokeDataAutomationAsync call in the trace too.
+    const xrayPerm = observe
       ? [{ actions: ["xray:PutTraceSegments", "xray:PutTelemetryRecords", "xray:GetSamplingRules", "xray:GetSamplingTargets"], resources: ["*"] }]
       : [];
 
@@ -258,9 +265,9 @@ export default $config({
       link: [rapData, rapUploads, rapAnalytics],
       permissions: [...bedrockPerms, ...dlqSendPerm, ...xrayPerm],
       environment: extractionEnv,
-      // Active tracing (ca only) — originate an X-Ray trace per invocation so
-      // the wrapped SDK clients' calls appear as timed subsegments.
-      ...(isCa
+      // Active tracing (ca + production) — originate an X-Ray trace per
+      // invocation so the wrapped SDK clients' calls appear as timed subsegments.
+      ...(observe
         ? { transform: { function: (args: any) => { args.tracingConfig = { mode: "Active" }; } } }
         : {}),
     });
@@ -323,8 +330,8 @@ export default $config({
       },
     });
 
-    // Observability wiring (ca only). Everything below is gated on the DLQ
-    // existing, i.e. isCa; on other stages this whole block is skipped.
+    // Observability wiring (ca + production). Everything below is gated on the
+    // DLQ existing, i.e. `observe`; on other stages this whole block is skipped.
     if (extractDlq) {
       // Attach the DLQ as the async on-failure destination for both workers.
       for (const [label, fn] of [["RapExtract", rapExtract], ["BriefGen", briefGen]] as const) {

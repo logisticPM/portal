@@ -19,6 +19,12 @@ a custom stuck-job detector**. One PR. `ca` is the right target: it runs the rea
 engine and is the stage the outage bit. prod runs BDA (a different failure profile) and is a small
 `isProd`-gated follow-up.
 
+> **Follow-up done (2026-07-31):** the `isProd` follow-up above shipped — the gate widened from
+> `isCa` to `observe = isCa || isProd`, so `production` (the live, client-facing BDA stage, which was
+> blind) now gets the identical stack. The BDA runtime client in `pipeline.bda.ts` was also wrapped
+> with `traced()` so the `InvokeDataAutomationAsync` call — prod's dominant cost — shows in X-Ray.
+> All runtime code was already stage/region-agnostic, so this was a gate-widen plus one wrap, no new logic.
+
 ## Part 1 — CloudWatch alarms → SNS → email
 
 - **SNS topic**, `ca`-gated, with an **email subscription** to `ALERTS_EMAIL` (a new deploy env,

@@ -21,6 +21,7 @@ import {
   InvokeDataAutomationAsyncCommand,
   BedrockDataAutomationRuntimeClient,
 } from "@aws-sdk/client-bedrock-data-automation-runtime";
+import { traced } from "../observability/xray";
 import { deriveClassification, derivePillars } from "./classify";
 import { getDocumentBytes, getJsonByS3Uri, putDocument } from "./storage";
 import { validateAndFlag } from "./validate";
@@ -41,7 +42,10 @@ const outputBucket = process.env.BDA_OUTPUT_BUCKET ?? process.env.RAP_ANALYTICS_
 // solid extractions), so the bda path flags below this rather than the default 0.85.
 const BDA_CONFIDENCE_THRESHOLD = 0.5;
 
-const client = new BedrockDataAutomationRuntimeClient({ region });
+// traced(): X-Ray-wraps the client where Active tracing is on (ca + production),
+// so the BDA InvokeDataAutomationAsync / GetDataAutomationStatus calls — the
+// dominant cost on the prod path — appear as timed subsegments. No-op elsewhere.
+const client = traced(new BedrockDataAutomationRuntimeClient({ region }));
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // --- BDA → Grounded mapping ------------------------------------------------
