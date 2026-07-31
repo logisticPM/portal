@@ -306,18 +306,17 @@ export default $config({
         // actions.ts records the model on the brief and run.ts prefers `brief.model`.
         // This one is the worker's fallback for records created before it was set.
         BRIEF_MODEL: process.env.BRIEF_MODEL ?? "us.anthropic.claude-sonnet-4-6",
-        // Dense is OFF for this worker (2026-07-30 incident). build-index gates the
-        // vectors download on isRealProvider(), so "bedrock" here made every cold start
-        // fetch the ~985MB vectors segment — which costs THREE concurrent copies (S3
-        // byte array → Buffer.from → the 4-byte-alignment copy in artifact.ts), peaking
-        // ~3.5GB and killing the process. An OOM/timeout is uncatchable, so briefs were
-        // stranded at "pending" forever (briefs/run.ts documents exactly this hole) —
-        // silently, from 2026-07-09 (when the artifact grew 301MB→979MB) until a client
-        // demo hit it. BM25-only loads just bm25.bin. Raising memory was rejected: the
-        // 3-copy peak needs >4GB and the artifact keeps growing. P1 restores the dense
-        // signal from core pvec (~2.2MB, already in the table) instead of this artifact.
-        // Set BRIEF_EMBED_PROVIDER=bedrock to opt back in (needs the P1 work first).
-        EMBED_PROVIDER: process.env.BRIEF_EMBED_PROVIDER ?? "stub",
+        // Dense is back ON (2026-07-30). It was switched off in the incident fix because the
+        // float32 vectors segment was ~985MB and loading it cost three concurrent copies (S3
+        // byte array → Buffer.from → artifact.ts's alignment copy), peaking ~3.5GB — which
+        // OOMs even at the account's 3008MB cap, and an OOM is uncatchable, so briefs were
+        // stranded at "pending" for three weeks. The artifact is now QUANTIZED (binary 1 bit/dim
+        // resident + int8 read positionally from /tmp, which does not count against MemorySize):
+        // MEASURED on the real corpus of 240,245 vectors — 984.0MB → 30.8MB + 246.0MB, binary
+        // top-200 coverage of the true top-10 0.9940, Recall@10 binary-only 0.7855 → 0.9750 with
+        // int8 rescoring, against a 0.95 gate (scripts/cases-quant-eval.ts, re-runnable).
+        // Set BRIEF_EMBED_PROVIDER=stub to roll dense back off without a code change.
+        EMBED_PROVIDER: process.env.BRIEF_EMBED_PROVIDER ?? "bedrock",
         EMBED_MODEL: "amazon.titan-embed-text-v2:0",
         EMBED_DIM: "1024",
         EMBED_REGION: "us-east-1",
@@ -618,17 +617,21 @@ export default $config({
         // ONLY — RAP extraction still uses ca-central-1. The query router keeps
         // dense's embed call to conceptual/topical queries; known-item stays BM25.
         //
-        // DEFAULTS TO STUB (BM25-only) as of 2026-07-30. Dense loads the ~985MB
-        // vectors.bin into this request Lambda, which OOMs even at the account's
-        // 3008MB cap (observed on the ca stage) — and the load costs THREE concurrent
-        // copies (S3 byte array → Buffer.from → artifact.ts's alignment copy), so no
-        // available memory tier can hold it. The default used to be "bedrock", which
-        // meant production (deploy.yml passes no CASES_EMBED_PROVIDER) was configured
-        // for a load that cannot succeed — the same root cause that left briefings
-        // stranded at "pending". BM25-only loads just bm25.bin (~157MB) and fits.
-        // Set CASES_EMBED_PROVIDER=bedrock to opt back in once dense moves off the
-        // request path (P1: core pvec, ~2.2MB, already in the table).
-        EMBED_PROVIDER: process.env.CASES_EMBED_PROVIDER ?? "stub",
+        // Dense is back ON (2026-07-30) now that the vectors artifact is QUANTIZED. It was
+        // briefly defaulted to stub because the float32 segment was ~985MB and loading it cost
+        // three concurrent copies, which OOMs even at the account's 3008MB cap (observed on the
+        // ca stage) — so no memory tier could hold it, and production was configured for a load
+        // that cannot succeed (deploy.yml passes no override). MEASURED after quantization on
+        // the real corpus of 240,245 vectors: 984.0MB → 30.8MB binary resident + 246.0MB int8
+        // streamed to /tmp (ephemeral storage does not count against MemorySize), binary top-200
+        // coverage of the true top-10 0.9940, Recall@10 0.7855 binary-only → 0.9750 with int8
+        // rescoring, against a 0.95 gate (scripts/cases-quant-eval.ts, re-runnable).
+        //
+        // Request-path note: 277.7MB streams on cold start instead of the ~157MB bm25-only path,
+        // so expect the first search after a cold start to be slower — but per-query work goes
+        // DOWN, because an exhaustive Hamming scan over 30.8MB replaces a float32 dot product
+        // over 984MB. Set CASES_EMBED_PROVIDER=stub to roll dense back off without a code change.
+        EMBED_PROVIDER: process.env.CASES_EMBED_PROVIDER ?? "bedrock",
         EMBED_MODEL: "amazon.titan-embed-text-v2:0",
         EMBED_DIM: "1024",
         EMBED_REGION: "us-east-1",
