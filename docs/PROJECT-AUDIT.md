@@ -58,9 +58,12 @@ served cross-region from us-east-1.
 
 | Stage | Region | Extraction engine | Doc loader | Observability |
 |---|---|---|---|---|
-| `production` | us-east-1 | BDA (Bedrock Data Automation) | Textract | No |
+| `production` | us-east-1 | BDA (Bedrock Data Automation) | Textract | **Yes** (DLQ, X-Ray, 6 alarms, dashboard) |
 | `ca` | ca-central-1 | Bedrock (Textract→Claude) | text-layer* | **Yes** (DLQ, X-Ray, 6 alarms, dashboard) |
 | dev / other | us-east-1 | mock | textract | No |
+
+The observability stack is gated to the two stages that run **real extraction** (`observe = isCa || isProd`
+in `sst.config.ts`); each gets its own stage-scoped copy. Mock/dev stages skip it.
 
 \* The `ca` stage ships on a **PDF embedded-text-layer** loader because **Textract is
 SCP-blocked** in this org — see §4.3.
@@ -69,11 +72,11 @@ SCP-blocked** in this org — see §4.3.
 
 - **Web server Lambda** — 2048 MB; carries Bedrock/Textract/SES/Lambda-invoke IAM.
 - **`RapExtract`** — 1536 MB, 900 s timeout; async fire-and-forget extraction worker
-  (X-Ray Active on `ca` only).
+  (X-Ray Active on `ca` + `production`).
 - **`BriefGen`** — 1536 MB, 120 s; async legal-brief + case-Q&A worker.
 - **Stream processors** — `RollupAggregator` (RapData stream → recompute commitment
   rollups), `AlignmentEngine` (Commitments stream → recompute supplier matches).
-- **Crons** — `StuckJobMonitor` (15 min, ca-only), `CaseMonitor` (weekly new-case scan),
+- **Crons** — `StuckJobMonitor` (15 min, `ca` + `production`), `CaseMonitor` (weekly new-case scan),
   `NotifyDigest` (weekly overdue-milestone email, prod-only).
 
 All functions are **x86_64** (arm64 is never set — a free ~20% compute saving left on the

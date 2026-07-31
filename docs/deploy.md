@@ -122,13 +122,29 @@ aws dynamodb scan --table-name "$T" --select COUNT --region us-east-1 --query Co
 
 ---
 
+## Observability (production + ca)
+
+`production` and `ca` — the two stages that run **real extraction** — get the full
+observability stack (gated `observe = isCa || isProd` in `sst.config.ts`): a
+dead-letter queue, 6 CloudWatch alarms (worker errors/throttles, DLQ-not-empty,
+stuck/failed jobs), an SNS email topic, the `StuckJobMonitor` cron, an
+`indigenomics-<stage>-extraction-health` dashboard, and X-Ray Active tracing on
+`RapExtract`. Each stage gets its own stage-scoped copy.
+
+**Alert email:** the SNS email subscription is created only if `ALERTS_EMAIL` (or,
+as a fallback, `DIGEST_RECIPIENT`) is set at deploy. The address gets a **one-time
+AWS confirmation email** you must click once, or alarms fire silently to the topic.
+Set it on the deploy, e.g. `ALERTS_EMAIL=oncall@indigenomics.example npx sst deploy --stage production`.
+
 ## Cost
 
 Demo traffic is effectively free (DynamoDB on-demand + Lambda + CloudFront free
-tiers). A budget alert guards against surprises: **`indigenomics-portal-monthly`**,
-$250/month, emails at $200 (80%) and on forecast-over. Total project budget is
-$1000 over 4 months. **When the demo is done, run `npx sst remove --stage
-production`** to stop all spend.
+tiers). The observability stack adds ~$1–4/mo (6 alarms ≈ $0.60, X-Ray/SQS/cron
+within free tiers, one extra dashboard). A budget alert guards against surprises:
+**`indigenomics-portal-monthly`**, $250/month, emails at $200 (80%) and on
+forecast-over. Total project budget is $1000 over 4 months. **When the demo is
+done, run `npx sst remove --stage production`** to stop all spend (note:
+`production` is `retain`, so its tables/queues persist and need manual cleanup).
 
 ---
 
