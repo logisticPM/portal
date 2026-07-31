@@ -138,9 +138,19 @@ export function outcomePrompt(styleOfCause: string, chunks: CaseChunk[]): string
 export function parseOutcome(raw: string): RawOutcome {
   try {
     const o = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
-    const mine = o?.movingPartyIsIndigenous, g = o?.granted;
+    // Normalize before the membership test. Strictness here must fail SAFE, not open:
+    // an unrecognized value used to yield derivation=null, which the labeler read as
+    // "consistent", silently disabling the very check this branch exists to perform.
+    const rawMine = o?.movingPartyIsIndigenous;
+    const mine = typeof rawMine === "boolean" ? rawMine
+      : rawMine === "true" ? true
+      : rawMine === "false" ? false
+      : null;
+    const g = typeof o?.granted === "string" ? o.granted.trim().toLowerCase() : "";
     const derivation: OutcomeDerivation | null =
-      typeof mine === "boolean" && GRANTED.includes(g) ? { movingPartyIsIndigenous: mine, granted: g } : null;
+      mine !== null && (GRANTED as readonly string[]).includes(g)
+        ? { movingPartyIsIndigenous: mine, granted: g as OutcomeDerivation["granted"] }
+        : null;
     return {
       winType: ALL_WINTYPES.includes(o?.winType) ? o.winType : "unclassified",
       outcomeType: ALL_OUTCOMETYPES.includes(o?.outcomeType) ? o.outcomeType : "unclassified",

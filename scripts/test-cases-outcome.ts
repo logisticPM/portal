@@ -176,12 +176,14 @@ const raw = (w: any, t: any, der: OutcomeDerivation | null) => ({ winType: w, ou
   assert.equal(r.outcomeMeta.needsReview, true);
   assert.equal(r.derivation, undefined, "derivations that disagree are not stored");
 }
-// Both unclassified: agreement WITHOUT confidence.
+// Both unclassified: agreement WITHOUT confidence. Neither model produced a
+// derivation either (there is nothing to derive for an unclassified case), so this
+// is also a noDerivation case and must be flagged for review like any other.
 {
   const r = mergeOutcome(raw("unclassified", "procedural", null), raw("unclassified", "procedural", null), ["m1", "m2"]);
   assert.equal(r.outcomeMeta.agreement, "full");
   assert.equal(r.outcomeMeta.confidence, "low");
-  assert.equal(r.outcomeMeta.needsReview, false);
+  assert.equal(r.outcomeMeta.needsReview, true, "no derivation was produced, so nothing vouches for this label");
 }
 // THE NEW GATE: a model contradicting its own derivation is discarded, so the pair
 // cannot agree and the case abstains — even though both said "party_win".
@@ -204,6 +206,58 @@ const raw = (w: any, t: any, der: OutcomeDerivation | null) => ({ winType: w, ou
   const r = mergeOutcome(dw, dw, ["m1", "m2"]);
   assert.equal(r.winType, "doctrine_win", "still recorded — it is a legitimate label");
   assert.equal(r.outcomeMeta.needsReview, true, "but never unreviewed, since it is uncheckable");
+}
+
+// Fix 1: formatting drift must NOT silently disable the gate.
+assert.deepEqual(
+  parseOutcome('{"movingPartyIsIndigenous":true,"granted":"Granted","winType":"party_win","outcomeType":"precedent"}').derivation,
+  { movingPartyIsIndigenous: true, granted: "granted" }, "granted is case-normalized");
+assert.deepEqual(
+  parseOutcome('{"movingPartyIsIndigenous":true,"granted":"  refused  ","winType":"loss","outcomeType":"precedent"}').derivation,
+  { movingPartyIsIndigenous: true, granted: "refused" }, "granted is trimmed");
+assert.deepEqual(
+  parseOutcome('{"movingPartyIsIndigenous":"true","granted":"refused","winType":"loss","outcomeType":"precedent"}').derivation,
+  { movingPartyIsIndigenous: true, granted: "refused" }, "a stringified boolean is accepted");
+// Still rejected: a genuinely unrecognized value.
+assert.equal(parseOutcome('{"movingPartyIsIndigenous":true,"granted":"dismissed","winType":"loss","outcomeType":"precedent"}').derivation, null);
+
+// Fix 1 end-to-end: the drift case must now be CAUGHT, not waved through.
+{
+  const drift = parseOutcome('{"movingPartyIsIndigenous":true,"granted":"Refused","winType":"party_win","outcomeType":"precedent"}');
+  const r = mergeOutcome(drift, drift, ["m1", "m2"]);
+  assert.equal(r.winType, "unclassified", "case-drifted derivation must still trip the gate");
+  assert.equal(r.outcomeMeta.contradictions, 2);
+}
+
+// Fix 2a: no derivation at all -> label kept, but never high-confidence or unreviewed.
+{
+  const r = mergeOutcome(raw("party_win", "precedent", null), raw("party_win", "precedent", null), ["m1", "m2"]);
+  assert.equal(r.winType, "party_win", "the label still stands — it may well be right");
+  assert.equal(r.outcomeMeta.confidence, "low", "nothing checked it, so it is not high-confidence");
+  assert.equal(r.outcomeMeta.needsReview, true, "nothing checked it, so it is not unreviewed");
+}
+// Fix 2b: labels agree but the models disagree about WHO MOVED.
+{
+  const r = mergeOutcome(raw("party_win", "precedent", d(true, "granted")), raw("party_win", "precedent", d(false, "refused")), ["m1", "m2"]);
+  assert.equal(r.winType, "party_win");
+  assert.equal(r.outcomeMeta.confidence, "low", "one model has the posture wrong");
+  assert.equal(r.outcomeMeta.needsReview, true, "a derivation clash must be flagged");
+  assert.equal(r.derivation, undefined);
+}
+// Fix 2c: mixed is uncheckable, so it is flagged like doctrine_win.
+{
+  const mx = raw("mixed", "precedent", d(true, "refused"));
+  const r = mergeOutcome(mx, mx, ["m1", "m2"]);
+  assert.equal(r.winType, "mixed");
+  assert.equal(r.outcomeMeta.needsReview, true, "mixed is exempt from the gate, so it must be reviewed");
+  assert.equal(r.outcomeMeta.confidence, "low");
+}
+// Regression: a fully consistent, agreed, derivable result is STILL high-confidence.
+{
+  const good = raw("party_win", "remand", d(false, "refused"));
+  const r = mergeOutcome(good, good, ["m1", "m2"]);
+  assert.equal(r.outcomeMeta.confidence, "high", "the happy path must not be collateral damage");
+  assert.equal(r.outcomeMeta.needsReview, false);
 }
 
 // --- verifyGoldLabel: quote-verified gold labels ---
@@ -240,7 +294,10 @@ assert.match(String(verifyGoldLabel(gold({ movingPartyIsIndigenous: true, winTyp
   const agree = await classifyOutcome("I v. J", chunks,
     [mk("fake:agree-a", "party_win"), mk("fake:agree-b", "party_win")]);
   assert.equal(agree.winType, "party_win");
-  assert.equal(agree.outcomeMeta.confidence, "high");
+  // These fakes never emit a derivation (mk's JSON carries no movingPartyIsIndigenous/
+  // granted), so this is a noDerivation case: agreement on the label alone is no
+  // longer enough for high confidence.
+  assert.equal(agree.outcomeMeta.confidence, "low");
 
   const clash = await classifyOutcome("K v. L", chunks,
     [mk("fake:clash-a", "party_win"), mk("fake:clash-b", "loss")]);

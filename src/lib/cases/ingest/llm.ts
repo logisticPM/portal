@@ -109,6 +109,9 @@ export async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
   const file = path.join(CACHE, key + ".txt");
   try { return await fs.readFile(file, "utf8"); } catch { /* miss (incl. no cache dir) */ }
   const out = await m.call(prompt);
+  // Never cache an empty response. A 0-byte entry replays forever and bypasses
+  // textFromConverse entirely, reintroducing truncation-as-abstention.
+  if (!out.trim()) return out;
   // The disk cache is a local-dev optimization; a read-only FS (e.g. a Lambda's
   // /var/task) must never be fatal — warn once, then proceed uncached.
   try {

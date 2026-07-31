@@ -45,18 +45,30 @@ export function mergeOutcome(a: RawOutcome, b: RawOutcome, models: [string, stri
 
   const matches = (winAgrees ? 1 : 0) + (typeAgrees ? 1 : 0);
   const agreement: OutcomeMeta["agreement"] = matches === 2 ? "full" : matches === 1 ? "partial" : "none";
-  const confidence: OutcomeMeta["confidence"] =
-    agreement === "full" && winType !== "unclassified" ? "high" : "low";
-
-  // doctrine_win is the one label contradictsDerivation cannot check, so it is never
-  // left unreviewed.
-  const needsReview = agreement !== "full" || winType === "doctrine_win";
-
   // Store the derivation only when both models produced the same one — a contested
-  // derivation is not evidence of anything.
+  // derivation is not evidence of what happened.
   const sameDerivation = a.derivation && b.derivation
     && a.derivation.movingPartyIsIndigenous === b.derivation.movingPartyIsIndigenous
     && a.derivation.granted === b.derivation.granted;
+
+  // Three ways the consistency check can fail to vouch for a label. None may present as
+  // a clean, high-confidence result.
+  //   noDerivation  — a model showed no work, so nothing was checked.
+  //   derivationClash — the models disagree about WHO MOVED, the one fact this branch
+  //                     exists to pin down. Agreement on the label does not redeem that.
+  //   uncheckable   — doctrine_win and mixed are exempt from contradictsDerivation by
+  //                   construction, so the gate never examined them.
+  const noDerivation = a.derivation === null || b.derivation === null;
+  const derivationClash = a.derivation !== null && b.derivation !== null && !sameDerivation;
+  const uncheckable = winType === "doctrine_win" || winType === "mixed";
+
+  const confidence: OutcomeMeta["confidence"] =
+    agreement === "full" && winType !== "unclassified" && !noDerivation && !derivationClash && !uncheckable
+      ? "high" : "low";
+  // "high" means: the models agreed, the label was checkable, and the check passed.
+  // An unexamined label never qualifies — reporting a check that did not happen is the
+  // same failure as the formatting-drift bypass above.
+  const needsReview = agreement !== "full" || uncheckable || noDerivation || derivationClash;
 
   return {
     winType, outcomeType,

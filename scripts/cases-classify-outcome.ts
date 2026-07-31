@@ -47,6 +47,11 @@ async function main() {
       continue;
     }
 
+    // Drop any derivation from the PREVIOUS run before spreading. `SET #d.#o = :o`
+    // replaces the whole outcome map, so a stale derivation carried in by the spread
+    // would be persisted next to a fresh label it does not support.
+    const { derivation: _staleDerivation, ...priorOutcome } = c.outcome;
+
     await ddbDoc.send(new UpdateCommand({
       TableName: TABLE,
       Key: caseKeys.profile(c.id),
@@ -61,7 +66,7 @@ async function main() {
       ExpressionAttributeNames: { "#d": "data", "#o": "outcome", "#om": "outcomeMeta" },
       ExpressionAttributeValues: {
         ":o": {
-          ...c.outcome, winType: r.winType, outcomeType: r.outcomeType,
+          ...priorOutcome, winType: r.winType, outcomeType: r.outcomeType,
           ...(r.derivation ? { derivation: r.derivation } : {}),
         },
         ":om": r.outcomeMeta,
