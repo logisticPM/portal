@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { impliedDirection, contradictsDerivation } from "../src/lib/cases/ingest/outcome-rubric";
+import type { OutcomeDerivation } from "../src/lib/cases/types";
 import type { CaseChunk } from "../src/lib/cases/types";
 import {
   OUTCOME_RUBRIC_VERSION, WINTYPE_RUBRIC, ALL_WINTYPES, ALL_OUTCOMETYPES,
-  dispositionWindow, dispositionSentence, outcomePrompt, parseOutcome,
+  dispositionWindow, outcomePrompt, parseOutcome,
 } from "../src/lib/cases/ingest/outcome-rubric";
 import type { LlmModel } from "../src/lib/cases/ingest/llm";
 import { textFromConverse, DUAL_LLM_MAX_TOKENS } from "../src/lib/cases/ingest/llm";
@@ -71,16 +73,6 @@ const long = (n: number, fill: string) => p(n, fill.repeat(400)); // 400 * fill.
   assert.match(out, /\(no paragraphs available\)/);
 }
 
-// --- dispositionSentence ---
-assert.equal(
-  dispositionSentence([p(1, "Background here."), p(2, "The appeal is dismissed with costs.")]),
-  "The appeal is dismissed with costs.");
-assert.equal(
-  dispositionSentence([p(1, "The appeal is allowed."), p(2, "Costs are granted to the applicant.")]),
-  "Costs are granted to the applicant.", "prefers the LAST disposition match");
-assert.equal(dispositionSentence([p(1, "Nothing decisive here.")]), null);
-assert.equal(dispositionSentence([]), null);
-
 // --- outcomePrompt ---
 {
   const prompt = outcomePrompt("G v. H", [p(1, "The application is dismissed.")]);
@@ -92,11 +84,11 @@ assert.equal(dispositionSentence([]), null);
 // --- parseOutcome (raw model output, prose and all) ---
 assert.deepEqual(
   parseOutcome('Here is my answer:\n{"winType":"party_win","outcomeType":"remand"}\nHope that helps.'),
-  { winType: "party_win", outcomeType: "remand" }, "must tolerate prose around the JSON");
+  { winType: "party_win", outcomeType: "remand", derivation: null }, "must tolerate prose around the JSON");
 assert.deepEqual(parseOutcome('{"winType":"nonsense","outcomeType":"remand"}'),
-  { winType: "unclassified", outcomeType: "remand" }, "unknown enum values fall back");
+  { winType: "unclassified", outcomeType: "remand", derivation: null }, "unknown enum values fall back");
 assert.deepEqual(parseOutcome("not json at all"),
-  { winType: "unclassified", outcomeType: "unclassified" });
+  { winType: "unclassified", outcomeType: "unclassified", derivation: null });
 assert.ok(ALL_OUTCOMETYPES.includes("procedural"));
 assert.ok(WINTYPE_RUBRIC.party_win.length > 0);
 
@@ -117,11 +109,56 @@ assert.throws(
 assert.equal(textFromConverse("m", [{ text: '{"a":1}' }], "max_tokens", 256), '{"a":1}');
 assert.ok(DUAL_LLM_MAX_TOKENS >= 2048, "the reasoning-first prompt needs room");
 
+const d = (mine: boolean, granted: OutcomeDerivation["granted"]): OutcomeDerivation =>
+  ({ movingPartyIsIndigenous: mine, granted });
+
+// --- impliedDirection: all four corners ---
+assert.equal(impliedDirection(d(true, "granted")), "prevailed");
+assert.equal(impliedDirection(d(true, "refused")), "did_not_prevail");
+assert.equal(impliedDirection(d(false, "granted")), "did_not_prevail");
+assert.equal(impliedDirection(d(false, "refused")), "prevailed");
+assert.equal(impliedDirection(d(true, "partly")), "partly");
+
+// --- contradictsDerivation: exactly two contradictions exist ---
+// The nation moved and was refused, yet the label claims it won. THE inversion.
+assert.equal(contradictsDerivation("party_win", d(true, "refused")), true);
+// The Crown moved and was refused, yet the label claims the nation lost.
+assert.equal(contradictsDerivation("loss", d(false, "refused")), true);
+// Consistent pairings.
+assert.equal(contradictsDerivation("party_win", d(false, "refused")), false);
+assert.equal(contradictsDerivation("loss", d(true, "refused")), false);
+// doctrine_win is BY DEFINITION relief-refused-but-principle-advanced (Haida), so it
+// can never contradict "did not prevail". This is a deliberate escape hatch.
+assert.equal(contradictsDerivation("doctrine_win", d(true, "refused")), false);
+// Abstention and mixed never contradict anything.
+assert.equal(contradictsDerivation("unclassified", d(true, "refused")), false);
+assert.equal(contradictsDerivation("mixed", d(true, "refused")), false);
+assert.equal(contradictsDerivation("party_win", d(true, "partly")), false);
+
+// --- prompt + version ---
+assert.equal(OUTCOME_RUBRIC_VERSION, "2026-07-31.1", "rubric version must be bumped — the prompt changed");
+{
+  const pr = outcomePrompt("Q v. R", [p(1, "The appeal is dismissed.")]);
+  assert.match(pr, /movingPartyIsIndigenous/, "prompt must ask for the moving party");
+  assert.match(pr, /granted/, "prompt must ask whether relief was granted");
+  assert.match(pr, /dismissed/i, "prompt must warn about the dismissed-application trap");
+  assert.ok(pr.indexOf("movingPartyIsIndigenous") < pr.indexOf("winType"),
+    "the derivation must be requested BEFORE the label — that ordering is the mechanism");
+}
+
+// --- parseOutcome now carries the derivation ---
+assert.deepEqual(
+  parseOutcome('{"movingPartyIsIndigenous":false,"granted":"refused","winType":"party_win","outcomeType":"remand"}'),
+  { winType: "party_win", outcomeType: "remand", derivation: { movingPartyIsIndigenous: false, granted: "refused" } });
+// A missing or malformed derivation degrades safely, it does not throw.
+assert.deepEqual(parseOutcome('{"winType":"loss","outcomeType":"precedent"}').derivation, null);
+assert.deepEqual(parseOutcome('{"movingPartyIsIndigenous":"yes","granted":"nope","winType":"loss","outcomeType":"precedent"}').derivation, null);
+
 // --- mergeOutcome ---
 {
   const r = mergeOutcome(
-    { winType: "party_win", outcomeType: "remand" },
-    { winType: "party_win", outcomeType: "remand" }, ["m1", "m2"]);
+    { winType: "party_win", outcomeType: "remand", derivation: null },
+    { winType: "party_win", outcomeType: "remand", derivation: null }, ["m1", "m2"]);
   assert.equal(r.winType, "party_win");
   assert.equal(r.outcomeType, "remand");
   assert.equal(r.outcomeMeta.agreement, "full");
@@ -134,8 +171,8 @@ assert.ok(DUAL_LLM_MAX_TOKENS >= 2048, "the reasoning-first prompt needs room");
 // Disagreement on winType abstains and flags for review.
 {
   const r = mergeOutcome(
-    { winType: "party_win", outcomeType: "remand" },
-    { winType: "loss", outcomeType: "remand" }, ["m1", "m2"]);
+    { winType: "party_win", outcomeType: "remand", derivation: null },
+    { winType: "loss", outcomeType: "remand", derivation: null }, ["m1", "m2"]);
   assert.equal(r.winType, "unclassified", "disagreement must abstain, never pick a side");
   assert.equal(r.outcomeType, "remand", "the agreeing field survives independently");
   assert.equal(r.outcomeMeta.agreement, "partial");
@@ -145,8 +182,8 @@ assert.ok(DUAL_LLM_MAX_TOKENS >= 2048, "the reasoning-first prompt needs room");
 // Neither field agrees.
 {
   const r = mergeOutcome(
-    { winType: "party_win", outcomeType: "remand" },
-    { winType: "loss", outcomeType: "precedent" }, ["m1", "m2"]);
+    { winType: "party_win", outcomeType: "remand", derivation: null },
+    { winType: "loss", outcomeType: "precedent", derivation: null }, ["m1", "m2"]);
   assert.equal(r.outcomeMeta.agreement, "none");
   assert.equal(r.winType, "unclassified");
   assert.equal(r.outcomeType, "unclassified");
@@ -155,8 +192,8 @@ assert.ok(DUAL_LLM_MAX_TOKENS >= 2048, "the reasoning-first prompt needs room");
 // but that is not a confident classification.
 {
   const r = mergeOutcome(
-    { winType: "unclassified", outcomeType: "procedural" },
-    { winType: "unclassified", outcomeType: "procedural" }, ["m1", "m2"]);
+    { winType: "unclassified", outcomeType: "procedural", derivation: null },
+    { winType: "unclassified", outcomeType: "procedural", derivation: null }, ["m1", "m2"]);
   assert.equal(r.outcomeMeta.agreement, "full");
   assert.equal(r.outcomeMeta.confidence, "low", "agreed-unclassified is agreement WITHOUT confidence");
   assert.equal(r.outcomeMeta.needsReview, false, "the models did not disagree, so no review is owed");
