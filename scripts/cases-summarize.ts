@@ -8,7 +8,7 @@ import { ddbDoc } from "../src/lib/dynamo/client";
 import { caseKeys } from "../src/lib/dynamo/cases-table";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { cachedModel, modelFromId } from "../src/lib/cases/ingest/llm";
-import { summarizeCase } from "../src/lib/cases/ingest/summarizer";
+import { summarizeCase, type ClaimDrop } from "../src/lib/cases/ingest/summarizer";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 const MODEL_ID = process.env.SUMMARY_MODEL ?? "us.meta.llama3-3-70b-instruct-v1:0";
@@ -26,7 +26,7 @@ async function main() {
   const stats = { generated: 0, skipped_curated: 0, skipped_already_generated: 0, skipped_not_core: 0, skipped_no_fulltext: 0 };
   const failed: string[] = [];
   let kept = 0, dropped = 0, done = 0;
-  const allDrops: import("../src/lib/cases/ingest/summarizer").ClaimDrop[] = [];
+  const allDrops: (ClaimDrop & { caseId: string })[] = [];
 
   for (const p of profiles) {
     // Curated cases short-circuit on the PROFILE alone; others need chunks reassembled.
@@ -35,7 +35,7 @@ async function main() {
     if (!c) continue;
     const target = redo ? { ...c, summary: undefined, summaryMeta: undefined } : c;
     const r = await summarizeCase(target, model);
-    if (r.drops) allDrops.push(...r.drops);
+    if (r.drops) allDrops.push(...r.drops.map((d) => ({ ...d, caseId: c.id })));
     if (r.status === "generated" && r.summary && r.meta) {
       await ddbDoc.send(new UpdateCommand({
         TableName: TABLE,
@@ -60,23 +60,26 @@ async function main() {
   console.log(`   claims kept ${kept} · dropped ${dropped}`);
   if (allDrops.length) {
     const by = (reason: string) => allDrops.filter((d) => d.reason === reason).length;
-    const noSpan = allDrops.filter((d) => d.reason === "no_span");
-    const bucket = (lo: number, hi: number) => noSpan.filter((d) => d.bestOverlap >= lo && d.bestOverlap < hi).length;
-    console.log(`   drop diagnostics: no_span ${by("no_span")} · quote_too_short ${by("quote_too_short")} · no_text ${by("no_text")} · cited-para-not-found ${allDrops.filter((d) => !d.citedParaFound).length}`);
-    // The >=0.5 bucket IS the population span alignment could recover. If it is a few percent,
-    // that feature is not worth building — and we will have said so with a number from our own
-    // corpus rather than from a paper about a different pipeline.
-    //
-    // The boundaries follow from how LCS behaves, not from round numbers. One substitution
-    // mid-quote splits the quote, so the metric returns the longer surviving fragment — about
-    // HALF. That makes ~0.5 the worst case for a single-word garble, and 0.25 roughly the
-    // two-edit case. A measured genuine paraphrase sits near 0.13.
-    //   >=0.5  at most one edit, or edits near the ends — near-verbatim, recoverable
-    //   0.25–0.5  several edits — ambiguous
-    //   <0.25  no contiguous span survives — a real paraphrase, correctly dropped
-    console.log(`   no_span overlap: >=0.5 → ${noSpan.filter((d) => d.bestOverlap >= 0.5).length} · 0.25–0.5 → ${bucket(0.25, 0.5)} · <0.25 → ${bucket(0, 0.25)}`);
-    const near = noSpan.filter((d) => d.bestOverlap >= 0.5).slice(0, 5)
-      .map((d) => `${d.citedPara}(${d.bestOverlap.toFixed(2)})`).join(" · ");
+    // Only drops we actually measured may be bucketed. overlapMeasured=false means "not
+    // computed", which is NOT an overlap of zero — conflating them would pad the
+    // correctly-dropped bucket with claims that were never examined.
+    const measured = allDrops.filter((d) => d.overlapMeasured);
+    const bucket = (lo: number, hi: number) => measured.filter((d) => d.bestOverlap >= lo && d.bestOverlap < hi).length;
+    console.log(`   drop diagnostics: no_span ${by("no_span")} · quote_too_short ${by("quote_too_short")} · no_text ${by("no_text")} · over_cap ${by("over_cap")}`);
+    console.log(`   drops recorded ${allDrops.length} · dropped ${dropped}${allDrops.length === dropped ? " (reconciled)" : " ⚠ MISMATCH — the histogram does not describe the whole population"}`);
+    console.log(`   cited-para-not-found ${allDrops.filter((d) => !d.citedParaFound).length} · overlap measured for ${measured.length} of ${by("no_span")} no_span drops`);
+    // The >=0.5 bucket IS the population span alignment could recover. Boundaries follow
+    // from how LCS behaves: one substitution mid-quote splits the quote, so the metric
+    // returns the longer surviving fragment — about HALF. So ~0.5 is the worst case for a
+    // single-word garble and ~0.25 roughly the two-edit case; a measured genuine
+    // paraphrase sits near 0.13.
+    console.log(`   no_span overlap: >=0.5 → ${measured.filter((d) => d.bestOverlap >= 0.5).length} · 0.25–0.5 → ${bucket(0.25, 0.5)} · <0.25 → ${bucket(0, 0.25)}`);
+    // Highest overlap first, with the case id, so these can actually be opened and
+    // checked. Flagging bestPara != citedPara also quantifies the id misattribution.
+    const near = measured.filter((d) => d.bestOverlap >= 0.5)
+      .sort((a, b) => b.bestOverlap - a.bestOverlap).slice(0, 5)
+      .map((d) => `${d.caseId} ${d.bestPara ?? "?"}${d.bestPara !== d.citedPara ? ` (model cited ${d.citedPara})` : ""} ${d.bestOverlap.toFixed(2)}`)
+      .join(" · ");
     if (near) console.log(`   near-miss samples: ${near}`);
   }
   if (failed.length) console.log("   failed ids:", failed.join(", "));

@@ -304,7 +304,7 @@ import assert from "node:assert/strict";
     { text: "near miss", quote: "The Crown owed a fiduciary duty to the People in these circumstances.", paragraph: "para-1" },
     { text: "paraphrase", quote: "The government had to act in the best interests of the community here.", paragraph: "para-2" },
     { text: "bad para id", quote: "Some quote that is long enough to pass the length rule", paragraph: "para-999" },
-  ], diagChunks, "https://x/y");
+  ], diagChunks, "https://x/y", { measureOverlap: true });
 
   assert.equal(diag.anchors.length, 0, "none of these verify");
   assert.equal(diag.drops.length, 5, "one diagnostic per dropped claim");
@@ -325,8 +325,31 @@ import assert from "node:assert/strict";
   assert.equal(paraphrase.citedParaFound, true);
   assert.ok(paraphrase.bestOverlap < nearMiss.bestOverlap, "a paraphrase overlaps less than a near miss");
 
+  // A wrong paragraph id must NOT zero the measurement — that was the bias. The claim is
+  // still scored against every chunk; only `citedParaFound` records that the id was bad.
   assert.equal(diag.drops[4].citedParaFound, false, "para-999 does not resolve");
-  assert.equal(diag.drops[4].bestOverlap, 0, "no cited paragraph → overlap 0");
+  assert.equal(diag.drops[4].overlapMeasured, true, "a bad id must not stop us measuring");
+
+  // bestPara names which chunk produced the overlap.
+  assert.equal(nearMiss.bestPara, "para-1", "the near miss really does best-match its cited paragraph");
+  // Non-no_span reasons are never measured, and report so rather than reporting zero.
+  assert.equal(diag.drops[0].overlapMeasured, false, "no_text is not an overlap question");
+  assert.equal(diag.drops[1].overlapMeasured, false, "quote_too_short is not an overlap question");
+
+  // Default (the interactive case-QA path) does not pay for the scan.
+  const unmeasured = verifyClaims([{ text: "t", quote: "a quote that is not present at all here", paragraph: "para-1" }], diagChunks, "https://x/y");
+  assert.equal(unmeasured.drops[0].overlapMeasured, false, "measurement is opt-in");
+  assert.equal(unmeasured.drops[0].bestOverlap, 0);
+
+  // INVARIANT: every dropped claim is accounted for, including those past the 6 cap.
+  // Without this the histogram silently describes fewer claims than the count beside it.
+  const capChunks = [{ paragraph: "para-1", text: "alpha bravo charlie delta echo foxtrot golf hotel india juliet" }];
+  const capClaims = Array.from({ length: 8 }, (_, i) => ({ text: `c${i}`, quote: "alpha bravo charlie delta echo", paragraph: "para-1" }));
+  const capped = verifyClaims(capClaims, capChunks, "https://x/y", { measureOverlap: true });
+  assert.equal(capped.anchors.length, 6, "still capped at 6 — behaviour unchanged");
+  assert.equal(capped.dropped, 2);
+  assert.equal(capped.drops.length, capped.dropped, "drops.length must equal dropped");
+  assert.equal(capped.drops[0].reason, "over_cap");
 
   // --- REGRESSION: diagnostics must not change accepted claims or the dropped count ---
   const regChunks = [{ paragraph: "para-1", text: "The Nation established Aboriginal title over the claim area." }];
