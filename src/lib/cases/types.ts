@@ -35,6 +35,15 @@ export interface OutcomeMeta {
   confidence: "high" | "low";
   needsReview: boolean;
   rubricVersion?: string;
+  contradictions?: number;   // responses whose winType contradicted their own derivation
+}
+
+// The classifier's stated reasoning, reduced to closed values so it can be checked
+// against the label it produced. Deliberately NOT the moving party's name — a name is
+// free text; this boolean is the only part the outcome depends on.
+export interface OutcomeDerivation {
+  movingPartyIsIndigenous: boolean;
+  granted: "granted" | "refused" | "partly";
 }
 
 export interface CaseOutcome {
@@ -42,6 +51,7 @@ export interface CaseOutcome {
   winType: WinType;
   whoWon: string;
   holding: string; // 1–3 sentences, extractive
+  derivation?: OutcomeDerivation;
 }
 
 export interface EconomicDimension {

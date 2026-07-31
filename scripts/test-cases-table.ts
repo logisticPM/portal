@@ -32,7 +32,8 @@ const kitchenSink: Required<LegalCase> = {
   level: "scc", year: 2026, jurisdiction: "Canada",
   nations: ["Test Nation"], themes: ["land_rights", "fiduciary"],
   outcome: { outcomeType: "precedent", winType: "party_win", whoWon: "Test Nation",
-    holding: "A holding that exercises every optional field." },
+    holding: "A holding that exercises every optional field.",
+    derivation: { movingPartyIsIndigenous: false, granted: "refused" } },
   outcomeMeta: { method: "dual_llm", models: ["model-a", "model-b"], agreement: "full",
     confidence: "high", needsReview: false, rubricVersion: "2026-07-30.1" },
   economic: {
