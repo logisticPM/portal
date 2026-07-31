@@ -8,7 +8,7 @@ import type { LlmModel } from "../src/lib/cases/ingest/llm";
 import { mergeOutcome, classifyOutcome } from "../src/lib/cases/ingest/outcome-labeler";
 
 const p = (n: number, text: string): CaseChunk => ({ paragraph: `para-${n}`, text });
-const long = (n: number, fill: string) => p(n, fill.repeat(400)); // ~2400 chars each
+const long = (n: number, fill: string) => p(n, fill.repeat(400)); // 400 * fill.length chars
 
 // --- dispositionWindow ---
 // Short case: everything, exactly once, no omission line.
@@ -52,6 +52,22 @@ const long = (n: number, fill: string) => p(n, fill.repeat(400)); // ~2400 chars
   assert.match(out, /\[OPENING\]/, "an oversized opening must be truncated, not dropped");
   assert.match(out, /para-1: PARTIES: Alpha Nation v\. Beta\./, "the opening keeps its START");
   assert.match(out, /para-3: The appeal is dismissed\./);
+}
+// Single chunk, oversized: head and tail come from the SAME paragraph. The opening
+// must still appear — losing it would lose the party names that winType is relative to.
+{
+  const chunks = [p(1, "PARTIES: Alpha Nation v. Canada. " + "f ".repeat(5000) + " THE APPEAL IS ALLOWED.")];
+  const out = dispositionWindow("Alpha Nation v. Canada", chunks);
+  assert.match(out, /\[OPENING\]/, "a single oversized chunk must still yield an opening");
+  assert.match(out, /PARTIES: Alpha Nation v\. Canada\./, "party names must survive");
+  assert.match(out, /THE APPEAL IS ALLOWED\./, "disposition must survive");
+  assert.doesNotMatch(out, /omitted/, "nothing is omitted when there is only one paragraph");
+}
+// No chunks at all.
+{
+  const out = dispositionWindow("O v. P", []);
+  assert.match(out, /\[CASE\] O v\. P/);
+  assert.match(out, /\(no paragraphs available\)/);
 }
 
 // --- dispositionSentence ---

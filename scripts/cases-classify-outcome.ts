@@ -5,7 +5,7 @@
 import "./fetch-polyfill";
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { ddbDoc } from "../src/lib/dynamo/client";
-import { caseKeys } from "../src/lib/dynamo/cases-table";
+import { caseKeys, gsi2WinType } from "../src/lib/dynamo/cases-table";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { classifyOutcome } from "../src/lib/cases/ingest/outcome-labeler";
 import { ALL_WINTYPES } from "../src/lib/cases/ingest/outcome-rubric";
@@ -19,7 +19,7 @@ async function main() {
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
   console.log(`classifying ${profiles.length} core cases${FORCE ? " (FORCE)" : ""}`);
 
-  const stats = { classified: 0, curated: 0, already: 0, no_chunks: 0, failed: 0 };
+  const stats = { classified: 0, curated: 0, already: 0, no_chunks: 0, missing: 0, failed: 0 };
   const agree = { full: 0, partial: 0, none: 0 };
   const wins = Object.fromEntries(ALL_WINTYPES.map((w) => [w, 0])) as Record<string, number>;
   let done = 0;
@@ -34,7 +34,7 @@ async function main() {
     if (prof.outcomeMeta?.method === "dual_llm" && !FORCE) { stats.already++; continue; }
 
     const c = await dynamoCaseRepo.getCase(prof.id);
-    if (!c) continue;
+    if (!c) { stats.missing++; continue; }
     if (!c.chunks || c.chunks.length === 0) { stats.no_chunks++; continue; }
 
     let r;
@@ -49,13 +49,15 @@ async function main() {
     await ddbDoc.send(new UpdateCommand({
       TableName: TABLE,
       Key: caseKeys.profile(c.id),
-      // Case fields live under the PROFILE's `data` attribute, and DATA is a
-      // DynamoDB reserved word — alias every path segment.
-      UpdateExpression: "SET #d.#o = :o, #d.#om = :om",
+      // GSI2PK is DERIVED from winType (see gsi2WinType in cases-table.ts), so it must
+      // move in the same write — otherwise the win-type browse index keeps pointing at
+      // the pre-backfill value and silently disagrees with the base table forever.
+      UpdateExpression: "SET #d.#o = :o, #d.#om = :om, GSI2PK = :g",
       ExpressionAttributeNames: { "#d": "data", "#o": "outcome", "#om": "outcomeMeta" },
       ExpressionAttributeValues: {
         ":o": { ...c.outcome, winType: r.winType, outcomeType: r.outcomeType },
         ":om": r.outcomeMeta,
+        ":g": gsi2WinType(r.winType),
       },
     }));
 
@@ -65,7 +67,7 @@ async function main() {
     if (++done % 25 === 0) console.log(`… ${done}/${profiles.length} · classified ${stats.classified}`);
   }
 
-  console.log(`✅ classify-outcome: classified ${stats.classified} · curated ${stats.curated} · already ${stats.already} · no-chunks ${stats.no_chunks} · failed ${stats.failed}`);
+  console.log(`✅ classify-outcome: classified ${stats.classified} · curated ${stats.curated} · already ${stats.already} · no-chunks ${stats.no_chunks} · missing ${stats.missing} · failed ${stats.failed}`);
   console.log(`   agreement: full ${agree.full} · partial ${agree.partial} · none ${agree.none}`);
   console.log(`   winType: ${ALL_WINTYPES.map((w) => `${w} ${wins[w]}`).join(" · ")}`);
 }

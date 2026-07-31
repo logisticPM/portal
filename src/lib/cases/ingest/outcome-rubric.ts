@@ -54,7 +54,11 @@ export function dispositionWindow(styleOfCause: string, chunks: CaseChunk[]): st
     tailStart--;
   }
   const tailLines = lines.slice(tailStart);
-  if (tailLines[0].length > TAIL_CHARS) tailLines[0] = "…" + tailLines[0].slice(-TAIL_CHARS);
+  // Re-prepend the id: the reviewer locates the disposition by paragraph number, and
+  // slicing the tail would otherwise eat the "para-N: " prefix.
+  if (tailLines[0].length > TAIL_CHARS) {
+    tailLines[0] = `${chunks[tailStart].paragraph}: …${tailLines[0].slice(-TAIL_CHARS)}`;
+  }
 
   let headEnd = 0;
   used = 0;
@@ -65,7 +69,7 @@ export function dispositionWindow(styleOfCause: string, chunks: CaseChunk[]): st
   // A first paragraph larger than the head budget keeps its START — the mirror of the
   // tail rule. Dropping the opening outright would lose who the parties are, and
   // winType is defined relative to the Indigenous party, so that loss is not survivable.
-  const truncatedHead = headEnd === 0 && tailStart > 0;
+  const truncatedHead = headEnd === 0;
   const headLines = truncatedHead ? [lines[0].slice(0, HEAD_CHARS) + "…"] : lines.slice(0, headEnd);
 
   const omitted = tailStart - (truncatedHead ? 1 : headEnd);
