@@ -78,6 +78,7 @@ export const dynamoExtractionRepo: ExtractionRepo = {
       registryStatus: null,
       dataClass: input.dataClass,
       attempts: 1,
+      verifiedFields: [],
     };
     return putJob(job);
   },
@@ -138,7 +139,7 @@ export const dynamoExtractionRepo: ExtractionRepo = {
     return ((res.Items ?? []) as Record<string, any>[]).map(itemToJob);
   },
 
-  async confirmJob(id, reviewedBy, edited: ExtractedRap, rapId) {
+  async confirmJob(id, reviewedBy, edited: ExtractedRap, rapId, verifiedFields) {
     const job = await getJobOrThrow(id);
     return putJob({
       ...job,
@@ -146,6 +147,7 @@ export const dynamoExtractionRepo: ExtractionRepo = {
       extracted: edited,
       reviewedBy,
       rapId,
+      verifiedFields: verifiedFields ?? job.verifiedFields ?? [],
       updatedAt: now(),
     });
   },

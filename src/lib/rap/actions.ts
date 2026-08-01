@@ -8,6 +8,7 @@ import type { ProgressStatus } from "./types";
 import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
 import { contentTypeFor, isUploadConfigured, presignDownload, putDocument, uploadKey } from "./storage";
+import { applyFieldEdits } from "./field-edit";
 import { getSession } from "@/lib/auth";
 import { classifyUpload } from "@/lib/governance";
 
@@ -142,6 +143,34 @@ export async function confirmExtractionAction(formData: FormData) {
   revalidatePath("/extract");
   revalidatePath("/my-rap");
   redirect("/extract?tab=review");
+}
+
+// Review-queue publish with per-field edits + a verification audit trail. The
+// client card batches the reviewer's corrections and checked-off paths into one
+// JSON payload; here we apply the edits to the staged extraction, publish, and
+// record which fields a human confirmed. Enum edits arrive canonical (the client
+// only offers dropdown values), so publish.ts's oneOf() never downgrades them.
+export async function confirmReviewedExtractionAction(input: {
+  jobId: string;
+  edits: { path: string; value: unknown }[];
+  verifiedFields: string[];
+}) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return { ok: false as const, error: "unauthorized" };
+  const { jobId } = input;
+  if (!jobId) return { ok: false as const, error: "missing jobId" };
+
+  const job = await extractionRepo.getJob(jobId);
+  if (!job || !job.extracted) return { ok: false as const, error: "job not found" };
+  if (job.status !== "PENDING_REVIEW") return { ok: false as const, error: "job is not awaiting review" };
+  if (!canPublish(job)) return { ok: false as const, error: "resolve the Business Number before publishing" };
+
+  const edited = applyFieldEdits(job.extracted, input.edits ?? []);
+  const reviewedBy = session.email ?? session.partyId ?? "indigenomics";
+  await publishAndConfirm(job, edited, reviewedBy, input.verifiedFields ?? []);
+  revalidatePath("/extract");
+  revalidatePath("/my-rap");
+  return { ok: true as const };
 }
 
 export async function rejectExtractionAction(formData: FormData) {

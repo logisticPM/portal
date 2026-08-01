@@ -130,6 +130,7 @@ export const jobs: ExtractionJob[] = [
     fileName: "TELUS_2025_RAP_for_review.pdf",
     sourceS3Key: "uploads/job-telus-2025/TELUS_2025_RAP.pdf",
     attempts: 1,
+    verifiedFields: [],
     status: "PENDING_REVIEW",
     schemaVersion: RAP_SCHEMA_VERSION,
     engine: "textract+claude",

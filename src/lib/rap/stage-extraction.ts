@@ -68,7 +68,7 @@ export function stableRapId(orgId: string, contentHash: string): string {
 // Turn a reviewed/clean extraction into canonical entities (org + rap + commitments
 // + observations + rollups) and mark the job CONFIRMED. Re-publishing the same
 // document replaces the prior canonical graph (no duplicate double-counting).
-export async function publishAndConfirm(job: ExtractionJob, extracted: ExtractedRap, reviewedBy: string) {
+export async function publishAndConfirm(job: ExtractionJob, extracted: ExtractedRap, reviewedBy: string, verifiedFields?: string[]) {
   const now = new Date().toISOString();
   const orgId = job.businessNumber
     ? orgIdForBN(job.businessNumber)
@@ -112,7 +112,7 @@ export async function publishAndConfirm(job: ExtractionJob, extracted: Extracted
   for (const o of observations) await rapRepo.putObservation(o);
   for (const r of rollups) await rapRepo.putRollup(r);
 
-  await extractionRepo.confirmJob(job.id, reviewedBy, extracted, rapId);
+  await extractionRepo.confirmJob(job.id, reviewedBy, extracted, rapId, verifiedFields);
 }
 
 export type StageOutcome = { status: "published" | "review" | "failed"; error?: string };

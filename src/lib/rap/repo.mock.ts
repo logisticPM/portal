@@ -83,6 +83,7 @@ export const mockExtractionRepo: ExtractionRepo = {
       registryStatus: null,
       dataClass: input.dataClass,
       attempts: 1,
+      verifiedFields: [],
     };
     store.jobs.push(job);
     return job;
@@ -134,12 +135,13 @@ export const mockExtractionRepo: ExtractionRepo = {
     return store.jobs.filter((j) => j.status === status);
   },
 
-  async confirmJob(id, reviewedBy, edited: ExtractedRap, rapId) {
+  async confirmJob(id, reviewedBy, edited: ExtractedRap, rapId, verifiedFields) {
     const job = findJob(id);
     job.status = "CONFIRMED";
     job.extracted = edited; // reviewer-corrected payload wins
     job.reviewedBy = reviewedBy;
     job.rapId = rapId;
+    job.verifiedFields = verifiedFields ?? job.verifiedFields ?? [];
     job.updatedAt = now();
     return job;
   },

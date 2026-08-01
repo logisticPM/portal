@@ -13,7 +13,7 @@
 // BDA returns confidence natively, so for the BDA path you map its output into
 // the same Grounded<T> shape instead of using this tool schema.
 // ===========================================================================
-import type { CommitmentType, FrameworkRef, Jurisdiction, PairLevel, Pillar, Sector } from "./types";
+import type { CommitmentType, FrameworkRef, Jurisdiction, PairLevel, Pillar, RapType, Sector } from "./types";
 import { CANONICAL_SECTORS, CANONICAL_TYPES } from "@/lib/taxonomy";
 
 export const SECTORS: Sector[] = CANONICAL_SECTORS;
@@ -21,10 +21,10 @@ export const PILLARS: Pillar[] = [
   "relationships", "respect", "opportunities", "governance", "employment", "community", "environment", "economy", "education", "other",
 ];
 export const COMMITMENT_TYPES: CommitmentType[] = CANONICAL_TYPES;
-const FRAMEWORK_REFS: FrameworkRef[] = ["undrip", "trc_cta_92", "ocap", "pair", "other"];
-const JURISDICTIONS: Jurisdiction[] = ["AU", "CA", "other"];
-const RAP_TYPES = ["reflect", "innovate", "stretch", "elevate"];
-const PAIR_LEVELS: PairLevel[] = ["committed", "bronze", "silver", "gold"];
+export const FRAMEWORK_REFS: FrameworkRef[] = ["undrip", "trc_cta_92", "ocap", "pair", "other"];
+export const JURISDICTIONS: Jurisdiction[] = ["AU", "CA", "other"];
+export const RAP_TYPES: RapType[] = ["reflect", "innovate", "stretch", "elevate"];
+export const PAIR_LEVELS: PairLevel[] = ["committed", "bronze", "silver", "gold"];
 
 // A grounded field: the value plus the verbatim span proving it. `value` and
 // `quote` are nullable; the prompt requires quote=null ⇒ value=null.

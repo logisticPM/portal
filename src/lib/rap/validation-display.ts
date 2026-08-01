@@ -90,7 +90,7 @@ export interface ResolvedField {
 
 // Full framework names with the acronym in parentheses — reviewers shouldn't
 // have to decode "undrip"/"pair". frameworkRefs is the only enum-array field.
-const FRAMEWORK_LABELS: Record<string, string> = {
+export const FRAMEWORK_LABELS: Record<string, string> = {
   undrip: "UN Declaration on the Rights of Indigenous Peoples (UNDRIP)",
   trc_cta_92: "Truth & Reconciliation Commission Call to Action 92 (TRC CtA 92)",
   ocap: "Ownership, Control, Access & Possession (OCAP®)",
@@ -142,7 +142,7 @@ const FIELD_LABELS: Record<string, string> = {
 // Does a value look like a Grounded field? Validation only ever flags Grounded
 // fields, but guard defensively so a resolver miss falls back to the raw path
 // rather than throwing.
-function isGrounded(v: unknown): v is Grounded<unknown> {
+export function isGrounded(v: unknown): v is Grounded<unknown> {
   return typeof v === "object" && v !== null && "value" in v && "quote" in v && "page" in v;
 }
 
