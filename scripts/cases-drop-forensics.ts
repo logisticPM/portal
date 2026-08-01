@@ -10,7 +10,7 @@ import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import {
   assembleInput, buildPrompt, parseClaims, normWs, verifyClaims, RETRY_SUFFIX,
 } from "../src/lib/cases/ingest/summarizer";
-import { classifyDrop, type DropCause } from "../src/lib/cases/ingest/drop-cause";
+import { classifyDrop, type DropCause, type ElisionDiag } from "../src/lib/cases/ingest/drop-cause";
 
 const CACHE = path.join(process.cwd(), "scripts", ".cache", "llm");
 const MODEL_ID = process.env.SUMMARY_MODEL ?? "us.meta.llama3-3-70b-instruct-v1:0";
@@ -29,16 +29,23 @@ const NOTE: Record<DropCause, string> = {
   marker_bleed: "recoverable — our prompt marker",
   assembly_boundary: "recoverable — our assembly seam",
   normalization: "recoverable — widen normWs",
-  elision: "not a defect — legitimate quoting with the middle omitted",
+  elision: "NOT a defect — legitimate quoting, misfiled by the six-bucket taxonomy",
   transcription: "recoverable only by span alignment",
   unseen: "NOT recoverable — the model was never shown this text",
 };
+const DIAGS: ElisionDiag[] = ["cross_chunk_only", "fragment_too_short", "fragment_not_found", "out_of_order"];
 
 async function main() {
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
   const tally = Object.fromEntries(ORDER.map((c) => [c, 0])) as Record<DropCause, number>;
   const samples = Object.fromEntries(ORDER.map((c) => [c, [] as string[]])) as Record<DropCause, string[]>;
   let cases = 0, totalDrops = 0, noClaims = 0, mismatches = 0;
+  // Cross-tabulated, NOT a flat count: a cross_chunk_only claim can land in either
+  // transcription or unseen, and the fabrication floor needs the unseen half specifically.
+  const diagTally = Object.fromEntries(
+    DIAGS.map((d) => [d, { transcription: 0, unseen: 0 } as Record<string, number>]),
+  ) as Record<ElisionDiag, Record<string, number>>;
+  const transcriptionOverlaps: number[] = [];
 
   for (const prof of profiles) {
     const c = await dynamoCaseRepo.getCase(prof.id);
@@ -81,6 +88,8 @@ async function main() {
       mine++;
       tally[v.cause]++;
       totalDrops++;
+      if (v.elisionDiag) diagTally[v.elisionDiag][v.cause] = (diagTally[v.elisionDiag][v.cause] ?? 0) + 1;
+      if (v.cause === "transcription") transcriptionOverlaps.push(v.bestOverlap);
       if (samples[v.cause].length < 3) {
         samples[v.cause].push(
           `${c.id} ${v.bestPara ?? "?"} overlap=${v.bestOverlap.toFixed(2)} divergeAt=${v.divergenceAt ?? "-"}\n` +
@@ -101,9 +110,31 @@ async function main() {
   for (const cause of ORDER) {
     console.log(`  ${cause.padEnd(19)} ${String(tally[cause]).padStart(4)}   ${NOTE[cause]}`);
   }
-  const recoverable = tally.marker_bleed + tally.assembly_boundary + tally.normalization;
+  // elision belongs here: its fragments match exactly, so anchoring them needs no alignment.
+  const recoverable = tally.marker_bleed + tally.assembly_boundary + tally.normalization + tally.elision;
   console.log(`\n  recoverable without span alignment: ${recoverable}`);
-  console.log(`  fabrication rate (unseen / total): ${totalDrops ? ((tally.unseen / totalDrops) * 100).toFixed(1) : "0"}%`);
+
+  console.log(`\n  elision diagnostics (quotes containing an ellipsis that missed the bucket):`);
+  for (const d of DIAGS) {
+    console.log(`    ${d.padEnd(20)} transcription ${String(diagTally[d].transcription).padStart(4)} · unseen ${String(diagTally[d].unseen).padStart(4)}`);
+  }
+
+  const floor = tally.unseen - diagTally.cross_chunk_only.unseen;
+  const pc = (n: number) => (totalDrops ? ((n / totalDrops) * 100).toFixed(1) : "0") + "%";
+  console.log(`\n  fabrication rate: ${pc(floor)} (floor, cross-chunk elisions in unseen removed)` +
+              ` … ${pc(tally.unseen)} (ceiling, all of unseen)`);
+
+  const sorted = [...transcriptionOverlaps].sort((a, b) => a - b);
+  const q = (f: number) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))] : 0);
+  console.log(`\n  transcription overlap (n=${sorted.length}): ` +
+    ["p10", "p25", "p50", "p75", "p90"].map((l, i) => `${l} ${q([0.1, 0.25, 0.5, 0.75, 0.9][i]).toFixed(2)}`).join(" · "));
+  // Integer bin indices, NOT `lo += 0.05`: accumulated float error would leave the last
+  // bound at 0.9999… and silently drop every claim at exactly 1.00 — the densest bin.
+  for (let b = 10; b < 20; b++) {
+    const lo = b / 20, hi = (b + 1) / 20;
+    const n = sorted.filter((o) => o >= lo && (b === 19 ? o <= hi : o < hi)).length;
+    if (n) console.log(`    ${lo.toFixed(2)}–${hi.toFixed(2)}  ${String(n).padStart(4)}  ${"█".repeat(Math.round((n / sorted.length) * 60))}`);
+  }
   for (const cause of ORDER) {
     if (!samples[cause].length) continue;
     console.log(`\n### ${cause}`);
