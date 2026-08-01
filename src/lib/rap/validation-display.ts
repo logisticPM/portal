@@ -16,6 +16,7 @@
 // Kept out of ReviewPanel.tsx so it can be unit-tested without rendering React
 // (mirrors queue-view.ts). Tests: scripts/test-validation-display.ts.
 import type { ExtractedRap, Grounded, ValidationIssue, ValidationRule } from "./types";
+import { labelFor } from "../taxonomy";
 
 export type IssueCategory = "document" | "field";
 
@@ -36,7 +37,7 @@ export function categoryForRule(rule: ValidationRule): IssueCategory {
 // renders blank if the enum grows.
 const RULE_LABELS: Record<ValidationRule, string> = {
   no_quote: "No supporting quote",
-  quote_not_found: "Couldn't verify against the source text",
+  quote_not_found: "The AI's quote wasn't found word-for-word",
   source_text_damaged: "Document text may be damaged",
   low_page_coverage: "Low text coverage — document may be partly scanned",
   date_format: "Unrecognized date",
@@ -57,6 +58,31 @@ export interface ResolvedField {
   label: string; // human label, e.g. "Commitment 35 · Pillar"
   g: Grounded<unknown>; // the extracted field (value / quote / page / flagged)
   page: number | null; // convenience mirror of g.page (the PDF anchor)
+  displayValue: string; // human-readable value (enum labels, framework names, joined lists)
+}
+
+// Full framework names with the acronym in parentheses — reviewers shouldn't
+// have to decode "undrip"/"pair". frameworkRefs is the only enum-array field.
+const FRAMEWORK_LABELS: Record<string, string> = {
+  undrip: "UN Declaration on the Rights of Indigenous Peoples (UNDRIP)",
+  trc_cta_92: "Truth & Reconciliation Commission Call to Action 92 (TRC CtA 92)",
+  ocap: "Ownership, Control, Access & Possession (OCAP®)",
+  pair: "Partnership Accreditation in Indigenous Relations (PAIR)",
+  other: "Other framework",
+};
+
+// Render a field's value the way a reviewer reads it, not the way it's stored:
+// enum codes → curated labels, framework codes → full names, lists → joined.
+// Falls back to String()/JSON so nothing renders blank.
+function formatFieldValue(key: string, value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (key === "frameworkRefs" && Array.isArray(value)) {
+    return value.map((f) => FRAMEWORK_LABELS[String(f)] ?? String(f)).join(", ");
+  }
+  if (key === "sector" || key === "commitmentType") return labelFor(key, String(value));
+  if (Array.isArray(value)) return value.map(String).join(", ");
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 // Human labels per field key — labelFor() in taxonomy.ts only maps enum VALUES,
@@ -110,13 +136,23 @@ export function pathToField(extracted: ExtractedRap, path: string): ResolvedFiel
     const field = commitment?.[key];
     if (!isGrounded(field)) return null;
     const fieldLabel = FIELD_LABELS[key] ?? key;
-    return { label: `Commitment ${i + 1} · ${fieldLabel}`, g: field, page: field.page };
+    return {
+      label: `Commitment ${i + 1} · ${fieldLabel}`,
+      g: field,
+      page: field.page,
+      displayValue: formatFieldValue(key, field.value),
+    };
   }
 
   // Top-level key.
   const field = (extracted as unknown as Record<string, unknown>)[path];
   if (!isGrounded(field)) return null;
-  return { label: FIELD_LABELS[path] ?? path, g: field, page: field.page };
+  return {
+    label: FIELD_LABELS[path] ?? path,
+    g: field,
+    page: field.page,
+    displayValue: formatFieldValue(path, field.value),
+  };
 }
 
 export interface FieldEntry {

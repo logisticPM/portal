@@ -40,6 +40,7 @@ const g = <T,>(value: T | null, quote: string | null, page: number | null): Grou
 const extracted = {
   sector: g("energy", "Hydro-Québec launched its Action Plan", 1),
   endorsementStatus: g("endorsed", "TMX Group today announced", 2),
+  frameworkRefs: g(["undrip", "pair"], "Inspired by these discussions", 3),
   commitments: [
     { owner: g("TMX Group", "TMX Group today announced", 2), pillarNormalized: "capital" },
     { owner: g("Board", "TMX Group today announced", 2) },
@@ -68,6 +69,14 @@ check("commitment path carries the page", pillarLike?.page === 2);
 const top = pathToField(extracted, "sector");
 check("top-level path resolves with human label", top?.label === "Sector", top?.label);
 check("top-level path returns value + page", top?.g.value === "energy" && top?.page === 1);
+check("enum value is humanized in displayValue", top?.displayValue === "Energy", top?.displayValue);
+
+const fw = pathToField(extracted, "frameworkRefs");
+check("framework array renders full names with acronyms",
+  fw?.displayValue === "UN Declaration on the Rights of Indigenous Peoples (UNDRIP), Partnership Accreditation in Indigenous Relations (PAIR)",
+  fw?.displayValue);
+check("plain-string field displayValue is the raw string",
+  pillarLike?.displayValue === "TMX Group", pillarLike?.displayValue);
 
 check("$document resolves to null", pathToField(extracted, "$document") === null);
 check("unknown top-level key resolves to null", pathToField(extracted, "nonesuch") === null);

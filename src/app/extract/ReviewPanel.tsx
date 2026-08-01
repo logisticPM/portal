@@ -197,11 +197,15 @@ function IssuePanel({ summary, jobId }: { summary: IssueSummary; jobId: string }
               <div className="text-ink2 mb-1">
                 <span className="font-medium">{g.label}</span> — {g.count} {g.count === 1 ? "field" : "fields"}
               </div>
-              {/* Tie the quote failures back to the damaged text so they don't
-                  read as independent hallucination warnings. */}
-              {g.rule === "quote_not_found" && summary.hasDamage && (
+              {/* Explain what "not found word-for-word" means so it doesn't read
+                  as a fabrication warning. When the document is damaged, name
+                  that as the cause; otherwise it's usually a paraphrase or an
+                  inferred value. Either way: open the PDF and confirm. */}
+              {g.rule === "quote_not_found" && (
                 <div className="text-ink3 text-xs mb-2">
-                  Expected here — the document text is damaged (see above), so the AI&apos;s quotes can&apos;t be matched word-for-word. Spot-check these against the source PDF.
+                  {summary.hasDamage
+                    ? "Expected here — the document text is damaged (see above), so the AI's quotes can't be matched word-for-word. Spot-check these against the source PDF."
+                    : "The supporting quote didn't match the extracted text exactly — usually a light paraphrase or an inferred value (like a category), not a fabrication. Open the PDF to confirm."}
                 </div>
               )}
               <div className="space-y-2">
@@ -225,7 +229,7 @@ function EvidenceCard({ entry, rule, jobId }: { entry: FieldEntry; rule: string;
   if (!r) {
     return <div className="rounded border border-line bg-panel/60 p-2 text-xs"><code>{entry.path}</code></div>;
   }
-  const value = displayGroundedValue(r.g);
+  const value = r.displayValue;
   const quote = r.g.quote;
   const page = r.page;
   return (
@@ -258,13 +262,6 @@ function SourcePdfLink({ jobId, page, label }: { jobId: string; page?: number; l
       <button className="text-cedar text-xs underline">{label}</button>
     </form>
   );
-}
-
-// Mirror the Field component's value formatting: em dash for null, JSON for
-// objects (periodCovered, frameworkRefs arrays), string otherwise.
-function displayGroundedValue(g: Grounded<unknown>): string {
-  if (g.value === null || g.value === undefined) return "—";
-  return typeof g.value === "object" ? JSON.stringify(g.value) : String(g.value);
 }
 
 // The document-level rules already carry a full explanatory message from the
