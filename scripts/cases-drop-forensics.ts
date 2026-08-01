@@ -25,7 +25,7 @@ const readCache = async (prompt: string): Promise<string | null> => {
 
 const ORDER: DropCause[] = ["locate_bug", "marker_bleed", "assembly_boundary", "normalization", "elision", "transcription", "unseen"];
 const NOTE: Record<DropCause, string> = {
-  locate_bug: "BUG in locate() — investigate before reading anything else",
+  locate_bug: "structurally 0 — a locate() disagreement surfaces as a replication mismatch, above",
   marker_bleed: "recoverable — our prompt marker",
   assembly_boundary: "recoverable — our assembly seam",
   normalization: "recoverable — widen normWs",
@@ -34,12 +34,16 @@ const NOTE: Record<DropCause, string> = {
   unseen: "NOT recoverable — the model was never shown this text",
 };
 const DIAGS: ElisionDiag[] = ["cross_chunk_only", "fragment_too_short", "fragment_not_found", "out_of_order"];
+// ORDER is a plain array, so tsc cannot check it covers DropCause the way NOTE's Record does.
+if (ORDER.length !== Object.keys(NOTE).length) {
+  throw new Error(`ORDER has ${ORDER.length} buckets but NOTE has ${Object.keys(NOTE).length} — a bucket is missing from ORDER`);
+}
 
 async function main() {
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
   const tally = Object.fromEntries(ORDER.map((c) => [c, 0])) as Record<DropCause, number>;
   const samples = Object.fromEntries(ORDER.map((c) => [c, [] as string[]])) as Record<DropCause, string[]>;
-  let cases = 0, totalDrops = 0, noClaims = 0, mismatches = 0;
+  let cases = 0, totalDrops = 0, noClaims = 0, mismatches = 0, preRejected = 0;
   // Cross-tabulated, NOT a flat count: a cross_chunk_only claim can land in either
   // transcription or unseen, and the fabrication floor needs the unseen half specifically.
   const diagTally = Object.fromEntries(
@@ -61,7 +65,12 @@ async function main() {
     let claims = raw === null ? null : parseClaims(raw);
     if (!claims) {
       const retry = await readCache(prompt + RETRY_SUFFIX);
-      if (raw === null && retry === null) {
+      // `retry === null` alone is the right test, not `raw === null && retry === null`:
+      // summarizeCase ALWAYS issues the retry when the base response fails to parse, so a
+      // missing retry entry proves the cache is incomplete even when the base entry exists.
+      // The old guard let that case fall through to noClaims and silently shrink the
+      // population — the exact failure this guard was written to prevent.
+      if (retry === null) {
         // A miss means either the cache is incomplete or this script reconstructs the
         // prompt differently from the run. Both make the distribution meaningless, so
         // stop rather than silently measure a biased subset.
@@ -80,9 +89,9 @@ async function main() {
     // …and our own pass, which additionally tells us WHICH claim dropped.
     let anchors = 0, mine = 0;
     for (const cl of claims) {
-      if (anchors >= 6) { mine++; continue; }
+      if (anchors >= 6) { mine++; preRejected++; continue; }
       const q = normWs(cl.quote ?? "");
-      if (!(cl.text ?? "").trim() || q.length < 15) { mine++; continue; }
+      if (!(cl.text ?? "").trim() || q.length < 15) { mine++; preRejected++; continue; }
       const v = classifyDrop(cl.quote ?? "", c.chunks, assembled);
       if (v.cause === "locate_bug") { anchors++; continue; } // it verified — not a drop
       mine++;
@@ -104,8 +113,18 @@ async function main() {
     }
   }
 
-  console.log(`\n${totalDrops} dropped claims across ${cases} cases · ${noClaims} cases had no parseable claims`);
-  if (mismatches) console.log(`⚠ ${mismatches} cases where replication disagreed with verifyClaims — treat the distribution as suspect`);
+  // totalDrops counts SPAN drops only. Claims rejected for over_cap / no_text /
+  // quote_too_short never reach classifyDrop, so they are outside every bucket AND outside
+  // the denominator of the fabrication interval below. Printed so the reader can see whether
+  // that denominator is the whole population or only part of it.
+  console.log(`\n${totalDrops} span-dropped claims across ${cases} cases · ${noClaims} cases had no parseable claims`);
+  console.log(`${preRejected} further claims rejected before classification (over_cap / no_text / quote_too_short)` +
+    (preRejected ? " — the fabrication denominator below EXCLUDES these" : ""));
+  // ALWAYS printed. This — not the locate_bug row — is the evidence that our classifier and
+  // the shipped verifier agree on what is findable. The locate_bug row is reclassified into
+  // `anchors` before the tally, so it can only ever read 0 and proves nothing on its own.
+  console.log(`replication vs verifyClaims: ${mismatches} disagreement(s) across ${cases} cases` +
+    (mismatches ? " — TREAT THE DISTRIBUTION AS SUSPECT" : ""));
   console.log("");
   for (const cause of ORDER) {
     console.log(`  ${cause.padEnd(19)} ${String(tally[cause]).padStart(4)}   ${NOTE[cause]}`);
@@ -119,17 +138,32 @@ async function main() {
     console.log(`    ${d.padEnd(20)} transcription ${String(diagTally[d].transcription).padStart(4)} · unseen ${String(diagTally[d].unseen).padStart(4)}`);
   }
 
-  const floor = tally.unseen - diagTally.cross_chunk_only.unseen;
+  // The most generous reading the evidence permits: every DIAGNOSED elision sitting in
+  // `unseen` is legitimate quoting EXCEPT fragment_not_found, where a fragment appears in no
+  // chunk at all and is therefore invented text by definition.
+  //
+  // Subtracting only cross_chunk_only — as this originally did — left out_of_order claims
+  // inside a number labelled a fabrication floor, and an out_of_order claim has EVERY
+  // fragment present in the corpus. It also left fragment_too_short, which is undecidable
+  // and therefore belongs on the generous side of an interval, not inside the floor.
+  const benignInUnseen = diagTally.cross_chunk_only.unseen + diagTally.out_of_order.unseen +
+                         diagTally.fragment_too_short.unseen;
+  const floor = tally.unseen - benignInUnseen;
   const pc = (n: number) => (totalDrops ? ((n / totalDrops) * 100).toFixed(1) : "0") + "%";
-  console.log(`\n  fabrication rate: ${pc(floor)} (floor, cross-chunk elisions in unseen removed)` +
-              ` … ${pc(tally.unseen)} (ceiling, all of unseen)`);
+  console.log(`\n  fabrication rate: ${pc(floor)} (floor — only fragment_not_found and undiagnosed unseen)` +
+              ` … ${pc(tally.unseen)} (ceiling — all of unseen)`);
 
   const sorted = [...transcriptionOverlaps].sort((a, b) => a - b);
-  const q = (f: number) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(f * sorted.length))] : 0);
+  // Nearest-rank: ceil(f·n) − 1. Math.floor(f·n) sits one order statistic high whenever f·n
+  // is an integer, which turns "p90" into the maximum on small n.
+  const q = (f: number) =>
+    sorted.length ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(f * sorted.length) - 1))] : 0;
   console.log(`\n  transcription overlap (n=${sorted.length}): ` +
     ["p10", "p25", "p50", "p75", "p90"].map((l, i) => `${l} ${q([0.1, 0.25, 0.5, 0.75, 0.9][i]).toFixed(2)}`).join(" · "));
-  // Integer bin indices, NOT `lo += 0.05`: accumulated float error would leave the last
-  // bound at 0.9999… and silently drop every claim at exactly 1.00 — the densest bin.
+  // Integer bin indices, NOT `lo += 0.05`: accumulated float error would leave the last bound
+  // at 0.9999… and misplace values near the top. Note an overlap of exactly 1.00 is
+  // impossible here — a fully contiguous quote returns locate_bug and is never a drop — so
+  // the inclusive upper bound on the last bin is a guard, not a live case.
   for (let b = 10; b < 20; b++) {
     const lo = b / 20, hi = (b + 1) / 20;
     const n = sorted.filter((o) => o >= lo && (b === 19 ? o <= hi : o < hi)).length;

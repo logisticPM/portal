@@ -10,7 +10,7 @@ export type DropCause =
   | "marker_bleed"        // the quote swept up a "[para N]" prompt marker
   | "assembly_boundary"   // spans a seam that exists only in the assembled prompt
   | "normalization"       // matches after a fold normWs does not perform
-  | "elision"             // legitimate quoting with the middle omitted
+  | "elision"             // legitimate quoting with a passage omitted
   | "transcription"       // a real passage, garbled
   | "unseen";             // absent from what the model was shown
 
@@ -71,9 +71,20 @@ export const widenFold = (s: string) =>
 // those would inflate the bucket in exactly the direction that flatters us.
 export const MIN_FRAGMENT = 20;
 
-// widenFold has already collapsed "…", ". . ." and "[ ... ]" into ASCII dots, so one pattern
-// covers every spelling instead of five.
-const ELLIPSIS = /\s*[\[(]?\.{3,4}[\])]?\s*/;
+// widenFold has already collapsed "…", ". . ." and "[ ... ]" into ASCII dots.
+//
+// `\.{3,}` not `\.{3,4}`: widenFold's "remove whitespace before punctuation" rule glues a
+// preceding sentence period onto the run, so a legitimate `"…dismissed. .... The appeal"`
+// arrives here as five dots. A cap of 4 would leave a stray dot welded to the next fragment,
+// which then matches nothing and gets counted as a fabrication — the exact contamination
+// this bucket exists to remove.
+//
+// The leading `\.?` absorbs that sentence period for the BRACKETED spellings too. Without
+// it the verdict depends on typography: bare dots swallow the period (so fragment 1 matches
+// without it) while `[...]` leaves it attached (so fragment 1 fails whenever the source has
+// a comma at the seam). Same quote, same source, different answer based on how the model
+// typed the ellipsis.
+const ELLIPSIS = /\s*\.?\s*[\[(]?\.{3,}[\])]?\s*/;
 
 // Leftmost match, no backtracking. If a fragment occurs twice and only the LATER occurrence
 // leaves room for the next one, this returns false. With a 20-char floor that is rare, and
@@ -113,8 +124,15 @@ export interface ElisionResult {
 // null means "this quote is not elided at all" — distinct from "elided but did not qualify",
 // which returns { isElision: false, diag }.
 export function classifyElision(rawQuote: string, chunks: CaseChunk[]): ElisionResult | null {
-  const fragments = widenFold(rawQuote).split(ELLIPSIS).map((f) => f.trim()).filter(Boolean);
-  if (fragments.length < 2) return null;
+  const w = widenFold(rawQuote);
+  // The gate is "contains an ellipsis", NOT "splits into two or more fragments". An ellipsis
+  // at the START or END of a quote is just as much an elision, just as legitimate, and just
+  // as trivially anchorable as one in the middle — and those quotes score 0.95+ overlap, so
+  // excluding them would park them in the densest bin of the histogram that RM-4's decision
+  // reads, uncounted and mislabelled "recoverable only by span alignment".
+  if (!ELLIPSIS.test(w)) return null;
+  const fragments = w.split(ELLIPSIS).map((f) => f.trim()).filter(Boolean);
+  if (!fragments.length) return null; // the quote was nothing but dots
 
   if (fragments.some((f) => f.length < MIN_FRAGMENT)) {
     return { isElision: false, diag: "fragment_too_short" };
@@ -160,6 +178,12 @@ export function classifyDrop(rawQuote: string, chunks: CaseChunk[], assembled: s
   if (q.includes("[para ")) return { cause: "marker_bleed", ...base };
 
   // 3. In the prompt but not the document — our seam, faithfully transcribed.
+  //    UNREACHABLE against real `assembleInput` output, and that is worth stating rather
+  //    than discovering: the seam in the assembled text always has a "[para N]" marker
+  //    sitting on it, so any quote that spans the seam necessarily contains the marker and
+  //    is caught by marker_bleed one step earlier. The seam hypothesis is therefore settled
+  //    by marker_bleed's count, NOT by this bucket's. This check is kept because it defines
+  //    the bucket's semantics and costs nothing.
   if (normWs(assembled).includes(q)) return { cause: "assembly_boundary", ...base };
 
   // 4. A fold normWs misses.

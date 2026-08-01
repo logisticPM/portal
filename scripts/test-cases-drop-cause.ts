@@ -44,6 +44,8 @@ assert.equal(classifyDrop("circumstances. [para para-3] Compensation was assesse
 //    document-adjacent, so no window in locate() can span them. Marker stripped, so the
 //    seam alone is the cause.
 {
+  // NOTE: this fixture strips the markers before calling, which is NOT what the runner ever
+  // passes. The test pins the bucket's semantics; it does not show the bucket is reachable.
   const spliced = assemble([chunks[0], chunks[2]]);    // what the over-budget path emits
   const seamOnly = "Minister's decision. Compensation was assessed";
   assert.equal(classifyDrop(seamOnly, chunks, spliced.replace(/\[para [^\]]+\] /g, "")).cause,
@@ -167,16 +169,66 @@ assert.equal(
   assert.equal(v.cause, "elision", "elision must be tested BEFORE transcription");
 }
 
-// --- ORDERING REGRESSION: marker_bleed must outrank elision ---
+// --- marker_bleed vs elision: the precedence is UNREACHABLE, and that is the finding ---
+// A quote cannot be both. Chunk text never contains "[para " (assembleInput adds the markers),
+// so any fragment carrying a marker is found in no chunk → fragment_not_found; and a marker
+// isolated between two ellipses is 13 characters → fragment_too_short. A precedence test here
+// would pass no matter which order the checks ran in, which is worse than no test: it reads
+// like a guarantee. Asserting the unreachability instead is the honest version.
+{
+  const long = [p(1, "The appellant argued that the consultation was inadequate in every material respect. " +
+    "I conclude that the Crown discharged its duty to consult in the circumstances.")];
+  const q = "The appellant argued that the consultation was inadequate in every material respect. " +
+            "... [para para-1] I conclude that the Crown discharged its duty to consult";
+  const el = classifyElision(q, long);
+  assert.equal(el?.isElision, false);
+  assert.equal(el?.diag, "fragment_not_found",
+    "a marker inside a fragment makes that fragment unfindable — so the two buckets never both match");
+}
+
+// --- a five-dot run (sentence period + four-dot elision) must not strand a dot ---
 {
   const long = [p(1,
     "The appellant argued that the consultation was inadequate in every material respect. " +
+    "Counsel devoted considerable time to the history of the negotiations. " +
     "I conclude that the Crown discharged its duty to consult in the circumstances.")];
   const asm = assemble(long);
   const q = "The appellant argued that the consultation was inadequate in every material respect. " +
-            "... [para para-1] I conclude that the Crown discharged its duty to consult";
-  assert.equal(classifyDrop(q, long, asm).cause, "marker_bleed",
-    "a marker problem is a marker problem first, even when the quote is also elided");
+            ".... I conclude that the Crown discharged its duty to consult";
+  assert.equal(classifyDrop(q, long, asm).cause, "elision",
+    "a capped dot run would weld the stray dot onto fragment 2 and report fragment_not_found");
+}
+
+// --- the spelling must not decide the verdict when the seam is NOT a sentence boundary ---
+// Bare dots swallow a preceding period; brackets do not. If the pattern does not absorb it
+// for both, the same quote against the same source gets different answers by typography.
+{
+  const long = [p(1,
+    "The Crown consulted the Nation in good faith throughout the process, and the appellant " +
+    "has not established any deficiency in the accommodation that was ultimately offered.")];
+  const asm = assemble(long);
+  const head = "The Crown consulted the Nation in good faith throughout the process,";
+  const tail = "has not established any deficiency in the accommodation";
+  for (const marker of ["...", "…", "[...]", "(...)", ". . ."]) {
+    assert.equal(classifyDrop(`${head} ${marker} ${tail}`, long, asm).cause, "elision",
+      `spelling ${JSON.stringify(marker)} must not change the verdict`);
+  }
+}
+
+// --- an ellipsis at the EDGE of a quote is still an elision ---
+{
+  const long = [p(1,
+    "Counsel devoted considerable time to the history of the negotiations between the parties. " +
+    "I conclude that the Crown discharged its duty to consult in the circumstances.")];
+  const asm = assemble(long);
+  const lead = "... I conclude that the Crown discharged its duty to consult";
+  const trail = "Counsel devoted considerable time to the history of the negotiations ...";
+  for (const q of [lead, trail]) {
+    const v = classifyDrop(q, long, asm);
+    assert.equal(v.cause, "elision", `edge elision must not fall through to transcription: ${q}`);
+    assert.ok(v.bestOverlap >= 0.9,
+      `precondition: ${v.bestOverlap.toFixed(2)} overlap means transcription would otherwise claim it`);
+  }
 }
 
 console.log("✅ test-cases-drop-cause passed");
