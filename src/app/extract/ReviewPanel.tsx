@@ -21,6 +21,8 @@ import { confirmExtractionAction, dismissExtractionAction, rejectExtractionActio
 import { cbrSearchUrl } from "@/lib/rap/registry";
 import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
 import { labelFor } from "@/lib/taxonomy";
+import { summarizeIssues } from "@/lib/rap/validation-display";
+import type { IssueSummary } from "@/lib/rap/validation-display";
 import { QueueAutoRefresh } from "./QueueAutoRefresh";
 import { elapsedSince, isStalled, orderFailed, orderInProgress } from "./queue-view";
 
@@ -84,53 +86,143 @@ export async function ReviewPanel() {
       )}
 
       {jobs.map((job) => (
-        <div key={job.id} className="bg-panel rounded border border-line shadow-card p-6 space-y-4">
-          <div className="flex justify-between items-start gap-4">
-            <div>
-              <div className="font-medium">{job.fileName}</div>
-              <div className="text-ink3 text-sm">
-                {job.classification && labelFor("sector", job.classification.sector)} · {job.classification?.jurisdiction} · engine: {job.engine} · overall confidence {Math.round((job.classification?.confidence ?? 0) * 100)}%
-              </div>
-            </div>
-          </div>
-
-          {job.validationIssues.length > 0 && (
-            <div className="rounded border border-rust/40 bg-rust/5 p-3 text-sm">
-              <div className="text-rust font-medium mb-1">Validation issues</div>
-              <ul className="list-disc ml-5 text-ink3">
-                {job.validationIssues.map((v, i) => (
-                  <li key={i}><code>{v.path}</code> — {v.rule}: {v.message}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {job.extracted && <ExtractedView e={job.extracted} />}
-
-          <OrgBlock job={job} />
-
-          <div className="flex gap-3 pt-2">
-            <form action={confirmExtractionAction}>
-              <input type="hidden" name="jobId" value={job.id} />
-              <input type="hidden" name="reviewedBy" value="admin" />
-              <button
-                disabled={job.businessNumber == null}
-                className="px-4 py-2 rounded bg-cedar text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Approve &amp; publish
-              </button>
-            </form>
-            <form action={rejectExtractionAction} className="flex gap-2">
-              <input type="hidden" name="jobId" value={job.id} />
-              <input type="hidden" name="reviewedBy" value="admin" />
-              <input name="reason" placeholder="Reason (optional)" className="px-3 py-2 rounded border border-line text-sm" />
-              <button className="px-4 py-2 rounded border border-rust text-rust text-sm">Reject</button>
-            </form>
-          </div>
-        </div>
+        <ReviewCard key={job.id} job={job} />
       ))}
     </div>
   );
+}
+
+// One flagged document. Collapsed by default to a single scannable summary row
+// (filename + meta + a triage badge) so a queue of many-commitment RAPs no
+// longer stacks into an endless page. Native <details> keeps this a server
+// component — no client JS — matching the disclosure idiom in cases/ui.tsx and
+// notifications/page.tsx. Expanding reveals the redesigned issue panel, the full
+// extraction, org resolution, and the Approve/Reject actions.
+function ReviewCard({ job }: { job: ExtractionJob }) {
+  const summary = summarizeIssues(job.validationIssues);
+  const needsBn = job.businessNumber == null;
+  return (
+    <details className="bg-panel rounded border border-line shadow-card group">
+      <summary className="p-6 cursor-pointer list-none [&::-webkit-details-marker]:hidden flex justify-between items-start gap-4">
+        <div className="min-w-0">
+          <div className="font-medium">{job.fileName}</div>
+          <div className="text-ink3 text-sm">
+            {job.classification && labelFor("sector", job.classification.sector)} · {job.classification?.jurisdiction} · engine: {job.engine} · overall confidence {Math.round((job.classification?.confidence ?? 0) * 100)}%
+          </div>
+          <TriageBadges summary={summary} needsBn={needsBn} />
+        </div>
+        {/* Rotates when the card is open; the whole summary row toggles it. */}
+        <span aria-hidden className="text-ink3 text-sm shrink-0 transition-transform group-open:rotate-90">▸</span>
+      </summary>
+
+      <div className="px-6 pb-6 space-y-4">
+        {job.validationIssues.length > 0 && <IssuePanel summary={summary} />}
+
+        {job.extracted && <ExtractedView e={job.extracted} />}
+
+        <OrgBlock job={job} />
+
+        <div className="flex gap-3 pt-2">
+          <form action={confirmExtractionAction}>
+            <input type="hidden" name="jobId" value={job.id} />
+            <input type="hidden" name="reviewedBy" value="admin" />
+            <button
+              disabled={needsBn}
+              className="px-4 py-2 rounded bg-cedar text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Approve &amp; publish
+            </button>
+          </form>
+          <form action={rejectExtractionAction} className="flex gap-2">
+            <input type="hidden" name="jobId" value={job.id} />
+            <input type="hidden" name="reviewedBy" value="admin" />
+            <input name="reason" placeholder="Reason (optional)" className="px-3 py-2 rounded border border-line text-sm" />
+            <button className="px-4 py-2 rounded border border-rust text-rust text-sm">Reject</button>
+          </form>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+// At-a-glance triage on the collapsed row: whether the document itself is
+// suspect, how many fields need a look, and whether it can even be published
+// yet (BN required). Lets a reviewer prioritise without expanding every card.
+function TriageBadges({ summary, needsBn }: { summary: IssueSummary; needsBn: boolean }) {
+  const badge = (text: string, tone: "warn" | "info" | "ok") => {
+    const cls =
+      tone === "warn" ? "border-rust/40 bg-rust/5 text-rust"
+      : tone === "ok" ? "border-cedar/40 bg-cedar/5 text-cedar"
+      : "border-line bg-line/10 text-ink3";
+    return <span className={`inline-block rounded border px-2 py-0.5 text-xs ${cls}`}>{text}</span>;
+  };
+  return (
+    <div className="flex flex-wrap gap-2 mt-2">
+      {summary.document.length > 0 && badge("⚠ document text may be damaged", "warn")}
+      {summary.fieldCount > 0 && badge(`${summary.fieldCount} ${summary.fieldCount === 1 ? "field" : "fields"} to check`, "info")}
+      {needsBn ? badge("needs Business Number", "info") : badge("ready to publish", "ok")}
+    </div>
+  );
+}
+
+// The redesigned "what to check" panel. Leads with the document-level root cause
+// (so a damaged PDF is not mistaken for a hallucinating AI), then groups the
+// field-level issues by rule — 11 identical quote failures become one line
+// listing the 11 fields, with a note that they are EXPECTED when the source
+// text is damaged. Presentation only; the gate that sent this job to review is
+// unchanged.
+function IssuePanel({ summary }: { summary: IssueSummary }) {
+  return (
+    <div className="rounded border border-rust/40 bg-rust/5 p-3 text-sm space-y-3">
+      <div className="text-rust font-medium">What to check before publishing</div>
+
+      {summary.document.length > 0 && (
+        <div className="space-y-1">
+          {summary.document.map((d, i) => (
+            <div key={i}>
+              <div className="font-medium text-ink2">{labelForDocIssue(d.rule)}</div>
+              <div className="text-ink3">{d.message}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {summary.fieldGroups.length > 0 && (
+        <ul className="space-y-2">
+          {summary.fieldGroups.map((g) => (
+            <li key={g.rule}>
+              <div className="text-ink2">
+                <span className="font-medium">{g.label}</span> — {g.count} {g.count === 1 ? "field" : "fields"}
+              </div>
+              {/* Tie the quote failures back to the damaged text so they don't
+                  read as independent hallucination warnings. */}
+              {g.rule === "quote_not_found" && summary.hasDamage && (
+                <div className="text-ink3 text-xs">
+                  Expected here — the document text is damaged (see above), so the AI&apos;s quotes can&apos;t be matched word-for-word. Spot-check these against the source PDF.
+                </div>
+              )}
+              <details className="mt-0.5">
+                <summary className="cursor-pointer text-ink3 text-xs">Show {g.count === 1 ? "field" : "fields"}</summary>
+                <ul className="list-disc ml-5 text-ink3 text-xs mt-1">
+                  {g.paths.map((p, i) => (
+                    <li key={i}><code>{p}</code></li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// The document-level rules already carry a full explanatory message from the
+// pipeline; this is just the short heading above it.
+function labelForDocIssue(rule: string): string {
+  if (rule === "source_text_damaged") return "Document text may be damaged";
+  if (rule === "low_page_coverage") return "Low text coverage";
+  return rule;
 }
 
 function InProgressList({ jobs, now }: { jobs: ExtractionJob[]; now: number }) {
@@ -278,9 +370,14 @@ function ExtractedView({ e }: { e: ExtractedRap }) {
         <Field label="Governance body" g={e.governanceBody} />
       </div>
 
-      <div>
-        <div className="text-ink3 text-xs uppercase tracking-widest mb-2">Commitments</div>
-        <div className="space-y-3">
+      {/* Nested disclosure: a 35-commitment RAP would otherwise make even an
+          expanded review card enormous. Collapsed by default; the count is
+          visible so the reviewer knows how much is inside. */}
+      <details>
+        <summary className="text-ink3 text-xs uppercase tracking-widest mb-2 cursor-pointer">
+          Commitments ({e.commitments.length}) — show
+        </summary>
+        <div className="space-y-3 mt-2">
           {e.commitments.map((c, i) => (
             <div key={i} className="rounded border border-line p-3 grid sm:grid-cols-2 gap-2">
               <Field label="Action" g={c.action} />
@@ -295,7 +392,7 @@ function ExtractedView({ e }: { e: ExtractedRap }) {
             </div>
           ))}
         </div>
-      </div>
+      </details>
 
       {e.extras.length > 0 && (
         <div>
