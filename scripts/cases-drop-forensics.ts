@@ -27,7 +27,7 @@ const ORDER: DropCause[] = ["locate_bug", "marker_bleed", "assembly_boundary", "
 const NOTE: Record<DropCause, string> = {
   locate_bug: "structurally 0 — a locate() disagreement surfaces as a replication mismatch, above",
   marker_bleed: "recoverable — our prompt marker",
-  assembly_boundary: "recoverable — our assembly seam",
+  assembly_boundary: "structurally 0 — subsumed by marker_bleed, see the note in classifyDrop",
   normalization: "recoverable — widen normWs",
   elision: "NOT a defect — legitimate quoting, misfiled by the six-bucket taxonomy",
   transcription: "recoverable only by span alignment",
