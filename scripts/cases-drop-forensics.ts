@@ -23,12 +23,13 @@ const readCache = async (prompt: string): Promise<string | null> => {
   catch { return null; }
 };
 
-const ORDER: DropCause[] = ["locate_bug", "marker_bleed", "assembly_boundary", "normalization", "transcription", "unseen"];
+const ORDER: DropCause[] = ["locate_bug", "marker_bleed", "assembly_boundary", "normalization", "elision", "transcription", "unseen"];
 const NOTE: Record<DropCause, string> = {
   locate_bug: "BUG in locate() — investigate before reading anything else",
   marker_bleed: "recoverable — our prompt marker",
   assembly_boundary: "recoverable — our assembly seam",
   normalization: "recoverable — widen normWs",
+  elision: "not a defect — legitimate quoting with the middle omitted",
   transcription: "recoverable only by span alignment",
   unseen: "NOT recoverable — the model was never shown this text",
 };
