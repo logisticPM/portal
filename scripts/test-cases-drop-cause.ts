@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { CaseChunk } from "../src/lib/cases/types";
-import { classifyDrop, lcsSpan, widenFold } from "../src/lib/cases/ingest/drop-cause";
+import { classifyDrop, classifyElision, lcsSpan, widenFold, MIN_FRAGMENT } from "../src/lib/cases/ingest/drop-cause";
 import { normWs } from "../src/lib/cases/ingest/summarizer";
 
 const p = (n: number, text: string): CaseChunk => ({ paragraph: `para-${n}`, text });
@@ -20,6 +20,10 @@ assert.equal(widenFold("(emphasis added) ."), widenFold("(emphasis added)."), "s
 assert.equal(widenFold("a…b"), widenFold("a...b"), "ellipsis character vs three dots");
 assert.equal(widenFold("soft­hyphen"), widenFold("softhyphen"), "soft hyphen is invisible");
 assert.equal(widenFold("ﬁre"), widenFold("fire"), "fi ligature from PDF extraction");
+
+// --- classifyElision returns null for quotes that are not elided at all ---
+assert.equal(classifyElision("no ellipsis anywhere in this sentence", [p(1, "irrelevant")]), null);
+assert.equal(MIN_FRAGMENT, 20);
 
 const chunks = [
   p(1, "The appellant sought judicial review of the Minister's decision."),
@@ -86,6 +90,93 @@ assert.equal(
   const v = classifyDrop("ZZZZ The Crown owed a fiduciary duty to the Nation in these XX", chunks, full);
   assert.ok(v.divergenceAt !== null && v.divergenceAt > 5,
     "divergence is reported after the matched run, not at index 0");
+}
+
+// --- elision: legitimate quoting with the middle omitted ---
+{
+  const long = [p(1,
+    "The appellant argued that the consultation was inadequate in every material respect. " +
+    "Counsel devoted considerable time to the history of the negotiations. " +
+    "I conclude that the Crown discharged its duty to consult in the circumstances.")];
+  const asm = assemble(long);
+
+  // Both fragments live in ONE chunk, in order → elision.
+  const q = "The appellant argued that the consultation was inadequate in every material respect. " +
+            "... I conclude that the Crown discharged its duty to consult";
+  const v = classifyDrop(q, long, asm);
+  assert.equal(v.cause, "elision");
+  assert.equal(v.elisionDiag, undefined, "the bucket is earned, so there is no failure diagnostic");
+
+  // Every ellipsis spelling reaches the same verdict.
+  for (const marker of ["…", ". . .", "[...]", "[…]", "...."]) {
+    assert.equal(classifyDrop(q.replace("...", marker), long, asm).cause, "elision",
+      `spelling ${JSON.stringify(marker)} must classify the same as "..."`);
+  }
+
+  // Reversed → the fragments are all present but not in order.
+  const rev = "I conclude that the Crown discharged its duty to consult" +
+              " ... The appellant argued that the consultation was inadequate in every material respect.";
+  const rv = classifyDrop(rev, long, asm);
+  assert.notEqual(rv.cause, "elision");
+  assert.equal(rv.elisionDiag, "out_of_order");
+
+  // A fragment under MIN_FRAGMENT matches incidentally, so it does not earn the bucket.
+  const short = "The appellant argued that the consultation was inadequate ... duty";
+  const sv = classifyDrop(short, long, asm);
+  assert.notEqual(sv.cause, "elision");
+  assert.equal(sv.elisionDiag, "fragment_too_short");
+
+  // A second fragment present in no chunk at all.
+  const bogus = "The appellant argued that the consultation was inadequate in every material respect." +
+                " ... The tribunal awarded punitive damages of four million dollars.";
+  const bv = classifyDrop(bogus, long, asm);
+  assert.notEqual(bv.cause, "elision");
+  assert.equal(bv.elisionDiag, "fragment_not_found");
+}
+
+// --- cross_chunk_only: legitimate in real writing, but not the strict bucket ---
+{
+  const two = [
+    p(1, "The Crown owed a fiduciary duty to the Nation in these circumstances of dispossession."),
+    p(2, "Compensation was assessed at fair market value as of the date of the taking of the land."),
+  ];
+  const asm = assemble(two);
+  const q = "The Crown owed a fiduciary duty to the Nation in these circumstances" +
+            " ... Compensation was assessed at fair market value as of the date";
+  const v = classifyDrop(q, two, asm);
+  assert.notEqual(v.cause, "elision", "fragments in different chunks do not earn the strict bucket");
+  assert.equal(v.elisionDiag, "cross_chunk_only");
+}
+
+// --- ORDERING REGRESSION: elision must outrank transcription ---
+// This is the assertion the whole change exists for. An elided quote whose LONGEST fragment
+// exceeds half the quote clears LCS >= 0.5, so if transcription were tested first it would
+// absorb the case and the contamination inside that bucket would stay invisible forever.
+// The precondition proves both buckets match this input.
+{
+  const long = [p(1,
+    "The duty to consult arises when the Crown has knowledge of a potential Aboriginal claim and " +
+    "contemplates conduct that might adversely affect it, a threshold that is not demanding. " +
+    "Accordingly the appeal is allowed.")];
+  const asm = assemble(long);
+  const q = "The duty to consult arises when the Crown has knowledge of a potential Aboriginal claim and " +
+            "contemplates conduct that might adversely affect it ... Accordingly the appeal is allowed.";
+  const v = classifyDrop(q, long, asm);
+  assert.ok(v.bestOverlap >= 0.5,
+    `precondition: longest fragment is ${v.bestOverlap.toFixed(2)} of the quote, so transcription also matches`);
+  assert.equal(v.cause, "elision", "elision must be tested BEFORE transcription");
+}
+
+// --- ORDERING REGRESSION: marker_bleed must outrank elision ---
+{
+  const long = [p(1,
+    "The appellant argued that the consultation was inadequate in every material respect. " +
+    "I conclude that the Crown discharged its duty to consult in the circumstances.")];
+  const asm = assemble(long);
+  const q = "The appellant argued that the consultation was inadequate in every material respect. " +
+            "... [para para-1] I conclude that the Crown discharged its duty to consult";
+  assert.equal(classifyDrop(q, long, asm).cause, "marker_bleed",
+    "a marker problem is a marker problem first, even when the quote is also elided");
 }
 
 console.log("✅ test-cases-drop-cause passed");
