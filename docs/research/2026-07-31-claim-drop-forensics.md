@@ -1,11 +1,138 @@
 # Claim-Drop Forensics — Where the 707 Discarded Claims Go
 
-**Date:** 2026-07-31 · **Branch:** `feat/drop-forensics` · harness: `cases:drop-forensics:cloud`
-(spec `docs/superpowers/specs/2026-07-31-claim-drop-forensics-design.md`)
+**Date:** 2026-07-31 · **Branch:** `feat/drop-forensics`, revised on `feat/elision-bucket` ·
+harness: `cases:drop-forensics:cloud`
+(specs `…/2026-07-31-claim-drop-forensics-design.md`, `…/2026-07-31-elision-bucket-design.md`)
 
 This document reports a measurement. It **recommends nothing** — deliberately. Choosing a remedy is
 a separate decision that should be made with this distribution in hand, not bundled into the
 measurement that produces it.
+
+---
+
+# REVISION — 2026-07-31, second run (7 buckets)
+
+**Three things below this line were wrong. Read this section first.**
+
+## 1. The "ellipsis contamination" this revision was built to size is negligible
+
+The original run flagged `unseen = 7.2%` as an **upper bound**, on the theory that ellipsis elisions
+— legitimate legal quoting the LCS test cannot span — were being misfiled as fabrications. A second
+spec argued the contamination was worse than stated, because `transcription` is tested before
+`unseen`, so an elided quote whose longest fragment exceeds half the quote would be absorbed there
+too.
+
+The argument was sound. The measurement killed it:
+
+```
+  elision                3     of 707   (0.4%)
+```
+
+Only **18** of the 707 dropped quotes contain an ellipsis at all. Three earn the bucket.
+
+```
+  fabrication rate: 7.1% (floor) … 7.2% (ceiling)
+```
+
+**The original 7.2% was right.** The caveat attached to it overstated the doubt.
+
+## 2. The one example cited as a confirmed elision is partly fabricated
+
+The original document presented `2025-bcsc-1167 para-62` as the proof that the bucket was
+contaminated, and stated: *"the model joined two genuine passages … both fragments are genuine …
+That is a taxonomy gap, not a fabrication."*
+
+That was asserted from the shape of the string. It was never checked. Checked now, the quote has
+**three** fragments, not two:
+
+| fragment | chars | in the judgment? |
+|---|---:|---|
+| `"For all these reasons, the Plaintiffs' proprietary estoppel claims are dismissed"` | 80 | yes — para-52 |
+| `"The Plaintiffs' unjust enrichment claims fail on that basis alone"` | 65 | **no — appears in no chunk** |
+| `"For all these reasons, these Plaintiffs' negligent misrepresentation claims are dismissed."` | 90 | yes — para-62 |
+
+The middle fragment is invented, and the two genuine fragments come from *different* paragraphs. The
+verifier was right to drop it, the `unseen` bucket is the right bucket, and the claim that it was
+legitimate quoting was wrong.
+
+## 3. Two of the original headline zeros were structural, not measured
+
+- **`locate_bug = 0`** was guaranteed. The runner converts a `locate_bug` verdict into an anchor and
+  `continue`s *before* the tally, so that counter can never increment. The conclusion it was cited
+  for — that the classifier and the shipped verifier agree on what is findable — is nonetheless
+  true, but the evidence is the per-case reconciliation: **0 disagreements across 559 cases**. That
+  line is now printed unconditionally.
+- **`assembly_boundary = 0`** was also guaranteed, and it was cited as refuting the prompt-seam
+  hypothesis. It cannot refute anything: every seam in the assembled text carries a `[para N]`
+  marker, so a quote spanning one necessarily contains the marker and is caught by `marker_bleed`
+  a step earlier. The hypothesis **is** dead — but it is `marker_bleed = 0` that kills it, since a
+  seam-spanning quote must carry the marker and none does.
+
+## The corrected distribution
+
+```
+707 span-dropped claims across 559 cases · 0 cases had no parseable claims
+0 further claims rejected before classification (over_cap / no_text / quote_too_short)
+replication vs verifyClaims: 0 disagreement(s) across 559 cases
+
+  locate_bug             0   structurally 0 — see the reconciliation line above
+  marker_bleed           0   the seam hypothesis dies here
+  assembly_boundary      0   structurally 0 — subsumed by marker_bleed
+  normalization         22   recoverable — widen normWs
+  elision                3   legitimate quoting, misfiled by the 6-bucket taxonomy
+  transcription        631   (was 634)
+  unseen                51   (unchanged)
+
+  elision diagnostics (ellipsis-bearing quotes that missed the bucket):
+    cross_chunk_only     transcription    0 · unseen    0
+    fragment_too_short   transcription    4 · unseen    1
+    fragment_not_found   transcription    8 · unseen    2
+    out_of_order         transcription    0 · unseen    0
+```
+
+`cross_chunk_only` and `out_of_order` are **both zero**. The strict-bucket / loose-counter design —
+built specifically so the reader could choose where in the interval to stand — has no cases on
+either side of the choice. The interval it was meant to open is 0.1 percentage points wide.
+
+## What this run did establish: the `transcription` overlap distribution
+
+This was bundled in at zero marginal cost and is the only result here that changes a decision.
+
+```
+  transcription overlap (n=631): p10 0.60 · p25 0.77 · p50 0.98 · p75 0.99 · p90 1.00
+
+    0.50–0.55    37  ████
+    0.55–0.60    31  ███
+    0.60–0.65    36  ███
+    0.65–0.70    23  ██
+    0.70–0.75    19  ██
+    0.75–0.80    29  ███
+    0.80–0.85    23  ██
+    0.85–0.90    30  ███
+    0.90–0.95    51  █████
+    0.95–1.00   352  █████████████████████████████████
+```
+
+**352 of 631 — 56% — share at least 95% of the quote as one contiguous run with real judgment text.**
+The median is 0.98. The original document sampled three points, saw two at 0.99, and said explicitly
+that three points could not support a claim about 634. They can now: the mass is at the top.
+
+(`p90 1.00` is display rounding. An overlap of exactly 1.00 is impossible in this bucket — a fully
+contiguous quote returns `locate_bug` and is never a drop.)
+
+The sampled divergence offsets suggest where the difference sits: `"The Nuchatlaht have established
+a claim to title to the whole of the area they have claimed."` is 92 characters, scores 0.99, and
+reports `divergeAt=92` — the matched run ends at the quote's end, so the single differing character
+is at position 0.
+
+This is the number RM-4 needs. It is stated here and **acted on nowhere** — per both specs, this
+document recommends nothing.
+
+---
+
+# ORIGINAL — first run (6 buckets), retained as the record of what that taxonomy measured
+
+Everything below predates the revision above. Where the two disagree, the revision is correct.
 
 ## Setup (methodology, stated up front)
 
