@@ -138,6 +138,12 @@ export interface CaseFilter {
   themes?: Theme[]; level?: CourtLevel; winType?: WinType;
   nation?: string; yearFrom?: number; yearTo?: number;
   tier?: CorpusTier | "all";
+  // Added so every aggregate on the activation dashboard has a case list behind it.
+  // Without these, the funnel counts and the recorded-figure ranges are dead ends: the
+  // reader sees "7 realized" and has no way to ask which seven.
+  realization?: RealizationStatus;
+  figureKind?: FigureKind;
+  fullText?: "yes" | "no";
 }
 export interface Facets {
   byTheme: Partial<Record<Theme, number>>;

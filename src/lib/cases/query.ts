@@ -16,7 +16,12 @@ export function filterCases(cases: LegalCase[], f?: CaseFilter): LegalCase[] {
     (!f?.winType || c.outcome.winType === f.winType) &&
     (!f?.nation || c.nations.includes(f.nation)) &&
     (f?.yearFrom === undefined || c.year >= f.yearFrom) &&
-    (f?.yearTo === undefined || c.year <= f.yearTo));
+    (f?.yearTo === undefined || c.year <= f.yearTo) &&
+    // A case with no valueRealization is NOT "unknown" — it was never assessed. Treating
+    // absence as a status would silently pad whichever bucket the reader clicked.
+    (!f?.realization || c.valueRealization?.status === f.realization) &&
+    (!f?.figureKind || (c.extractedFigures ?? []).some((x) => x.kind === f.figureKind)) &&
+    (!f?.fullText || (f.fullText === "yes") === c.fullTextAvailable));
 }
 
 // Hybrid-spirit scoring: exact tokens (citation, name, nation) weighted highest —
