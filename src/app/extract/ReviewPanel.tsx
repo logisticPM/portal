@@ -21,7 +21,7 @@ import { confirmExtractionAction, dismissExtractionAction, openSourceAction, rej
 import { cbrSearchUrl } from "@/lib/rap/registry";
 import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
 import { labelFor } from "@/lib/taxonomy";
-import { summarizeIssues } from "@/lib/rap/validation-display";
+import { docIssueExplanation, docIssueHeading, summarizeIssues } from "@/lib/rap/validation-display";
 import type { FieldEntry, IssueSummary } from "@/lib/rap/validation-display";
 import { QueueAutoRefresh } from "./QueueAutoRefresh";
 import { elapsedSince, isStalled, orderFailed, orderInProgress } from "./queue-view";
@@ -181,8 +181,8 @@ function IssuePanel({ summary, jobId }: { summary: IssueSummary; jobId: string }
         <div className="space-y-1">
           {summary.document.map((d, i) => (
             <div key={i}>
-              <div className="font-medium text-ink2">{labelForDocIssue(d.rule)}</div>
-              <div className="text-ink3">{d.message}</div>
+              <div className="font-medium text-ink2">{docIssueHeading(d.rule)}</div>
+              <div className="text-ink3">{docIssueExplanation(d)}</div>
             </div>
           ))}
           {/* Page-less link to the whole document for the damaged/low-coverage case. */}
@@ -262,14 +262,6 @@ function SourcePdfLink({ jobId, page, label }: { jobId: string; page?: number; l
       <button className="text-cedar text-xs underline">{label}</button>
     </form>
   );
-}
-
-// The document-level rules already carry a full explanatory message from the
-// pipeline; this is just the short heading above it.
-function labelForDocIssue(rule: string): string {
-  if (rule === "source_text_damaged") return "Document text may be damaged";
-  if (rule === "low_page_coverage") return "Low text coverage";
-  return rule;
 }
 
 function InProgressList({ jobs, now }: { jobs: ExtractionJob[]; now: number }) {

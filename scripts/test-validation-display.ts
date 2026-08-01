@@ -10,6 +10,8 @@
 // Run: npx tsx scripts/test-validation-display.ts
 import {
   categoryForRule,
+  damagedCharCount,
+  docIssueExplanation,
   pathToField,
   plainLabel,
   summarizeIssues,
@@ -83,6 +85,16 @@ check("unknown top-level key resolves to null", pathToField(extracted, "nonesuch
 check("non-Grounded key (pillarNormalized) resolves to null",
   pathToField(extracted, "commitments[0].pillarNormalized") === null);
 check("out-of-range commitment index resolves to null", pathToField(extracted, "commitments[99].owner") === null);
+
+// --- document-level message rewording (drop the raw offsets) ----------------
+const rawDamaged =
+  'The extracted source text contains 12 unmappable character(s) (offsets 226, 305, 657, 1281). Review manually.';
+check("damagedCharCount pulls the count out of the raw diagnostic", damagedCharCount(rawDamaged) === 12);
+const damagedExplain = docIssueExplanation(issue("$document", "source_text_damaged", rawDamaged));
+check("doc explanation drops the character offsets", !/offset/i.test(damagedExplain) && !damagedExplain.includes("226"));
+check("doc explanation keeps the useful count", damagedExplain.includes("12 characters"));
+check("low_page_coverage gets a friendly explanation",
+  docIssueExplanation(issue("$document", "low_page_coverage", "few pages")).toLowerCase().includes("scanned"));
 
 // --- summarizeIssues: the cascade, with resolution --------------------------
 const tmx: ValidationIssue[] = [

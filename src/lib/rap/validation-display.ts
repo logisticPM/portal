@@ -50,6 +50,33 @@ export function plainLabel(rule: ValidationRule): string {
   return RULE_LABELS[rule] ?? rule;
 }
 
+// The document-level issues carry a raw pipeline diagnostic (e.g. character
+// offsets "226, 305, …") that means nothing to a reviewer. Pull out only the
+// useful signal — the count of damaged characters — and phrase what it means and
+// what to do. Returns the raw message for any rule we don't specifically reword.
+export function damagedCharCount(message: string): number | null {
+  const m = message.match(/contains\s+(\d+)\s+unmappable/i);
+  return m ? Number(m[1]) : null;
+}
+
+export function docIssueHeading(rule: ValidationRule): string {
+  if (rule === "source_text_damaged") return "Some text didn't extract cleanly";
+  if (rule === "low_page_coverage") return "This PDF may be partly scanned";
+  return plainLabel(rule);
+}
+
+export function docIssueExplanation(issue: ValidationIssue): string {
+  if (issue.rule === "source_text_damaged") {
+    const n = damagedCharCount(issue.message);
+    const count = n != null ? `Around ${n} character${n === 1 ? "" : "s"}` : "Some characters";
+    return `${count} in this PDF didn't convert to text cleanly, because the document's embedded fonts are missing standard mappings for some symbols. The AI may well have read those spots correctly, but its quotes can't be matched exactly against the garbled text — open the PDF and check the flagged fields against what's actually on the page.`;
+  }
+  if (issue.rule === "low_page_coverage") {
+    return "Only a few pages of this PDF had text the system could read, so it may be a scanned or image-based document. Anything the AI missed might simply live in the pages that didn't extract — open the PDF to check directly.";
+  }
+  return issue.message;
+}
+
 // A bare path like `commitments[34].pillarRaw` tells a reviewer nothing about
 // what to check or where. Resolve it back to the extracted field so the UI can
 // show the value the AI read, the quote it cited, and the page — the actual
