@@ -17,12 +17,12 @@
 // than as a specific failure: every job failed in under a second and the queue
 // showed nothing. Both statuses were already stored; only the query was narrow.
 import { extractionRepo } from "@/lib/rap";
-import { confirmExtractionAction, dismissExtractionAction, rejectExtractionAction, resolveOrgAction, retryExtractionAction } from "@/lib/rap/actions";
+import { confirmExtractionAction, dismissExtractionAction, openSourceAction, rejectExtractionAction, resolveOrgAction, retryExtractionAction } from "@/lib/rap/actions";
 import { cbrSearchUrl } from "@/lib/rap/registry";
 import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
 import { labelFor } from "@/lib/taxonomy";
 import { summarizeIssues } from "@/lib/rap/validation-display";
-import type { IssueSummary } from "@/lib/rap/validation-display";
+import type { FieldEntry, IssueSummary } from "@/lib/rap/validation-display";
 import { QueueAutoRefresh } from "./QueueAutoRefresh";
 import { elapsedSince, isStalled, orderFailed, orderInProgress } from "./queue-view";
 
@@ -99,7 +99,7 @@ export async function ReviewPanel() {
 // notifications/page.tsx. Expanding reveals the redesigned issue panel, the full
 // extraction, org resolution, and the Approve/Reject actions.
 function ReviewCard({ job }: { job: ExtractionJob }) {
-  const summary = summarizeIssues(job.validationIssues);
+  const summary = summarizeIssues(job.validationIssues, job.extracted);
   const needsBn = job.businessNumber == null;
   return (
     <details className="bg-panel rounded border border-line shadow-card group">
@@ -116,7 +116,7 @@ function ReviewCard({ job }: { job: ExtractionJob }) {
       </summary>
 
       <div className="px-6 pb-6 space-y-4">
-        {job.validationIssues.length > 0 && <IssuePanel summary={summary} />}
+        {job.validationIssues.length > 0 && <IssuePanel summary={summary} jobId={job.id} />}
 
         {job.extracted && <ExtractedView e={job.extracted} />}
 
@@ -167,11 +167,12 @@ function TriageBadges({ summary, needsBn }: { summary: IssueSummary; needsBn: bo
 
 // The redesigned "what to check" panel. Leads with the document-level root cause
 // (so a damaged PDF is not mistaken for a hallucinating AI), then groups the
-// field-level issues by rule — 11 identical quote failures become one line
-// listing the 11 fields, with a note that they are EXPECTED when the source
-// text is damaged. Presentation only; the gate that sent this job to review is
-// unchanged.
-function IssuePanel({ summary }: { summary: IssueSummary }) {
+// field-level issues by rule. Each flagged field is an EVIDENCE CARD — the value
+// the AI read, the quote it cited, the page, and a one-click link that opens the
+// source PDF at that page — so a reviewer has an actual starting point, not a
+// bare `commitments[34].pillarRaw`. Presentation only; the gate that sent this
+// job to review is unchanged.
+function IssuePanel({ summary, jobId }: { summary: IssueSummary; jobId: string }) {
   return (
     <div className="rounded border border-rust/40 bg-rust/5 p-3 text-sm space-y-3">
       <div className="text-rust font-medium">What to check before publishing</div>
@@ -184,37 +185,86 @@ function IssuePanel({ summary }: { summary: IssueSummary }) {
               <div className="text-ink3">{d.message}</div>
             </div>
           ))}
+          {/* Page-less link to the whole document for the damaged/low-coverage case. */}
+          <SourcePdfLink jobId={jobId} label="Open source PDF ↗" />
         </div>
       )}
 
       {summary.fieldGroups.length > 0 && (
-        <ul className="space-y-2">
+        <div className="space-y-3">
           {summary.fieldGroups.map((g) => (
-            <li key={g.rule}>
-              <div className="text-ink2">
+            <div key={g.rule}>
+              <div className="text-ink2 mb-1">
                 <span className="font-medium">{g.label}</span> — {g.count} {g.count === 1 ? "field" : "fields"}
               </div>
               {/* Tie the quote failures back to the damaged text so they don't
                   read as independent hallucination warnings. */}
               {g.rule === "quote_not_found" && summary.hasDamage && (
-                <div className="text-ink3 text-xs">
+                <div className="text-ink3 text-xs mb-2">
                   Expected here — the document text is damaged (see above), so the AI&apos;s quotes can&apos;t be matched word-for-word. Spot-check these against the source PDF.
                 </div>
               )}
-              <details className="mt-0.5">
-                <summary className="cursor-pointer text-ink3 text-xs">Show {g.count === 1 ? "field" : "fields"}</summary>
-                <ul className="list-disc ml-5 text-ink3 text-xs mt-1">
-                  {g.paths.map((p, i) => (
-                    <li key={i}><code>{p}</code></li>
-                  ))}
-                </ul>
-              </details>
-            </li>
+              <div className="space-y-2">
+                {g.fields.map((entry, i) => (
+                  <EvidenceCard key={i} entry={entry} rule={g.rule} jobId={jobId} />
+                ))}
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
+}
+
+// One flagged field, resolved to what the reviewer needs: the value the AI read,
+// the quote it cited (framed by rule), the page, and a jump-to-PDF link. Falls
+// back to the raw path if resolution failed (defensive; shouldn't happen).
+function EvidenceCard({ entry, rule, jobId }: { entry: FieldEntry; rule: string; jobId: string }) {
+  const r = entry.resolved;
+  if (!r) {
+    return <div className="rounded border border-line bg-panel/60 p-2 text-xs"><code>{entry.path}</code></div>;
+  }
+  const value = displayGroundedValue(r.g);
+  const quote = r.g.quote;
+  const page = r.page;
+  return (
+    <div className="rounded border border-line bg-panel/60 p-2">
+      <div className="text-ink3 text-[11px] uppercase tracking-wide">{r.label}</div>
+      <div className="text-sm">
+        <span className="text-ink3">AI read this as:</span> {value}
+      </div>
+      {quote ? (
+        <div className="text-ink3 text-xs mt-1">
+          {rule === "quote_not_found" ? "Cited (couldn't match): " : "Cited: "}“{quote}”{page ? ` · p.${page}` : ""}
+        </div>
+      ) : (
+        <div className="text-rust text-xs mt-1">No source quote given — locate this in the document.</div>
+      )}
+      {page != null && <SourcePdfLink jobId={jobId} page={page} label={`Open source PDF at p.${page} ↗`} />}
+    </div>
+  );
+}
+
+// A no-JS "open the source PDF (at page N)" link: a form posting to the guarded
+// openSourceAction, which redirects to a freshly presigned URL. target="_blank"
+// so it opens in a new tab and the #page=N fragment lands the native viewer on
+// the right page.
+function SourcePdfLink({ jobId, page, label }: { jobId: string; page?: number; label: string }) {
+  return (
+    <form action={openSourceAction} target="_blank" className="mt-1">
+      <input type="hidden" name="jobId" value={jobId} />
+      {page != null && <input type="hidden" name="page" value={page} />}
+      <button className="text-cedar text-xs underline">{label}</button>
+    </form>
+  );
+}
+
+// Mirror the Field component's value formatting: em dash for null, JSON for
+// objects (periodCovered, frameworkRefs arrays), string otherwise.
+function displayGroundedValue(g: Grounded<unknown>): string {
+  if (g.value === null || g.value === undefined) return "—";
+  return typeof g.value === "object" ? JSON.stringify(g.value) : String(g.value);
 }
 
 // The document-level rules already carry a full explanatory message from the

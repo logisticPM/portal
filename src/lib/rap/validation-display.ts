@@ -15,7 +15,7 @@
 //
 // Kept out of ReviewPanel.tsx so it can be unit-tested without rendering React
 // (mirrors queue-view.ts). Tests: scripts/test-validation-display.ts.
-import type { ValidationIssue, ValidationRule } from "./types";
+import type { ExtractedRap, Grounded, ValidationIssue, ValidationRule } from "./types";
 
 export type IssueCategory = "document" | "field";
 
@@ -49,10 +49,85 @@ export function plainLabel(rule: ValidationRule): string {
   return RULE_LABELS[rule] ?? rule;
 }
 
+// A bare path like `commitments[34].pillarRaw` tells a reviewer nothing about
+// what to check or where. Resolve it back to the extracted field so the UI can
+// show the value the AI read, the quote it cited, and the page — the actual
+// starting point for a manual check.
+export interface ResolvedField {
+  label: string; // human label, e.g. "Commitment 35 · Pillar"
+  g: Grounded<unknown>; // the extracted field (value / quote / page / flagged)
+  page: number | null; // convenience mirror of g.page (the PDF anchor)
+}
+
+// Human labels per field key — labelFor() in taxonomy.ts only maps enum VALUES,
+// not field NAMES, so this is the field-name map. Mirrors the labels ExtractedView
+// already uses where they overlap.
+const FIELD_LABELS: Record<string, string> = {
+  // commitment-level
+  pillarRaw: "Pillar",
+  action: "Action",
+  deliverable: "Deliverable",
+  timeline: "Timeline",
+  owner: "Owner",
+  metric: "Metric / target",
+  commitmentType: "Type",
+  // top-level
+  orgName: "Organization",
+  rapTitle: "RAP title",
+  sector: "Sector",
+  jurisdiction: "Jurisdiction",
+  publicationDate: "Published",
+  periodCovered: "Period covered",
+  frameworkRefs: "Framework references",
+  governanceBody: "Governance body",
+  reviewCycle: "Review cycle",
+  rapType: "RAP type",
+  pairLevel: "PAIR level",
+  endorsementStatus: "Endorsement status",
+};
+
+// Does a value look like a Grounded field? Validation only ever flags Grounded
+// fields, but guard defensively so a resolver miss falls back to the raw path
+// rather than throwing.
+function isGrounded(v: unknown): v is Grounded<unknown> {
+  return typeof v === "object" && v !== null && "value" in v && "quote" in v && "page" in v;
+}
+
+const COMMITMENT_PATH = /^commitments\[(\d+)\]\.(\w+)$/;
+
+/**
+ * Resolve a ValidationIssue `path` to the extracted field it points at, with a
+ * human label. Returns null for the synthetic `$document` path, unknown keys, or
+ * non-Grounded keys (pillarNormalized, pillars, extras, sectorFields) — the UI
+ * then falls back to showing the raw path. Pure; reads `extracted` only.
+ */
+export function pathToField(extracted: ExtractedRap, path: string): ResolvedField | null {
+  const m = COMMITMENT_PATH.exec(path);
+  if (m) {
+    const i = Number(m[1]);
+    const key = m[2];
+    const commitment = extracted.commitments[i] as unknown as Record<string, unknown> | undefined;
+    const field = commitment?.[key];
+    if (!isGrounded(field)) return null;
+    const fieldLabel = FIELD_LABELS[key] ?? key;
+    return { label: `Commitment ${i + 1} · ${fieldLabel}`, g: field, page: field.page };
+  }
+
+  // Top-level key.
+  const field = (extracted as unknown as Record<string, unknown>)[path];
+  if (!isGrounded(field)) return null;
+  return { label: FIELD_LABELS[path] ?? path, g: field, page: field.page };
+}
+
+export interface FieldEntry {
+  path: string; // original dotted path (fallback label if unresolved)
+  resolved: ResolvedField | null;
+}
+
 export interface FieldGroup {
   rule: ValidationRule;
   label: string;
-  paths: string[]; // the field paths that tripped this rule, e.g. commitments[0].owner
+  fields: FieldEntry[]; // the fields that tripped this rule, resolved to their data
   count: number;
 }
 
@@ -65,12 +140,13 @@ export interface IssueSummary {
 
 /**
  * Split document-level from field-level issues and group the field-level ones by
- * rule, preserving first-seen order for both the groups and the paths within
- * them. `hasDamage` lets the UI tell the reviewer that `quote_not_found`
- * failures are a *consequence* of the damaged text, not independent alarms.
- * Pure: does not mutate `issues`.
+ * rule, preserving first-seen order for both the groups and the fields within
+ * them. Each field is resolved to its extracted data (value/quote/page) when
+ * `extracted` is supplied. `hasDamage` lets the UI tell the reviewer that
+ * `quote_not_found` failures are a *consequence* of the damaged text, not
+ * independent alarms. Pure: does not mutate `issues`.
  */
-export function summarizeIssues(issues: ValidationIssue[]): IssueSummary {
+export function summarizeIssues(issues: ValidationIssue[], extracted?: ExtractedRap | null): IssueSummary {
   const document: ValidationIssue[] = [];
   const groupByRule = new Map<ValidationRule, FieldGroup>();
 
@@ -81,10 +157,10 @@ export function summarizeIssues(issues: ValidationIssue[]): IssueSummary {
     }
     let group = groupByRule.get(issue.rule);
     if (!group) {
-      group = { rule: issue.rule, label: plainLabel(issue.rule), paths: [], count: 0 };
+      group = { rule: issue.rule, label: plainLabel(issue.rule), fields: [], count: 0 };
       groupByRule.set(issue.rule, group);
     }
-    group.paths.push(issue.path);
+    group.fields.push({ path: issue.path, resolved: extracted ? pathToField(extracted, issue.path) : null });
     group.count++;
   }
 
