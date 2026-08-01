@@ -136,6 +136,16 @@ as a fallback, `DIGEST_RECIPIENT`) is set at deploy. The address gets a **one-ti
 AWS confirmation email** you must click once, or alarms fire silently to the topic.
 Set it on the deploy, e.g. `ALERTS_EMAIL=oncall@indigenomics.example npx sst deploy --stage production`.
 
+## Explore data source (production + ca)
+
+Explore (`/commitments/explore`) reads its facts through `getIndexFacts()`, gated
+by `RAP_INDEX_SOURCE`. On the two real-extraction stages it defaults to **`merge`**
+(set in `sst.config.ts` for `ca` + `production`): Explore shows the seeded
+commitments demo **and** approved RAP extractions together (unioned, deduped by
+commit id), so it stays rich while confirmed RAPs appear as they're reviewed.
+Other stages keep the default (seeded only); `"rap"` (extractions only) is the
+eventual full cutover. An env override at deploy still wins.
+
 ## Cost
 
 Demo traffic is effectively free (DynamoDB on-demand + Lambda + CloudFront free

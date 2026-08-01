@@ -46,6 +46,25 @@ export async function presignUpload(docId: string, fileName: string): Promise<{ 
   return { url, s3Key };
 }
 
+// Presigned GET URL so a reviewer can OPEN the original PDF in a new tab (the
+// review queue links to it, jumping to a specific page via a #page=N fragment).
+// ResponseContentDisposition/Type force inline viewing in the browser's native
+// PDF viewer rather than a download. Short-lived by design — generated per click
+// through openSourceAction, so it never sits around stale. Runs in the Web
+// request Lambda, whose role already has s3:GetObject via the SST bucket link.
+export async function presignDownload(s3Key: string, expiresIn = 300): Promise<string> {
+  return getSignedUrl(
+    client(),
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: s3Key,
+      ResponseContentDisposition: "inline",
+      ResponseContentType: "application/pdf",
+    }),
+    { expiresIn },
+  );
+}
+
 export async function getDocumentBytes(s3Key: string): Promise<Uint8Array> {
   const res = await client().send(new GetObjectCommand({ Bucket: bucket, Key: s3Key }));
   // Body is a stream in Node; transformToByteArray is provided by the SDK v3 mixin

@@ -585,6 +585,12 @@ export default $config({
         SURVEY_TABLE: rapSurvey.name,
         AUTH_SECRET: authSecret.value, // HMAC session-signing key (server-side; never NEXT_PUBLIC_)
         COMMITMENTS_TABLE: commitments.name,
+        // Explore (/commitments/explore, getIndexFacts) data source. On the two
+        // real-extraction stages (ca + production) use "merge": Explore shows the
+        // seeded commitments demo AND approved RAP extractions, unioned/deduped,
+        // so it stays rich while real RAPs appear as they're confirmed. Other
+        // stages keep the default (seeded only). An env override still wins.
+        RAP_INDEX_SOURCE: process.env.RAP_INDEX_SOURCE ?? (observe ? "merge" : ""),
         ALIGNMENT_TABLE: alignment.name,
         // Weekly overdue-milestone digest (spec 2026-07-25): the institute
         // /notifications button (server action) reads/writes this table and
