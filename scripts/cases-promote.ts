@@ -15,6 +15,20 @@ import { promoteSubstrate } from "./cases-ingest";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 
+// Rewrites src/lib/cases/screening.ts, preserving its header comment. The file is a module
+// rather than JSON so it needs no tsconfig flag and carries its own explanation of why it
+// is generated at all.
+async function writeScreening(s: { asOf: string; substrate: number; promoted: number; excluded: Record<string, number> }) {
+  const p = "src/lib/cases/screening.ts";
+  const src = await fs.readFile(p, "utf8");
+  const next = src.replace(
+    /export const SCREENING: Screening = \{[\s\S]*?\n\};/,
+    "export const SCREENING: Screening = " + JSON.stringify(s, null, 2).replace(/"([a-zA-Z_][\w]*)":/g, "$1:") + " as Screening;");
+  if (next === src) throw new Error(`could not find the SCREENING literal in ${p} — refusing to leave it stale`);
+  await fs.writeFile(p, next);
+  console.log(`✅ rewrote ${p} (asOf ${s.asOf}) — commit it with this run`);
+}
+
 async function main() {
   const subs = await dynamoCaseRepo.listCases({ tier: "substrate" });
   // Reassemble each case from PROFILE + CHUNK# items so promoteSubstrate sees full text.
@@ -26,6 +40,15 @@ async function main() {
   for (let i = 0; i < requests.length; i += 25)
     await ddbDoc.send(new BatchWriteCommand({ RequestItems: { [TABLE]: requests.slice(i, i + 25) } }));
   await fs.writeFile("scripts/.cache/prisma.json", JSON.stringify(prisma, null, 2));
+  // Also rewrite the TRACKED copy the methodology page renders. The .cache file above is
+  // gitignored and never deployed, so without this the published screening funnel would
+  // silently keep showing whatever figures were last hand-written.
+  await writeScreening({
+    asOf: new Date().toISOString().slice(0, 10),
+    substrate: substrate.length,
+    promoted: core.length,
+    excluded: prisma.excluded,
+  });
   console.log(`✅ promoted: core ${core.length} of ${substrate.length} substrate · excluded ${substrate.length - core.length}`);
   console.log("PRISMA:", JSON.stringify(prisma.excluded));
 }

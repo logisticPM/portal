@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { casesRepo } from "@/lib/cases";
 import { StatCard, Bar } from "../ui";
 import { courtLevelLabel } from "@/lib/cases/labels";
+import { SCREENING, screenedOut } from "@/lib/cases/screening";
 
 export default async function MethodologyPage() {
   const st = await casesRepo.getCorpusStats();
+  const cov = st.coverage;
   const levels = Object.entries(st.byLevel);
   const maxLevel = Math.max(1, ...levels.map(([, n]) => n));
   const decades = Object.entries(st.byDecade);
@@ -15,11 +18,91 @@ export default async function MethodologyPage() {
       <p className="mt-1 text-sm text-ink3">How this corpus is built, labeled, and evaluated — transparent by design.</p>
 
       <div className="mt-4 grid grid-cols-4 gap-3">
-        <StatCard label="total cases" value={st.total} />
-        <StatCard label="curated core" value={st.core} />
-        <StatCard label="substrate" value={st.substrate} />
-        <StatCard label="full text" value={st.fullText} />
+        <Link href="/cases?tier=all" className="block hover:opacity-80"><StatCard label="records harvested" value={st.total} /></Link>
+        <Link href="/cases?tier=core" className="block hover:opacity-80"><StatCard label="curated core" value={st.core} /></Link>
+        <Link href="/cases?tier=substrate" className="block hover:opacity-80"><StatCard label="substrate" value={st.substrate} /></Link>
+        <Link href="/cases?tier=all&fullText=yes" className="block hover:opacity-80"><StatCard label="full text" value={st.fullText} /></Link>
       </div>
+      <p className="mt-2 text-xs text-ink3">
+        “Records harvested” is the whole intake, not a count of Indigenous economic-justice
+        cases. The substrate is a deliberately wide retrieval haystack and most of it is
+        general litigation that the relevance screen excluded — see the screening funnel
+        below for what survived. Every number here opens the records behind it.
+      </p>
+
+      <section className="mt-6">
+        <h2 className="font-serif text-lg">Screening funnel <span className="text-xs font-sans font-normal text-ink3">(as of {SCREENING.asOf})</span></h2>
+        <p className="mt-1 text-sm text-ink3">
+          What the relevance screen did to the {SCREENING.substrate.toLocaleString()} substrate
+          records. A record reaches core only if it shows both an Indigenous-party signal and
+          an economic-justice theme, <em>and</em> two different model families agree on a theme.
+        </p>
+        <div className="mt-2 space-y-1 text-sm">
+          <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+            <span>Screened out — no Indigenous signal, or no economic theme</span>
+            <span className="tabular-nums text-ink3">{screenedOut().toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between rounded border border-amber/30 bg-amber/5 px-3 py-2">
+            <span>On topic, but the two labellers disagreed on a theme</span>
+            <span className="tabular-nums text-ink2">{(SCREENING.excluded.no_model_consensus ?? 0).toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between rounded border border-line bg-panel px-3 py-2">
+            <span>Promoted to core by this run</span>
+            <span className="tabular-nums text-ink2">{SCREENING.promoted.toLocaleString()}</span>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-ink3">
+          So the on-topic population the screen can currently identify is about{" "}
+          <strong>{(st.core + (SCREENING.excluded.no_model_consensus ?? 0)).toLocaleString()}</strong>{" "}
+          records — {st.core.toLocaleString()} curated into core plus{" "}
+          {(SCREENING.excluded.no_model_consensus ?? 0).toLocaleString()} held back for want of
+          label agreement. Those held-back cases are on topic; they are excluded rather than
+          labelled on one model&rsquo;s word, which keeps core clean at the cost of coverage.
+        </p>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="font-serif text-lg">Coverage by jurisdiction</h2>
+        <p className="mt-1 text-sm text-ink3">
+          Derived from the court of decision. Every Canadian jurisdiction is listed,
+          including the ones we hold nothing from — a count can show what is present, so
+          the absences have to be stated explicitly.
+        </p>
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase tracking-wide text-ink3">
+              <tr className="border-b border-line text-left">
+                <th className="py-1 pr-3 font-normal">Jurisdiction</th>
+                <th className="py-1 pr-3 text-right font-normal">Records</th>
+                <th className="py-1 pr-3 text-right font-normal">Core</th>
+                <th className="py-1 pr-3 text-right font-normal">Full text</th>
+                <th className="py-1 font-normal">Courts held</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cov.rows.map((r) => (
+                <tr key={r.jurisdiction} className={`border-b border-line/50 ${r.total === 0 ? "text-ink3" : ""}`}>
+                  <td className="py-1 pr-3">{r.jurisdiction}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{r.total || "—"}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{r.core || "—"}</td>
+                  <td className="py-1 pr-3 text-right tabular-nums">{r.fullText || "—"}</td>
+                  <td className="py-1 text-xs">{r.total === 0 ? <span className="text-amber/80">no coverage</span> : r.courts.join(" · ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-xs text-ink3">
+          {cov.covered} of {cov.rows.length} jurisdictions represented.
+          {" "}The corpus is frame-bounded: its upstream index does not scrape CanLII and is
+          federal-court-skewed, so absence here means <strong>absent from this corpus</strong>,
+          never absent from Canadian law.
+          {Object.keys(cov.unmapped).length > 0 && (
+            <> {Object.values(cov.unmapped).reduce((a, b) => a + b, 0)} record(s) sit in courts this
+            table does not yet map ({Object.keys(cov.unmapped).join(", ")}) and are excluded from every row above.</>
+          )}
+        </p>
+      </section>
 
       <section className="mt-6">
         <h2 className="font-serif text-lg">By court level</h2>

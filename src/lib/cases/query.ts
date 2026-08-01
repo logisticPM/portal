@@ -1,6 +1,7 @@
 // PURE query logic over LegalCase[] — shared by repo.mock and repo.dynamo so the
 // two impls are identical by construction (the verify.ts golden test).
 import { caseFixtures } from "./fixtures";
+import { buildCoverage } from "./coverage";
 import type {
   LegalCase, CaseFilter, Facets, ActivationSummary, CitationGraph, CorpusStats,
   Theme, CourtLevel, WinType, RealizationStatus, FigureKind, EconomicFigures, FigureRange,
@@ -149,7 +150,7 @@ export function buildCorpusStats(cases: LegalCase[]): CorpusStats {
     const d = `${Math.floor(c.year / 10) * 10}s`;
     byDecade[d] = (byDecade[d] ?? 0) + 1;
   }
-  return { total: cases.length, core, substrate, fullText, byLevel: sortKeys(byLevel), byDecade: sortKeys(byDecade) };
+  return { total: cases.length, core, substrate, fullText, byLevel: sortKeys(byLevel), byDecade: sortKeys(byDecade), coverage: buildCoverage(cases) };
 }
 
 export function buildGraph(cases: LegalCase[], id: string): CitationGraph {

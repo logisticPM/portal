@@ -1,5 +1,6 @@
 // THE CASES SEAM — the ONLY file the frontend shares with the data layer.
 // Frontend imports `casesRepo` + these types; never DynamoDB, never A2AJ.
+import type { CoverageReport } from "./coverage";
 export type Theme =
   | "land_rights" | "resource_revenue" | "duty_to_consult"
   | "treaty" | "fiduciary" | "self_determination";
@@ -162,6 +163,7 @@ export interface CorpusStats {
   total: number; core: number; substrate: number; fullText: number;
   byLevel: Partial<Record<CourtLevel, number>>;
   byDecade: Record<string, number>;
+  coverage: CoverageReport;
 }
 export interface CitationGraph { cited: LegalCase[]; citing: LegalCase[]; }
 export interface CaseExportBundle { cases: LegalCase[]; asOf: string; }
