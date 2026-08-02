@@ -37,8 +37,11 @@ plus a reliable page.
 - No new AWS calls, no infra/permissions change, no second LLM pass.
 - No change to what gets *flagged*. Locate is additive: it only fills in
   `quote`/`page`; it never turns a found/not-found result into a validation failure.
-- Not fuzzy. Only exact-normalized matches are trusted (see Matching), so a recovered
-  quote can never point at the wrong span. Fields BDA rephrased stay honestly uncited.
+- Not fuzzy. Only exact-normalized matches are trusted, so a recovered quote can never
+  point at the wrong span. Date-variant matching (below) is **not** an exception: each
+  variant is a different *exact* spelling of the same date, still matched by
+  exact-normalized substring, and the stored quote is always verbatim source text.
+  Fields BDA rephrased into something absent from the text stay honestly uncited.
 
 ## Approach (chosen)
 
@@ -64,23 +67,33 @@ export function locateQuotes(extracted: ExtractedRap, pages: string[][]): Extrac
 For each **locatable free-text grounded field** with a non-null `value` and
 `quote === null`:
 
-1. Normalize the value with the validator's own `normalizeForQuoteMatch` (imported from
-   `./validate`) — lowercase, non-alphanumeric → space, collapsed spaces. Using the same
-   function is what guarantees a recovered quote passes `quoteOccursIn` by construction.
-2. Scan `pages` in document order. A paragraph is a **hit** when its normalized text
-   *includes* the normalized value. Empty/whitespace-only normalized values never match
-   (they are `no_quote`'s concern, not this step's).
-3. On a hit, set:
+1. Build the field's **search terms** via `searchTermsFor(value)`:
+   - Non-date value → `[value]` (the value itself).
+   - ISO date `YYYY-MM-DD` or `YYYY-MM` → the ISO value **plus** human-format variants
+     of the same date (see `searchTermsFor` below). This is what lets an ISO
+     `publicationDate` (`2025-09-25`) match prose that reads "September 25, 2025".
+   - Bare `YYYY` → `[]` (empty). A 4-digit year is too weak to be a meaningful
+     citation (it would match any paragraph mentioning the year), so the field is
+     **skipped** rather than cited on a bare year.
+   - Empty terms → field untouched, move on.
+2. Normalize each term and the page text with the validator's own
+   `normalizeForQuoteMatch` (imported from `./validate`) — lowercase, non-alphanumeric →
+   space, collapsed spaces. Using the same function is what guarantees a recovered quote
+   passes `quoteOccursIn` by construction.
+3. Scan `pages` for a **hit**: a paragraph whose normalized text *includes* the
+   normalized form of **any** search term (alternate spellings of one value; first
+   found wins). See Page precedence for scan order.
+4. On a hit, set:
    - `quote` = the verbatim containing paragraph, trimmed, capped at `MAX_QUOTE_CHARS`
      (240) with a trailing `…` when truncated. A capped prefix is still a substring of
      the source, and `quoteOccursIn` splits on `…`, so the recovered quote still
      validates.
    - `page` = the hit page's 1-indexed number.
-4. **Page precedence:** if BDA already supplied a `geometry` page (`g.page != null`) and
-   the value is found on *that* page, keep it; otherwise use the first page where the
-   value is found.
-5. **No hit → field untouched** (`quote` stays `null`, any geometry `page` preserved).
-6. **Already-quoted field → untouched** (defensive; BDA never sets a quote today).
+5. **Page precedence:** if BDA already supplied a `geometry` page (`g.page != null`) and
+   any search term is found on *that* page, keep it; otherwise use the first page where a
+   term is found.
+6. **No hit → field untouched** (`quote` stays `null`, any geometry `page` preserved).
+7. **Already-quoted field → untouched** (defensive; BDA never sets a quote today).
 
 **Locatable fields** (values expected to be literal document text):
 
@@ -91,6 +104,29 @@ For each **locatable free-text grounded field** with a non-null `value` and
 **Skipped** (canonical / derived / structured — not literal doc text): `sector`,
 `jurisdiction`, `commitmentType`, `rapType`, `pairLevel`, `frameworkRefs`,
 `periodCovered`, `pillars`.
+
+### `searchTermsFor(value: string): string[]`
+
+A small pure helper in the same module. Returns the exact strings to search for a
+given value:
+
+- **Not an ISO date** (fails `^\d{4}(-\d{2}(-\d{2})?)?$`) → `[value]`. Unchanged
+  behavior for every free-text field (`orgName`, `action`, the free-text `timeline`
+  like "over a horizon of up to 10 years", etc.).
+- **`YYYY-MM-DD`** → the ISO value plus human forms of that exact date:
+  `"September 25, 2025"`, `"25 September 2025"`, `"Sep 25, 2025"`, `"Sept 25, 2025"`
+  (day un-padded; both `Sep` and `Sept` abbreviations). `normalizeForQuoteMatch`
+  strips the commas, so comma/no-comma spellings collapse to the same normalized form
+  and are de-duplicated.
+- **`YYYY-MM`** → the ISO value plus `"September 2025"`, `"Sep 2025"`, `"Sept 2025"`.
+- **`YYYY` only** → `[]`. A bare year is too weak to cite meaningfully, so the field
+  is skipped (no citation) rather than matched on the year alone.
+
+Every returned term is still matched by exact-normalized substring, and the stored
+quote is always the verbatim source paragraph — so date variants add coverage without
+ever enabling a wrong citation. Only `publicationDate` is an ISO-typed locatable field
+today (`periodCovered` is skipped; `timeline` is free text), but the helper is written
+against the value shape, not the field name, so any future ISO field benefits.
 
 The function is a pure transform over `(ExtractedRap, pages)` → `ExtractedRap`,
 immutable (returns a new object; does not mutate its input), and imports only
@@ -170,6 +206,14 @@ BDA jobs → mapBdaToExtracted / mergeExtracted → raw:ExtractedRap
 - Already-quoted field → not overwritten.
 - Paragraph longer than `MAX_QUOTE_CHARS` → quote capped with `…` and still passes
   `quoteOccursIn`.
+- **Date variants:** ISO `publicationDate` `2025-09-25` with the doc prose reading
+  "Published September 25, 2025" → located; quote = the prose paragraph; passes
+  `quoteOccursIn`. Abbreviated-month prose ("Sept. 25, 2025") also located. `YYYY-MM`
+  value with "September 2025" in the text → located.
+- **Bare year guard:** `publicationDate` `2025` → skipped (no quote/page) even though
+  "2025" appears in the text.
+- `searchTermsFor` unit cases: non-date → `[value]`; `YYYY-MM-DD` → ISO + de-duplicated
+  human forms; `YYYY` → `[]`.
 
 **Offline gate:** `npx tsc --noEmit`; `npx tsx scripts/test-locate.ts`; existing
 `scripts/test-validation-display.ts` still passes.
@@ -184,8 +228,8 @@ BDA jobs → mapBdaToExtracted / mergeExtracted → raw:ExtractedRap
 
 ## Files
 
-- `src/lib/rap/locate.ts` — new pure module: `locateQuotes`, field registry,
-  `MAX_QUOTE_CHARS`.
+- `src/lib/rap/locate.ts` — new pure module: `locateQuotes`, `searchTermsFor`, field
+  registry, `MAX_QUOTE_CHARS`.
 - `src/lib/rap/pipeline.bda.ts` — parse full-doc text + call `locateQuotes` before
   `validateAndFlag`; two imports.
 - `scripts/test-locate.ts` — new unit test.
