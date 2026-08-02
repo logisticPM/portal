@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import type { CaseChunk, LegalCase } from "../src/lib/cases/types";
 import type { LlmModel } from "../src/lib/cases/ingest/llm";
-import { answerCaseQuestion, NEAR_MISS_OVERLAP } from "../src/lib/cases/caseqa/generator";
+import { answerCaseQuestion, buildAskPrompt, NEAR_MISS_OVERLAP } from "../src/lib/cases/caseqa/generator";
+import { caseQuestionHash, caseQaKeys } from "../src/lib/cases/caseqa/repo";
 import { caseFixtures } from "../src/lib/cases/query";
 
 const chunks: CaseChunk[] = [
@@ -123,6 +124,27 @@ async function main() {
   if (r.status !== "failed") throw new Error("unreachable");
   assert.equal(r.failKind, "no_full_text");
   assert.equal(calls.length, 0);
+}
+
+// --- RESTORED from the pre-2026-08-01 version of this file ---
+// These cover buildAskPrompt's contract and caseqa/repo's hashing and key building. They
+// were lost when this file was rewritten for the failure-kind work; nothing else in
+// scripts/ touches caseqa/repo, so without them that module has no coverage at all.
+{
+  const prompt = buildAskPrompt(c, "When does the duty arise?", "[para para-1] body");
+  assert.ok(prompt.includes("When does the duty arise?"), "the question reaches the prompt");
+  assert.ok(prompt.includes('"claims"'), "the JSON contract is stated");
+  assert.ok(prompt.includes('{"claims":[]}'), "the refusal instruction is stated — test 2 depends on the model being told this");
+}
+{
+  // Per-case scoping: the same question about a different judgment is a different question.
+  assert.notEqual(caseQuestionHash("2004-scc-73", "what is the duty?"), caseQuestionHash("2014-scc-44", "what is the duty?"));
+  // Deterministic and normalized, so trivial rewording reuses the cached answer.
+  assert.equal(caseQuestionHash("c1", "What is the DUTY??"), caseQuestionHash("c1", "what is the duty"));
+  assert.equal(caseQuestionHash("c1", "x").length, 32);
+  assert.deepEqual(caseQaKeys.qa("abc"), { PK: "CASEQA#abc", SK: "CASEQA" });
+  assert.deepEqual(caseQaKeys.qhash("h1"), { PK: "CQHASH#h1", SK: "CQHASH" });
+  assert.deepEqual(caseQaKeys.quota("2026-07-19", "company:c-1"), { PK: "CQUOTA#2026-07-19#company:c-1", SK: "CQUOTA" });
 }
 
 console.log("✅ test-cases-caseqa passed");
