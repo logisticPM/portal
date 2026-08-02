@@ -1,8 +1,16 @@
-// Retrieval-eval runner (spec §6). Scores BM25-only vs hybrid on the graded gold via
-// the pure hybridRank A/B — builds the index ONCE, then per query runs
-// hybridRank(units, q, null) [BM25] and hybridRank(units, q, queryVec) [hybrid].
+// Retrieval-eval runner (spec §6). Scores BM25-only vs hybrid on the graded gold —
+// builds the index ONCE, then per query runs rankWithSearcher(idx.searcher, q, null)
+// [BM25] and rankWithSearcher(idx.searcher, q, queryVec) [hybrid].
+//
+// Ranks through idx.searcher, NOT idx.units: units are documented empty on the artifact
+// path, and even on the scan path they rebuild an in-process full-precision index rather
+// than the int8-rescored artifact searcher a user's query hits. Scoring the searcher is
+// what makes this measure the product (spec 2026-08-02).
+//
 // Read-only. Honest degradation: no gold → "unvalidated" exit 0; no matching vectors
 // → dense skipped (BM25 column only). `--pool` emits an adjudication worklist instead.
+// Dishonest degradation is NOT allowed: a run that measured nothing exits non-zero via
+// evalAbortReason rather than printing a scorecard of zeros.
 import "./fetch-polyfill";
 import { promises as fs } from "node:fs";
 import { getSearchIndex } from "../src/lib/cases/search/build-index";
