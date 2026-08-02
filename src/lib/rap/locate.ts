@@ -63,3 +63,73 @@ export function searchTermsFor(value: string): string[] {
   }
   return out;
 }
+
+/**
+ * Fill quote + page on one grounded free-text field by locating its value in
+ * the per-page text. Returns the field unchanged if it has no value, already
+ * has a quote, has no usable search terms (e.g. a bare year), or isn't found.
+ *
+ * Page precedence: if BDA supplied a geometry `page` and a term is found on it,
+ * keep it; otherwise the first page (document order) where a term is found.
+ */
+function located(field: Grounded<string>, pages: string[][]): Grounded<string> {
+  if (field.value == null || field.quote !== null) return field;
+  const terms = searchTermsFor(String(field.value))
+    .map((t) => normalizeForQuoteMatch(t))
+    .filter((t) => t.length > 0);
+  if (terms.length === 0) return field;
+
+  const matchOnPage = (idx: number): string | null => {
+    for (const para of pages[idx] ?? []) {
+      const nPara = normalizeForQuoteMatch(para);
+      if (terms.some((t) => nPara.includes(t))) return para;
+    }
+    return null;
+  };
+
+  // geometry page first (1-indexed → 0-indexed), then every other page in order.
+  const geom = field.page != null && field.page >= 1 && field.page <= pages.length ? field.page - 1 : -1;
+  const order: number[] = [];
+  if (geom >= 0) order.push(geom);
+  for (let i = 0; i < pages.length; i++) if (i !== geom) order.push(i);
+
+  for (const idx of order) {
+    const para = matchOnPage(idx);
+    if (para) {
+      const trimmed = para.trim();
+      const quote =
+        trimmed.length > MAX_QUOTE_CHARS ? `${trimmed.slice(0, MAX_QUOTE_CHARS).trimEnd()}…` : trimmed;
+      return { ...field, quote, page: idx + 1 };
+    }
+  }
+  return field;
+}
+
+/**
+ * Recover verbatim quotes + reliable pages for a BDA extraction by locating its
+ * free-text values in the document's own text layer. Canonical enums, derived,
+ * and structured fields (sector, jurisdiction, commitmentType, rapType,
+ * pairLevel, frameworkRefs, periodCovered, pillars) are left untouched — their
+ * values are not literal document text.
+ */
+export function locateQuotes(extracted: ExtractedRap, pages: string[][]): ExtractedRap {
+  const loc = (field: Grounded<string>) => located(field, pages);
+  return {
+    ...extracted,
+    orgName: loc(extracted.orgName),
+    rapTitle: loc(extracted.rapTitle),
+    publicationDate: loc(extracted.publicationDate),
+    governanceBody: loc(extracted.governanceBody),
+    reviewCycle: loc(extracted.reviewCycle),
+    endorsementStatus: loc(extracted.endorsementStatus),
+    commitments: extracted.commitments.map((c) => ({
+      ...c,
+      pillarRaw: loc(c.pillarRaw),
+      action: loc(c.action),
+      deliverable: loc(c.deliverable),
+      timeline: loc(c.timeline),
+      owner: loc(c.owner),
+      metric: loc(c.metric),
+    })),
+  };
+}
