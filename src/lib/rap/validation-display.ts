@@ -110,7 +110,7 @@ export const MARKER_HELP: Record<string, string> = {
   periodCovered:
     "The reporting period the RAP covers (start → end). An empty value means the AI couldn't find start and end dates in the document — enter them if the document states a period, or leave it blank if the RAP is genuinely open-ended.",
   engine:
-    "Which extraction engine read this document. “bda” is Amazon Bedrock Data Automation (the production engine); it grounds fields by confidence, and source quotes are recovered afterwards by matching the AI's values back to the document's text.",
+    "Which extraction engine read this document. Engines ground fields differently: the Claude / text-layer engine cites a verbatim quote per field, while BDA (Amazon Bedrock Data Automation) grounds by confidence, with source quotes recovered afterwards by matching the AI's values back to the document's text.",
   needsBusinessNumber:
     "This document can't be published until its organization is resolved to a 9-digit Business Number (below) — that's the identity the published record is keyed to.",
 };
