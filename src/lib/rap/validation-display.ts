@@ -108,7 +108,7 @@ export const MARKER_HELP: Record<string, string> = {
   reviewFlag:
     "The percentage is the engine's confidence in this field. “review” means it fell below the auto-publish threshold, so a person should confirm the value before it publishes.",
   periodCovered:
-    "The reporting period the RAP covers (start → end). An empty value means the AI couldn't find start and end dates in the document — enter them if the document states a period, or leave it blank if the RAP is genuinely open-ended.",
+    "The RAP's overall reporting window — the start → end dates the whole strategy covers. This is a document-level field, not a single commitment's own timeline. An empty value means the AI found no start/end dates for the RAP; enter them if the document states a period, or leave it blank if the RAP is genuinely open-ended.",
   engine:
     "Which extraction engine read this document. Engines ground fields differently: the Claude / text-layer engine cites a verbatim quote per field, while BDA (Amazon Bedrock Data Automation) grounds by confidence, with source quotes recovered afterwards by matching the AI's values back to the document's text.",
   needsBusinessNumber:

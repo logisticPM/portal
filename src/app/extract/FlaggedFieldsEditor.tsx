@@ -136,7 +136,15 @@ function FieldCard({
   return (
     <div className={`rounded border p-2 ${checked ? "border-cedar/40 bg-cedar/5" : "border-line bg-panel/60"}`}>
       <div className="flex items-center justify-between gap-2">
-        <div className="text-ink3 text-[11px] uppercase tracking-wide">{field.label}</div>
+        <div className="text-ink3 text-[11px] uppercase tracking-wide">
+          {field.control === "period" ? (
+            <InfoTip tip={MARKER_HELP.periodCovered} label={field.label}>
+              <span>{field.label}</span>
+            </InfoTip>
+          ) : (
+            field.label
+          )}
+        </div>
         <label className="text-ink3 text-xs flex items-center gap-1 shrink-0 cursor-pointer">
           <input type="checkbox" checked={checked} onChange={onToggle} />
           Verified
@@ -145,11 +153,6 @@ function FieldCard({
 
       <div className="text-sm mt-1">
         <span className="text-ink3">AI read this as:</span> {field.displayValue}
-        {field.control === "period" && (
-          <span className="ml-1 align-middle">
-            <InfoTip tip={MARKER_HELP.periodCovered} label="Period covered" />
-          </span>
-        )}
         {edited && <span className="ml-2 text-cedar text-xs">· edited</span>}
       </div>
 
