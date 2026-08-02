@@ -1,17 +1,20 @@
 import Link from "next/link";
 import { casesRepo } from "@/lib/cases";
-import type { Theme, CourtLevel, WinType, CorpusTier } from "@/lib/cases";
+import type { Theme, CourtLevel, WinType, CorpusTier, RealizationStatus, FigureKind } from "@/lib/cases";
 import { CaseListItem, LensSwitcher, Pagination } from "./ui";
 import { getSession } from "@/lib/auth";
 import { resolveLens, applyLens } from "@/lib/cases/lenses";
 import { PAGE_SIZE, clampPage } from "@/lib/cases/pagination";
 import { COURT_LEVELS, courtLevelLabel, THEMES, themeLabel } from "@/lib/cases/labels";
+import { describeDrillIns } from "@/lib/cases/drill-in";
 
 const WINTYPES: WinType[] = ["doctrine_win", "party_win", "mixed", "loss", "unclassified"];
 
 export default async function CasesPage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
   const q = searchParams.q ?? "";
   const tier: CorpusTier | "all" = (searchParams.tier as CorpusTier | "all") || (q ? "all" : "core");
+  const fullTextParam: "yes" | "no" | undefined =
+    searchParams.fullText === "yes" ? "yes" : searchParams.fullText === "no" ? "no" : undefined;
   const filter = {
     themes: searchParams.theme ? [searchParams.theme as Theme] : undefined,
     level: (searchParams.level as CourtLevel) || undefined,
@@ -20,6 +23,12 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
     yearFrom: searchParams.yearFrom ? Number(searchParams.yearFrom) : undefined,
     yearTo: searchParams.yearTo ? Number(searchParams.yearTo) : undefined,
     tier,
+    // Arrive here from an activation-dashboard number or a coverage row. These have no
+    // <select> of their own — they are landing states, and the active-filter strip below
+    // is what makes them visible and dismissible.
+    realization: (searchParams.realization as RealizationStatus) || undefined,
+    figureKind: (searchParams.figureKind as FigureKind) || undefined,
+    fullText: fullTextParam,
   };
   const cases = q ? await casesRepo.hybridSearch(q, filter) : await casesRepo.listCases(filter);
   const facets = await casesRepo.listFacets({ tier: "all" });
@@ -36,6 +45,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
   const start = (page - 1) * PAGE_SIZE;
   const pageItems = ordered.slice(start, start + PAGE_SIZE);
 
+  const drillIns = describeDrillIns(searchParams);
   const sel = "rounded border border-line bg-panel px-2 py-1";
   return (
     <div className="mx-auto max-w-4xl">
@@ -47,6 +57,12 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
 
       <form action="/cases" className="mt-4 space-y-2">
         <input type="hidden" name="lens" value={lens} />
+        {/* The drill-in filters have no control of their own, so without these the first
+            Search after arriving from the dashboard would silently widen the result set
+            back out — the reader would think their click had been undone. */}
+        {filter.realization && <input type="hidden" name="realization" value={filter.realization} />}
+        {filter.figureKind && <input type="hidden" name="figureKind" value={filter.figureKind} />}
+        {filter.fullText && <input type="hidden" name="fullText" value={filter.fullText} />}
         <div className="flex gap-2">
           <input name="q" defaultValue={q} placeholder="Search citation, case name, or full text…" className="flex-1 rounded border border-line bg-panel px-3 py-2" />
           <button className="rounded bg-ink px-4 py-2 text-bg hover:bg-ink/90">Search</button>
@@ -72,6 +88,18 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
           <Link href="/cases" className="rounded-full border border-line px-3 py-1 hover:bg-ink/5">clear</Link>
         </div>
       </form>
+
+      {drillIns.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-ink3">Filtered from the dashboard:</span>
+          {drillIns.map((d) => (
+            <Link key={d.key} href={d.without} aria-label={`Remove filter ${d.label}`}
+              className="rounded-full border border-amber/40 bg-amber/10 px-2 py-0.5 text-amber hover:bg-amber/20">
+              {d.label} ×
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="mt-3 text-xs text-ink3">
         {total} result{total === 1 ? "" : "s"} · {total > 0 ? `showing ${start + 1}–${Math.min(start + PAGE_SIZE, total)} · ` : ""}{q ? "ranked by relevance" : "browse"} · tier: {tier}

@@ -1,5 +1,6 @@
 // THE CASES SEAM — the ONLY file the frontend shares with the data layer.
 // Frontend imports `casesRepo` + these types; never DynamoDB, never A2AJ.
+import type { CoverageReport } from "./coverage";
 export type Theme =
   | "land_rights" | "resource_revenue" | "duty_to_consult"
   | "treaty" | "fiduciary" | "self_determination";
@@ -138,6 +139,12 @@ export interface CaseFilter {
   themes?: Theme[]; level?: CourtLevel; winType?: WinType;
   nation?: string; yearFrom?: number; yearTo?: number;
   tier?: CorpusTier | "all";
+  // Added so every aggregate on the activation dashboard has a case list behind it.
+  // Without these, the funnel counts and the recorded-figure ranges are dead ends: the
+  // reader sees "7 realized" and has no way to ask which seven.
+  realization?: RealizationStatus;
+  figureKind?: FigureKind;
+  fullText?: "yes" | "no";
 }
 export interface Facets {
   byTheme: Partial<Record<Theme, number>>;
@@ -156,6 +163,7 @@ export interface CorpusStats {
   total: number; core: number; substrate: number; fullText: number;
   byLevel: Partial<Record<CourtLevel, number>>;
   byDecade: Record<string, number>;
+  coverage: CoverageReport;
 }
 export interface CitationGraph { cited: LegalCase[]; citing: LegalCase[]; }
 export interface CaseExportBundle { cases: LegalCase[]; asOf: string; }
