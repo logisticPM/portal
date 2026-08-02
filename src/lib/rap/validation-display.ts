@@ -98,11 +98,53 @@ export const FRAMEWORK_LABELS: Record<string, string> = {
   other: "Other framework",
 };
 
+// Plain-language explanations for the review page's terse markers, surfaced as
+// hover/focus tooltips (see components/InfoTip). Keyed by marker, not by field —
+// the same "no source span" copy explains that marker wherever it appears (the
+// server ExtractedView and the client FlaggedFieldsEditor both import this).
+export const MARKER_HELP: Record<string, string> = {
+  noSourceSpan:
+    "The AI gave a value but didn't cite a specific sentence in the document. This is normal for the BDA engine, which grounds fields by confidence rather than a verbatim quote — open the source PDF and check the value against the page yourself.",
+  reviewFlag:
+    "The percentage is the engine's confidence in this field. “review” means it fell below the auto-publish threshold, so a person should confirm the value before it publishes.",
+  periodCovered:
+    "The reporting period the RAP covers (start → end). An empty value means the AI couldn't find start and end dates in the document — enter them if the document states a period, or leave it blank if the RAP is genuinely open-ended.",
+  engine:
+    "Which extraction engine read this document. “bda” is Amazon Bedrock Data Automation (the production engine); it grounds fields by confidence, and source quotes are recovered afterwards by matching the AI's values back to the document's text.",
+  needsBusinessNumber:
+    "This document can't be published until its organization is resolved to a 9-digit Business Number (below) — that's the identity the published record is keyed to.",
+};
+
+// One-line explanation per validation rule, for the group-heading tooltips.
+// Complements groupHint() in ReviewPanel (which only covers quote_not_found).
+export const RULE_HELP: Partial<Record<ValidationRule, string>> = {
+  date_format:
+    "The AI's value couldn't be read as a calendar date. Enter a real date if the document states one, or confirm it's an open-ended timeline (e.g. “ongoing”) and verify it as-is.",
+  quote_not_found:
+    "The AI's supporting quote didn't match the document text word-for-word — usually a light paraphrase, an inferred value, or damaged text, not a fabrication. Open the PDF to confirm.",
+  no_quote:
+    "The AI gave a value but no supporting quote from the document. Locate the value in the source PDF before trusting it.",
+  currency_format:
+    "The AI's value couldn't be read as a currency amount. Check the figure against the document.",
+  out_of_range:
+    "The value is outside the range expected for this field. Confirm it against the document.",
+  cross_field:
+    "This commitment's timeline falls outside the RAP's stated reporting period. Check whether the date or the period is wrong.",
+};
+
 // Render a field's value the way a reviewer reads it, not the way it's stored:
 // enum codes → curated labels, framework codes → full names, lists → joined.
 // Falls back to String()/JSON so nothing renders blank.
 function formatFieldValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "—";
+  // periodCovered is an object {start, end}; JSON.stringify'd it read as the
+  // reviewer-hostile `{"start":"","end":""}`. Render it as a span, and say
+  // plainly when the AI found no period at all.
+  if (key === "periodCovered" && typeof value === "object") {
+    const { start, end } = value as { start?: string; end?: string };
+    if (!start && !end) return "— (no reporting period found)";
+    return `${start || "?"} → ${end || "?"}`;
+  }
   if (key === "frameworkRefs" && Array.isArray(value)) {
     return value.map((f) => FRAMEWORK_LABELS[String(f)] ?? String(f)).join(", ");
   }
