@@ -146,15 +146,24 @@ const source = buildTextFromPages(pages);
   check("bare-year value → not located", out.publicationDate.quote === null && out.publicationDate.page === null);
 }
 
-// Weak, low-entropy values are not located (would match unrelated text) —
-// the field stays uncited (quote AND page null).
+// Weak, low-entropy values are not cited AT ALL — quote AND page null — even
+// when BDA supplied a geometry page (we've decided not to cite them).
 {
-  const out = locateQuotes(rap({ orgName: g("CEO") }), [["The CEO opened the report."]]);
-  check("weak alpha value 'CEO' not located", out.orgName.quote === null && out.orgName.page === null);
+  const out = locateQuotes(rap({ orgName: g("CEO", 7) }), [["The CEO opened the report."]]);
+  check("weak alpha value 'CEO' → quote null", out.orgName.quote === null);
+  check("weak alpha value 'CEO' → page nulled despite geometry", out.orgName.page === null);
 }
 {
-  const out = locateQuotes(rap({ orgName: g("5%") }), [["Revenue rose 5% this year."]]);
-  check("weak numeric value '5%' not located", out.orgName.quote === null && out.orgName.page === null);
+  const out = locateQuotes(rap({ orgName: g("5%", 4) }), [["Revenue rose 5% this year."]]);
+  check("weak numeric value '5%' → quote null", out.orgName.quote === null);
+  check("weak numeric value '5%' → page nulled despite geometry", out.orgName.page === null);
+}
+// Case B (contrast): a usable term that simply isn't found in the text KEEPS
+// BDA's geometry page (it's a legitimate hint), quote still null.
+{
+  const out = locateQuotes(rap({ orgName: g("Nonexistent Corporation", 5) }), [["Unrelated cover page text."]]);
+  check("absent-but-usable value → quote null", out.orgName.quote === null);
+  check("absent-but-usable value → geometry page preserved", out.orgName.page === 5);
 }
 
 process.exit(fail ? 1 : 0);

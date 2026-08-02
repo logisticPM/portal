@@ -83,7 +83,12 @@ function located(field: Grounded<string>, pages: string[][]): Grounded<string> {
     // entirely (quote AND page stay null) — generalizes searchTermsFor's
     // bare-year skip.
     .filter((t) => t.replace(/ /g, "").length >= MIN_TERM_ALNUM);
-  if (terms.length === 0) return field;
+  // No usable search terms (value too weak/short to cite distinctively): we've
+  // decided NOT to cite this field, so surface neither a quote nor a (stale)
+  // geometry page. `field.quote` is already null here (early return above).
+  // Distinct from the "terms existed but weren't found" case at the end of this
+  // function, which legitimately keeps BDA's geometry page.
+  if (terms.length === 0) return { ...field, page: null };
 
   const matchOnPage = (idx: number): string | null => {
     for (const para of pages[idx] ?? []) {
