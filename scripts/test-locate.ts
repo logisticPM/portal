@@ -146,4 +146,15 @@ const source = buildTextFromPages(pages);
   check("bare-year value → not located", out.publicationDate.quote === null && out.publicationDate.page === null);
 }
 
+// Weak, low-entropy values are not located (would match unrelated text) —
+// the field stays uncited (quote AND page null).
+{
+  const out = locateQuotes(rap({ orgName: g("CEO") }), [["The CEO opened the report."]]);
+  check("weak alpha value 'CEO' not located", out.orgName.quote === null && out.orgName.page === null);
+}
+{
+  const out = locateQuotes(rap({ orgName: g("5%") }), [["Revenue rose 5% this year."]]);
+  check("weak numeric value '5%' not located", out.orgName.quote === null && out.orgName.page === null);
+}
+
 process.exit(fail ? 1 : 0);

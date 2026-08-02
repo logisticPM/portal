@@ -266,8 +266,9 @@ export async function runExtractionBda(input: { fileName: string; sourceS3Key: s
   try {
     const pages = await extractPagesFromPdf(bytes); // full doc → global page numbers
     located = locateQuotes(raw, pages);
-  } catch {
+  } catch (err) {
     // non-PDF (Office docs) or parse failure → keep BDA's confidence-only grounding
+    console.warn(`[bda] quote-locate skipped for ${input.fileName}: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   // BDA grounds by confidence (no quote) and on a lower scale → requireQuote=false, lower threshold.

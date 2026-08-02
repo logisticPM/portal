@@ -11,6 +11,7 @@ import { normalizeForQuoteMatch } from "./validate";
 import type { ExtractedRap, Grounded } from "./types";
 
 export const MAX_QUOTE_CHARS = 240;
+const MIN_TERM_ALNUM = 4;
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -76,7 +77,12 @@ function located(field: Grounded<string>, pages: string[][]): Grounded<string> {
   if (field.value == null || field.quote !== null) return field;
   const terms = searchTermsFor(String(field.value))
     .map((t) => normalizeForQuoteMatch(t))
-    .filter((t) => t.length > 0);
+    // Require a distinctive locator. A normalized term with fewer than
+    // MIN_TERM_ALNUM alphanumeric chars ("5" from "5%", "ceo" from "CEO")
+    // matches unrelated text and would cite the wrong span, so skip the field
+    // entirely (quote AND page stay null) — generalizes searchTermsFor's
+    // bare-year skip.
+    .filter((t) => t.replace(/ /g, "").length >= MIN_TERM_ALNUM);
   if (terms.length === 0) return field;
 
   const matchOnPage = (idx: number): string | null => {
