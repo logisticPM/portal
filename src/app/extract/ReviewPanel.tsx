@@ -389,10 +389,11 @@ function ExtractedView({ e }: { e: ExtractedRap }) {
               <Field label="Action" g={c.action} />
               <Field label="Deliverable" g={c.deliverable} />
               <Field label="Timeline" g={c.timeline} />
-              <Field label="Owner" g={c.owner} />
+              <Field label="Owner" g={c.owner} tip={MARKER_HELP.owner} />
               <Field label="Metric / target" g={c.metric} />
               <Field
                 label="Type"
+                tip={MARKER_HELP.commitmentType}
                 g={c.commitmentType.value ? { ...c.commitmentType, value: labelFor("commitmentType", c.commitmentType.value) } : c.commitmentType}
               />
             </div>
@@ -421,12 +422,20 @@ function ExtractedView({ e }: { e: ExtractedRap }) {
 
 // Render a grounded field. Flagged ⇒ amber outline + the verbatim quote so the
 // reviewer can judge the value against its source span.
-function Field({ label, g }: { label: string; g: Grounded<unknown> }) {
+function Field({ label, g, tip }: { label: string; g: Grounded<unknown>; tip?: string }) {
   const display = g.value === null ? "—" : typeof g.value === "object" ? JSON.stringify(g.value) : String(g.value);
   return (
     <div className={`rounded p-2 ${g.flagged ? "border border-amber bg-amber/5" : ""}`}>
       <div className="text-ink3 text-[11px] uppercase tracking-wide flex justify-between">
-        <span>{label}</span>
+        <span>
+          {tip ? (
+            <InfoTip tip={tip} label={label}>
+              <span>{label}</span>
+            </InfoTip>
+          ) : (
+            label
+          )}
+        </span>
         {g.flagged ? (
           <InfoTip tip={MARKER_HELP.reviewFlag} label="Confidence & review" align="right">
             <span>{Math.round(g.confidence * 100)}% · review</span>

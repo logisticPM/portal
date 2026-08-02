@@ -113,6 +113,10 @@ export const MARKER_HELP: Record<string, string> = {
     "Which extraction engine read this document. Engines ground fields differently: the Claude / text-layer engine cites a verbatim quote per field, while BDA (Amazon Bedrock Data Automation) grounds by confidence, with source quotes recovered afterwards by matching the AI's values back to the document's text.",
   needsBusinessNumber:
     "This document can't be published until its organization is resolved to a 9-digit Business Number (below) — that's the identity the published record is keyed to.",
+  owner:
+    "Who is accountable for delivering this specific commitment — a role, team, or department inside the organization (e.g. an Indigenous Relations lead or a board sponsor), not the organization itself. Blank means the document didn't name an owner for this action.",
+  commitmentType:
+    "The category this commitment falls into, chosen from a fixed set: Employment, Procurement, Cultural learning, Governance, Relationships, Anti-racism, Education & training, Community investment, Environmental, Partnership, or Other. It's a controlled vocabulary — an edit can only pick one of these, and any unrecognized value is filed as “Other”.",
 };
 
 // One-line explanation per validation rule, for the group-heading tooltips.
