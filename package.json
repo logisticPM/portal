@@ -85,7 +85,9 @@
     "cases:index-build": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases tsx scripts/cases-index-build.ts",
     "cases:index-build:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases tsx scripts/cases-index-build.ts",
     "cases:quant-eval": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-quant-eval.ts",
-    "cases:quant-eval:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-quant-eval.ts"
+    "cases:quant-eval:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-quant-eval.ts",
+    "cases:core-gap": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-core-gap.ts",
+    "cases:core-gap:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-core-gap.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1078.0",

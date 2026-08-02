@@ -181,7 +181,12 @@ export default async function CaseDetail({
                       <li key={i}>{cl.text}{" "}<a href={cl.sourceUrl} className="text-xs text-amber hover:underline" target="_blank" rel="noreferrer">[{cl.sourceParagraph}]</a></li>
                     ))}
                   </ul>
-                  <p className="mt-1 text-xs text-ink3">Drawn only from this judgment · not legal advice.</p>
+                  <p className="mt-1 text-xs text-ink3">
+                    Drawn only from this judgment · not legal advice.
+                    {!!qa.droppedClaims && (
+                      <> · {qa.droppedClaims} further point{qa.droppedClaims === 1 ? "" : "s"} {qa.droppedClaims === 1 ? "was" : "were"} withheld because {qa.droppedClaims === 1 ? "its quotation" : "their quotations"} could not be matched to the judgment text.</>
+                    )}
+                  </p>
                 </>
               )}
             </div>
