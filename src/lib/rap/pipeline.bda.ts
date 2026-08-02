@@ -24,6 +24,8 @@ import {
 import { traced } from "../observability/xray";
 import { deriveClassification, derivePillars } from "./classify";
 import { getDocumentBytes, getJsonByS3Uri, putDocument } from "./storage";
+import { extractPagesFromPdf } from "./doc-loader/textlayer";
+import { locateQuotes } from "./locate";
 import { validateAndFlag } from "./validate";
 import type {
   CommitmentType, ExtractedCommitment, ExtractedRap, ExtractionResult, Grounded, Jurisdiction,
@@ -256,8 +258,22 @@ export async function runExtractionBda(input: { fileName: string; sourceS3Key: s
   const parts = results.map((r, i) => offsetChunk(mapBdaToExtracted(r.ir, r.ex), i * BDA_MAX_PAGES));
   const raw = parts.length === 1 ? parts[0] : mergeExtracted(parts);
 
-  // BDA grounds by confidence (no quote) and on a lower scale → requireQuote=false, lower threshold
-  const { extracted, issues } = validateAndFlag(raw, {
+  // Recover verbatim quotes + reliable pages for BDA's values (confidence +
+  // sparse geometry, no text span) by locating them in the document's own text
+  // layer. Best-effort: PDF-only, and any value not found stays quote:null.
+  // `bytes` is already in hand from the fetch above.
+  let located = raw;
+  try {
+    const pages = await extractPagesFromPdf(bytes); // full doc → global page numbers
+    located = locateQuotes(raw, pages);
+  } catch (err) {
+    // non-PDF (Office docs) or parse failure → keep BDA's confidence-only grounding
+    console.warn(`[bda] quote-locate skipped for ${input.fileName}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // BDA grounds by confidence (no quote) and on a lower scale → requireQuote=false, lower threshold.
+  // Locate is additive: fields it couldn't find keep quote:null, so requireQuote stays false.
+  const { extracted, issues } = validateAndFlag(located, {
     requireQuote: false,
     threshold: BDA_CONFIDENCE_THRESHOLD,
   });
