@@ -202,3 +202,28 @@ click **Generate & send now**.
 If `DIGEST_SENDER` is unset/empty while `DIGEST_RECIPIENT` is set, every digest
 send fails (recorded as `emailStatus: failed`, visible only in the inbox) — so
 `DIGEST_SENDER` must be a verified SES sender before enabling.
+
+## WAF / edge protection (production + ca)
+
+A WAFv2 WebACL is attached to the Web CloudFront distribution on the `ca` and
+`production` stages (`observe`). Rules: a rate-based limit (1,000 requests /
+5-min / IP) plus the AWS managed `CommonRuleSet` and `KnownBadInputsRuleSet`.
+The WebACL is CLOUDFRONT-scoped and created in `us-east-1` (via a dedicated
+provider) regardless of the stack's region.
+
+**Count-first.** Rules ship in COUNT mode — nothing is blocked; requests that
+*would* be blocked are only counted. Watch `AWS/WAFV2` metrics + sampled
+requests in the WAF console (us-east-1) for false positives, then turn on
+blocking by deploying with `WAF_BLOCKING=true` (or flip the default in
+`sst.config.ts`) after ~1–2 days of clean data. If a managed rule counts
+legitimate traffic, add a `ruleActionOverrides` exclusion for that sub-rule
+before enabling blocking.
+
+**Org SCP note.** Creating/associating a CLOUDFRONT WebACL may be denied by the
+org SCP for the deploy role (account is a member of an org owned by
+derekja@uvic.ca; the known SCP denies service roles — see the Textract
+precedent). `ca` deploys via the SSO role (fine); if a `production` deploy fails
+on `wafv2:CreateWebACL` / `cloudfront:UpdateDistribution`, ask Derek to permit
+those actions for `AWS_DEPLOY_ROLE_ARN`.
+
+**Cost.** ≈ $8/mo per stage ($5 WebACL + ~$3 rules) + $0.60 / million requests.
