@@ -634,6 +634,12 @@ export default $config({
             },
           ],
         },
+        // Attach the WAF WebACL (observe stages only) to the CloudFront
+        // distribution. CLOUDFRONT association is by the WebACL ARN. Verify the
+        // arg name (webAclId) against the installed SST version.
+        cdn: (args: any) => {
+          if (webAcl) args.webAclId = webAcl.arn;
+        },
       },
       environment: {
         ...extractionEnv,
