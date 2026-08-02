@@ -17,12 +17,17 @@
 // than as a specific failure: every job failed in under a second and the queue
 // showed nothing. Both statuses were already stored; only the query was narrow.
 import { extractionRepo } from "@/lib/rap";
-import { confirmExtractionAction, dismissExtractionAction, openSourceAction, rejectExtractionAction, resolveOrgAction, retryExtractionAction } from "@/lib/rap/actions";
+import { dismissExtractionAction, openSourceAction, rejectExtractionAction, resolveOrgAction, retryExtractionAction } from "@/lib/rap/actions";
 import { cbrSearchUrl } from "@/lib/rap/registry";
 import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
+import type { ValidationIssue } from "@/lib/rap/types";
 import { labelFor } from "@/lib/taxonomy";
 import { docIssueExplanation, docIssueHeading, summarizeIssues } from "@/lib/rap/validation-display";
-import type { FieldEntry, IssueSummary } from "@/lib/rap/validation-display";
+import type { IssueSummary } from "@/lib/rap/validation-display";
+import { editableField } from "@/lib/rap/field-edit";
+import type { EditableField } from "@/lib/rap/field-edit";
+import { FlaggedFieldsEditor } from "./FlaggedFieldsEditor";
+import type { FieldGroupView } from "./FlaggedFieldsEditor";
 import { QueueAutoRefresh } from "./QueueAutoRefresh";
 import { elapsedSince, isStalled, orderFailed, orderInProgress } from "./queue-view";
 
@@ -101,6 +106,23 @@ export async function ReviewPanel() {
 function ReviewCard({ job }: { job: ExtractionJob }) {
   const summary = summarizeIssues(job.validationIssues, job.extracted);
   const needsBn = job.businessNumber == null;
+
+  // Build the editable descriptors for each flagged field, server-side (this is
+  // where the taxonomy/registry lives). The client editor renders them and
+  // batches edits + check-offs. Unresolvable paths (defensive) drop out.
+  const groups: FieldGroupView[] = job.extracted
+    ? summary.fieldGroups
+        .map((g) => ({
+          rule: g.rule,
+          label: g.label,
+          hint: groupHint(g.rule, summary.hasDamage),
+          fields: g.fields
+            .map((entry) => editableField(job.extracted!, entry.path, g.rule))
+            .filter((f): f is EditableField => f != null),
+        }))
+        .filter((g) => g.fields.length > 0)
+    : [];
+
   return (
     <details className="bg-panel rounded border border-line shadow-card group">
       <summary className="p-6 cursor-pointer list-none [&::-webkit-details-marker]:hidden flex justify-between items-start gap-4">
@@ -116,30 +138,23 @@ function ReviewCard({ job }: { job: ExtractionJob }) {
       </summary>
 
       <div className="px-6 pb-6 space-y-4">
-        {job.validationIssues.length > 0 && <IssuePanel summary={summary} jobId={job.id} />}
+        <div className="rounded border border-rust/40 bg-rust/5 p-3 text-sm space-y-3">
+          <div className="text-rust font-medium">What to check before publishing</div>
+          {summary.document.length > 0 && <DocIssueCallout document={summary.document} jobId={job.id} />}
+          {/* Client editor: per-field edit + verify, one batched Save & publish. */}
+          <FlaggedFieldsEditor jobId={job.id} needsBn={needsBn} groups={groups} />
+        </div>
 
         {job.extracted && <ExtractedView e={job.extracted} />}
 
         <OrgBlock job={job} />
 
-        <div className="flex gap-3 pt-2">
-          <form action={confirmExtractionAction}>
-            <input type="hidden" name="jobId" value={job.id} />
-            <input type="hidden" name="reviewedBy" value="admin" />
-            <button
-              disabled={needsBn}
-              className="px-4 py-2 rounded bg-cedar text-white text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Approve &amp; publish
-            </button>
-          </form>
-          <form action={rejectExtractionAction} className="flex gap-2">
-            <input type="hidden" name="jobId" value={job.id} />
-            <input type="hidden" name="reviewedBy" value="admin" />
-            <input name="reason" placeholder="Reason (optional)" className="px-3 py-2 rounded border border-line text-sm" />
-            <button className="px-4 py-2 rounded border border-rust text-rust text-sm">Reject</button>
-          </form>
-        </div>
+        <form action={rejectExtractionAction} className="flex gap-2 pt-2">
+          <input type="hidden" name="jobId" value={job.id} />
+          <input type="hidden" name="reviewedBy" value="admin" />
+          <input name="reason" placeholder="Reason (optional)" className="px-3 py-2 rounded border border-line text-sm" />
+          <button className="px-4 py-2 rounded border border-rust text-rust text-sm">Reject</button>
+        </form>
       </div>
     </details>
   );
@@ -165,89 +180,30 @@ function TriageBadges({ summary, needsBn }: { summary: IssueSummary; needsBn: bo
   );
 }
 
-// The redesigned "what to check" panel. Leads with the document-level root cause
-// (so a damaged PDF is not mistaken for a hallucinating AI), then groups the
-// field-level issues by rule. Each flagged field is an EVIDENCE CARD — the value
-// the AI read, the quote it cited, the page, and a one-click link that opens the
-// source PDF at that page — so a reviewer has an actual starting point, not a
-// bare `commitments[34].pillarRaw`. Presentation only; the gate that sent this
-// job to review is unchanged.
-function IssuePanel({ summary, jobId }: { summary: IssueSummary; jobId: string }) {
+// Document-level root cause (damaged text / low coverage), read-only and shown
+// first so a damaged PDF isn't mistaken for a hallucinating AI. Includes a
+// page-less link to open the whole source document.
+function DocIssueCallout({ document, jobId }: { document: ValidationIssue[]; jobId: string }) {
   return (
-    <div className="rounded border border-rust/40 bg-rust/5 p-3 text-sm space-y-3">
-      <div className="text-rust font-medium">What to check before publishing</div>
-
-      {summary.document.length > 0 && (
-        <div className="space-y-1">
-          {summary.document.map((d, i) => (
-            <div key={i}>
-              <div className="font-medium text-ink2">{docIssueHeading(d.rule)}</div>
-              <div className="text-ink3">{docIssueExplanation(d)}</div>
-            </div>
-          ))}
-          {/* Page-less link to the whole document for the damaged/low-coverage case. */}
-          <SourcePdfLink jobId={jobId} label="Open source PDF ↗" />
+    <div className="space-y-1">
+      {document.map((d, i) => (
+        <div key={i}>
+          <div className="font-medium text-ink2">{docIssueHeading(d.rule)}</div>
+          <div className="text-ink3">{docIssueExplanation(d)}</div>
         </div>
-      )}
-
-      {summary.fieldGroups.length > 0 && (
-        <div className="space-y-3">
-          {summary.fieldGroups.map((g) => (
-            <div key={g.rule}>
-              <div className="text-ink2 mb-1">
-                <span className="font-medium">{g.label}</span> — {g.count} {g.count === 1 ? "field" : "fields"}
-              </div>
-              {/* Explain what "not found word-for-word" means so it doesn't read
-                  as a fabrication warning. When the document is damaged, name
-                  that as the cause; otherwise it's usually a paraphrase or an
-                  inferred value. Either way: open the PDF and confirm. */}
-              {g.rule === "quote_not_found" && (
-                <div className="text-ink3 text-xs mb-2">
-                  {summary.hasDamage
-                    ? "Expected here — the document text is damaged (see above), so the AI's quotes can't be matched word-for-word. Spot-check these against the source PDF."
-                    : "The supporting quote didn't match the extracted text exactly — usually a light paraphrase or an inferred value (like a category), not a fabrication. Open the PDF to confirm."}
-                </div>
-              )}
-              <div className="space-y-2">
-                {g.fields.map((entry, i) => (
-                  <EvidenceCard key={i} entry={entry} rule={g.rule} jobId={jobId} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      ))}
+      <SourcePdfLink jobId={jobId} label="Open source PDF ↗" />
     </div>
   );
 }
 
-// One flagged field, resolved to what the reviewer needs: the value the AI read,
-// the quote it cited (framed by rule), the page, and a jump-to-PDF link. Falls
-// back to the raw path if resolution failed (defensive; shouldn't happen).
-function EvidenceCard({ entry, rule, jobId }: { entry: FieldEntry; rule: string; jobId: string }) {
-  const r = entry.resolved;
-  if (!r) {
-    return <div className="rounded border border-line bg-panel/60 p-2 text-xs"><code>{entry.path}</code></div>;
-  }
-  const value = r.displayValue;
-  const quote = r.g.quote;
-  const page = r.page;
-  return (
-    <div className="rounded border border-line bg-panel/60 p-2">
-      <div className="text-ink3 text-[11px] uppercase tracking-wide">{r.label}</div>
-      <div className="text-sm">
-        <span className="text-ink3">AI read this as:</span> {value}
-      </div>
-      {quote ? (
-        <div className="text-ink3 text-xs mt-1">
-          {rule === "quote_not_found" ? "Cited (couldn't match): " : "Cited: "}“{quote}”{page ? ` · p.${page}` : ""}
-        </div>
-      ) : (
-        <div className="text-rust text-xs mt-1">No source quote given — locate this in the document.</div>
-      )}
-      {page != null && <SourcePdfLink jobId={jobId} page={page} label={`Open source PDF at p.${page} ↗`} />}
-    </div>
-  );
+// Per-group explanation of what "not found word-for-word" means, so it doesn't
+// read as a fabrication warning. Only quote_not_found needs it.
+function groupHint(rule: string, hasDamage: boolean): string | null {
+  if (rule !== "quote_not_found") return null;
+  return hasDamage
+    ? "Expected here — the document text is damaged (see above), so the AI's quotes can't be matched word-for-word. Spot-check these against the source PDF."
+    : "The supporting quote didn't match the extracted text exactly — usually a light paraphrase or an inferred value (like a category), not a fabrication. Open the PDF to confirm.";
 }
 
 // A no-JS "open the source PDF (at page N)" link: a form posting to the guarded
