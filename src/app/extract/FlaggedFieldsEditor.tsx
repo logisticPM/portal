@@ -13,6 +13,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmReviewedExtractionAction, openSourceAction } from "@/lib/rap/actions";
 import type { EditableField } from "@/lib/rap/field-edit";
+import { InfoTip } from "@/components/InfoTip";
+import { MARKER_HELP, RULE_HELP } from "@/lib/rap/validation-display";
 
 export interface FieldGroupView {
   rule: string;
@@ -63,10 +65,19 @@ export function FlaggedFieldsEditor({
 
   return (
     <div className="space-y-3">
-      {groups.map((g) => (
+      {groups.map((g) => {
+        const ruleTip = RULE_HELP[g.rule as keyof typeof RULE_HELP];
+        return (
         <div key={g.rule}>
           <div className="text-ink2 mb-1">
-            <span className="font-medium">{g.label}</span> — {g.fields.length} {g.fields.length === 1 ? "field" : "fields"}
+            {ruleTip ? (
+              <InfoTip tip={ruleTip} label={g.label}>
+                <span className="font-medium">{g.label}</span>
+              </InfoTip>
+            ) : (
+              <span className="font-medium">{g.label}</span>
+            )}{" "}
+            — {g.fields.length} {g.fields.length === 1 ? "field" : "fields"}
           </div>
           {g.hint && <div className="text-ink3 text-xs mb-2">{g.hint}</div>}
           <div className="space-y-2">
@@ -83,7 +94,8 @@ export function FlaggedFieldsEditor({
             ))}
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <div className="flex items-center gap-3 pt-1">
         <button
@@ -133,6 +145,11 @@ function FieldCard({
 
       <div className="text-sm mt-1">
         <span className="text-ink3">AI read this as:</span> {field.displayValue}
+        {field.control === "period" && (
+          <span className="ml-1 align-middle">
+            <InfoTip tip={MARKER_HELP.periodCovered} label="Period covered" />
+          </span>
+        )}
         {edited && <span className="ml-2 text-cedar text-xs">· edited</span>}
       </div>
 
@@ -145,7 +162,11 @@ function FieldCard({
           {field.rule === "quote_not_found" ? "Cited (couldn't match): " : "Cited: "}“{field.quote}”{field.page ? ` · p.${field.page}` : ""}
         </div>
       ) : (
-        <div className="text-rust text-xs mt-1">No source quote given — locate this in the document.</div>
+        <div className="text-rust text-xs mt-1">
+          <InfoTip tip={MARKER_HELP.noSourceSpan} label="No source quote given">
+            <span>No source quote given — locate this in the document.</span>
+          </InfoTip>
+        </div>
       )}
 
       {field.page != null && (

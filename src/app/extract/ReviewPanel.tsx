@@ -22,8 +22,9 @@ import { cbrSearchUrl } from "@/lib/rap/registry";
 import type { ExtractedRap, ExtractionJob, Grounded } from "@/lib/rap";
 import type { ValidationIssue } from "@/lib/rap/types";
 import { labelFor } from "@/lib/taxonomy";
-import { docIssueExplanation, docIssueHeading, summarizeIssues } from "@/lib/rap/validation-display";
+import { docIssueExplanation, docIssueHeading, MARKER_HELP, summarizeIssues } from "@/lib/rap/validation-display";
 import type { IssueSummary } from "@/lib/rap/validation-display";
+import { InfoTip } from "@/components/InfoTip";
 import { editableField } from "@/lib/rap/field-edit";
 import type { EditableField } from "@/lib/rap/field-edit";
 import { FlaggedFieldsEditor } from "./FlaggedFieldsEditor";
@@ -129,7 +130,11 @@ function ReviewCard({ job }: { job: ExtractionJob }) {
         <div className="min-w-0">
           <div className="font-medium">{job.fileName}</div>
           <div className="text-ink3 text-sm">
-            {job.classification && labelFor("sector", job.classification.sector)} · {job.classification?.jurisdiction} · engine: {job.engine} · overall confidence {Math.round((job.classification?.confidence ?? 0) * 100)}%
+            {job.classification && labelFor("sector", job.classification.sector)} · {job.classification?.jurisdiction} ·{" "}
+            <InfoTip tip={MARKER_HELP.engine} label="Extraction engine">
+              <span>engine: {job.engine}</span>
+            </InfoTip>{" "}
+            · overall confidence {Math.round((job.classification?.confidence ?? 0) * 100)}%
           </div>
           <TriageBadges summary={summary} needsBn={needsBn} />
         </div>
@@ -175,7 +180,13 @@ function TriageBadges({ summary, needsBn }: { summary: IssueSummary; needsBn: bo
     <div className="flex flex-wrap gap-2 mt-2">
       {summary.document.length > 0 && badge("⚠ document text may be damaged", "warn")}
       {summary.fieldCount > 0 && badge(`${summary.fieldCount} ${summary.fieldCount === 1 ? "field" : "fields"} to check`, "info")}
-      {needsBn ? badge("needs Business Number", "info") : badge("ready to publish", "ok")}
+      {needsBn ? (
+        <InfoTip tip={MARKER_HELP.needsBusinessNumber} label="Needs Business Number">
+          {badge("needs Business Number", "info")}
+        </InfoTip>
+      ) : (
+        badge("ready to publish", "ok")
+      )}
     </div>
   );
 }
@@ -416,13 +427,23 @@ function Field({ label, g }: { label: string; g: Grounded<unknown> }) {
     <div className={`rounded p-2 ${g.flagged ? "border border-amber bg-amber/5" : ""}`}>
       <div className="text-ink3 text-[11px] uppercase tracking-wide flex justify-between">
         <span>{label}</span>
-        <span>{Math.round(g.confidence * 100)}%{g.flagged ? " · review" : ""}</span>
+        {g.flagged ? (
+          <InfoTip tip={MARKER_HELP.reviewFlag} label="Confidence & review" align="right">
+            <span>{Math.round(g.confidence * 100)}% · review</span>
+          </InfoTip>
+        ) : (
+          <span>{Math.round(g.confidence * 100)}%</span>
+        )}
       </div>
       <div className="text-sm">{display}</div>
       {g.quote ? (
         <div className="text-ink3 text-xs mt-1">“{g.quote}”{g.page ? ` · p.${g.page}` : ""}</div>
       ) : (
-        <div className="text-rust text-xs mt-1">no source span</div>
+        <div className="text-rust text-xs mt-1">
+          <InfoTip tip={MARKER_HELP.noSourceSpan} label="No source span">
+            <span>no source span</span>
+          </InfoTip>
+        </div>
       )}
     </div>
   );

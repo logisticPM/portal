@@ -43,6 +43,7 @@ const extracted = {
   sector: g("energy", "Hydro-Québec launched its Action Plan", 1),
   endorsementStatus: g("endorsed", "TMX Group today announced", 2),
   frameworkRefs: g(["undrip", "pair"], "Inspired by these discussions", 3),
+  periodCovered: g({ start: "", end: "" }, null, null),
   commitments: [
     { owner: g("TMX Group", "TMX Group today announced", 2), pillarNormalized: "capital" },
     { owner: g("Board", "TMX Group today announced", 2) },
@@ -79,6 +80,19 @@ check("framework array renders full names with acronyms",
   fw?.displayValue);
 check("plain-string field displayValue is the raw string",
   pillarLike?.displayValue === "TMX Group", pillarLike?.displayValue);
+
+// --- period formatting (never the raw {"start":"","end":""} JSON) -----------
+const periodEmpty = pathToField(extracted, "periodCovered");
+check("empty period renders a plain message, not raw JSON",
+  periodEmpty?.displayValue === "— (no reporting period found)", periodEmpty?.displayValue);
+const withFullPeriod = { periodCovered: g({ start: "2020", end: "2025" }, null, null) } as unknown as ExtractedRap;
+check("full period renders as a span",
+  pathToField(withFullPeriod, "periodCovered")?.displayValue === "2020 → 2025",
+  pathToField(withFullPeriod, "periodCovered")?.displayValue);
+const withPartialPeriod = { periodCovered: g({ start: "2020", end: "" }, null, null) } as unknown as ExtractedRap;
+check("partial period fills the missing side with ?",
+  pathToField(withPartialPeriod, "periodCovered")?.displayValue === "2020 → ?",
+  pathToField(withPartialPeriod, "periodCovered")?.displayValue);
 
 check("$document resolves to null", pathToField(extracted, "$document") === null);
 check("unknown top-level key resolves to null", pathToField(extracted, "nonesuch") === null);
