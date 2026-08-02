@@ -16,7 +16,7 @@ export async function runCaseQa(id: string): Promise<void> {
     const model = cachedModel(modelFromId(qa.model ?? CASEQA_MODEL, { maxTokens: 1024 }));
     const r = await answerCaseQuestion(c, c.chunks ?? [], qa.question, model);
     if (r.status === "done") await setCaseQaDone(id, qa.questionHash, r.answer, r.dropped);
-    else await setCaseQaFailed(id, r.failReason);
+    else await setCaseQaFailed(id, r.failReason, r.failKind, r.bestOverlap);
   } catch (e) {
     console.error("[caseqa] generation error:", e);
     await setCaseQaFailed(id, "generation error — please try again").catch((e2) => console.error("[caseqa] setCaseQaFailed also failed:", e2));

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { casesDdbDoc as ddbDoc } from "../../dynamo/client";
 import { normalizeQuestion } from "../briefs/repo";
-import type { CaseQa, CaseQaAnswer } from "./types";
+import type { CaseQa, CaseQaAnswer, QaFailKind } from "./types";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
 export const CASEQA_DAILY_LIMIT = Number(process.env.CASEQA_DAILY_LIMIT ?? 10);
@@ -38,12 +38,22 @@ export async function setCaseQaDone(id: string, questionHash: string, answer: Ca
   await ddbDoc.send(new PutCommand({ TableName: TABLE, Item: { ...caseQaKeys.qhash(questionHash), et: "CaseQaHash", data: { caseQaId: id } } }));
 }
 
-export async function setCaseQaFailed(id: string, failReason: string): Promise<void> {
+export async function setCaseQaFailed(
+  id: string, failReason: string, failKind?: QaFailKind, bestOverlap?: number,
+): Promise<void> {
+  // Built conditionally rather than always SETting all four: DynamoDB rejects an
+  // ExpressionAttributeValues entry that is never referenced, and the client's
+  // removeUndefinedValues would strip the value while leaving the path in the expression.
+  const names: Record<string, string> = { "#d": "data", "#s": "status", "#f": "failReason" };
+  const values: Record<string, unknown> = { ":s": "failed", ":f": failReason };
+  const sets = ["#d.#s = :s", "#d.#f = :f"];
+  if (failKind !== undefined) { names["#fk"] = "failKind"; values[":fk"] = failKind; sets.push("#d.#fk = :fk"); }
+  if (bestOverlap !== undefined) { names["#bo"] = "bestOverlap"; values[":bo"] = bestOverlap; sets.push("#d.#bo = :bo"); }
   await ddbDoc.send(new UpdateCommand({
     TableName: TABLE, Key: caseQaKeys.qa(id),
-    UpdateExpression: "SET #d.#s = :s, #d.#f = :f",
-    ExpressionAttributeNames: { "#d": "data", "#s": "status", "#f": "failReason" },
-    ExpressionAttributeValues: { ":s": "failed", ":f": failReason },
+    UpdateExpression: "SET " + sets.join(", "),
+    ExpressionAttributeNames: names,
+    ExpressionAttributeValues: values,
   }));
 }
 
