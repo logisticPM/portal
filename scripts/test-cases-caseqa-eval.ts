@@ -104,6 +104,30 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       "normalisation must apply before matching");
   }
 
+  // --- isWellFormedQuestion: rejects a TRUNCATED question, not just an empty one ----
+  // The runner's other check is `!question`, which an empty response trips but a question cut
+  // mid-sentence does not — and that one would reach the answerer and be scored as if the
+  // product could not answer it.
+  {
+    const { isWellFormedQuestion, MIN_QUESTION_CHARS } =
+      await import("../src/lib/cases/caseqa-eval/construct");
+    const good = "I left my job for a summer contract and now my benefits claim is pending. Will they deny it?";
+    assert.equal(isWellFormedQuestion(good), true, "a complete lay question must pass");
+    assert.equal(isWellFormedQuestion(good + "  \n"), true, "trailing whitespace must not matter");
+    // Truncation: ends mid-word or on a comma, with no terminal punctuation.
+    assert.equal(isWellFormedQuestion("I left my job for a summer contract and now my benefits claim is pen"), false,
+      "a question cut mid-word must be rejected");
+    assert.equal(isWellFormedQuestion("I lost my job. What now? And then the employer said,"), false,
+      "a '?' earlier in the text must not rescue a truncated tail");
+    // Too short to carry the "describe a situation, then ask" shape.
+    assert.equal(isWellFormedQuestion("Why?"), false, "shorter than the floor must be rejected");
+    assert.ok("Why?".length < MIN_QUESTION_CHARS, "that fixture must actually be under the floor");
+    // A statement is not a question.
+    assert.equal(isWellFormedQuestion("My employer terminated me without notice last March in Alberta."), false,
+      "a declarative sentence with no '?' is not a question");
+    assert.equal(isWellFormedQuestion(""), false);
+  }
+
   // --- buildQuestionPrompt: carries the paragraph and forbids quoting it -----------
   {
     const p = buildQuestionPrompt(
@@ -271,11 +295,11 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
   {
     const p = formatProvenance({
       writer: "W-1", answerer: "A-1", judge: "J-1", seed: 7, asOf: "2026-07-15",
-      casesWithChunks: 500, targets: 40, built: 38, gimmes: 1, writerFails: 1,
+      casesWithChunks: 500, targets: 40, built: 38, gimmes: 1, writerFails: 1, writerMalformed: 6,
       pairs: 18, discardedPairs: 2, addressedFails: 1,
       pairingExhausted: 3, targetDroppedByBudget: 4,
     });
-    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15", "3", "4"].forEach((s) =>
+    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15", "3", "4", "6"].forEach((s) =>
       assert.ok(p.includes(s), `provenance must include ${s}`));
     // asOf is the corpus stamp: without it a reader cannot tell a prompt regression from the
     // corpus growing underneath a reproducibility-by-seed sample (spec §7 guard 5).

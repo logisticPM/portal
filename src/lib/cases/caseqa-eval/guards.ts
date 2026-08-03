@@ -25,7 +25,7 @@ export interface Provenance extends ModelRoles {
   // reader tell "the prompt got worse" from "the corpus changed underneath me".
   asOf: string;
   casesWithChunks: number; targets: number;
-  built: number; gimmes: number; writerFails: number;
+  built: number; gimmes: number; writerFails: number; writerMalformed: number;
   pairs: number; discardedPairs: number; addressedFails: number;
   // Named per FIX B/D (2026-08-03 review): a skip path with no counter is a skip path a
   // reader cannot see. `pairingExhausted` is a source question for which every candidate
@@ -48,6 +48,7 @@ export function formatProvenance(p: Provenance): string {
     `judge    ${p.judge}`,
     `seed ${p.seed} · corpus as of ${p.asOf} · core cases with chunks ${p.casesWithChunks} · targets ${p.targets}`,
     `questions built ${p.built} · rejected as lexical gimmes ${p.gimmes} · writer returned nothing ${p.writerFails}`,
+    `  writer returned a malformed/truncated question ${p.writerMalformed}`,
     `answerable dropped — target paragraph outside assembleInput's budget: ${p.targetDroppedByBudget}`,
     `unanswerable pairs ${p.pairs} · discarded ${p.discardedPairs} (unparseable screen ${p.addressedFails})` +
       ` · candidates exhausted (no undrawn case left) ${p.pairingExhausted}`,

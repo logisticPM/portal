@@ -11,7 +11,7 @@ import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { modelFromId, cachedModel } from "../src/lib/cases/ingest/llm";
 import { assembleInput } from "../src/lib/cases/ingest/summarizer";
 import { answerCaseQuestion } from "../src/lib/cases/caseqa/generator";
-import { pickTargets, buildQuestionPrompt, isLexicalGimme } from "../src/lib/cases/caseqa-eval/construct";
+import { pickTargets, buildQuestionPrompt, isLexicalGimme, isWellFormedQuestion } from "../src/lib/cases/caseqa-eval/construct";
 import { buildFaithfulnessPrompt, parseVerdict, buildAddressedPrompt, parseAddressed, type Verdict } from "../src/lib/cases/caseqa-eval/judge";
 import { score, type EvalRecord, type ClaimRecord, type FaithfulnessTally } from "../src/lib/cases/caseqa-eval/metrics";
 import { assertDistinctModels, formatProvenance } from "../src/lib/cases/caseqa-eval/guards";
@@ -85,12 +85,16 @@ async function main() {
   const byId = new Map(cases.map((c) => [c.id, c]));
 
   // --- construct questions -------------------------------------------------------
-  let gimmes = 0, writerFails = 0;
+  let gimmes = 0, writerFails = 0, writerMalformed = 0;
   const built: { caseId: string; qid: string; question: string; targetParagraph: string }[] = [];
   for (const t of targets) {
     const c = byId.get(t.caseId)!;
     const question = (await writer.call(buildQuestionPrompt(c, t))).trim();
     if (!question) { writerFails++; continue; }
+    // Counted apart from writerFails: an empty response and a response truncated mid-sentence
+    // are both harness failures, but only the second one would otherwise reach the answerer and
+    // be scored as if the product could not answer it.
+    if (!isWellFormedQuestion(question)) { writerMalformed++; continue; }
     // Guard 2: a verbatim run would let the retriever win on string overlap.
     if (isLexicalGimme(question, t.text)) { gimmes++; continue; }
     built.push({ caseId: t.caseId, qid: `ans-${built.length + 1}`, question, targetParagraph: t.paragraph });
@@ -204,7 +208,7 @@ async function main() {
     // in guards.ts for why this has to come from the corpus, not from "now".
     asOf: SCREENING.asOf,
     casesWithChunks: cases.length, targets: targets.length,
-    built: built.length, gimmes, writerFails,
+    built: built.length, gimmes, writerFails, writerMalformed,
     pairs: pairs.length, discardedPairs, addressedFails,
     pairingExhausted, targetDroppedByBudget,
   }));

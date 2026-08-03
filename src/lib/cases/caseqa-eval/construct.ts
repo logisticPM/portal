@@ -14,6 +14,21 @@ export const MIN_TARGET_PARA_CHARS = 300;
 // nothing. 40 chars is well past incidental phrases like "the duty to consult" (19).
 export const GIMME_MIN_RUN = 40;
 
+// A question shorter than this cannot carry the "describe a situation, then ask" shape the
+// prompt requires, so it is a construction failure rather than a hard question.
+export const MIN_QUESTION_CHARS = 40;
+
+// The runner's only other validity test is `!question`, which catches an empty response but
+// not a TRUNCATED one — and a question cut mid-sentence is unanswerable for reasons that have
+// nothing to do with the product, so scoring it would attribute a harness failure to the
+// answerer. Terminal punctuation is the cheap truncation signal: a mid-sentence cut ends on a
+// word or a comma. The `?` test is separate because a truncated response can still contain a
+// question mark from an earlier sentence.
+export function isWellFormedQuestion(question: string): boolean {
+  const q = question.trim();
+  return q.length >= MIN_QUESTION_CHARS && q.includes("?") && /[.?!]$/.test(q);
+}
+
 export interface CaseLike { id: string; chunks?: { paragraph: string; text: string }[] }
 export interface Target { caseId: string; paragraph: string; text: string }
 
