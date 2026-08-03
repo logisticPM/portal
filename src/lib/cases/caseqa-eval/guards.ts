@@ -27,6 +27,14 @@ export interface Provenance extends ModelRoles {
   casesWithChunks: number; targets: number;
   built: number; gimmes: number; writerFails: number;
   pairs: number; discardedPairs: number; addressedFails: number;
+  // Named per FIX B/D (2026-08-03 review): a skip path with no counter is a skip path a
+  // reader cannot see. `pairingExhausted` is a source question for which every candidate
+  // case had already been drawn (paired or rejected) before a usable one was found.
+  // `targetDroppedByBudget` is an answerable question excluded because its own ground-truth
+  // paragraph fell outside assembleInput's 240k-char budget and so never reached the
+  // answerer — see the check beside `assembleInput` in the runner.
+  pairingExhausted: number;
+  targetDroppedByBudget: number;
 }
 
 // Printed BEFORE any metric. Every discard is named as well as counted: a question set that
@@ -40,6 +48,8 @@ export function formatProvenance(p: Provenance): string {
     `judge    ${p.judge}`,
     `seed ${p.seed} · corpus as of ${p.asOf} · core cases with chunks ${p.casesWithChunks} · targets ${p.targets}`,
     `questions built ${p.built} · rejected as lexical gimmes ${p.gimmes} · writer returned nothing ${p.writerFails}`,
-    `unanswerable pairs ${p.pairs} · discarded ${p.discardedPairs} (unparseable screen ${p.addressedFails})`,
+    `answerable dropped — target paragraph outside assembleInput's budget: ${p.targetDroppedByBudget}`,
+    `unanswerable pairs ${p.pairs} · discarded ${p.discardedPairs} (unparseable screen ${p.addressedFails})` +
+      ` · candidates exhausted (no undrawn case left) ${p.pairingExhausted}`,
   ].join("\n");
 }

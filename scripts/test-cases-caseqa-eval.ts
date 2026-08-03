@@ -273,13 +273,122 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       writer: "W-1", answerer: "A-1", judge: "J-1", seed: 7, asOf: "2026-07-15",
       casesWithChunks: 500, targets: 40, built: 38, gimmes: 1, writerFails: 1,
       pairs: 18, discardedPairs: 2, addressedFails: 1,
+      pairingExhausted: 3, targetDroppedByBudget: 4,
     });
-    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15"].forEach((s) =>
+    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15", "3", "4"].forEach((s) =>
       assert.ok(p.includes(s), `provenance must include ${s}`));
     // asOf is the corpus stamp: without it a reader cannot tell a prompt regression from the
     // corpus growing underneath a reproducibility-by-seed sample (spec §7 guard 5).
     // The discard counts are the ones a reader needs to see a set that silently shrank.
     assert.ok(/gimme/i.test(p) && /discard/i.test(p), "discard reasons must be named, not just counted");
+    // FIX B/D named counters must reach the provenance line too, not just exist internally.
+    assert.ok(/exhausted/i.test(p), "the pairing-exhausted count must be named, not just discardedPairs");
+    assert.ok(/budget/i.test(p), "the target-dropped-by-budget count must be named");
+  }
+
+  // --- pairing: candidate drawing (FIX B, 2026-08-03 review) -----------------------
+  {
+    const { buildUnanswerablePairs } = await import("../src/lib/cases/caseqa-eval/pairing");
+    type Src = { caseId: string; qid: string; question: string };
+    const mk = (n: number): Src[] =>
+      Array.from({ length: n }, (_, i) => ({ caseId: `c${i}`, qid: `ans-${i + 1}`, question: `q${i}` }));
+
+    // Deterministic and non-degenerate: same seed, same result; a candidate is never its own
+    // source; every source pairs when nothing is ever rejected.
+    {
+      const built = mk(10);
+      const screenAlwaysOk = async (_s: Src, _c: Src) => false; // never addressed -> always pairs
+      const r1 = await buildUnanswerablePairs(built, 5, 3, screenAlwaysOk);
+      const r2 = await buildUnanswerablePairs(built, 5, 3, screenAlwaysOk);
+      assert.deepEqual(r1, r2, "same seed must produce the same pairing");
+      assert.equal(r1.pairs.length, 5, "every source should pair when nothing is ever rejected");
+      assert.ok(r1.pairs.every((p, i) => p.caseId !== `c${i}`), "a source must never pair with its own case");
+      assert.equal(r1.exhausted, 0);
+      assert.equal(r1.discardedPairs, 0);
+    }
+
+    // --- the jam scenario the reviewer simulated: one candidate always reads as "addressed" ---
+    // Before the fix, a rejected candidate was never marked used, so `built.find` kept handing
+    // the SAME rejected candidate to every later source — the reviewer's simulation produced
+    // 1 pair out of 20, with 18 of 20 paid judge calls spent re-screening that one case.
+    //
+    // Small, forced, hand-verifiable version first: 2 sources, 1 always-addressed candidate
+    // ("poison"), seed 5 chosen so the FIRST source's draw lands on poison. If the old bug
+    // were present, the second source could be handed poison again and reject it too, wasting
+    // its only candidate slot. Instead: poison is screened exactly once (by source 1, and
+    // discarded), which marks it attempted, so source 2's draw is forced past it onto the one
+    // remaining case and still succeeds.
+    {
+      const built: Src[] = [
+        { caseId: "s1", qid: "ans-1", question: "q1" },
+        { caseId: "s2", qid: "ans-2", question: "q2" },
+        { caseId: "poison", qid: "ans-3", question: "q3" },
+      ];
+      const screened: string[] = [];
+      const screen = async (_source: Src, candidate: Src) => {
+        screened.push(candidate.caseId);
+        return candidate.caseId === "poison";
+      };
+      const r = await buildUnanswerablePairs(built, 2, 5, screen);
+      assert.deepEqual(screened, ["poison", "s1"],
+        "source 1 must draw the poisoned candidate first and source 2 must be forced past it, not retry it");
+      assert.equal(r.discardedPairs, 1, "the poisoned candidate is discarded exactly once");
+      assert.equal(r.pairs.length, 1, "source 2 must still pair despite source 1's candidate being poisoned");
+      assert.equal(r.pairs[0].caseId, "s1", "source 2's only remaining candidate after poison is attempted is s1");
+      assert.equal(r.exhausted, 0);
+    }
+
+    // --- the same scenario at scale: 20 sources, 1 always-addressed candidate --------
+    // A candidate-only case (never itself a source) that every one of 20 sources could draw.
+    // Seed 5 puts it at the very front of source 1's draw — the worst case for the old bug,
+    // which would have kept handing it to every subsequent source once rejected. Here it is
+    // screened exactly once (proven by `screened` having 20 DISTINCT entries — one per
+    // source, no repeats) and every other source still finds a fresh, never-before-attempted
+    // candidate and pairs successfully.
+    {
+      const built = mk(21); // c0..c19 are sources; c20 is the always-addressed candidate-only case
+      const screened: string[] = [];
+      const screen = async (_source: Src, candidate: Src) => {
+        screened.push(candidate.caseId);
+        return candidate.caseId === "c20";
+      };
+      const r = await buildUnanswerablePairs(built, 20, 5, screen);
+
+      assert.equal(screened.length, 20, "one screen call per source — no source should be starved of a draw");
+      assert.equal(new Set(screened).size, 20,
+        "no candidate may be screened twice — that duplication IS the jam the old loop had");
+      assert.equal(screened.filter((c) => c === "c20").length, 1,
+        "the poisoned candidate must be screened exactly once, never retried by a later source");
+      assert.equal(r.discardedPairs, 1, "only the poisoned candidate is ever discarded");
+      assert.equal(r.pairs.length, 19,
+        "19 of 20 sources must still pair — the old loop's simulated failure mode was 1 of 20");
+      assert.equal(r.exhausted, 0, "20 sources against 21 candidates must never run out of options");
+    }
+
+    // --- unparseable screen result is a distinct discard reason ----------------------
+    {
+      const built = mk(4);
+      const r = await buildUnanswerablePairs(built, 4, 1, async () => null);
+      assert.equal(r.pairs.length, 0);
+      assert.equal(r.addressedFails, r.discardedPairs, "every discard here came from an unparseable screen");
+    }
+
+    // --- exhaustion: every OTHER case has already been attempted --------------------
+    // 3 cases, all 3 sources, everything ever screened is rejected. Source 1 attempts c1,
+    // source 2 attempts c0 — between them every case but c2 itself is now attempted, so
+    // source 3 (c2) has nothing left to draw: its candidate pool {c0, c1} is entirely
+    // attempted. That must be a named, counted skip (`exhausted`), not a silent retry of an
+    // already-rejected candidate and not a wasted screen call.
+    {
+      const built = mk(3);
+      const attempts: string[] = [];
+      const screen = async (_s: Src, c: Src) => { attempts.push(c.caseId); return true; }; // always rejected
+      const r = await buildUnanswerablePairs(built, 3, 1, screen);
+      assert.equal(r.exhausted, 1, "the third source must find every candidate already attempted");
+      assert.equal(r.discardedPairs, 2, "only the first two sources ever got a candidate to reject");
+      assert.equal(attempts.length, 2, "an exhausted source must not spend a screen call");
+      assert.equal(new Set(attempts).size, 2, "the two attempted candidates must be distinct, not a repeat");
+    }
   }
 
   console.log("✅ test-cases-caseqa-eval passed");
