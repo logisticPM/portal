@@ -91,7 +91,21 @@ export async function pdfToText(buf: Buffer, parse: (b: Buffer) => Promise<{ tex
 const MIN_TEXT = 200; // shorter than this = a shell/error page → skip (never store garbage)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-type Fetched = { buf: Buffer; contentType: string };
+export type Fetched = { buf: Buffer; contentType: string; status: number };
+
+// Why the batch runner needs this: a 403 gate, a 404, a timeout and a judgment with no text
+// were all previously the same empty string. That is what made the 2026-07-07 burst so
+// expensive — it did not fail, it returned 1,114 empty strings and ran to completion, and
+// nothing in the output showed that every request had been blocked.
+export type FetchOutcome =
+  | "ok"               // the site answered; `text` may still be "" if the document was thin
+  | "blocked"          // 401/403/429 — a gate. Every further request is futile and rude.
+  | "missing"          // 404 — this document is not there; others may be
+  | "error"            // 5xx, network failure, parse failure
+  | "not_open_source"  // curation gate: host not on OPEN_HOSTS
+  | "robots_denied";   // crawling-ethics gate
+
+export interface SourceResult { text: string; outcome: FetchOutcome }
 
 // Decode HTML bytes using the declared charset (Content-Type → <meta charset> → default
 // windows-1252, which fixes bccourts' legacy-encoded apostrophes/accents).
@@ -104,33 +118,48 @@ function decodeHtml(buf: Buffer, contentType: string): string {
   catch { return new TextDecoder("windows-1252").decode(buf); }
 }
 
-// Default fetch: browser UA, retry-once on non-OK (official sites throttle bursts),
-// returns raw bytes + content-type.
+// Retry once on 5xx only. A 403/429 is NOT retried — retrying a gate is what escalates it.
 async function defaultFetch(u: string): Promise<Fetched> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const res = await fetch(u, { headers: { "User-Agent": CRAWLER_UA } });
-    if (res.ok) return { buf: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") ?? "" };
-    if (attempt === 0) await sleep(1500);
+    if (res.ok || res.status < 500) {
+      return {
+        buf: res.ok ? Buffer.from(await res.arrayBuffer()) : Buffer.alloc(0),
+        contentType: res.headers.get("content-type") ?? "",
+        status: res.status,
+      };
+    }
+    if (attempt === 0) await sleep(3000);
   }
-  return { buf: Buffer.alloc(0), contentType: "" };
+  return { buf: Buffer.alloc(0), contentType: "", status: 503 };
 }
 
-// Fetch an official page and extract verbatim text. Returns "" for a non-open host, a
-// robots-disallowed URL, a network failure, or an implausibly short extraction. `get` and
-// `allows` are injectable for offline tests.
-export async function fetchOfficialText(
+export async function fetchOfficialSource(
   url: string,
   get: (u: string) => Promise<Fetched> = defaultFetch,
   allows: (u: string) => Promise<boolean> = defaultRobotsGate.allows,
-): Promise<string> {
-  if (!isOpenSource(url)) return "";          // curation gate: official-open hosts only
+): Promise<SourceResult> {
+  if (!isOpenSource(url)) return { text: "", outcome: "not_open_source" };
   const target = toDocumentUrl(url);
-  if (!(await allows(target))) return "";     // crawling-ethics gate: honor robots.txt
+  if (!(await allows(target))) return { text: "", outcome: "robots_denied" };
+  let f: Fetched;
+  try { f = await get(target); } catch { return { text: "", outcome: "error" }; }
+  if (f.status === 401 || f.status === 403 || f.status === 429) return { text: "", outcome: "blocked" };
+  if (f.status === 404) return { text: "", outcome: "missing" };
+  if (f.status >= 500 || f.buf.length === 0) return { text: "", outcome: "error" };
   try {
-    const { buf, contentType } = await get(target);
-    if (buf.length === 0) return "";
-    const isPdf = /application\/pdf/i.test(contentType) || target.endsWith("/document.do");
-    const text = isPdf ? await pdfToText(buf) : htmlToText(decodeHtml(buf, contentType));
-    return text.length >= MIN_TEXT ? text : "";
-  } catch { return ""; }
+    const isPdf = /application\/pdf/i.test(f.contentType) || target.endsWith("/document.do");
+    const text = isPdf ? await pdfToText(f.buf) : htmlToText(decodeHtml(f.buf, f.contentType));
+    return { text: text.length >= MIN_TEXT ? text : "", outcome: "ok" };
+  } catch { return { text: "", outcome: "error" }; }
+}
+
+// Text-only wrapper for callers that do not act on the outcome. New code should prefer
+// fetchOfficialSource — a caller that cannot see `blocked` cannot stop.
+export async function fetchOfficialText(
+  url: string,
+  get?: (u: string) => Promise<Fetched>,
+  allows?: (u: string) => Promise<boolean>,
+): Promise<string> {
+  return (await fetchOfficialSource(url, get, allows)).text;
 }
