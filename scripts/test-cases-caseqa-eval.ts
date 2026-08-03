@@ -88,5 +88,47 @@ import assert from "node:assert/strict";
     assert.ok(/do not (quote|copy)/i.test(p), "verbatim copying must be forbidden in the prompt");
   }
 
+  const { buildFaithfulnessPrompt, parseVerdict, buildAddressedPrompt, parseAddressed } =
+    await import("../src/lib/cases/caseqa-eval/judge");
+
+  // --- parseVerdict: the four verdicts, tolerant of wrapping, null on garbage ------
+  {
+    assert.equal(parseVerdict('{"verdict":"supported"}'), "supported");
+    assert.equal(parseVerdict('{"verdict":"overstated"}'), "overstated");
+    assert.equal(parseVerdict('{"verdict":"contradicted"}'), "contradicted");
+    assert.equal(parseVerdict('{"verdict":"unrelated"}'), "unrelated");
+    // Models wrap JSON in prose and fences; both must survive.
+    assert.equal(parseVerdict('Here is my answer:\n```json\n{"verdict": "SUPPORTED"}\n```'), "supported");
+    assert.equal(parseVerdict('{"reason":"...","verdict":"contradicted"}'), "contradicted");
+    // Unparseable must be null, NOT a default verdict — a silent default would count a
+    // judge failure as evidence about the product.
+    assert.equal(parseVerdict("I cannot tell."), null);
+    assert.equal(parseVerdict('{"verdict":"mostly ok"}'), null);
+    assert.equal(parseVerdict(""), null);
+  }
+
+  // --- parseAddressed: boolean, null on garbage -----------------------------------
+  {
+    assert.equal(parseAddressed('{"addressed":true}'), true);
+    assert.equal(parseAddressed('{"addressed":false}'), false);
+    assert.equal(parseAddressed('```json\n{"addressed": false}\n```'), false);
+    assert.equal(parseAddressed("maybe"), null);
+    assert.equal(parseAddressed('{"addressed":"yes"}'), null);
+  }
+
+  // --- prompts carry what they must ------------------------------------------------
+  {
+    const f = buildFaithfulnessPrompt("The Crown had to consult first.", "The Crown must consult in good faith before issuing.");
+    assert.ok(f.includes("The Crown had to consult first."));
+    assert.ok(f.includes("The Crown must consult in good faith before issuing."));
+    ["supported", "overstated", "contradicted", "unrelated"].forEach((v) =>
+      assert.ok(f.includes(v), `the prompt must name the ${v} verdict`));
+
+    const a = buildAddressedPrompt("Can they take my land?", "Nation v Canada", "[para 1] Something about fishing.");
+    assert.ok(a.includes("Can they take my land?"));
+    assert.ok(a.includes("[para 1] Something about fishing."));
+    assert.ok(/addressed/.test(a), "the prompt must ask for the `addressed` field");
+  }
+
   console.log("✅ test-cases-caseqa-eval passed");
 })();
