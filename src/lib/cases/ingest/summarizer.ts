@@ -132,7 +132,19 @@ export function verifyClaims(
   // best chunk and the best NON-ADJACENT rival, because a quote straddling a chunk boundary
   // scores well against both halves and locate()'s adjacent-pair window already treats that
   // pair as one span — counting them as rivals would block a quote the exact path accepts.
+  //
+  // Memoized per quote: a claim that reaches the fourth attempt, fails to recover, and then
+  // gets diagnosed would otherwise scan twice. At ~65ms per scan over 707 corpus-wide drops
+  // that is a wasted minute per full run, for an identical answer both times.
+  const scanned = new Map<string, { bestOverlap: number; bestPara: string | null; rival: number }>();
   const scan = (quote: string) => {
+    const memo = scanned.get(quote);
+    if (memo) return memo;
+    const r = scanUncached(quote);
+    scanned.set(quote, r);
+    return r;
+  };
+  const scanUncached = (quote: string) => {
     let bestOverlap = 0, bestIdx = -1;
     const overlaps = norm.map((n) => longestCommonSubstringLen(quote, n.text) / quote.length);
     overlaps.forEach((o, i) => { if (o > bestOverlap) { bestOverlap = o; bestIdx = i; } });
