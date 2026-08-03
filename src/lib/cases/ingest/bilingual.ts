@@ -1,26 +1,30 @@
-// SCC judgments are published as the bilingual Supreme Court Reports edition — French and
-// English on facing pages. pdf-parse reads pages in physical order, so the extracted text
-// alternates language roughly every page.
+// SCC judgments are published as the bilingual Supreme Court Reports edition. Measured
+// against the real Tsilhqot'in PDF (2014 SCC 44) on 2026-08-03: French and English sit
+// SIDE BY SIDE IN TWO COLUMNS ON EVERY PAGE — parallel translations of the same passage.
+// pdf.js reads the full left column, then the full right, so a page's text is French then
+// English rather than one language.
 //
-// Measured on Tsilhqot'in (2014 SCC 44) 2026-08-03: 265,148 characters, alternating
-// FR/EN. That is over assembleInput's 240,000-char budget on its own, so the judgment would
-// be summarized from a non-contiguous subset of two languages. Keeping only English gives
-// ~110,000 characters.
+// An earlier version of this module assumed facing pages and split page-by-page. It passed
+// eight unit tests and was wrong: the fixtures were written from the same mistaken model as
+// the code. On the real PDF it kept 7 of 66 pages and its output began in French. The
+// acceptance gate is now cases-verify-bilingual.ts, against the actual judgment.
 //
-// The unit is the PAGE, not a character window. A fixed window cuts mid-sentence, and every
-// published claim in this product is verified by locating its quote VERBATIM in a chunk —
-// a boundary through the middle of a sentence manufactures quotes that can never verify.
-export type PageLang = "en" | "fr" | "unknown";
+// Why this matters at all: the bilingual text is 265,148 characters, over assembleInput's
+// 240,000 budget, so the judgment would be summarized from a non-contiguous subset of two
+// languages. English-only is 127,123.
+export interface PageItem { str: string; x: number; y: number }
+export type Lang = "en" | "fr" | "unknown";
 
 // Function words, not legal vocabulary: legal terms are cognate across the two languages
 // ("appellant"/"appelant") and would not discriminate.
-const FR_WORDS = /\b(que|qui|dans|pour|est|les|des|une|par|sur|aux|cette|selon|ainsi|avec|sont|leur|plus|cour|droit)\b/gi;
-const EN_WORDS = /\b(the|that|which|with|from|this|were|been|shall|upon|whether|have|would|there|their|court|right)\b/gi;
+const FR_WORDS = /\b(que|qui|dans|pour|est|les|des|une|par|sur|aux|cette|selon|ainsi|avec|sont|leur|plus)\b/gi;
+const EN_WORDS = /\b(the|that|which|with|from|this|were|been|shall|upon|whether|have|would|there|their)\b/gi;
 
-const MIN_EVIDENCE = 8;   // fewer hits than this on a page is not evidence of a language
-const RATIO = 1.3;        // one side must lead by this much to win
+const MIN_EVIDENCE = 8;    // fewer hits than this is not evidence of a language
+const RATIO = 1.3;         // one side must lead by this much to win
+const MIN_COLUMN_GAP = 40; // narrower than this and there is only one column
 
-export function classifyPage(text: string): PageLang {
+export function classifyText(text: string): Lang {
   const fr = (text.match(FR_WORDS) ?? []).length;
   const en = (text.match(EN_WORDS) ?? []).length;
   if (fr + en < MIN_EVIDENCE) return "unknown";
@@ -29,28 +33,76 @@ export function classifyPage(text: string): PageLang {
   return "unknown";
 }
 
-export interface EnglishPages {
-  text: string;
-  kept: number;         // pages classified English and kept
-  dropped: number;      // pages dropped (French, or undetermined without English neighbours)
-  unknownKept: number;  // undetermined pages kept because both neighbours were English
+// Reassemble text from items exactly the way pdf-parse's own render_page does
+// (lib/pdf-parse.js:3): same y → concatenate with NO separator, y change → "\n".
+//
+// Both details are load-bearing. pdf.js splits a word across runs — this repo's
+// pdf-parse.d.ts records "Recon" + "ciliation" abutting — so any separator breaks words
+// apart. And cleanupPdfText's hyphen rejoin matches "-\n", so dropping the newline leaves a
+// stray hyphen inside every line-broken word. Every published claim is verified by locating
+// its quote verbatim in this text.
+export function renderItems(items: PageItem[]): string {
+  let lastY: number | undefined, text = "";
+  for (const it of items) {
+    text += lastY === it.y || !lastY ? it.str : "\n" + it.str;
+    lastY = it.y;
+  }
+  return text;
 }
 
-// Keep English pages in document order. An undetermined page is kept ONLY when both its
-// neighbours are English: dropping content is the conservative error for a corpus that
-// publishes quotations, and an undetermined page that is really French will almost always
-// sit between French pages.
-export function keepEnglishPages(pages: string[]): EnglishPages {
-  const langs = pages.map(classifyPage);
+// Split a page at the midpoint of its own x range.
+//
+// Chosen by measurement across all 66 pages of the real judgment: midpoint gives 64/66 clean
+// bilingual splits and 127,123 English characters — identical to a fixed x=290 threshold and
+// better than two-means clustering (122,966). Midpoint is preferred over the constant
+// because it adapts to a different page geometry.
+//
+// A "widest gap between distinct x values" heuristic was tried and DISCARDED: it put the cut
+// at the far right edge on 5 of the pages sampled (one page: 5,165 characters left, 3
+// right). Recorded so nobody re-derives it.
+export function splitColumns(items: PageItem[]): { left: PageItem[]; right: PageItem[]; twoColumn: boolean } {
+  if (!items.length) return { left: [], right: [], twoColumn: false };
+  const xs = items.map((i) => i.x);
+  const min = Math.min(...xs), max = Math.max(...xs);
+  const cut = (min + max) / 2;
+  const left = items.filter((i) => i.x < cut);
+  const right = items.filter((i) => i.x >= cut);
+  return { left, right, twoColumn: max - min >= MIN_COLUMN_GAP && left.length > 0 && right.length > 0 };
+}
+
+export interface EnglishColumns {
+  text: string;
+  kept: number;               // pages that contributed English
+  dropped: number;            // pages that contributed nothing
+  wholePageFallbacks: number; // pages kept without a clean two-column split
+}
+
+// Keep the English column of each page, in document order.
+//
+// The side is CLASSIFIED, never assumed. English was the left column on every cleanly-split
+// page of the one judgment measured, but a corpus-wide rule cannot rest on one document.
+//
+// When a page does not split cleanly into one English and one French column — a cover page,
+// an index, a genuinely monolingual judgment from another court — the whole page is
+// classified instead and kept if English. That fallback is counted, not silent, because a
+// document that is ALL fallbacks is a document this splitter is not helping with.
+export function keepEnglishColumns(pages: PageItem[][]): EnglishColumns {
   const out: string[] = [];
-  let kept = 0, dropped = 0, unknownKept = 0;
-  for (let i = 0; i < pages.length; i++) {
-    let take = langs[i] === "en";
-    if (langs[i] === "unknown" && i > 0 && i < pages.length - 1 && langs[i - 1] === "en" && langs[i + 1] === "en") {
-      take = true;
-      unknownKept++;
+  let kept = 0, dropped = 0, wholePageFallbacks = 0;
+  for (const items of pages) {
+    const { left, right, twoColumn } = splitColumns(items);
+    let picked: string | null = null;
+    if (twoColumn) {
+      const lt = renderItems(left), rt = renderItems(right);
+      const ll = classifyText(lt), rl = classifyText(rt);
+      if (ll === "en" && rl === "fr") picked = lt;
+      else if (rl === "en" && ll === "fr") picked = rt;
     }
-    if (take) { out.push(pages[i]); kept++; } else dropped++;
+    if (picked === null) {
+      const whole = renderItems(items);
+      if (classifyText(whole) === "en") { picked = whole; wholePageFallbacks++; }
+    }
+    if (picked !== null && picked.length > 0) { out.push(picked); kept++; } else dropped++;
   }
-  return { text: out.join("\n"), kept, dropped, unknownKept };
+  return { text: out.join("\n"), kept, dropped, wholePageFallbacks };
 }
