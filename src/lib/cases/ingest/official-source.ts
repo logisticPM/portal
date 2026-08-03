@@ -5,6 +5,7 @@
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { defaultRobotsGate } from "./robots";
 import { CRAWLER_UA } from "./crawler-id";
+import { keepEnglishColumns, type PageItem } from "./bilingual";
 
 export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca", "coadecisions.ontariocourts.ca", "www.yukoncourts.ca", "www.courtsnb-coursnb.ca", "www.manitobacourts.mb.ca"];
 
@@ -88,6 +89,82 @@ export async function pdfToText(buf: Buffer, parse: (b: Buffer) => Promise<{ tex
   } catch { return ""; }
 }
 
+// Per-page PDF text. pdf-parse exposes a `pagerender` hook; we collect each page's text
+// instead of only the concatenated whole, so bilingual.ts can work at page granularity.
+export async function pdfToPages(
+  buf: Buffer,
+  parse: typeof pdfParse = pdfParse,
+): Promise<string[]> {
+  const pages: string[] = [];
+  try {
+    const res = await parse(buf, {
+      // Mirrors pdf-parse's own render_page (lib/pdf-parse.js:3) EXACTLY. Two details are
+      // load-bearing, and the first draft of this function got both wrong:
+      //   * items on the same line concatenate with NO separator. pdf.js splits a word
+      //     across runs — this repo's pdf-parse.d.ts records "Recon" + "ciliation"
+      //     abutting — so joining with " " would break words apart.
+      //   * a change in transform[5] (the Y coordinate) emits "\n". cleanupPdfText's
+      //     hyphen rejoin matches "-\n"; with no newline it never fires and every
+      //     line-broken word keeps a stray hyphen.
+      // Any divergence changes the stored text, and every published claim is verified by
+      // locating its quote verbatim in that text.
+      pagerender: async (pageData) => {
+        try {
+          const tc = await pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false });
+          let lastY: number | undefined, text = "";
+          for (const item of tc.items) {
+            text += lastY === item.transform[5] || !lastY ? item.str : "\n" + item.str;
+            lastY = item.transform[5];
+          }
+          pages.push(text);
+          return text;
+        } catch {
+          // pdf-parse catches a throwing pagerender and continues (lib/pdf-parse.js:87),
+          // which would leave this page MISSING from `pages` and shift every later index
+          // — silently corrupting keepEnglishPages' neighbour test for the rest of the
+          // document. Push a placeholder so array position always equals page number.
+          pages.push("");
+          return "";
+        }
+      },
+    });
+    // If we did not observe one entry per page, the array cannot be trusted positionally
+    // and the caller must fall back rather than split on wrong neighbours.
+    if (typeof res.numpages === "number" && res.numpages !== pages.length) return [];
+  } catch { return []; }
+  return pages;
+}
+
+// Per-page items WITH geometry. pdfToPages gives one string per page, which is enough for a
+// monolingual document but throws away the x positions the column splitter needs.
+//
+// The two must stay consistent: rendering a page's items with renderItems() reproduces that
+// page's pdfToPages() string exactly. cases-verify-bilingual.ts asserts it against the real
+// judgment.
+export async function pdfToPageItems(
+  buf: Buffer,
+  parse: typeof pdfParse = pdfParse,
+): Promise<PageItem[][]> {
+  const pages: PageItem[][] = [];
+  try {
+    const res = await parse(buf, {
+      pagerender: async (pageData) => {
+        try {
+          const tc = await pageData.getTextContent({ normalizeWhitespace: false, disableCombineTextItems: false });
+          pages.push(tc.items.map((i) => ({ str: i.str, x: i.transform[4], y: i.transform[5] })));
+        } catch {
+          // pdf-parse swallows a throwing pagerender (lib/pdf-parse.js:87). Without this
+          // placeholder the page would be MISSING and every later index would shift.
+          pages.push([]);
+        }
+        return "";
+      },
+    });
+    if (typeof res.numpages === "number" && res.numpages !== pages.length) return [];
+  } catch { return []; }
+  return pages;
+}
+
 const MIN_TEXT = 200; // shorter than this = a shell/error page → skip (never store garbage)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -149,7 +226,21 @@ export async function fetchOfficialSource(
   if (f.status >= 500 || f.buf.length === 0) return { text: "", outcome: "error" };
   try {
     const isPdf = /application\/pdf/i.test(f.contentType) || target.endsWith("/document.do");
-    const text = isPdf ? await pdfToText(f.buf) : htmlToText(decodeHtml(f.buf, f.contentType));
+    let text: string;
+    if (!isPdf) {
+      text = htmlToText(decodeHtml(f.buf, f.contentType));
+    } else {
+      // Split BEFORE cleanupPdfText: that cleanup rejoins hyphenated line breaks and strips
+      // running headers across the whole document, so running it first would splice a word
+      // across a column boundary.
+      //
+      // keepEnglishColumns returns a monolingual document unchanged, so this is safe for
+      // every non-SCC court on this path. If pagerender yields nothing, fall back to whole
+      // document extraction rather than losing the judgment.
+      const pages = await pdfToPageItems(f.buf);
+      const split = pages.length > 0 ? keepEnglishColumns(pages) : null;
+      text = split && split.kept > 0 ? cleanupPdfText(split.text) : await pdfToText(f.buf);
+    }
     return { text: text.length >= MIN_TEXT ? text : "", outcome: "ok" };
   } catch { return { text: "", outcome: "error" }; }
 }
