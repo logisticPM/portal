@@ -41,6 +41,7 @@ export interface SearchIndex {
   vdim: number | null;           // dimension of the stored vectors (compatibility axis)
   searcher: Searcher;            // ALWAYS present: artifact-backed or built from units
   source: "artifact" | "scan";
+  buildId: string | null;        // artifact build id; null on the scan path
 }
 
 let cached: SearchIndex | null = null;
@@ -75,7 +76,7 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
         }
       }
       const loaded = loadArtifacts(bm25, vectors);
-      cached = { units: [], cases: loaded.cases, embedderId: loaded.embedderId, vdim: loaded.vdim, searcher: loaded.searcher, source: "artifact" };
+      cached = { units: [], cases: loaded.cases, embedderId: loaded.embedderId, vdim: loaded.vdim, searcher: loaded.searcher, source: "artifact", buildId: loaded.buildId };
       console.log(`[index] artifact loaded (buildId=${loaded.buildId}, cases=${loaded.cases.size})`);
       return cached;
     } catch (e) {
@@ -113,7 +114,7 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
   } while (start);
 
   const units = assembleUnits(profiles, chunks);
-  cached = { units, cases, embedderId, vdim, searcher: makeInMemorySearcher(units), source: "scan" };
+  cached = { units, cases, embedderId, vdim, searcher: makeInMemorySearcher(units), source: "scan", buildId: null };
   return cached;
 }
 
