@@ -469,18 +469,35 @@ import assert from "node:assert/strict";
     }
 
     // Genuinely unmatched: not the guard's doing, and must not be counted as such.
+    // Also the ONLY place rivalPara's null case is pinned: one chunk means no non-adjacent
+    // competitor exists, so rivalIdx stays -1. Worth asserting because `rival: 0` is
+    // ambiguous — it means both "no eligible competitor" and "a competitor scoring zero" —
+    // and rivalPara is the field that tells a future margin calculation to refuse.
     {
       const chunks = mk([body("A")]);
       const r = verifyClaims(claim("The tribunal awarded punitive damages of four million dollars."), chunks, URL, { measureOverlap: true });
       assert.equal(r.drops[0].declinedByGuard, false, "a weak match is not a declined match");
+      assert.equal(r.drops[0].rival, 0);
+      assert.equal(r.drops[0].rivalPara, null, "no eligible competitor must read as null, not as a paragraph");
     }
 
-    // Below the threshold with a close rival is ALSO not the guard: recovery never applied.
+    // Two EQUAL rivals both below the threshold: the guard is still not the reason. This is a
+    // distinct failure from the single-chunk case above — a rival genuinely exists and ties the
+    // best — and it isolates the threshold as the blocker.
+    //
+    // Both score 0.21, not something near 0.95: the longest common substring with either
+    // paragraph is "The Crown owed a " (17 chars) out of an 81-char quote. There is no test
+    // here for "best over the threshold, rival just under" because that combination cannot
+    // reach a drop at all — locate()'s fourth attempt anchors it, which is exactly why
+    // `declined == drops` inside the top band is an identity rather than a measurement.
     {
       const chunks = mk([body("A"), "Unrelated.", body("A")]);
       const q = "The Crown owed a XXXXXXXXXX duty to the YYYYYYYY in the ZZZZZZZZZZ of this case A";
       const r = verifyClaims(claim(q), chunks, URL, { measureOverlap: true });
-      assert.equal(r.drops[0].declinedByGuard, false, "declined means the threshold was cleared and ambiguity blocked it");
+      const d = r.drops[0];
+      assert.equal(d.declinedByGuard, false, "declined means the threshold was cleared and ambiguity blocked it");
+      assert.ok(d.bestOverlap < 0.5, `best should be far below the threshold, got ${d.bestOverlap}`);
+      assert.equal(d.rivalPara, "para-3", "a real non-adjacent competitor is still reported below the threshold");
     }
 
     // Diagnostics stay opt-in: with measurement off the fields are inert, not wrong.
@@ -488,6 +505,7 @@ import assert from "node:assert/strict";
       const chunks = mk([body("A"), "Unrelated.", body("A")]);
       const r = verifyClaims(claim(NEARLY), chunks, URL);
       assert.equal(r.drops[0].rival, 0);
+      assert.equal(r.drops[0].rivalPara, null, "inert, not a stale paragraph from a scan that never ran");
       assert.equal(r.drops[0].declinedByGuard, false, "unmeasured must not masquerade as not-declined-because-weak");
       assert.equal(r.drops[0].overlapMeasured, false, "…which is why overlapMeasured exists to tell them apart");
     }

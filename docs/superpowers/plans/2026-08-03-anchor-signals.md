@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-31-anchor-signals-design.md` — **read the 2026-08-03 amendment at the top**; it supersedes the bottom-175 framing below it.
 
+> **This plan is a historical snapshot; the shipped runner diverges from it.** The Task 2 code
+> below has `citedIsNeither` / `citedMissing` columns, a string-equality `same()`, six sampled
+> declines and no significance test. All four were wrong and were replaced after the first two
+> measurement runs — see `docs/research/2026-08-03-anchor-signals-results.md` §"The instrument
+> was wrong on the first two runs". For the shipped behaviour read
+> `scripts/cases-anchor-signals.ts`, not this plan.
+
 ---
 
 ## Why the fields go in `ClaimDrop` and not in the runner

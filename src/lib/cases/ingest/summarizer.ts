@@ -83,6 +83,12 @@ export interface ClaimDrop {
   // The best NON-ADJACENT competitor, and whether the uniqueness guard is what stopped this
   // claim. A declined claim and an unmatched one are both "no_span" and were previously
   // indistinguishable, which is why the guard's cost has never been measured.
+  //
+  // `rival: 0` is AMBIGUOUS by design and must not be read as a score. It means either "no
+  // eligible non-adjacent competitor exists" or "one exists and shares no substring at all".
+  // `rivalPara === null` marks both, so anything computing a margin (`bestOverlap - rival`)
+  // has to check rivalPara first — with no runner-up the margin is undefined, not `bestOverlap`.
+  // locate() is safe here because it only asks `rival < NEAR`, which both cases satisfy.
   rival: number;
   rivalPara: string | null;
   declinedByGuard: boolean;
