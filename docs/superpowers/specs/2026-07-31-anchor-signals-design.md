@@ -1,5 +1,88 @@
 # Anchor Signals — Can the Bottom 175 Be Attributed to a Paragraph?
 
+**Date:** 2026-07-31 · **Status:** **re-scoped 2026-08-03 before implementation — read the
+amendment first.** The question below is still open but is no longer the binding one.
+
+---
+
+# AMENDMENT 2026-08-03 — the bottleneck moved
+
+## What changed underneath this spec
+
+Written 2026-07-31, this spec targets the **bottom 175** claims (0.50–0.80 overlap) and asks
+whether their best-matching paragraph is the right one. Two things have happened since.
+
+**Half of it already shipped.** Claim recovery (#227) put a `scan()` in `verifyClaims` that
+computes exactly Signal 1 — best overlap plus the best **non-adjacent** rival, with the same
+neighbour-exclusion reasoning this spec argued for. It runs in production on every drop.
+
+**The binding constraint moved to the other end of the distribution.** Recovery anchors a
+claim when exactly one paragraph scores ≥0.95. What now blocks progress is not weak matches;
+it is **strong matches that are ambiguous**:
+
+- `2008-scc-41` still has **no summary at all**. Its best near-miss is **0.97** — over the
+  threshold — declined because a second non-adjacent paragraph also scored ≥0.95.
+- Declined near-misses at the top of the scale recur across the corpus run:
+  `2020-fca-122 1.00`, `2003-nsca-105 1.00`, `2024-onca-148 1.00`.
+
+Lowering 0.95 would not help any of these. They are already above it. **The question is no
+longer "is a weak match trustworthy" but "when two paragraphs both match strongly, can we
+tell which one the quotation came from."**
+
+## The re-scoped question
+
+**Among claims the uniqueness guard declines, how often would the model's own cited paragraph
+break the tie?**
+
+Signal 2 from the original spec — `bestPara === citedPara` — is the candidate tie-breaker,
+and it is the right shape for the job: the model's bookkeeping and our text matching are
+independent, so agreement between them is real corroboration rather than one signal counted
+twice.
+
+The standing caution still applies and is why this is a measurement and not a change:
+`summarizer.ts` records that models misattribute paragraph ids about half the time, and this
+run saw it directly — `cited-para-not-found 12`, plus near-misses like
+`para-5 (model cited para-12)`. A tie-breaker that is wrong half the time is not a
+tie-breaker. **Whether it is wrong half the time *among the specific claims where two
+paragraphs match strongly* is the thing nobody has measured.**
+
+## What to measure
+
+For every claim `verifyClaims` drops, record: `bestOverlap`, `rival`, `bestPara`,
+`citedPara`, and whether the cited paragraph is one of the strong matches. Then report,
+banded by `bestOverlap`:
+
+```
+band          drops   guard-declined   cited==best   cited==rival   cited==neither
+>=0.95          ...          ...            ...           ...            ...
+0.90–0.95       ...          ...            ...           ...            ...
+0.80–0.90       ...          ...            ...           ...            ...
+0.50–0.80       ...          ...            ...           ...            ...
+```
+
+The `>=0.95` row is the one that matters now: it sizes what the guard costs and says whether
+`citedPara` could recover any of it safely. The lower bands answer the original question and
+come free in the same pass.
+
+**The size of the guard-declined population is not yet known.** Sizing it is the first thing
+this run produces; the qualitative evidence above — one whole case lost plus three sampled
+1.00 declines — is what justifies looking, not a number I already have.
+
+## Scope changes from the original
+
+- **Population:** every drop, banded — not only the 0.50–0.80 slice.
+- **Signal 1 is no longer new work.** Reuse `scan()`'s definition rather than reimplementing
+  margin; if the runner and production disagree about what "rival" means, the measurement
+  describes something the product does not do.
+- **Still measurement only.** No threshold changes, no tie-breaker shipped. Recovery stays
+  exactly as merged in #227.
+- **The cache is stale in a known way.** The forensics runner aborts on a cache miss for any
+  case whose text changed in the SCC backfill. The corpus was re-summarized after that, so
+  the cache should now be current — but the run must be allowed to abort rather than being
+  loosened to push through.
+
+---
+
 **Date:** 2026-07-31 · **Status:** proposed (design), pre-implementation
 **Domain:** `src/lib/cases/ingest/drop-cause.ts`, `scripts/cases-drop-forensics.ts`
 **Predecessors:** `2026-07-31-claim-drop-forensics-design.md` (#213), `2026-07-31-elision-bucket-design.md` (#214)
