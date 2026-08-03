@@ -14,8 +14,9 @@ export function makeRng(seed: number): () => number {
 }
 
 // Fisher-Yates over a COPY. Returning a new array rather than shuffling in place matters
-// here: the runner shuffles the same case list twice (once for cases, once for pairing),
-// and an in-place shuffle would make the second draw depend on the first.
+// here: callers pass arrays they go on to read or shuffle again (construct.ts shuffles the
+// case list once, then shuffles each case's own paragraph list), and an in-place shuffle
+// would make a second call's result depend on whether an earlier call already ran.
 export function seededShuffle<T>(xs: readonly T[], seed: number): T[] {
   const out = [...xs];
   const rng = makeRng(seed);

@@ -18,6 +18,12 @@ export function assertDistinctModels(m: ModelRoles): void {
 
 export interface Provenance extends ModelRoles {
   seed: number;
+  // The corpus snapshot the sample was drawn against (spec §7 guard 5). EVAL_SEED reproduces
+  // the SAMPLE only relative to a fixed corpus: listCases({tier:"core"}) is unbounded, so if
+  // the corpus gains cases, the same seed shuffles a longer list into a completely different
+  // 40 and every metric moves for reasons unrelated to the product. `asOf` is what lets a
+  // reader tell "the prompt got worse" from "the corpus changed underneath me".
+  asOf: string;
   casesWithChunks: number; targets: number;
   built: number; gimmes: number; writerFails: number;
   pairs: number; discardedPairs: number; addressedFails: number;
@@ -32,7 +38,7 @@ export function formatProvenance(p: Provenance): string {
     `writer   ${p.writer}`,
     `answerer ${p.answerer}`,
     `judge    ${p.judge}`,
-    `seed ${p.seed} · core cases with chunks ${p.casesWithChunks} · targets ${p.targets}`,
+    `seed ${p.seed} · corpus as of ${p.asOf} · core cases with chunks ${p.casesWithChunks} · targets ${p.targets}`,
     `questions built ${p.built} · rejected as lexical gimmes ${p.gimmes} · writer returned nothing ${p.writerFails}`,
     `unanswerable pairs ${p.pairs} · discarded ${p.discardedPairs} (unparseable screen ${p.addressedFails})`,
   ].join("\n");

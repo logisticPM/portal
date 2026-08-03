@@ -40,10 +40,28 @@ export interface BucketMetrics {
   attempted: number; answered: number; refused: number; errored: number;
   failKinds: Record<string, number>;
 }
+
+// One faithfulness tally. Denominator is `judged` (supported+overstated+contradicted+unrelated),
+// NOT judged+unparsed: an unparsed verdict is the judge's failure, not evidence about the
+// product. `counts` never gets a null/unparsed bucket — unparsed is tracked only as a count.
+export interface FaithfulnessTally {
+  judged: number; unparsed: number; counts: Record<Verdict, number>; supportedRate: number;
+}
+
+// Split by bucket: a claim published in answer to an UNANSWERABLE question is a false answer
+// by construction and skews `unrelated` almost by definition. Blending it into one rate would
+// let a bad false-answer rate masquerade as a faithfulness problem, with nothing in the output
+// to tell the two apart (spec §4). `combined` is kept for the headline total.
+export interface Faithfulness {
+  answerable: FaithfulnessTally;
+  unanswerable: FaithfulnessTally;
+  combined: FaithfulnessTally;
+}
+
 export interface Metrics {
   answerable: BucketMetrics & { responsive: number; responsivenessAtPara: number; falseRefusalRate: number };
   unanswerable: BucketMetrics & { falseAnswerRate: number };
-  faithfulness: { judged: number; unparsed: number; counts: Record<Verdict, number>; supportedRate: number };
+  faithfulness: Faithfulness;
   droppedClaims: number;
 }
 
@@ -59,38 +77,68 @@ function tally(b: BucketMetrics, r: EvalRecord) {
   if (r.failKind) b.failKinds[r.failKind] = (b.failKinds[r.failKind] ?? 0) + 1;
 }
 
+interface FaithfulnessAcc { judged: number; unparsed: number; counts: Record<Verdict, number> }
+const emptyFaithAcc = (): FaithfulnessAcc =>
+  ({ judged: 0, unparsed: 0, counts: { supported: 0, overstated: 0, contradicted: 0, unrelated: 0 } });
+
+function tallyClaims(f: FaithfulnessAcc, claims: readonly ClaimRecord[]) {
+  for (const c of claims) {
+    if (c.verdict === null) f.unparsed++;
+    else { f.counts[c.verdict]++; f.judged++; }
+  }
+}
+
+// of JUDGED, not of all claims: an unparsed verdict is our failure, not the model's.
+const withRate = (f: FaithfulnessAcc): FaithfulnessTally =>
+  ({ ...f, supportedRate: f.judged ? f.counts.supported / f.judged : 0 });
+
 export function score(records: readonly EvalRecord[]): Metrics {
   if (!records.length) throw new Error("no records — this run measured nothing, refusing to print a scorecard");
 
   const answerable = emptyBucket(), unanswerable = emptyBucket();
-  let responsive = 0, droppedClaims = 0, unparsed = 0;
-  const counts: Record<Verdict, number> = { supported: 0, overstated: 0, contradicted: 0, unrelated: 0 };
+  const faithA = emptyFaithAcc(), faithU = emptyFaithAcc();
+  let responsive = 0, droppedClaims = 0;
 
   for (const r of records) {
     droppedClaims += r.droppedClaims;
-    for (const c of r.claims) {
-      if (c.verdict === null) unparsed++;
-      else counts[c.verdict]++;
-    }
     if (r.kind === "answerable") {
       tally(answerable, r);
+      tallyClaims(faithA, r.claims);
       // Responsive means the target is AMONG the cited paragraphs. Not "only" the target:
       // an answer that also cites neighbours is fuller, not wrong, and exclusivity would
       // penalise it for a failure mode we are not measuring.
       if (r.outcome === "answered" && r.citedParagraphs.includes(r.targetParagraph)) responsive++;
-    } else tally(unanswerable, r);
+    } else if (r.kind === "unanswerable") {
+      tally(unanswerable, r);
+      tallyClaims(faithU, r.claims);
+    }
+    // No fallthrough tally for any other `kind`: guard 4 below is what catches that.
   }
 
-  for (const [name, b] of [["answerable", answerable], ["unanswerable", unanswerable]] as const) {
-    if (b.answered + b.refused + b.errored !== b.attempted) {
-      throw new Error(`${name}: ${b.answered}+${b.refused}+${b.errored} does not reconcile with ${b.attempted} attempted`);
-    }
+  // Guard 4. NOT the per-bucket sum: tally() increments `attempted` and exactly one outcome
+  // counter or throws, so answered+refused+errored===attempted is an identity and an assertion
+  // on it can never fire. What CAN diverge is a record reaching neither bucket — which is what
+  // a new `kind` added to EvalRecord without a branch here would do, silently shrinking every
+  // denominator.
+  if (answerable.attempted + unanswerable.attempted !== records.length) {
+    throw new Error(`${records.length} records but ${answerable.attempted} answerable + ` +
+      `${unanswerable.attempted} unanswerable were tallied — a record reached neither bucket`);
   }
 
   // `decided` excludes errored: a call that failed to complete is not a product judgment.
   const decidedA = answerable.answered + answerable.refused;
   const decidedU = unanswerable.answered + unanswerable.refused;
-  const judged = counts.supported + counts.overstated + counts.contradicted + counts.unrelated;
+
+  const combined: FaithfulnessAcc = {
+    judged: faithA.judged + faithU.judged,
+    unparsed: faithA.unparsed + faithU.unparsed,
+    counts: {
+      supported: faithA.counts.supported + faithU.counts.supported,
+      overstated: faithA.counts.overstated + faithU.counts.overstated,
+      contradicted: faithA.counts.contradicted + faithU.counts.contradicted,
+      unrelated: faithA.counts.unrelated + faithU.counts.unrelated,
+    },
+  };
 
   return {
     answerable: { ...answerable, responsive,
@@ -99,9 +147,7 @@ export function score(records: readonly EvalRecord[]): Metrics {
       falseRefusalRate: decidedA ? answerable.refused / decidedA : 0 },
     unanswerable: { ...unanswerable,
       falseAnswerRate: decidedU ? unanswerable.answered / decidedU : 0 },
-    faithfulness: { judged, unparsed, counts,
-      // of JUDGED, not of all claims: an unparsed verdict is our failure, not the model's.
-      supportedRate: judged ? counts.supported / judged : 0 },
+    faithfulness: { answerable: withRate(faithA), unanswerable: withRate(faithU), combined: withRate(combined) },
     droppedClaims,
   };
 }

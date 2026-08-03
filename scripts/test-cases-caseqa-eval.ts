@@ -68,6 +68,27 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     assert.equal(pickTargets(cases, 1, 1).length, 1, "count caps the case list");
   }
 
+  // --- pickTargets: paragraph choice is a per-case draw, not one shared draw --------
+  // Two cases with the SAME eligible-paragraph count must be able to land on DIFFERENT
+  // original indices. Before the per-case seed fix, seededShuffle(eligible, seed) used the
+  // identical seed for every case, and a Fisher-Yates swap sequence for a fixed seed depends
+  // only on array length — so every case with the same eligible count picked the same
+  // original index, giving zero within-group variance across the whole sample.
+  {
+    const mkEligible = (tag: string, n: number) =>
+      Array.from({ length: n }, (_, k) => ({ paragraph: `${tag}-${k}`, text: `${tag}` + "x".repeat(MIN_TARGET_PARA_CHARS) }));
+    const sameCount = [
+      { id: "same-count-1", chunks: mkEligible("X", 5) },
+      { id: "same-count-2", chunks: mkEligible("Y", 5) },
+    ];
+    const picked = pickTargets(sameCount, 2, 2);
+    const origIndex = (p: { paragraph: string }) => Number(p.paragraph.split("-")[1]);
+    const p1 = picked.find((p) => p.caseId === "same-count-1")!;
+    const p2 = picked.find((p) => p.caseId === "same-count-2")!;
+    assert.notEqual(origIndex(p1), origIndex(p2),
+      "two cases with the same eligible-paragraph count must not be forced onto the same original index");
+  }
+
   // --- isLexicalGimme: rejects a long verbatim run, at the boundary ----------------
   {
     const para = "The honour of the Crown requires that the duty to consult be discharged before the permit issues.";
@@ -181,12 +202,26 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     assert.equal(m.unanswerable.attempted, 2);
     assert.equal(m.unanswerable.falseAnswerRate, 0.5);
 
-    // Faithfulness spans BOTH buckets, and `null` is counted as unparsed, never as a verdict.
-    assert.equal(m.faithfulness.judged, 3, "4 claims, 1 unparsed");
-    assert.equal(m.faithfulness.unparsed, 1);
-    assert.deepEqual(m.faithfulness.counts,
+    // Faithfulness is split by bucket (the 3 answerable claims vs the 1 unanswerable claim),
+    // plus a combined total. `null` is counted as unparsed, never as a verdict, in every bucket.
+    assert.equal(m.faithfulness.answerable.judged, 3, "all 3 answerable-bucket claims parsed");
+    assert.equal(m.faithfulness.answerable.unparsed, 0);
+    assert.deepEqual(m.faithfulness.answerable.counts,
       { supported: 1, overstated: 1, contradicted: 1, unrelated: 0 });
-    assert.ok(Math.abs(m.faithfulness.supportedRate - 1 / 3) < 1e-9);
+    assert.ok(Math.abs(m.faithfulness.answerable.supportedRate - 1 / 3) < 1e-9);
+
+    assert.equal(m.faithfulness.unanswerable.judged, 0, "the only unanswerable-bucket claim was unparsed");
+    assert.equal(m.faithfulness.unanswerable.unparsed, 1);
+    assert.deepEqual(m.faithfulness.unanswerable.counts,
+      { supported: 0, overstated: 0, contradicted: 0, unrelated: 0 });
+    assert.equal(m.faithfulness.unanswerable.supportedRate, 0, "judged is 0, so the rate must not divide by zero into NaN");
+
+    // combined-total assertions (must keep working): 4 claims total, 1 unparsed.
+    assert.equal(m.faithfulness.combined.judged, 3, "4 claims, 1 unparsed");
+    assert.equal(m.faithfulness.combined.unparsed, 1);
+    assert.deepEqual(m.faithfulness.combined.counts,
+      { supported: 1, overstated: 1, contradicted: 1, unrelated: 0 });
+    assert.ok(Math.abs(m.faithfulness.combined.supportedRate - 1 / 3) < 1e-9);
   }
 
   // --- reconciliation throws rather than printing a wrong table --------------------
@@ -195,6 +230,19 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       outcome: "teleported", citedParagraphs: [], claims: [], droppedClaims: 0 }] as unknown as EvalRecord[];
     assert.throws(() => score(bad), /reconcil|outcome/i,
       "an unknown outcome must abort, not vanish from the denominator");
+  }
+
+  // --- guard 4: a record of an unrecognised `kind` must abort, not vanish ----------
+  // This is the guard the reviewer proved was dead: answered+refused+errored===attempted
+  // per bucket is an identity (tally() enforces it or throws), so it can never catch anything.
+  // What it must catch instead is a record that never reaches EITHER bucket — exactly what a
+  // new EvalRecord `kind` added without a branch in score() would do, silently shrinking every
+  // denominator instead of erroring.
+  {
+    const weird = [{ kind: "mysterious", caseId: "c1", qid: "q1", outcome: "answered",
+      claims: [], droppedClaims: 0 }] as unknown as EvalRecord[];
+    assert.throws(() => score(weird), /neither bucket/i,
+      "a record of an unrecognised kind must abort loudly, not disappear from every denominator");
   }
 
   // --- empty population is an error, not a scorecard of zeros ----------------------
@@ -222,12 +270,14 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
   // --- guard 5: provenance names the models and every count -----------------------
   {
     const p = formatProvenance({
-      writer: "W-1", answerer: "A-1", judge: "J-1", seed: 7,
+      writer: "W-1", answerer: "A-1", judge: "J-1", seed: 7, asOf: "2026-07-15",
       casesWithChunks: 500, targets: 40, built: 38, gimmes: 1, writerFails: 1,
       pairs: 18, discardedPairs: 2, addressedFails: 1,
     });
-    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18"].forEach((s) =>
+    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15"].forEach((s) =>
       assert.ok(p.includes(s), `provenance must include ${s}`));
+    // asOf is the corpus stamp: without it a reader cannot tell a prompt regression from the
+    // corpus growing underneath a reproducibility-by-seed sample (spec §7 guard 5).
     // The discard counts are the ones a reader needs to see a set that silently shrank.
     assert.ok(/gimme/i.test(p) && /discard/i.test(p), "discard reasons must be named, not just counted");
   }

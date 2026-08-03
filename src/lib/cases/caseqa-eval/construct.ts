@@ -22,13 +22,20 @@ export interface Target { caseId: string; paragraph: string; text: string }
 // runner prints instead of being quietly backfilled.
 export function pickTargets(cases: readonly CaseLike[], seed: number, count: number): Target[] {
   const out: Target[] = [];
-  for (const c of seededShuffle(cases, seed)) {
+  // Case-level shuffle uses the bare `seed` (unchanged); the paragraph shuffle below is keyed
+  // per-case (`i`, this case's position in that shuffled order).
+  for (const [i, c] of seededShuffle(cases, seed).entries()) {
     if (out.length >= count) break;
     const eligible = (c.chunks ?? []).filter((ch) => ch.text.length >= MIN_TARGET_PARA_CHARS);
     if (!eligible.length) continue;
-    // A second shuffle with the same seed: deterministic, and independent of the case order
-    // because seededShuffle copies rather than advancing one shared stream.
-    const ch = seededShuffle(eligible, seed)[0];
+    // Per-case seed, NOT the bare `seed`: a Fisher-Yates swap sequence for a given seed depends
+    // only on the RNG stream and the array length, so reusing the same seed for every case's
+    // paragraph shuffle meant every case with the SAME eligible-paragraph count picked the
+    // paragraph at the SAME original index — zero within-group variance, and the number of
+    // independent position draws collapsed to the number of distinct eligible-counts rather
+    // than the number of cases. Offsetting by the case's own index makes each case's draw
+    // independent while staying fully deterministic for a fixed `seed`.
+    const ch = seededShuffle(eligible, seed + i + 1)[0];
     out.push({ caseId: c.id, paragraph: ch.paragraph, text: ch.text });
   }
   return out;
