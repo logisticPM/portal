@@ -72,12 +72,7 @@ Create `scripts/test-cases-caseqa-eval.ts`:
 ```ts
 // Offline unit tests for the answer-quality eval instrument. No AWS, no LLM calls —
 // every model is a hand-rolled fake. Run: npx tsx scripts/test-cases-caseqa-eval.ts
-//
-// Modules load via dynamic import inside the IIFE (the house pattern), but the record type
-// is imported statically: annotating the fixture is what makes the discriminated union
-// check, and a cast would hide exactly the mismatch these tests exist to catch.
 import assert from "node:assert/strict";
-import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
 
 (async () => {
   const { makeRng, seededShuffle } = await import("../src/lib/cases/caseqa-eval/rng");
@@ -489,7 +484,23 @@ git commit -m "feat(caseqa-eval): faithfulness and addressedness prompts with st
 - Create: `src/lib/cases/caseqa-eval/metrics.ts`
 - Modify: `scripts/test-cases-caseqa-eval.ts` (append before the final `console.log`)
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Add the type import at the TOP of the test file**
+
+Add as the last import in `scripts/test-cases-caseqa-eval.ts`, directly under `import assert from "node:assert/strict";`:
+
+```ts
+// Modules load via dynamic import inside the IIFE (the house pattern), but the record type is
+// imported statically: annotating the fixture is what makes TypeScript check the discriminated
+// union, and a cast would hide exactly the mismatch these tests exist to catch.
+//
+// This import belongs to THIS task, not an earlier one. `tsx` erases type-only imports before
+// resolving them, so a forward reference to a module that does not exist yet runs fine and
+// fails only under `tsc` — which is what CI runs. An earlier draft of this plan put the line
+// in Task 1 and broke `typecheck` at three task boundaries.
+import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
+```
+
+- [ ] **Step 2: Write the failing test**
 
 Insert into `scripts/test-cases-caseqa-eval.ts`, before the `console.log("✅ …")` line:
 
@@ -562,12 +573,12 @@ Insert into `scripts/test-cases-caseqa-eval.ts`, before the `console.log("✅ �
   }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 3: Run test to verify it fails**
 
 Run: `npx tsx scripts/test-cases-caseqa-eval.ts`
 Expected: FAIL — `Cannot find module '../src/lib/cases/caseqa-eval/metrics'`
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 4: Write the implementation**
 
 Create `src/lib/cases/caseqa-eval/metrics.ts`:
 
@@ -681,17 +692,17 @@ export function score(records: readonly EvalRecord[]): Metrics {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 5: Run test to verify it passes**
 
 Run: `npx tsx scripts/test-cases-caseqa-eval.ts`
 Expected: `✅ test-cases-caseqa-eval passed`
 
-- [ ] **Step 5: Typecheck**
+- [ ] **Step 6: Typecheck**
 
 Run: `npx tsc --noEmit -p tsconfig.json`
 Expected: no output, exit 0
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/lib/cases/caseqa-eval/metrics.ts scripts/test-cases-caseqa-eval.ts

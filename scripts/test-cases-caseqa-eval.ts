@@ -5,7 +5,6 @@
 // is imported statically: annotating the fixture is what makes the discriminated union
 // check, and a cast would hide exactly the mismatch these tests exist to catch.
 import assert from "node:assert/strict";
-import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
 
 (async () => {
   const { makeRng, seededShuffle } = await import("../src/lib/cases/caseqa-eval/rng");
