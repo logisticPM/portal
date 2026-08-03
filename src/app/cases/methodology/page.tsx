@@ -122,6 +122,15 @@ export default async function MethodologyPage() {
         <div>
           <h2 className="font-serif text-lg">Sources &amp; provenance</h2>
           <p>Cases are harvested from the open A2AJ API (metadata + citation graph) and matched to official court decisions for full text. All displayed judgment text is an <strong>unofficial reproduction</strong> of a public decision, linked to its official source; judgment text is never generated. AI-generated content (plain-language summaries) is always labeled as such and citation-anchored.</p>
+          <p className="mt-2">
+            Each plain-language point is anchored to a paragraph by locating its quotation in
+            the judgment. Most match the text verbatim; a small share match exactly one
+            paragraph to within a few characters and are anchored to it, which recovers
+            points that a strict verbatim test would discard. A quotation matching two
+            paragraphs equally well is <strong>not</strong> anchored — an ambiguous citation
+            is worse than a missing one. The model&rsquo;s quotation is never published; it
+            is used only to find the paragraph.
+          </p>
         </div>
         <div>
           <h2 className="font-serif text-lg">Selection (PRISMA-style)</h2>

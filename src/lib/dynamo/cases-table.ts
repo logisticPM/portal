@@ -102,6 +102,7 @@ export function itemToCase(it: any): LegalCase {
           text: cl.text,
           sourceParagraph: cl.sourceParagraph,
           sourceUrl: cl.sourceUrl,
+          ...(cl.matched !== undefined ? { matched: cl.matched } : {}),
         })),
       },
     } : {}),

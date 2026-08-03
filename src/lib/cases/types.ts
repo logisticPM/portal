@@ -25,6 +25,7 @@ export interface SummaryMeta {
   model?: string;        // e.g. "us.meta.llama3-3-70b-instruct-v1:0"
   generatedAt?: string;  // ISO timestamp
   claimsDropped?: number;
+  claimsRecovered?: number;   // anchored by near-exact match rather than verbatim
 }
 
 // Provenance for the classified outcome. Separate from ThemeLabelMeta (rather than
@@ -90,7 +91,14 @@ export interface EconomicFigures {
 export type RealizationStatus = "declared" | "negotiating" | "realized" | "stalled" | "unknown";
 export interface ValueRealization { status: RealizationStatus; note: string; asOf: string; }
 
-export interface CitationAnchor { text: string; sourceParagraph: string; sourceUrl: string; }
+export interface CitationAnchor {
+  text: string;
+  sourceParagraph: string;
+  sourceUrl: string;
+  // "near" when the quote matched exactly one paragraph at >=95% contiguous overlap rather
+  // than verbatim. Absent means exact, so every anchor already stored stays valid.
+  matched?: "exact" | "near";
+}
 export interface CitationAnchored { claims: CitationAnchor[]; }
 export interface CaseChunk { paragraph: string; text: string; }
 
