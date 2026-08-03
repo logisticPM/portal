@@ -48,7 +48,10 @@ Document schema: `citation · name · original_source · year · text · url · 
 is_ground_truth · dataset_source · ground_truth_query_ids`. The join is
 `ground_truth_query_ids`; `queries.json` is `{query_id, query_text, answer}`.
 
-| courts (by citation token) | n |
+Top 13 courts by citation token — 242 of the 386, the remaining 144 spread across a long tail
+of smaller benches and statute records:
+
+| court | n |
 |---|---:|
 | SCC | 60 |
 | CanLII | 38 |
@@ -63,13 +66,17 @@ By decade: 2010s 143 · 2020s 89 · 2000s 85 · 1990s 41 · 1980s 23 · earlier 
 
 ### Three findings, worst first
 
-**1. Indigenous-subject documents are roughly 1%.** A regex for
+**1. Indigenous-subject documents are 2 of 386 — 0.5%.** A regex for
 `aborigin|indigenous|first nation|métis|treaty right|band council|reserve land|inuit` over
 `name` + `citation` + the first 6,000 characters of `text` hit **15 of 386 (3.9%)**. Reading
 the 15, most are false positives: `Mylan Pharmaceuticals v AstraZeneca` is patent law,
 `Mount Royal University v Faculty Association` is labour, `Vavilov` is administrative
 standard-of-review. Genuinely Indigenous in subject: `Wallace v Madawaska Maliseet First
 Nation, 2021 CHRT 23` and the `Yukon First Nations Land Claims Settlement Act`.
+
+**3.9% is the regex hit rate, not the Indigenous-content rate**, and the two should not be
+conflated: the hits were read individually and 13 of 15 were unrelated. The figure that bears
+on the decision is 2/386.
 
 **2. Part of their ground truth is legislation, not case law.** `SC 1994, c 34` and
 `HUMAN RIGHTS CODE, RSBC 1996, c 210, s 27.1` appear as ground-truth records. Our corpus holds
@@ -80,14 +87,17 @@ criminal, traffic and small-claims work. Consistent with the first query in `que
 (`query_id: 792`), which asks whether quitting a part-time job for a summer position will sink
 an Employment Insurance claim.
 
-**The ≥30-scoreable-query bar is unreachable.** At ~1% Indigenous-subject documents, against a
+**The ≥30-scoreable-query bar is unreachable.** At 0.5% Indigenous-subject documents, against a
 corpus of Indigenous-related cases only, the expected number of scoreable queries is
 approximately zero. No scoring was attempted, per the pre-registered rule.
 
 ## Limits of this evidence
 
 - **386 of 1,649 rows.** Ground-truth-first ordering makes this most of the gold set, but that
-  ordering is inferred from the sample, not documented.
+  ordering is inferred from the sample, not documented. Note that 43% of the bytes yielded only
+  23% of the rows, so the sampled records run ~1.8× longer than the file average — consistent
+  with ground-truth records carrying full judgment text while distractors do not, which is
+  corroboration for that inference rather than proof of it.
 - **The regex read only the first 6,000 characters of `text`.** A judgment that reaches
   Indigenous issues later would be missed, so 15 is a lower bound on *mentions*. It does not
   weaken the conclusion, because the 15 were then read individually and most were unrelated.

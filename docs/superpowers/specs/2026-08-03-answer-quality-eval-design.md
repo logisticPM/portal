@@ -81,7 +81,12 @@ Let `A` = answerable questions (built per §3), `U` = unanswerable questions (§
 | **responsiveness@para** | of `A` answered, the share whose claims cite the known target paragraph | **yes** |
 | **false-refusal rate** | of `A`, the share refused — broken down by `failKind` | **yes** |
 | **false-answer rate** | of `U`, the share *answered* rather than refused | **yes** |
-| **faithfulness** | of all published claims, the share whose `text` is entailed by its cited paragraph | judge |
+| **faithfulness** | of published claims, the share whose `text` is entailed by its cited paragraph | judge |
+
+**Faithfulness must be reported split by bucket.** Claims published in answer to an
+*unanswerable* question are false answers by construction and will skew `unrelated` almost by
+definition. Blending them into one rate lets a bad false-answer rate masquerade as a
+faithfulness problem, with nothing in the output to tell the two apart.
 
 Reported alongside, not as quality metrics but because they condition every number above:
 `droppedClaims` per answer, `bestOverlap` on `unverifiable` failures, and the `failKind`
@@ -136,8 +141,12 @@ Each is a test, not a comment.
 3. **Empty-population abort.** Zero constructed questions, or zero cases with full text, exits
    non-zero. `cases-eval.ts` shipped a full scorecard of zeros with exit 0 on 2026-08-02; that
    must not recur.
-4. **Reconciliation.** `answered + refused + errored === attempted`, per bucket, asserted before
-   any metric prints. The anchor-signals runner gained the same gate after a column mis-sum.
+4. **Reconciliation.** Every record must land in exactly one bucket:
+   `answerable.attempted + unanswerable.attempted === records.length`, asserted before any metric
+   prints. Deliberately **not** the per-bucket sum `answered + refused + errored === attempted` —
+   the tally increments `attempted` and exactly one outcome counter or throws, so that form is an
+   identity and an assertion on it can never fire. The form above catches what can actually
+   happen: a new record `kind` added without a branch, silently shrinking every denominator.
 5. **Provenance line.** Every run prints the three model ids, the corpus `asOf`, question counts
    per bucket, and the discard counts from §5 and guard 2 — before the metrics.
 
@@ -178,6 +187,16 @@ the number must be reproducible after a prompt or model change.
 replays the question set and the judgments instead of regenerating them. Answer calls are
 deliberately **not** replayed from cache when the answering model or prompt changes — that is
 the thing under measurement.
+
+**Token budget is part of the instrument, not a detail.** `modelFromId(id)` with no options
+defaults to `maxTokens: 256` (`ingest/llm.ts`), while the product answers at 1024
+(`caseqa/run.ts`). All three models must be constructed with an explicit budget matching or
+exceeding the product's, or the answerer's JSON truncates, `parseClaims` returns null, and every
+question becomes an `unparseable` refusal — producing a fully well-formed scorecard reading
+`responsiveness 0.0%`, `false-refusal 100%`, and `contradicted 0`. The safety criterion in §11
+would then be met *by starvation*, and the failure would be attributed to the product. Note also
+that `cachedCall`'s key excludes `CallOpts`, so changing a budget replays outputs generated
+under the old one; the cache must be cleared for affected prompts when it changes.
 
 ## 11. Success criteria
 
