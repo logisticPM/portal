@@ -43,7 +43,7 @@ async function main() {
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
   const tally = Object.fromEntries(ORDER.map((c) => [c, 0])) as Record<DropCause, number>;
   const samples = Object.fromEntries(ORDER.map((c) => [c, [] as string[]])) as Record<DropCause, string[]>;
-  let cases = 0, totalDrops = 0, noClaims = 0, mismatches = 0, preRejected = 0;
+  let cases = 0, totalDrops = 0, noClaims = 0, mismatches = 0, preRejected = 0, curated = 0;
   // Cross-tabulated, NOT a flat count: a cross_chunk_only claim can land in either
   // transcription or unseen, and the fabrication floor needs the unseen half specifically.
   const diagTally = Object.fromEntries(
@@ -54,6 +54,11 @@ async function main() {
   for (const prof of profiles) {
     const c = await dynamoCaseRepo.getCase(prof.id);
     if (!c?.chunks?.length) continue;
+    // A hand-curated summary (enrichment.ts) was never produced by a model, so there is no
+    // cached response to replay — outside the population, not a gap in the cache. Until the
+    // SCC backfill gave 2014-scc-44 its 62 chunks the guard above skipped it; once it had
+    // text it reached the cache lookup and aborted every replay run.
+    if (c.summary && c.summaryMeta?.method !== "llm") { curated++; continue; }
 
     const assembled = assembleInput(c.chunks, c.outcome.holding);
     const prompt = buildPrompt(c, assembled);
@@ -117,7 +122,7 @@ async function main() {
   // quote_too_short never reach classifyDrop, so they are outside every bucket AND outside
   // the denominator of the fabrication interval below. Printed so the reader can see whether
   // that denominator is the whole population or only part of it.
-  console.log(`\n${totalDrops} span-dropped claims across ${cases} cases · ${noClaims} cases had no parseable claims`);
+  console.log(`\n${totalDrops} span-dropped claims across ${cases} cases · ${noClaims} cases had no parseable claims${curated ? ` · ${curated} curated (outside the population)` : ""}`);
   console.log(`${preRejected} further claims rejected before classification (over_cap / no_text / quote_too_short)` +
     (preRejected ? " — the fabrication denominator below EXCLUDES these" : ""));
   // ALWAYS printed. This — not the locate_bug row — is the evidence that our classifier and

@@ -441,5 +441,75 @@ import assert from "node:assert/strict";
     }
   }
 
+  // --- the guard's verdict is reported, not just its effect ---------------------------
+  // 2008-scc-41 has NO summary because its best match scored 0.97 — over the 0.95 threshold —
+  // and a second non-adjacent paragraph also cleared 0.95, so the uniqueness guard declined
+  // it. Nobody has measured how often that happens, because a declined claim looks exactly
+  // like an unmatched one in the drop record.
+  {
+    const body = (n: string) =>
+      `The Crown owed a fiduciary duty to the Nation in the circumstances of this case ${n}. ` +
+      `Compensation is assessed by reference to the lost opportunity rather than historic value ${n}.`;
+    const mk = (paras: string[]) => paras.map((p, i) => ({ paragraph: `para-${i + 1}`, text: p }));
+    const claim = (quote: string, cited = "para-1") => [{ text: "A point.", quote, paragraph: cited }];
+    const URL = "https://example.test/j";
+    const NEARLY = "Xhe Crown owed a fiduciary duty to the Nation in the circumstances of this case A";
+
+    // Declined: two non-adjacent paragraphs both clear the threshold.
+    {
+      const chunks = mk([body("A"), "An unrelated paragraph about procedure and scheduling.", body("A")]);
+      const r = verifyClaims(claim(NEARLY), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 0);
+      const d = r.drops[0];
+      assert.equal(d.declinedByGuard, true, "the guard declined this — that must be visible");
+      assert.ok(d.bestOverlap >= 0.95, `best should clear the threshold, got ${d.bestOverlap}`);
+      assert.ok(d.rival >= 0.95, `rival should clear it too, got ${d.rival}`);
+      assert.equal(d.bestPara, "para-1");
+      assert.equal(d.rivalPara, "para-3", "the rival's paragraph is what a tie-breaker would choose between");
+    }
+
+    // Genuinely unmatched: not the guard's doing, and must not be counted as such.
+    // Also the ONLY place rivalPara's null case is pinned: one chunk means no non-adjacent
+    // competitor exists, so rivalIdx stays -1. Worth asserting because `rival: 0` is
+    // ambiguous — it means both "no eligible competitor" and "a competitor scoring zero" —
+    // and rivalPara is the field that tells a future margin calculation to refuse.
+    {
+      const chunks = mk([body("A")]);
+      const r = verifyClaims(claim("The tribunal awarded punitive damages of four million dollars."), chunks, URL, { measureOverlap: true });
+      assert.equal(r.drops[0].declinedByGuard, false, "a weak match is not a declined match");
+      assert.equal(r.drops[0].rival, 0);
+      assert.equal(r.drops[0].rivalPara, null, "no eligible competitor must read as null, not as a paragraph");
+    }
+
+    // Two EQUAL rivals both below the threshold: the guard is still not the reason. This is a
+    // distinct failure from the single-chunk case above — a rival genuinely exists and ties the
+    // best — and it isolates the threshold as the blocker.
+    //
+    // Both score 0.21, not something near 0.95: the longest common substring with either
+    // paragraph is "The Crown owed a " (17 chars) out of an 81-char quote. There is no test
+    // here for "best over the threshold, rival just under" because that combination cannot
+    // reach a drop at all — locate()'s fourth attempt anchors it, which is exactly why
+    // `declined == drops` inside the top band is an identity rather than a measurement.
+    {
+      const chunks = mk([body("A"), "Unrelated.", body("A")]);
+      const q = "The Crown owed a XXXXXXXXXX duty to the YYYYYYYY in the ZZZZZZZZZZ of this case A";
+      const r = verifyClaims(claim(q), chunks, URL, { measureOverlap: true });
+      const d = r.drops[0];
+      assert.equal(d.declinedByGuard, false, "declined means the threshold was cleared and ambiguity blocked it");
+      assert.ok(d.bestOverlap < 0.5, `best should be far below the threshold, got ${d.bestOverlap}`);
+      assert.equal(d.rivalPara, "para-3", "a real non-adjacent competitor is still reported below the threshold");
+    }
+
+    // Diagnostics stay opt-in: with measurement off the fields are inert, not wrong.
+    {
+      const chunks = mk([body("A"), "Unrelated.", body("A")]);
+      const r = verifyClaims(claim(NEARLY), chunks, URL);
+      assert.equal(r.drops[0].rival, 0);
+      assert.equal(r.drops[0].rivalPara, null, "inert, not a stale paragraph from a scan that never ran");
+      assert.equal(r.drops[0].declinedByGuard, false, "unmeasured must not masquerade as not-declined-because-weak");
+      assert.equal(r.drops[0].overlapMeasured, false, "…which is why overlapMeasured exists to tell them apart");
+    }
+  }
+
   console.log("✅ test-cases-summarizer passed");
 })();
