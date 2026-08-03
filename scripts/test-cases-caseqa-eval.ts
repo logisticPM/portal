@@ -6,6 +6,16 @@
 // check, and a cast would hide exactly the mismatch these tests exist to catch.
 import assert from "node:assert/strict";
 
+// Modules load via dynamic import inside the IIFE (the house pattern), but the record type is
+// imported statically: annotating the fixture is what makes TypeScript check the discriminated
+// union, and a cast would hide exactly the mismatch these tests exist to catch.
+//
+// This import belongs to THIS task, not an earlier one. `tsx` erases type-only imports before
+// resolving them, so a forward reference to a module that does not exist yet runs fine and
+// fails only under `tsc` — which is what CI runs. An earlier draft of this plan put the line
+// in Task 1 and broke `typecheck` at three task boundaries.
+import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
+
 (async () => {
   const { makeRng, seededShuffle } = await import("../src/lib/cases/caseqa-eval/rng");
 
@@ -128,6 +138,73 @@ import assert from "node:assert/strict";
     assert.ok(a.includes("Can they take my land?"));
     assert.ok(a.includes("[para 1] Something about fishing."));
     assert.ok(/addressed/.test(a), "the prompt must ask for the `addressed` field");
+  }
+
+  const { score } = await import("../src/lib/cases/caseqa-eval/metrics");
+
+  // --- the four metrics on a hand-built population --------------------------------
+  {
+    const records: EvalRecord[] = [
+      // answered, cited the target -> responsive
+      { kind: "answerable", caseId: "c1", qid: "q1", targetParagraph: "para-5",
+        outcome: "answered", citedParagraphs: ["para-5", "para-6"], droppedClaims: 0,
+        claims: [{ text: "a", sourceParagraph: "para-5", verdict: "supported" },
+                 { text: "b", sourceParagraph: "para-6", verdict: "overstated" }] },
+      // answered, missed the target -> not responsive
+      { kind: "answerable", caseId: "c2", qid: "q2", targetParagraph: "para-9",
+        outcome: "answered", citedParagraphs: ["para-2"], droppedClaims: 1,
+        claims: [{ text: "c", sourceParagraph: "para-2", verdict: "contradicted" }] },
+      // refused a question we know is answerable -> false refusal
+      { kind: "answerable", caseId: "c3", qid: "q3", targetParagraph: "para-1",
+        outcome: "refused", failKind: "not_addressed", citedParagraphs: [], claims: [],
+        droppedClaims: 0 },
+      // errored -> excluded from every rate, reported separately
+      { kind: "answerable", caseId: "c4", qid: "q4", targetParagraph: "para-1",
+        outcome: "errored", citedParagraphs: [], claims: [], droppedClaims: 0 },
+      // unanswerable, correctly refused
+      { kind: "unanswerable", caseId: "c5", qid: "q1x", outcome: "refused",
+        failKind: "not_addressed", claims: [], droppedClaims: 0 },
+      // unanswerable, answered anyway -> false answer
+      { kind: "unanswerable", caseId: "c6", qid: "q2x", outcome: "answered", droppedClaims: 0,
+        claims: [{ text: "d", sourceParagraph: "para-3", verdict: null }] },
+    ];
+
+    const m = score(records);
+
+    assert.equal(m.answerable.attempted, 4);
+    assert.equal(m.answerable.answered, 2);
+    assert.equal(m.answerable.refused, 1);
+    assert.equal(m.answerable.errored, 1);
+    assert.equal(m.answerable.responsive, 1);
+    assert.equal(m.answerable.responsivenessAtPara, 0.5, "1 of 2 answered cited the target");
+    // Rates exclude `errored`: a network failure is not a refusal. Denominator is 2+1=3.
+    assert.ok(Math.abs(m.answerable.falseRefusalRate - 1 / 3) < 1e-9,
+      `falseRefusalRate must exclude errored, got ${m.answerable.falseRefusalRate}`);
+    assert.deepEqual(m.answerable.failKinds, { not_addressed: 1 });
+
+    assert.equal(m.unanswerable.attempted, 2);
+    assert.equal(m.unanswerable.falseAnswerRate, 0.5);
+
+    // Faithfulness spans BOTH buckets, and `null` is counted as unparsed, never as a verdict.
+    assert.equal(m.faithfulness.judged, 3, "4 claims, 1 unparsed");
+    assert.equal(m.faithfulness.unparsed, 1);
+    assert.deepEqual(m.faithfulness.counts,
+      { supported: 1, overstated: 1, contradicted: 1, unrelated: 0 });
+    assert.ok(Math.abs(m.faithfulness.supportedRate - 1 / 3) < 1e-9);
+  }
+
+  // --- reconciliation throws rather than printing a wrong table --------------------
+  {
+    const bad = [{ kind: "answerable", caseId: "c1", qid: "q1", targetParagraph: "para-1",
+      outcome: "teleported", citedParagraphs: [], claims: [], droppedClaims: 0 }] as unknown as EvalRecord[];
+    assert.throws(() => score(bad), /reconcil|outcome/i,
+      "an unknown outcome must abort, not vanish from the denominator");
+  }
+
+  // --- empty population is an error, not a scorecard of zeros ----------------------
+  {
+    assert.throws(() => score([]), /no records/i,
+      "cases-eval.ts once printed all-zero rows and exited 0; that must not recur");
   }
 
   console.log("✅ test-cases-caseqa-eval passed");
