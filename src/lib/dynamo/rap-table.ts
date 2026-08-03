@@ -109,7 +109,7 @@ function strip<T>(it: Record<string, any>): T {
 // consumer then sees a number, and no backfill is needed.
 export const itemToJob = (it: Record<string, any>) => {
   const job = strip<ExtractionJob>(it);
-  return { ...job, attempts: job.attempts ?? 1 };
+  return { ...job, attempts: job.attempts ?? 1, verifiedFields: job.verifiedFields ?? [] };
 };
 export const itemToOrg = (it: Record<string, any>) => strip<RapOrganization>(it);
 export const itemToRap = (it: Record<string, any>) => strip<RapDocument>(it);

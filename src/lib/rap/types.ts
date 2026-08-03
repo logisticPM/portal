@@ -261,6 +261,12 @@ export interface ExtractionJob {
   // Rows created before this field existed read as 1 (see itemToJob).
   attempts: number;
 
+  // Audit trail of the review queue's per-field verification: the dotted paths a
+  // human explicitly confirmed against the source before publishing (see the
+  // field edit/verify design, 2026-08-01). Empty on auto-published jobs and on
+  // rows created before this field existed (defaulted in itemToJob).
+  verifiedFields: string[];
+
   // --- BN-keyed identity resolution (set at review, before publish) ---
   businessNumber: string | null; // 9-digit BN root, once resolved
   businessNumberSource: "ised" | "self_asserted" | null;
@@ -458,7 +464,7 @@ export interface ExtractionRepo {
   // flips the job to CONFIRMED and stamps rapId. The actual canonical writes are
   // orchestrated by an action that calls confirm() then rapRepo.* (single
   // responsibility: this repo owns the staging table only).
-  confirmJob(id: string, reviewedBy: string, edited: ExtractedRap, rapId: string): Promise<ExtractionJob>;
+  confirmJob(id: string, reviewedBy: string, edited: ExtractedRap, rapId: string, verifiedFields?: string[]): Promise<ExtractionJob>;
   rejectJob(id: string, reviewedBy: string, reason: string): Promise<ExtractionJob>;
 
   // resolve (or clear) the job's BN-backed org identity ahead of publish (Task 4

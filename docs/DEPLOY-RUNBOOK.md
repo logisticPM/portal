@@ -122,6 +122,7 @@ inline env where the value is sensitive.
 | `RAP_CORS_ORIGINS` | allowed upload origins (comma-sep) | your CloudFront/custom-domain URL + `http://localhost:3000` |
 | `DIGEST_SENDER` / `DIGEST_RECIPIENT` | notification email (verified SES) | your addresses |
 | `ALERTS_EMAIL` | observability SNS subscription (ca stage) | your address |
+| `WAF_BLOCKING` | flip the CloudFront WAF from count-only to blocking (`observe` stages) | unset = count-only; `true` = enforce |
 | `RAP_TABLE` / `RAP_UPLOAD_BUCKET` / `RAP_ANALYTICS_BUCKET` | wired by SST | *(auto)* |
 
 The `ca` stage bundles its vars in the npm script (§5.1) so you don't set them by hand.
@@ -211,6 +212,12 @@ curl -s -o /dev/null -w "%{http_code}\n" "$URL/coverage"   # expect 200
 - [ ] Record a progress update → the `RollupAggregator` recomputes (check its CloudWatch logs).
 - [ ] **ca stage only:** confirm the SNS **email subscription** (click the confirmation link
       sent to `ALERTS_EMAIL`) so alarms can notify.
+- [ ] **`ca` + `production` (`observe`):** a **WAFv2 WebACL auto-attaches** to the CloudFront
+      distribution (rate-limit + AWS managed CommonRuleSet + KnownBadInputs), created in
+      us-east-1. It ships **count-first** — nothing is blocked yet. Confirm attachment:
+      `aws cloudfront get-distribution-config --id <id>` shows a non-empty `WebACLId`. After
+      watching `AWS/WAFV2` count-mode metrics for false positives, redeploy with
+      `WAF_BLOCKING=true` to enforce. No SCP change was needed for the deploy role.
 
 ---
 

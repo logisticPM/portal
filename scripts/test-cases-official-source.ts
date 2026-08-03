@@ -1,7 +1,7 @@
 // Official-source backfill v1 (spec 2026-07-07 rev): allowlist + verbatim HTML→text.
 // Async IIFE — this repo is NOT ESM (top-level await is illegal).
 import assert from "node:assert/strict";
-import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfText, pdfToText } from "../src/lib/cases/ingest/official-source";
+import { isOpenSource, htmlToText, fetchOfficialText, fetchOfficialSource, toDocumentUrl, cleanupPdfText, pdfToText } from "../src/lib/cases/ingest/official-source";
 
 (async () => {
   const allowAll = async (_u: string) => true; // robots gate stub for offline extraction tests
@@ -53,10 +53,10 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
 
   // --- fetchOfficialText: injected get returns { buf, contentType } (bytes + type) ---
   const body = "The reasons for judgment. ".repeat(20); // > 200 chars after trim
-  const htmlGet = async () => ({ buf: Buffer.from(`<p>${body}</p>`, "utf8"), contentType: "text/html; charset=utf-8" });
+  const htmlGet = async () => ({ buf: Buffer.from(`<p>${body}</p>`, "utf8"), contentType: "text/html; charset=utf-8", status: 200 });
   assert.equal(await fetchOfficialText("https://www.bccourts.ca/a.htm", htmlGet, allowAll), body.trim(), "open HTML host → extracted text");
   assert.equal(await fetchOfficialText("https://www.canlii.org/x", htmlGet, allowAll), "", "non-open host → '' (not fetched)");
-  assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => ({ buf: Buffer.from("<p>tiny</p>"), contentType: "text/html" }), allowAll), "", "too-short extraction → ''");
+  assert.equal(await fetchOfficialText("https://www.bccourts.ca/s.htm", async () => ({ buf: Buffer.from("<p>tiny</p>"), contentType: "text/html", status: 200 }), allowAll), "", "too-short extraction → ''");
   assert.equal(await fetchOfficialText("https://www.bccourts.ca/e.htm", async () => { throw new Error("net"); }, allowAll), "", "fetch error → ''");
 
   // robots gate: a disallowed URL is never fetched (replaces the old hardcoded deny-list).
@@ -64,7 +64,7 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   const denyGate = async (_u: string) => false;
   assert.equal(
     await fetchOfficialText("https://www.bccourts.ca/jdb-txt/sc/24/14/2024BCSC1490.htm",
-      async () => { denyFetched = true; return { buf: Buffer.from("x".repeat(300)), contentType: "text/html" }; },
+      async () => { denyFetched = true; return { buf: Buffer.from("x".repeat(300)), contentType: "text/html", status: 200 }; },
       denyGate),
     "", "robots-disallowed URL → ''");
   assert.equal(denyFetched, false, "robots-disallowed URL not fetched");
@@ -73,15 +73,15 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   const htmlBytes = Buffer.from(`<p>${body}</p>`, "utf8");
   assert.equal(
     await fetchOfficialText("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/item/2189/index.do",
-      async (u: string) => { assert.ok(u.endsWith("/2189/1/document.do"), "normalized to document.do"); return { buf: htmlBytes, contentType: "application/pdf" }; },
+      async (u: string) => { assert.ok(u.endsWith("/2189/1/document.do"), "normalized to document.do"); return { buf: htmlBytes, contentType: "application/pdf", status: 200 }; },
       allowAll),
     "", "application/pdf content-type routes to PDF parser (HTML bytes rejected → '')");
   assert.equal(
-    await fetchOfficialText("https://www.bccourts.ca/a.htm", async () => ({ buf: htmlBytes, contentType: "text/html" }), allowAll),
+    await fetchOfficialText("https://www.bccourts.ca/a.htm", async () => ({ buf: htmlBytes, contentType: "text/html", status: 200 }), allowAll),
     body.trim(), "same bytes as text/html route to htmlToText → body (routing control)");
   assert.equal(
     await fetchOfficialText("https://decisions.scc-csc.ca/scc-csc/scc-csc/en/2189/1/document.do",
-      async () => ({ buf: htmlBytes, contentType: "" }), allowAll),
+      async () => ({ buf: htmlBytes, contentType: "", status: 200 }), allowAll),
     "", "document.do URL suffix forces the PDF branch even without a pdf content-type");
 
   // --- cleanupPdfText: deterministic verbatim cleanup (pure string→string) ---
@@ -115,6 +115,47 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   const pt = await pdfToText(Buffer.from("%PDF-fake"), fakeParse);
   assert.ok(pt.includes("Hello world of judg-ment reasoning here."), "pdfToText cleans parser output");
   assert.ok(!/SUPREME COURT OF CANADA/.test(pt), "pdfToText drops running header");
+
+  // --- the crawler identifies itself truthfully ---
+  {
+    const { CRAWLER_UA, CRAWLER_TOKEN } = await import("../src/lib/cases/ingest/crawler-id");
+    assert.doesNotMatch(CRAWLER_UA, /Mozilla|Chrome|Safari|AppleWebKit/i,
+      "the crawler must not present itself as a browser");
+    assert.match(CRAWLER_UA, /^IndigenomicsLegalHub\//, "product token first, per RFC 9110");
+    assert.match(CRAWLER_UA, /\+https?:\/\//, "a contact URL is what lets an operator allowlist us");
+    assert.equal(CRAWLER_TOKEN, "IndigenomicsLegalHub");
+  }
+
+  // --- fetch outcomes: a gate, a missing document and an empty one are different facts ---
+  {
+    const allowAll = async () => true;
+    const st = (status: number) => async () => ({ buf: Buffer.alloc(0), contentType: "", status });
+
+    const blocked = await fetchOfficialSource("https://www.bccourts.ca/a.htm", st(403), allowAll);
+    assert.equal(blocked.outcome, "blocked", "403 is a gate, not an empty document");
+    assert.equal(blocked.text, "");
+
+    assert.equal((await fetchOfficialSource("https://www.bccourts.ca/a.htm", st(429), allowAll)).outcome, "blocked",
+      "429 is the polite form of the same gate");
+    assert.equal((await fetchOfficialSource("https://www.bccourts.ca/a.htm", st(404), allowAll)).outcome, "missing",
+      "404 is a missing document — the batch may continue");
+    assert.equal((await fetchOfficialSource("https://www.bccourts.ca/a.htm", st(500), allowAll)).outcome, "error");
+
+    const okGet = async () => ({ buf: Buffer.from(`<p>${"word ".repeat(80)}</p>`), contentType: "text/html", status: 200 });
+    const ok = await fetchOfficialSource("https://www.bccourts.ca/a.htm", okGet, allowAll);
+    assert.equal(ok.outcome, "ok");
+    assert.ok(ok.text.length >= 200);
+
+    // 200 but the body is a stub: still `ok` — the SITE behaved, the document is just thin.
+    // Conflating this with `blocked` would abort batches over short pages.
+    const thin = await fetchOfficialSource("https://www.bccourts.ca/s.htm",
+      async () => ({ buf: Buffer.from("<p>tiny</p>"), contentType: "text/html", status: 200 }), allowAll);
+    assert.equal(thin.outcome, "ok");
+    assert.equal(thin.text, "", "below MIN_TEXT → no text stored, but not a block");
+
+    assert.equal((await fetchOfficialSource("https://www.canlii.org/x", okGet, allowAll)).outcome, "not_open_source");
+    assert.equal((await fetchOfficialSource("https://www.bccourts.ca/a.htm", okGet, async () => false)).outcome, "robots_denied");
+  }
 
   console.log("✅ test-cases-official-source passed");
 })().catch((e) => { console.error(e); process.exit(1); });

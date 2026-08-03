@@ -18,6 +18,7 @@ const job: ExtractionJob = {
   fileName: "rap.pdf",
   sourceS3Key: "uploads/doc-1/rap.pdf",
   attempts: 1,
+  verifiedFields: [],
   status: "PENDING",
   schemaVersion: "test",
   engine: null,

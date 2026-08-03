@@ -1,70 +1,152 @@
-// Tests for single-case Q&A (spec 2026-07-19). Offline, fake models, no network.
 import assert from "node:assert/strict";
+import type { CaseChunk, LegalCase } from "../src/lib/cases/types";
+import type { LlmModel } from "../src/lib/cases/ingest/llm";
+import { answerCaseQuestion, buildAskPrompt, NEAR_MISS_OVERLAP } from "../src/lib/cases/caseqa/generator";
+import { caseQuestionHash, caseQaKeys } from "../src/lib/cases/caseqa/repo";
+import { caseFixtures } from "../src/lib/cases/query";
 
-(async () => {
-  const { buildAskPrompt, answerCaseQuestion } = await import("../src/lib/cases/caseqa/generator");
-  type LM = import("../src/lib/cases/ingest/llm").LlmModel;
-  type LC = import("../src/lib/cases/types").LegalCase;
-  type CC = import("../src/lib/cases/types").CaseChunk;
+const chunks: CaseChunk[] = [
+  { paragraph: "para-1", text: "The Crown owed a fiduciary duty to the Nation in these circumstances of dispossession." },
+  { paragraph: "para-2", text: "Compensation was assessed at fair market value as of the date of the taking of the land." },
+];
+const c: LegalCase = { ...caseFixtures[0], chunks, provenance: { ...caseFixtures[0].provenance, sourceUrl: "https://example.test/j" } };
 
-  const c = {
-    styleOfCause: "Haida Nation v. British Columbia", citation: "2004 SCC 73", court: "SCC", year: 2004,
-    outcome: { holding: "The Crown must consult." }, provenance: { sourceUrl: "https://src/haida" },
-  } as unknown as LC;
-  const chunks: CC[] = [
-    { paragraph: "para-1", text: "The duty to consult arises when the Crown has knowledge of a potential Aboriginal right." },
-    { paragraph: "para-2", text: "Good faith consultation is required before the decision is made." },
-  ];
-  const fake = (responses: string[]): LM & { calls: string[] } => {
-    const calls: string[] = [];
-    return { id: "fake:qa", calls, call: async (p: string) => { calls.push(p); return responses[Math.min(calls.length - 1, responses.length - 1)]; } };
-  };
+// A stub model that returns canned responses in order and counts its calls.
+function stub(responses: string[]) {
+  const calls: string[] = [];
+  const model: LlmModel = {
+    id: "stub:qa",
+    call: async (prompt: string) => { calls.push(prompt); return responses[Math.min(calls.length - 1, responses.length - 1)]; },
+  } as LlmModel;
+  return { model, calls };
+}
+const claimJson = (text: string, quote: string, paragraph: string) =>
+  JSON.stringify({ claims: [{ text, quote, paragraph }] });
 
-  // prompt carries question + JSON contract + empty-claims refusal instruction
+async function main() {
+// 1. A verbatim quote verifies.
+{
+  const { model, calls } = stub([claimJson("The Crown had a duty.", "The Crown owed a fiduciary duty to the Nation", "para-1")]);
+  const r = await answerCaseQuestion(c, chunks, "What duty did the Crown owe?", model);
+  assert.equal(r.status, "done");
+  if (r.status !== "done") throw new Error("unreachable");
+  assert.equal(r.answer.claims.length, 1);
+  assert.equal(r.dropped, 0);
+  assert.equal(calls.length, 1, "a clean answer costs exactly one call");
+}
+
+// 2. The model says the judgment is silent -> that message, and NO retry. Retrying a correct
+//    refusal is a wasted call and the old code could not tell this case apart at all.
+{
+  const { model, calls } = stub([JSON.stringify({ claims: [] })]);
+  const r = await answerCaseQuestion(c, chunks, "What did the court say about patents?", model);
+  assert.equal(r.status, "failed");
+  if (r.status !== "failed") throw new Error("unreachable");
+  assert.equal(r.failKind, "not_addressed");
+  assert.match(r.failReason, /does not appear to address/);
+  assert.equal(calls.length, 1, "a correct refusal must not be retried");
+}
+
+// 3. Quotes that share nothing with the judgment -> the VERIFICATION message, not the
+//    "does not address" one, and no retry (below the near-miss floor).
+{
+  const { model, calls } = stub([claimJson("Something else.", "The tribunal awarded punitive damages of four million", "para-1")]);
+  const r = await answerCaseQuestion(c, chunks, "What duty did the Crown owe?", model);
+  assert.equal(r.status, "failed");
+  if (r.status !== "failed") throw new Error("unreachable");
+  assert.equal(r.failKind, "unverifiable");
+  assert.doesNotMatch(r.failReason, /does not appear to address/,
+    "a verification failure must never be reported as the judgment being silent");
+  assert.ok((r.bestOverlap ?? 1) < NEAR_MISS_OVERLAP);
+  assert.equal(calls.length, 1, "below the near-miss floor there is nothing to retry for");
+}
+
+// 4. THE CASE THE RETRY EXISTS FOR: a near-miss quote (one character off), then a clean retry.
+{
+  const near = "The Crown owed a fiduciary duty to the Nation in these circumstancesX";
+  const { model, calls } = stub([
+    claimJson("The Crown had a duty.", near, "para-1"),
+    claimJson("The Crown had a duty.", "The Crown owed a fiduciary duty to the Nation", "para-1"),
+  ]);
+  const r = await answerCaseQuestion(c, chunks, "What duty did the Crown owe?", model);
+  assert.equal(r.status, "done", "a one-character near miss should be recovered by the retry");
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].length > calls[0].length, "the retry uses the suffixed prompt, so it has a different cache key");
+}
+
+// 5. Near miss twice -> fail, and EXACTLY two calls. Asserted so a loop cannot creep in later.
+{
+  const near = "The Crown owed a fiduciary duty to the Nation in these circumstancesX";
+  const { model, calls } = stub([claimJson("The Crown had a duty.", near, "para-1")]);
+  const r = await answerCaseQuestion(c, chunks, "What duty did the Crown owe?", model);
+  assert.equal(r.status, "failed");
+  if (r.status !== "failed") throw new Error("unreachable");
+  assert.equal(r.failKind, "unverifiable");
+  assert.ok((r.bestOverlap ?? 0) >= NEAR_MISS_OVERLAP);
+  assert.equal(calls.length, 2, "one retry, never a loop");
+}
+
+// 6. Unparseable output still retries (pre-existing behaviour must survive).
+{
+  const { model, calls } = stub(["not json at all", claimJson("The Crown had a duty.", "The Crown owed a fiduciary duty to the Nation", "para-1")]);
+  const r = await answerCaseQuestion(c, chunks, "What duty did the Crown owe?", model);
+  assert.equal(r.status, "done");
+  assert.equal(calls.length, 2);
+}
+{
+  const { model, calls } = stub(["not json at all"]);
+  const r = await answerCaseQuestion(c, chunks, "What duty?", model);
+  assert.equal(r.status, "failed");
+  if (r.status !== "failed") throw new Error("unreachable");
+  assert.equal(r.failKind, "unparseable");
+  assert.equal(calls.length, 2);
+}
+
+// 7. A partial answer keeps what verified and reports what it lost.
+{
+  const body = JSON.stringify({ claims: [
+    { text: "Kept.", quote: "The Crown owed a fiduciary duty to the Nation", paragraph: "para-1" },
+    { text: "Lost.", quote: "The tribunal awarded punitive damages of four million", paragraph: "para-2" },
+  ] });
+  const { model } = stub([body]);
+  const r = await answerCaseQuestion(c, chunks, "What duty did the Crown owe?", model);
+  assert.equal(r.status, "done");
+  if (r.status !== "done") throw new Error("unreachable");
+  assert.equal(r.answer.claims.length, 1);
+  assert.equal(r.dropped, 1, "the reader is relying on a partial answer and has to be told");
+}
+
+// 8. No full text is its own kind, and costs no model call.
+{
+  const { model, calls } = stub([claimJson("x", "y", "para-1")]);
+  const r = await answerCaseQuestion(c, [], "What duty?", model);
+  assert.equal(r.status, "failed");
+  if (r.status !== "failed") throw new Error("unreachable");
+  assert.equal(r.failKind, "no_full_text");
+  assert.equal(calls.length, 0);
+}
+
+// --- RESTORED from the pre-2026-08-01 version of this file ---
+// These cover buildAskPrompt's contract and caseqa/repo's hashing and key building. They
+// were lost when this file was rewritten for the failure-kind work; nothing else in
+// scripts/ touches caseqa/repo, so without them that module has no coverage at all.
+{
   const prompt = buildAskPrompt(c, "When does the duty arise?", "[para para-1] body");
-  assert.ok(prompt.includes("When does the duty arise?"));
-  assert.ok(prompt.includes('"claims"'));
-  assert.ok(prompt.includes('{"claims":[]}'));
-
-  // happy: quote verbatim in a chunk → done + anchored
-  const good = JSON.stringify({ claims: [{ text: "The duty arises with Crown knowledge.", quote: "The duty to consult arises when the Crown has knowledge", paragraph: "para-1" }] });
-  let f = fake([good]);
-  let r = await answerCaseQuestion(c, chunks, "Q?", f);
-  assert.equal(r.status, "done");
-  if (r.status === "done") { assert.equal(r.answer.claims.length, 1); assert.equal(r.answer.claims[0].sourceParagraph, "para-1"); }
-  assert.equal(f.calls.length, 1);
-
-  // model returns empty claims → refuse
-  f = fake([JSON.stringify({ claims: [] })]);
-  r = await answerCaseQuestion(c, chunks, "Q?", f);
-  assert.equal(r.status, "failed");
-  if (r.status === "failed") assert.ok(/does not appear to address/.test(r.failReason));
-
-  // quote not in the judgment → dropped → refuse (fabrication cannot pass)
-  f = fake([JSON.stringify({ claims: [{ text: "x", quote: "a fabricated sentence that is not in the judgment", paragraph: "para-1" }] })]);
-  r = await answerCaseQuestion(c, chunks, "Q?", f);
-  assert.equal(r.status, "failed");
-
-  // unreadable → retry with suffix → recovers
-  f = fake(["NOT JSON", good]);
-  r = await answerCaseQuestion(c, chunks, "Q?", f);
-  assert.equal(r.status, "done");
-  assert.equal(f.calls.length, 2);
-
-  // empty chunks → failed without calling the model
-  const never: LM = { id: "fake:never", call: async () => { throw new Error("must not be called"); } };
-  r = await answerCaseQuestion(c, [], "Q?", never);
-  assert.equal(r.status, "failed");
-
-  const { caseQuestionHash, caseQaKeys } = await import("../src/lib/cases/caseqa/repo");
-  // per-case scoping: same question, different case ⇒ different hash
+  assert.ok(prompt.includes("When does the duty arise?"), "the question reaches the prompt");
+  assert.ok(prompt.includes('"claims"'), "the JSON contract is stated");
+  assert.ok(prompt.includes('{"claims":[]}'), "the refusal instruction is stated — test 2 depends on the model being told this");
+}
+{
+  // Per-case scoping: the same question about a different judgment is a different question.
   assert.notEqual(caseQuestionHash("2004-scc-73", "what is the duty?"), caseQuestionHash("2014-scc-44", "what is the duty?"));
-  // deterministic + normalized (case/space/trailing punct fold)
+  // Deterministic and normalized, so trivial rewording reuses the cached answer.
   assert.equal(caseQuestionHash("c1", "What is the DUTY??"), caseQuestionHash("c1", "what is the duty"));
   assert.equal(caseQuestionHash("c1", "x").length, 32);
   assert.deepEqual(caseQaKeys.qa("abc"), { PK: "CASEQA#abc", SK: "CASEQA" });
   assert.deepEqual(caseQaKeys.qhash("h1"), { PK: "CQHASH#h1", SK: "CQHASH" });
   assert.deepEqual(caseQaKeys.quota("2026-07-19", "company:c-1"), { PK: "CQUOTA#2026-07-19#company:c-1", SK: "CQUOTA" });
+}
 
-  console.log("✅ test-cases-caseqa passed");
-})().catch((e) => { console.error(e); process.exit(1); });
+console.log("✅ test-cases-caseqa passed");
+}
+main().catch((e) => { console.error(e); process.exit(1); });

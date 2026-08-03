@@ -11,7 +11,7 @@
   <div class="head">
     <div class="eyebrow">CS7980 · Indigenomics Portal · AWS Architecture</div>
     <div class="title">System Overview — one app, two subsystems, two regions</div>
-    <div class="caption">A single Next.js app on Lambda behind CloudFront serves both the RAP platform and the legal-cases corpus across a Canada / US data-residency split.</div>
+    <div class="caption">A single Next.js app on Lambda behind CloudFront serves both the RAP platform and the legal-cases corpus across a Canada / US data-residency split — with a WAF at the edge screening every request.</div>
   </div>
 
   <svg class="wires" viewBox="0 0 1500 912">
@@ -44,6 +44,8 @@
   <!-- FRONT DOOR -->
   <div class="node" style="left:48px;top:150px"><svg width="60" height="60" viewBox="0 0 60 60"><rect x="6" y="10" width="48" height="34" rx="4" fill="#fff" stroke="#57665D" stroke-width="2.5"/><rect x="6" y="10" width="48" height="9" rx="4" fill="#57665D"/><rect x="24" y="46" width="12" height="6" fill="#57665D"/><rect x="18" y="52" width="24" height="3" rx="1.5" fill="#57665D"/></svg><div class="lbl">Browser</div><div class="svc">institute · supplier</div></div>
   <div class="node" style="left:228px;top:150px"><img src="icons/aws-cloudfront.svg"><div class="lbl">CloudFront</div><div class="svc">CDN / edge</div></div>
+  <!-- WAF at the edge, on the CloudFront distribution -->
+  <div class="pill" style="left:150px;top:250px;border-color:#8A1A2B;color:#8A1A2B">AWS WAF · rate-limit + managed rules</div>
   <div class="node wide" style="left:430px;top:150px"><img src="icons/aws-lambda.svg"><div class="lbl">Next.js on Lambda</div><div class="svc">Web · OpenNext</div></div>
   <div class="node" style="left:690px;top:150px"><img src="icons/aws-secrets-manager.svg"><div class="lbl">Secrets Manager</div><div class="svc">AuthSecret · HMAC</div></div>
 

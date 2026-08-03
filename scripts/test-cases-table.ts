@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { caseToItems, reassembleCase, caseKeys, chunkSk } from "../src/lib/dynamo/cases-table";
+import { caseToItems, reassembleCase, caseKeys, chunkSk, itemToCase } from "../src/lib/dynamo/cases-table";
 import { caseFixtures } from "../src/lib/cases/fixtures";
 import type { LegalCase } from "../src/lib/cases/types";
 
@@ -66,5 +66,23 @@ const kitchenSink: Required<LegalCase> = {
 const ksItems = caseToItems(kitchenSink);
 const ksBack = reassembleCase(ksItems[0], ksItems.slice(1));
 assert.deepEqual(ksBack, kitchenSink, "kitchen-sink round-trip preserves every optional field");
+
+// --- CitationAnchor.matched survives the round trip -----------------------------------
+// The Required<LegalCase> canary above does NOT recurse into nested objects, so a new field
+// on CitationAnchor is invisible to it — and itemToCase rebuilds anchors through an explicit
+// allow-list, so an unlisted field is dropped on every read. Without this assertion the only
+// symptom would be a silently missing disclosure.
+{
+  const withNear: LegalCase = {
+    ...caseFixtures[0],
+    summary: { claims: [
+      { text: "exact one", sourceParagraph: "para-1", sourceUrl: "https://example.test/j" },
+      { text: "near one", sourceParagraph: "para-2", sourceUrl: "https://example.test/j", matched: "near" },
+    ] },
+  };
+  const back = itemToCase(caseToItems(withNear)[0]);
+  assert.equal(back.summary?.claims[1].matched, "near", "matched must survive the round trip");
+  assert.equal(back.summary?.claims[0].matched, undefined, "absent stays absent — no migration needed");
+}
 
 console.log("✅ cases-table tests passed");

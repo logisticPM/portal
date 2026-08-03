@@ -9,6 +9,7 @@ import { ddbDoc } from "../src/lib/dynamo/client";
 import { caseToItems } from "../src/lib/dynamo/cases-table";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { fetchOfficialText } from "../src/lib/cases/ingest/official-source";
+import { CRAWLER_UA } from "../src/lib/cases/ingest/crawler-id";
 import { makeRobotsGate } from "../src/lib/cases/ingest/robots";
 import { includeCandidate } from "../src/lib/cases/ingest/include";
 import { promoteOne } from "./cases-ingest";
@@ -17,7 +18,6 @@ import { ADAPTERS } from "../src/lib/cases/ingest/court-adapters";
 import type { LegalCase } from "../src/lib/cases/types";
 
 const TABLE = process.env.CASES_TABLE ?? "LegalCases";
-const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const SLEEP_MS = Number(process.env.HARVEST_SLEEP_MS ?? 400);
 const MAX_INDEX_PAGES = Number(process.env.HARVEST_MAX_INDEX_PAGES ?? 200);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -79,7 +79,9 @@ function liveDeps(): CourtHarvestDeps {
     fetchListing: async (url) => {
       if (!(await gate.allows(url))) return "";
       try {
-        const res = await fetch(url, { headers: { "User-Agent": BROWSER_UA } });
+        // Listing pages identify the same way judgment fetches do. A single disguised
+        // request anywhere defeats the point of having one auditable identity.
+        const res = await fetch(url, { headers: { "User-Agent": CRAWLER_UA } });
         return res.ok ? await res.text() : "";
       } catch { return ""; }
     },

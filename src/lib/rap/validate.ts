@@ -60,7 +60,7 @@ export const normalizeForQuoteMatch = (s: string) =>
 // carries no ellipsis, so it is still matched whole and still caught. Without
 // this, `pillars` would flag on essentially every RAP, and a flag that always
 // fires is a flag everyone learns to ignore.
-function quoteOccursIn(quote: string, sourceText: string): boolean {
+export function quoteOccursIn(quote: string, sourceText: string): boolean {
   // Strip OUR OWN page markers before matching. They are not the author's
   // prose — the loaders inject "[p.N]" ahead of every paragraph — so a quote
   // that legitimately spans a paragraph or page boundary has one sitting inside

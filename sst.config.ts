@@ -207,6 +207,64 @@ export default $config({
     // Gate for the observability stack: the stages that run real extraction.
     const observe = isCa || isProd;
 
+    // --- Edge protection: AWS WAF on the CloudFront distribution -------------
+    // (design: docs/superpowers/specs/2026-08-02-cloudfront-waf-design.md).
+    // CLOUDFRONT-scoped WebACLs must be created in us-east-1, so use a dedicated
+    // provider regardless of the stack region (prod is us-east-1; ca is
+    // ca-central-1). observe-gated so dev/mock stages get nothing.
+    const wafUsEast1 = observe ? new aws.Provider("WafUsEast1", { region: "us-east-1" }) : undefined;
+    // Count-first: every rule starts in COUNT mode (nothing blocked) so we can
+    // watch sampled requests for false positives, then flip to blocking by
+    // setting WAF_BLOCKING=true (or changing this default in a follow-up PR).
+    const wafBlocking = process.env.WAF_BLOCKING === "true";
+    const managedOverride = wafBlocking ? { none: {} } : { count: {} };
+    const rateAction = wafBlocking ? { block: {} } : { count: {} };
+    const wafVis = (name: string) => ({
+      cloudwatchMetricsEnabled: true,
+      sampledRequestsEnabled: true,
+      metricName: name,
+    });
+    const webAcl = observe
+      ? new aws.wafv2.WebAcl(
+          "WebAcl",
+          {
+            scope: "CLOUDFRONT",
+            defaultAction: { allow: {} },
+            visibilityConfig: wafVis(`indigenomics-${$app.stage}-waf`),
+            rules: [
+              {
+                name: "RateLimit",
+                priority: 1,
+                action: rateAction,
+                statement: { rateBasedStatement: { limit: 1000, aggregateKeyType: "IP" } },
+                visibilityConfig: wafVis(`indigenomics-${$app.stage}-waf-ratelimit`),
+              },
+              {
+                name: "CommonRuleSet",
+                priority: 2,
+                overrideAction: managedOverride,
+                statement: {
+                  managedRuleGroupStatement: { vendorName: "AWS", name: "AWSManagedRulesCommonRuleSet" },
+                },
+                visibilityConfig: wafVis(`indigenomics-${$app.stage}-waf-common`),
+              },
+              {
+                name: "KnownBadInputs",
+                priority: 3,
+                overrideAction: managedOverride,
+                statement: {
+                  managedRuleGroupStatement: { vendorName: "AWS", name: "AWSManagedRulesKnownBadInputsRuleSet" },
+                },
+                visibilityConfig: wafVis(`indigenomics-${$app.stage}-waf-knownbad`),
+              },
+            ],
+          },
+          // webAcl and wafUsEast1 are observe-gated together, so the provider is
+          // defined whenever this resource is created.
+          { provider: wafUsEast1! },
+        )
+      : undefined;
+
     // Dead-letter capture for the fire-and-forget workers. If a worker dies
     // BEFORE writing a terminal job status, the job is stranded EXTRACTING and
     // the event payload is lost; this queue keeps the original
@@ -576,6 +634,12 @@ export default $config({
             },
           ],
         },
+        // Attach the WAF WebACL (observe stages only) to the CloudFront
+        // distribution. SST's Cdn component takes `webAclArn` and maps it onto
+        // the distribution's (confusingly-named) `webAclId` internally.
+        cdn: (args: any) => {
+          if (webAcl) args.webAclArn = webAcl.arn;
+        },
       },
       environment: {
         ...extractionEnv,
@@ -585,6 +649,12 @@ export default $config({
         SURVEY_TABLE: rapSurvey.name,
         AUTH_SECRET: authSecret.value, // HMAC session-signing key (server-side; never NEXT_PUBLIC_)
         COMMITMENTS_TABLE: commitments.name,
+        // Explore (/commitments/explore, getIndexFacts) data source. On the two
+        // real-extraction stages (ca + production) use "merge": Explore shows the
+        // seeded commitments demo AND approved RAP extractions, unioned/deduped,
+        // so it stays rich while real RAPs appear as they're confirmed. Other
+        // stages keep the default (seeded only). An env override still wins.
+        RAP_INDEX_SOURCE: process.env.RAP_INDEX_SOURCE ?? (observe ? "merge" : ""),
         ALIGNMENT_TABLE: alignment.name,
         // Weekly overdue-milestone digest (spec 2026-07-25): the institute
         // /notifications button (server action) reads/writes this table and

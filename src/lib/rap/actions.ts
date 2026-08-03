@@ -7,7 +7,8 @@ import { canPublish, claimOrgForParty, dismissFailedJob, recordRapProgressForPar
 import type { ProgressStatus } from "./types";
 import { getRegistryProvider } from "./registry";
 import { publishAndConfirm, stageExtraction } from "./stage-extraction";
-import { contentTypeFor, isUploadConfigured, putDocument, uploadKey } from "./storage";
+import { contentTypeFor, isUploadConfigured, presignDownload, putDocument, uploadKey } from "./storage";
+import { applyFieldEdits } from "./field-edit";
 import { getSession } from "@/lib/auth";
 import { classifyUpload } from "@/lib/governance";
 
@@ -144,6 +145,34 @@ export async function confirmExtractionAction(formData: FormData) {
   redirect("/extract?tab=review");
 }
 
+// Review-queue publish with per-field edits + a verification audit trail. The
+// client card batches the reviewer's corrections and checked-off paths into one
+// JSON payload; here we apply the edits to the staged extraction, publish, and
+// record which fields a human confirmed. Enum edits arrive canonical (the client
+// only offers dropdown values), so publish.ts's oneOf() never downgrades them.
+export async function confirmReviewedExtractionAction(input: {
+  jobId: string;
+  edits: { path: string; value: unknown }[];
+  verifiedFields: string[];
+}) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return { ok: false as const, error: "unauthorized" };
+  const { jobId } = input;
+  if (!jobId) return { ok: false as const, error: "missing jobId" };
+
+  const job = await extractionRepo.getJob(jobId);
+  if (!job || !job.extracted) return { ok: false as const, error: "job not found" };
+  if (job.status !== "PENDING_REVIEW") return { ok: false as const, error: "job is not awaiting review" };
+  if (!canPublish(job)) return { ok: false as const, error: "resolve the Business Number before publishing" };
+
+  const edited = applyFieldEdits(job.extracted, input.edits ?? []);
+  const reviewedBy = session.email ?? session.partyId ?? "indigenomics";
+  await publishAndConfirm(job, edited, reviewedBy, input.verifiedFields ?? []);
+  revalidatePath("/extract");
+  revalidatePath("/my-rap");
+  return { ok: true as const };
+}
+
 export async function rejectExtractionAction(formData: FormData) {
   const session = getSession();
   if (session?.kind !== "indigenomics") return;
@@ -155,6 +184,34 @@ export async function rejectExtractionAction(formData: FormData) {
   await extractionRepo.rejectJob(jobId, reviewedBy, reason);
   revalidatePath("/extract");
   redirect("/extract?tab=review");
+}
+
+// Open the original source PDF for a job, jumped to a specific page, so a
+// reviewer can check a flagged field against the document. Invoked from a
+// `<form target="_blank">` in the review queue: the redirect resolves in the new
+// tab, so the browser's native PDF viewer opens the freshly-signed URL and the
+// #page=N fragment scrolls to that page. Fragment is client-side only (never
+// sent to S3), so it survives the presigned query string. Indigenomics-only,
+// like every action here; /extract is already persona-guarded by middleware,
+// this is defence in depth.
+export async function openSourceAction(formData: FormData) {
+  const session = getSession();
+  if (session?.kind !== "indigenomics") return;
+  const jobId = String(formData.get("jobId") ?? "").trim();
+  if (!jobId) return;
+  // Optional 1-indexed page; only append a valid positive integer.
+  const pageRaw = Number(formData.get("page"));
+  const frag = Number.isInteger(pageRaw) && pageRaw > 0 ? `#page=${pageRaw}` : "";
+
+  const job = await extractionRepo.getJob(jobId);
+  if (!job) return;
+  const key = job.sourceS3Key;
+  if (!key) return;
+
+  // Seed/real fixtures may store an http(s) URL directly rather than an S3 key;
+  // real /extract uploads always store an S3 key to presign.
+  const url = /^https?:\/\//.test(key) ? key : await presignDownload(key);
+  redirect(url + frag);
 }
 
 // Operator clears a FAILED job out of the review queue. Thin shim over the

@@ -12,7 +12,7 @@
   <div class="head">
     <div class="eyebrow">CS7980 · Indigenomics Portal · RAP subsystem</div>
     <div class="title">RAP Pipeline — upload → AI extraction → review → publish → react</div>
-    <div class="caption">A PDF becomes structured, source-grounded commitments; DynamoDB streams then drive dashboard rollups, alignment embeddings, and the weekly overdue digest.</div>
+    <div class="caption">A PDF becomes structured, source-grounded commitments — a reviewer edits and verifies each flagged field before publish; DynamoDB streams then drive dashboard rollups, alignment embeddings, and the weekly overdue digest.</div>
   </div>
 
   <svg class="wires" viewBox="0 0 1600 1060">
@@ -62,9 +62,11 @@
   <div class="node" style="left:555px;top:346px"><img src="icons/aws-textract.svg"><div class="lbl">Textract</div><div class="svc">LAYOUT OCR</div></div>
   <div class="pill" style="left:420px;top:492px">prod = BDA + Textract</div>
   <div class="pill" style="left:420px;top:518px">ca = Bedrock + text-layer &middot; mock</div>
+  <div class="pill" style="left:420px;top:544px;border-color:#01806B;color:#01806B">+ quote-locate &rarr; verbatim citations</div>
 
   <!-- REVIEW + PUBLISH -->
   <div class="node" style="left:720px;top:460px"><svg class="review-g" viewBox="0 0 60 60"><rect x="12" y="8" width="36" height="46" rx="4" fill="#fff" stroke="#8A1A2B" stroke-width="2.5"/><rect x="22" y="4" width="16" height="8" rx="2" fill="#8A1A2B"/><path d="M19 26 l5 5 l9-11" fill="none" stroke="#1B6A52" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><line x1="19" y1="40" x2="41" y2="40" stroke="#C4CCBD" stroke-width="2.5"/><line x1="19" y1="47" x2="35" y2="47" stroke="#C4CCBD" stroke-width="2.5"/></svg><div class="lbl">Review queue</div><div class="svc">institute · REVIEW_MODE</div></div>
+  <div class="pill" style="left:700px;top:580px;border-color:#8A1A2B;color:#8A1A2B">per-field edit + verify</div>
   <div class="node" style="left:720px;top:720px"><img src="icons/aws-dynamodb.svg"><div class="lbl">Commitments</div><div class="svc">published · stream</div></div>
 
   <!-- REACTOR ⑦: alignment -->
