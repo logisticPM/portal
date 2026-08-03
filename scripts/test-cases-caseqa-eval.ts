@@ -203,5 +203,34 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       "cases-eval.ts once printed all-zero rows and exited 0; that must not recur");
   }
 
+  const { assertDistinctModels, formatProvenance } = await import("../src/lib/cases/caseqa-eval/guards");
+
+  // --- guard 1: three distinct models ---------------------------------------------
+  {
+    assert.doesNotThrow(() => assertDistinctModels({ writer: "a", answerer: "b", judge: "c" }));
+    // The two that matter: a model judging its own output, and a model answering its own question.
+    assert.throws(() => assertDistinctModels({ writer: "a", answerer: "b", judge: "b" }),
+      /distinct/i, "judge must not equal answerer");
+    assert.throws(() => assertDistinctModels({ writer: "a", answerer: "a", judge: "c" }),
+      /distinct/i, "writer must not equal answerer");
+    assert.throws(() => assertDistinctModels({ writer: "a", answerer: "a", judge: "a" }), /distinct/i);
+    // The error must name the roles, or a failed run is a puzzle.
+    assert.throws(() => assertDistinctModels({ writer: "x", answerer: "x", judge: "c" }),
+      /writer.*answerer|answerer.*writer/i);
+  }
+
+  // --- guard 5: provenance names the models and every count -----------------------
+  {
+    const p = formatProvenance({
+      writer: "W-1", answerer: "A-1", judge: "J-1", seed: 7,
+      casesWithChunks: 500, targets: 40, built: 38, gimmes: 1, writerFails: 1,
+      pairs: 18, discardedPairs: 2, addressedFails: 1,
+    });
+    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18"].forEach((s) =>
+      assert.ok(p.includes(s), `provenance must include ${s}`));
+    // The discard counts are the ones a reader needs to see a set that silently shrank.
+    assert.ok(/gimme/i.test(p) && /discard/i.test(p), "discard reasons must be named, not just counted");
+  }
+
   console.log("✅ test-cases-caseqa-eval passed");
 })();
