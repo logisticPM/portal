@@ -4,6 +4,7 @@
 // allow-listed open hosts are fetched (CanLII remains excluded).
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { defaultRobotsGate } from "./robots";
+import { CRAWLER_UA } from "./crawler-id";
 
 export const OPEN_HOSTS = ["www.bccourts.ca", "decisions.scc-csc.ca", "coadecisions.ontariocourts.ca", "www.yukoncourts.ca", "www.courtsnb-coursnb.ca", "www.manitobacourts.mb.ca"];
 
@@ -87,7 +88,6 @@ export async function pdfToText(buf: Buffer, parse: (b: Buffer) => Promise<{ tex
   } catch { return ""; }
 }
 
-const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 const MIN_TEXT = 200; // shorter than this = a shell/error page → skip (never store garbage)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -108,7 +108,7 @@ function decodeHtml(buf: Buffer, contentType: string): string {
 // returns raw bytes + content-type.
 async function defaultFetch(u: string): Promise<Fetched> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await fetch(u, { headers: { "User-Agent": BROWSER_UA } });
+    const res = await fetch(u, { headers: { "User-Agent": CRAWLER_UA } });
     if (res.ok) return { buf: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") ?? "" };
     if (attempt === 0) await sleep(1500);
   }

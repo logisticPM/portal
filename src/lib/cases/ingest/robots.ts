@@ -3,19 +3,17 @@
 // Policy: 2xx → obey; 404 → allow (no robots = no restrictions); 403/5xx/error → skip
 // (conservative). Only ops scripts import this — never the Web/BriefGen Lambda bundle.
 import robotsParser from "robots-parser";
+import { CRAWLER_UA, CRAWLER_TOKEN } from "./crawler-id";
 
-// We present a browser UA on the wire (some official hosts 403 a non-browser UA) but match
-// robots groups as an unnamed crawler → falls through to the catch-all `User-agent: *` group.
-const ROBOTS_BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
-export const ROBOTS_UA = "IndigenomicsLegalHub";
+export const ROBOTS_UA = CRAWLER_TOKEN;
 
 export type RobotsFetchResult = { status: number; body: string };
 export type RobotsFetcher = (robotsUrl: string) => Promise<RobotsFetchResult>;
 
-// Default robots.txt fetch: browser UA, single attempt, never throws (network error → status 0).
+// Default robots.txt fetch: truthful UA, single attempt, never throws (network error → status 0).
 export const defaultRobotsFetch: RobotsFetcher = async (robotsUrl) => {
   try {
-    const res = await fetch(robotsUrl, { headers: { "User-Agent": ROBOTS_BROWSER_UA } });
+    const res = await fetch(robotsUrl, { headers: { "User-Agent": CRAWLER_UA } });
     return { status: res.status, body: res.ok ? await res.text() : "" };
   } catch {
     return { status: 0, body: "" };

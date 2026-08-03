@@ -116,5 +116,15 @@ import { isOpenSource, htmlToText, fetchOfficialText, toDocumentUrl, cleanupPdfT
   assert.ok(pt.includes("Hello world of judg-ment reasoning here."), "pdfToText cleans parser output");
   assert.ok(!/SUPREME COURT OF CANADA/.test(pt), "pdfToText drops running header");
 
+  // --- the crawler identifies itself truthfully ---
+  {
+    const { CRAWLER_UA, CRAWLER_TOKEN } = await import("../src/lib/cases/ingest/crawler-id");
+    assert.doesNotMatch(CRAWLER_UA, /Mozilla|Chrome|Safari|AppleWebKit/i,
+      "the crawler must not present itself as a browser");
+    assert.match(CRAWLER_UA, /^IndigenomicsLegalHub\//, "product token first, per RFC 9110");
+    assert.match(CRAWLER_UA, /\+https?:\/\//, "a contact URL is what lets an operator allowlist us");
+    assert.equal(CRAWLER_TOKEN, "IndigenomicsLegalHub");
+  }
+
   console.log("✅ test-cases-official-source passed");
 })().catch((e) => { console.error(e); process.exit(1); });
