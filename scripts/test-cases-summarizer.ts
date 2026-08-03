@@ -362,5 +362,84 @@ import assert from "node:assert/strict";
   assert.equal(reg.anchors[0].sourceParagraph, "para-1");
   assert.equal(reg.dropped, 1, "dropped count unchanged");
 
+  // --- near-exact recovery -------------------------------------------------------------
+  // 25% of all claims are discarded for a quote that does not match verbatim, and the
+  // forensics showed 352 of them share >=95% of the quote contiguously with real judgment
+  // text (median 0.98). Two core cases produce NO summary because every claim was dropped at
+  // 0.97 and 1.00. The quote is a locator that is never published, so recovering one attaches
+  // an assertion to a paragraph number — mis-attribution is the only risk, and uniqueness is
+  // the guard.
+  {
+    const body = (n: string) =>
+      `The Crown owed a fiduciary duty to the Nation in the circumstances of this case ${n}. ` +
+      `Compensation is assessed by reference to the lost opportunity rather than historic value ${n}.`;
+    const mk = (paras: string[]) => paras.map((p, i) => ({ paragraph: `para-${i + 1}`, text: p }));
+    const claim = (quote: string) => [{ text: "The Crown owed a fiduciary duty.", quote, paragraph: "para-1" }];
+    const URL = "https://example.test/j";
+
+    // Exact match: unchanged, and NOT marked as recovered.
+    {
+      const chunks = mk([body("A")]);
+      const r = verifyClaims(claim("The Crown owed a fiduciary duty to the Nation"), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 1);
+      assert.equal(r.anchors[0].matched, undefined, "the exact path must stay byte-identical to today");
+    }
+
+    // One leading character wrong — the real sampled case scored 0.99 with the divergence at
+    // character 0. Exactly one chunk matches, so it recovers.
+    {
+      const chunks = mk([body("A")]);
+      const r = verifyClaims(claim("Xhe Crown owed a fiduciary duty to the Nation in the circumstances of this case A"), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 1, "a one-character garble must not cost the claim");
+      assert.equal(r.anchors[0].matched, "near");
+      assert.equal(r.anchors[0].sourceParagraph, "para-1");
+      assert.equal(r.dropped, 0);
+    }
+
+    // Below the threshold: still dropped. The threshold has to bite.
+    {
+      const chunks = mk([body("A")]);
+      const q = "The Crown owed a XXXXXXXXXX duty to the YYYYYYYY in the ZZZZZZZZZZ of this case A";
+      const r = verifyClaims(claim(q), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 0, "0.95 is a floor, not a suggestion");
+      assert.equal(r.drops[0].reason, "no_span");
+    }
+
+    // THE GUARD: two NON-ADJACENT chunks both match near-exactly → ambiguous → dropped.
+    // Boilerplate repeated across a judgment is exactly this case. If this assertion ever
+    // goes green with an anchor, the design has lost its only protection against
+    // mis-attribution.
+    {
+      const chunks = mk([body("A"), "An unrelated paragraph about procedure and scheduling.", body("A")]);
+      const r = verifyClaims(claim("Xhe Crown owed a fiduciary duty to the Nation in the circumstances of this case A"), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 0, "two paragraphs matching near-exactly is a coin flip — decline");
+      assert.equal(r.drops[0].reason, "no_span");
+    }
+
+    // A chunk AND ITS IMMEDIATE NEIGHBOUR are one competitor, not two. locate()'s own
+    // adjacent-pair window already treats them as one span, so counting them as rivals would
+    // block a straddling quote the exact path would have accepted.
+    {
+      const chunks = mk([body("A"), body("A")]);
+      const r = verifyClaims(claim("Xhe Crown owed a fiduciary duty to the Nation in the circumstances of this case A"), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 1, "neighbours are one competitor");
+      assert.equal(r.anchors[0].matched, "near");
+    }
+
+    // Sharing nothing substantial: unchanged. The fabrication ceiling must not move.
+    {
+      const chunks = mk([body("A")]);
+      const r = verifyClaims(claim("The tribunal awarded punitive damages of four million dollars to the claimant."), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 0);
+    }
+
+    // Recovery works with measurement OFF too — diagnostics are opt-in, recovery is not.
+    {
+      const chunks = mk([body("A")]);
+      const r = verifyClaims(claim("Xhe Crown owed a fiduciary duty to the Nation in the circumstances of this case A"), chunks, URL);
+      assert.equal(r.anchors.length, 1, "recovery must not depend on measureOverlap");
+    }
+  }
+
   console.log("✅ test-cases-summarizer passed");
 })();
