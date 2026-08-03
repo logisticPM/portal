@@ -11,8 +11,8 @@ Filenames double as the docent caption (Part 4 rule). All PNGs: long side 3000�
 
 | # | File | Caption / what it shows |
 |---|------|-------------------------|
-| 01 | `01-system-overview.png` | One Next.js app on Lambda behind CloudFront serves both subsystems across a Canada/US data-residency split. |
-| 02 | `02-rap-extraction-pipeline.png` | RAP: upload → AI extraction → review → publish → stream-driven rollups, alignment, and the weekly digest. |
+| 01 | `01-system-overview.png` | One Next.js app on Lambda behind CloudFront (WAF at the edge) serves both subsystems across a Canada/US data-residency split. |
+| 02 | `02-rap-extraction-pipeline.png` | RAP: upload → AI extraction (with recovered source citations) → per-field review & verify → publish → stream-driven rollups, alignment, and the weekly digest. |
 | 03 | `03-legal-cases-search-and-briefs.png` | Legal cases: offline ingest→embed→index feeds hybrid keyword+vector search and Bedrock briefing notes. |
 | 04 | `04-data-residency-governance.png` | Data-at-rest stays in Canada; AI inference geo-routes to us-east-1 — the OCAP residency boundary. |
 | 05 | `05-research-to-product-bridge.png` | The portal's own pull requests became E3 — the industrial testbed in the decorrelation paper. |
@@ -30,15 +30,20 @@ taught us** (05–08).
 **01 · System overview** — The frame every other diagram lives inside. It makes
 the central design claim legible at a glance: this is *one* Next.js app serving two
 subsystems, not a sprawl of microservices — and it introduces the Canada/US region
-split that the rest of the platform is organized around. If a reviewer looks at only
-one diagram, this is the one that says what the thing *is*.
+split that the rest of the platform is organized around. An AWS WAF sits on the
+CloudFront distribution, screening every request at the edge (rate-limiting plus AWS
+managed rule groups) before it reaches the app. If a reviewer looks at only one
+diagram, this is the one that says what the thing *is*.
 
 **02 · RAP extraction pipeline** — The platform's reason to exist. A supplier's
 Reconciliation Action Plan PDF becomes structured, source-grounded commitments that
 a human reviews before anything is published, after which DynamoDB streams fan the
-change out to rollups, alignment, and the overdue digest. It shows the two ideas that
-make the product trustworthy: a human-in-the-loop review gate (nothing auto-publishes)
-and an event-driven reactor pattern rather than one monolithic job.
+change out to rollups, alignment, and the overdue digest. The review gate is per-field:
+a reviewer edits and checks off each flagged value, and a quote-locate step recovers a
+verbatim source citation + page even for the BDA engine (which grounds by confidence,
+not a text quote) so the reviewer always has evidence to check against. It shows the two
+ideas that make the product trustworthy: a human-in-the-loop review gate (nothing
+auto-publishes) and an event-driven reactor pattern rather than one monolithic job.
 
 **03 · Legal cases search and briefs** — The second lens on the same companion. A
 ~3.5k-case corpus is ingested, embedded, and indexed *offline*, so the live app only

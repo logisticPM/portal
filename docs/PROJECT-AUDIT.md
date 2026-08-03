@@ -1,6 +1,6 @@
 # Project Audit — Indigenomics RAP Data Portal
 
-*Prepared for the CS7980 showcase and client handoff · 2026-07-30*
+*Prepared for the CS7980 showcase and client handoff · 2026-07-30 (updated 2026-08-02: deploy runbook now shipped, WAF added, review-queue edit/verify + quote-locate)*
 
 This document is a top-down audit of the portal: what it is, what it costs (with **real
 AWS billing data**), what would need to change to run it in the client's own AWS account,
@@ -65,6 +65,10 @@ served cross-region from us-east-1.
 The observability stack is gated to the two stages that run **real extraction** (`observe = isCa || isProd`
 in `sst.config.ts`); each gets its own stage-scoped copy. Mock/dev stages skip it.
 
+The same `observe` gate now also attaches an **AWS WAFv2 WebACL to the CloudFront distribution**
+(rate-limit 1,000/5-min/IP + AWS managed CommonRuleSet + KnownBadInputs), created in us-east-1
+and shipped **count-first** — see §5, item 5.
+
 \* The `ca` stage ships on a **PDF embedded-text-layer** loader because **Textract is
 SCP-blocked** in this org — see §4.3.
 
@@ -98,7 +102,11 @@ Contract-first modules, each a `types.ts` interface + a mock/dynamo swap:
 - **auth** — HMAC-signed session cookies; `getSession()` is the real security boundary.
 - **repo** — legacy report→confirm portal (still backs `/report`, `/confirm`, `/analytics`).
 - **rap** — the extraction pipeline: doc-loader → grounded LLM extraction → deterministic
-  validation gates → human review → canonical RAP graph.
+  validation gates → human review → canonical RAP graph. The review queue supports
+  **per-field edit + check-off** (reviewer corrects/verifies each flagged field before
+  publish), and a **quote-locate** step recovers verbatim source citations + page for the
+  BDA path (which grounds by confidence, not a text quote), so evidence cards and jump-to-PDF
+  work on `production` too.
 - **commitments** — the RAP Index.
 - **alignment** — BM25 + embeddings supplier matching (never scores on the stub embedder).
 - **cases** — the largest module: ingest/harvest (robots-compliant), hybrid BM25 + dense
@@ -265,10 +273,11 @@ a phantom limitation.
 
 ## 5. Recommendations for a smooth delivery and transition
 
-1. **A one-page runbook / deploy guide.** Consolidate the scattered `docs/deploy.md`,
-   `deploy-rap.md`, and SCP write-up into a single "stand this up in your account" doc:
-   prerequisites (Node 20, SST bootstrap per region, Bedrock model access), the env-var
-   table, BDA setup steps, and the SES/OIDC/secret provisioning order.
+1. **A one-page runbook / deploy guide.** ✅ **DONE — [`DEPLOY-RUNBOOK.md`](./DEPLOY-RUNBOOK.md).**
+   A single linear "zero → running" checklist now exists (prerequisites, per-account setup,
+   the env-var table, region/residency strategy, BDA setup, seed + data hygiene, real-AI
+   turn-on, verify, cost/teardown, troubleshooting). It supersedes the scattered
+   `deploy.md` / `deploy-rap.md` for onboarding a new account.
 2. **An architecture + data-flow diagram set.** The 9-diagram gallery is the backbone; add
    one **"client deployment topology"** diagram showing their-account resources.
 3. **A data handoff decision + package.** Decide now whether `LegalCases` and the platform
@@ -277,9 +286,14 @@ a phantom limitation.
 4. **A version-drift cleanup pass.** The repo says "SST v3" in comments/prose but pins
    **v4.15.2**; several config shapes carry "verify against the installed version"
    warnings. Reconcile this before the client's first `sst deploy`.
-5. **A "sandbox → production hardening" checklist:** AWS WAF on the CloudFront distribution
-   (currently none), custom domain + ACM cert, real secrets, purged demo accounts, S3
-   lifecycle + log retention, arm64. Frame as "what to do before real users."
+5. **A "sandbox → production hardening" checklist.** **AWS WAF is now in place** ✅ — a
+   WAFv2 WebACL (rate-limit 1,000/5-min/IP + AWS managed CommonRuleSet + KnownBadInputs) is
+   attached to the CloudFront distribution on `ca` + `production`, created in us-east-1 and
+   shipped **count-first** (rules count, nothing is blocked) so false positives surface
+   before enforcement. **Remaining hardening:** flip the WAF from count to block
+   (`WAF_BLOCKING=true`) after observing count-mode metrics; custom domain + ACM cert; real
+   secrets; purged demo accounts; S3 lifecycle + log retention; arm64. Frame as "what to do
+   before real users."
 6. **A cost & teardown note.** The scenarios in §3.4, the `sst remove` teardown steps, the
    reminder that `production` is `retain`, and — most importantly — **that today's bill is
    credit-covered and becomes real spend (mostly Bedrock) in their account**. Recommend
