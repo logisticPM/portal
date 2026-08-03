@@ -49,11 +49,20 @@ async function main() {
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
   const rows = new Map(BANDS.map(([n]) => [n, empty()]));
   const declinedSamples: string[] = [];
-  let cases = 0, totalDrops = 0, unmeasured = 0;
+  let cases = 0, totalDrops = 0, unmeasured = 0, curated = 0;
 
   for (const prof of profiles) {
     const c = await dynamoCaseRepo.getCase(prof.id);
     if (!c?.chunks?.length) continue;
+    // A hand-curated summary (enrichment.ts, flagship cases) was never produced by a model,
+    // so by design there is no cached response to replay and no model claims to verify —
+    // this case is outside the population, not a gap in the cache.
+    //
+    // This is not hypothetical: 2014-scc-44 is curated, and until the SCC backfill gave it
+    // 62 chunks the `!chunks.length` guard above skipped it. Once it had text it reached the
+    // cache lookup and aborted every replay run. Correcting the population is the fix; the
+    // cache-miss guard below stays exactly as strict.
+    if (c.summary && c.summaryMeta?.method !== "llm") { curated++; continue; }
     const assembled = assembleInput(c.chunks, c.outcome.holding);
     const prompt = buildPrompt(c, assembled);
     const raw = await readCache(prompt);
@@ -93,7 +102,7 @@ async function main() {
     }
   }
 
-  console.log(`\n${totalDrops} no_span drops across ${cases} cases${unmeasured ? ` · ${unmeasured} unmeasured` : ""}\n`);
+  console.log(`\n${totalDrops} no_span drops across ${cases} cases${unmeasured ? ` · ${unmeasured} unmeasured` : ""}${curated ? ` · ${curated} curated-summary case(s) outside the population` : ""}\n`);
   console.log("band        drops  declined   cited=best  cited=rival  cited=neither  cited=absent");
   for (const [name] of BANDS) {
     const r = rows.get(name)!;
