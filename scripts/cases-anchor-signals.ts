@@ -37,13 +37,40 @@ const BANDS: [string, number, number][] = [
   ["<0.50", 0, 0.50],
 ];
 
-type Row = { drops: number; declined: number; citedIsBest: number; citedIsRival: number; citedIsNeither: number; citedMissing: number };
-const empty = (): Row => ({ drops: 0, declined: 0, citedIsBest: 0, citedIsRival: 0, citedIsNeither: 0, citedMissing: 0 });
+type Row = {
+  drops: number; declined: number;
+  citedIsBest: number; citedIsRival: number; citedIsAdjacent: number; citedElsewhere: number; citedNoDigits: number;
+  // Overlay, NOT a bucket: counts declines whose cited value production's findCited cannot
+  // resolve at all. Such a claim is still classified above by digit, so this number overlaps
+  // every column and must never be added to them.
+  unresolvedByProduction: number;
+};
+const empty = (): Row => ({
+  drops: 0, declined: 0, citedIsBest: 0, citedIsRival: 0, citedIsAdjacent: 0, citedElsewhere: 0,
+  citedNoDigits: 0, unresolvedByProduction: 0,
+});
 
-// The cited paragraph is free text from the model; locate() accepts a bare "N" as "para-N",
-// so the comparison must too or agreement is undercounted.
-const same = (cited: string, para: string | null) =>
-  para !== null && (cited === para || `para-${cited}` === para);
+// The cited paragraph is free text from the model, and models wrap it: the first run saw
+// "[para-96]", which findCited (summarizer.ts:128) accepts in neither of its two forms, so a
+// value that IS the rival was filed as an absent paragraph. Comparing on the paragraph NUMBER
+// is deliberately looser than production. That is correct here and only here: this report
+// measures a CEILING for a tie-breaker, so the most generous defensible reading is the one
+// that bounds it. Nothing downstream may reuse this — production's stricter behaviour is
+// reported separately as `unresolvedByProduction`.
+//
+// First digit run only. Paragraph ids in this corpus are "para-N"; an id carrying two numbers
+// would be read by its first, which is worth knowing if the corpus ever gains one.
+const digits = (s: string | null) => s?.match(/\d+/)?.[0] ?? null;
+const same = (cited: string, para: string | null) => {
+  const c = digits(cited), p = digits(para);
+  return c !== null && c === p;
+};
+// An off-by-one cited paragraph is a systematic numbering offset, not the coin-flip
+// misattribution the "neither" column would imply. Separated so the two cannot be conflated.
+const adjacent = (cited: string, para: string | null) => {
+  const c = digits(cited), p = digits(para);
+  return c !== null && p !== null && Math.abs(Number(c) - Number(p)) === 1;
+};
 
 async function main() {
   const profiles = await dynamoCaseRepo.listCases({ tier: "core" });
@@ -91,34 +118,54 @@ async function main() {
       r.drops++;
       if (d.declinedByGuard) {
         r.declined++;
+        if (!d.citedParaFound) r.unresolvedByProduction++;
         if (same(d.citedPara, d.bestPara)) r.citedIsBest++;
         else if (same(d.citedPara, d.rivalPara)) r.citedIsRival++;
-        else if (!d.citedParaFound) r.citedMissing++;
-        else r.citedIsNeither++;
-        if (declinedSamples.length < 6) {
-          declinedSamples.push(`${c.id} best=${d.bestPara}@${d.bestOverlap.toFixed(2)} rival=${d.rivalPara}@${d.rival.toFixed(2)} cited=${d.citedPara}`);
-        }
+        else if (adjacent(d.citedPara, d.bestPara)) r.citedIsAdjacent++;
+        else if (digits(d.citedPara) === null) r.citedNoDigits++;
+        else r.citedElsewhere++;
+        // Every decline, not a sample: 15 rows is small enough to read in full, and the first
+        // run's misclassification was only visible because a raw cited value was printed.
+        declinedSamples.push(
+          `${c.id.padEnd(14)} best=${d.bestPara}@${d.bestOverlap.toFixed(2)} ` +
+          `rival=${d.rivalPara}@${d.rival.toFixed(2)} cited=${JSON.stringify(d.citedPara)}` +
+          (d.citedParaFound ? "" : " (production: unresolvable)"));
       }
     }
   }
 
   console.log(`\n${totalDrops} no_span drops across ${cases} cases${unmeasured ? ` · ${unmeasured} unmeasured` : ""}${curated ? ` · ${curated} curated-summary case(s) outside the population` : ""}\n`);
-  console.log("band        drops  declined   cited=best  cited=rival  cited=neither  cited=absent");
+  console.log("band        drops  declined   cited=best  cited=rival  best±1  elsewhere  no-digits   (unresolvable)");
   for (const [name] of BANDS) {
     const r = rows.get(name)!;
-    console.log(`${name.padEnd(11)} ${String(r.drops).padStart(5)}  ${String(r.declined).padStart(8)}   ${String(r.citedIsBest).padStart(10)}  ${String(r.citedIsRival).padStart(11)}  ${String(r.citedIsNeither).padStart(13)}  ${String(r.citedMissing).padStart(12)}`);
+    console.log(`${name.padEnd(11)} ${String(r.drops).padStart(5)}  ${String(r.declined).padStart(8)}   ` +
+      `${String(r.citedIsBest).padStart(10)}  ${String(r.citedIsRival).padStart(11)}  ${String(r.citedIsAdjacent).padStart(6)}  ` +
+      `${String(r.citedElsewhere).padStart(9)}  ${String(r.citedNoDigits).padStart(9)}   ${String(r.unresolvedByProduction).padStart(13)}`);
   }
+  console.log(`\n(unresolvable) overlaps the columns to its left — it counts declines whose cited value`);
+  console.log(`production's findCited cannot resolve, and is NOT additive with them.`);
+
   const top = rows.get(">=0.95")!;
   console.log(`\nWhat the guard costs at >=0.95: ${top.declined} claims declined for ambiguity.`);
   if (top.declined > 0) {
     const usable = top.citedIsBest + top.citedIsRival;
-    console.log(`  citedPara points at one of the two candidates in ${usable}/${top.declined}` +
-      ` (${((usable / top.declined) * 100).toFixed(0)}%) — the ceiling for a tie-breaker.`);
-    console.log(`  it agrees with the BEST match in ${top.citedIsBest}, with the rival in ${top.citedIsRival}.` +
-      ` A tie-breaker is only safe if that split is lopsided.`);
+    console.log(`  citedPara names one of the two candidates in ${usable}/${top.declined}` +
+      ` (${((usable / top.declined) * 100).toFixed(0)}%) — the CEILING for a tie-breaker, on the`);
+    console.log(`  generous digit comparison. It agrees with the BEST match in ${top.citedIsBest}, the rival in ${top.citedIsRival}.`);
+    // A ceiling stated without its sampling error invites reading 6:2 as a 75% success rate.
+    // The two-sided binomial tail against a coin flip is the cheapest honest brake on that.
+    const n = usable, k = Math.max(top.citedIsBest, top.citedIsRival);
+    if (n > 0) {
+      const choose = (a: number, b: number) => { let v = 1; for (let i = 0; i < b; i++) v = (v * (a - i)) / (i + 1); return v; };
+      let tail = 0;
+      for (let i = k; i <= n; i++) tail += choose(n, i);
+      const p = Math.min(1, 2 * tail / Math.pow(2, n));
+      console.log(`  On n=${n}, a ${top.citedIsBest}:${top.citedIsRival} split differs from a coin flip with two-sided p=${p.toFixed(2)}.`);
+    }
+    console.log(`  ${top.unresolvedByProduction}/${top.declined} carry a cited value production's findCited cannot resolve at all.`);
   }
   if (declinedSamples.length) {
-    console.log(`\nsample declines:`);
+    console.log(`\nall ${declinedSamples.length} declines:`);
     for (const s of declinedSamples) console.log(`  ${s}`);
   }
 }
