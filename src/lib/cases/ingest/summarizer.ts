@@ -80,6 +80,12 @@ export interface ClaimDrop {
   overlapMeasured: boolean;
   bestOverlap: number;
   bestPara: string | null;
+  // The best NON-ADJACENT competitor, and whether the uniqueness guard is what stopped this
+  // claim. A declined claim and an unmatched one are both "no_span" and were previously
+  // indistinguishable, which is why the guard's cost has never been measured.
+  rival: number;
+  rivalPara: string | null;
+  declinedByGuard: boolean;
 }
 
 // Scanning every chunk costs ~65ms per drop on a large case. Both production callers now
@@ -136,7 +142,7 @@ export function verifyClaims(
   // Memoized per quote: a claim that reaches the fourth attempt, fails to recover, and then
   // gets diagnosed would otherwise scan twice. At ~65ms per scan over 707 corpus-wide drops
   // that is a wasted minute per full run, for an identical answer both times.
-  const scanned = new Map<string, { bestOverlap: number; bestPara: string | null; rival: number }>();
+  const scanned = new Map<string, { bestOverlap: number; bestPara: string | null; rival: number; rivalPara: string | null }>();
   const scan = (quote: string) => {
     const memo = scanned.get(quote);
     if (memo) return memo;
@@ -148,9 +154,12 @@ export function verifyClaims(
     let bestOverlap = 0, bestIdx = -1;
     const overlaps = norm.map((n) => longestCommonSubstringLen(quote, n.text) / quote.length);
     overlaps.forEach((o, i) => { if (o > bestOverlap) { bestOverlap = o; bestIdx = i; } });
-    let rival = 0;
-    overlaps.forEach((o, i) => { if (Math.abs(i - bestIdx) > 1 && o > rival) rival = o; });
-    return { bestOverlap, bestPara: bestIdx >= 0 ? norm[bestIdx].para : null, rival };
+    let rival = 0, rivalIdx = -1;
+    overlaps.forEach((o, i) => { if (Math.abs(i - bestIdx) > 1 && o > rival) { rival = o; rivalIdx = i; } });
+    return {
+      bestOverlap, bestPara: bestIdx >= 0 ? norm[bestIdx].para : null,
+      rival, rivalPara: rivalIdx >= 0 ? norm[rivalIdx].para : null,
+    };
   };
 
   const locate = (quote: string, citedPara: string): { para: string; near: boolean } | null => {
@@ -174,10 +183,16 @@ export function verifyClaims(
   let recovered = 0;
   const record = (reason: ClaimDropReason, quote: string, citedPara: string) => {
     const canMeasure = measure && reason === "no_span" && quote.length > 0;
-    const s = canMeasure ? scan(quote) : { bestOverlap: 0, bestPara: null as string | null };
+    const s = canMeasure
+      ? scan(quote)
+      : { bestOverlap: 0, bestPara: null as string | null, rival: 0, rivalPara: null as string | null };
     drops.push({
       reason, quoteLen: quote.length, citedPara, citedParaFound: !!findCited(citedPara),
       overlapMeasured: canMeasure, bestOverlap: s.bestOverlap, bestPara: s.bestPara,
+      rival: s.rival, rivalPara: s.rivalPara,
+      // Only true when the threshold WAS cleared and ambiguity is what blocked it. A weak
+      // match is not a declined match, and neither is an unmeasured one.
+      declinedByGuard: canMeasure && s.bestOverlap >= NEAR && s.rival >= NEAR,
     });
   };
   for (const cl of claims) {

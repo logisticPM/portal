@@ -441,5 +441,57 @@ import assert from "node:assert/strict";
     }
   }
 
+  // --- the guard's verdict is reported, not just its effect ---------------------------
+  // 2008-scc-41 has NO summary because its best match scored 0.97 — over the 0.95 threshold —
+  // and a second non-adjacent paragraph also cleared 0.95, so the uniqueness guard declined
+  // it. Nobody has measured how often that happens, because a declined claim looks exactly
+  // like an unmatched one in the drop record.
+  {
+    const body = (n: string) =>
+      `The Crown owed a fiduciary duty to the Nation in the circumstances of this case ${n}. ` +
+      `Compensation is assessed by reference to the lost opportunity rather than historic value ${n}.`;
+    const mk = (paras: string[]) => paras.map((p, i) => ({ paragraph: `para-${i + 1}`, text: p }));
+    const claim = (quote: string, cited = "para-1") => [{ text: "A point.", quote, paragraph: cited }];
+    const URL = "https://example.test/j";
+    const NEARLY = "Xhe Crown owed a fiduciary duty to the Nation in the circumstances of this case A";
+
+    // Declined: two non-adjacent paragraphs both clear the threshold.
+    {
+      const chunks = mk([body("A"), "An unrelated paragraph about procedure and scheduling.", body("A")]);
+      const r = verifyClaims(claim(NEARLY), chunks, URL, { measureOverlap: true });
+      assert.equal(r.anchors.length, 0);
+      const d = r.drops[0];
+      assert.equal(d.declinedByGuard, true, "the guard declined this — that must be visible");
+      assert.ok(d.bestOverlap >= 0.95, `best should clear the threshold, got ${d.bestOverlap}`);
+      assert.ok(d.rival >= 0.95, `rival should clear it too, got ${d.rival}`);
+      assert.equal(d.bestPara, "para-1");
+      assert.equal(d.rivalPara, "para-3", "the rival's paragraph is what a tie-breaker would choose between");
+    }
+
+    // Genuinely unmatched: not the guard's doing, and must not be counted as such.
+    {
+      const chunks = mk([body("A")]);
+      const r = verifyClaims(claim("The tribunal awarded punitive damages of four million dollars."), chunks, URL, { measureOverlap: true });
+      assert.equal(r.drops[0].declinedByGuard, false, "a weak match is not a declined match");
+    }
+
+    // Below the threshold with a close rival is ALSO not the guard: recovery never applied.
+    {
+      const chunks = mk([body("A"), "Unrelated.", body("A")]);
+      const q = "The Crown owed a XXXXXXXXXX duty to the YYYYYYYY in the ZZZZZZZZZZ of this case A";
+      const r = verifyClaims(claim(q), chunks, URL, { measureOverlap: true });
+      assert.equal(r.drops[0].declinedByGuard, false, "declined means the threshold was cleared and ambiguity blocked it");
+    }
+
+    // Diagnostics stay opt-in: with measurement off the fields are inert, not wrong.
+    {
+      const chunks = mk([body("A"), "Unrelated.", body("A")]);
+      const r = verifyClaims(claim(NEARLY), chunks, URL);
+      assert.equal(r.drops[0].rival, 0);
+      assert.equal(r.drops[0].declinedByGuard, false, "unmeasured must not masquerade as not-declined-because-weak");
+      assert.equal(r.drops[0].overlapMeasured, false, "…which is why overlapMeasured exists to tell them apart");
+    }
+  }
+
   console.log("✅ test-cases-summarizer passed");
 })();
