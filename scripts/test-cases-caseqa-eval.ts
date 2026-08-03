@@ -1,9 +1,5 @@
 // Offline unit tests for the answer-quality eval instrument. No AWS, no LLM calls —
 // every model is a hand-rolled fake. Run: npx tsx scripts/test-cases-caseqa-eval.ts
-//
-// Modules load via dynamic import inside the IIFE (the house pattern), but the record type
-// is imported statically: annotating the fixture is what makes the discriminated union
-// check, and a cast would hide exactly the mismatch these tests exist to catch.
 import assert from "node:assert/strict";
 
 // Modules load via dynamic import inside the IIFE (the house pattern), but the record type is
