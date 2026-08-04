@@ -123,17 +123,39 @@ before any network call if it does not.
 
 Judged through `cachedModel`, so re-running replays verdicts instead of re-buying them.
 
+**The comparison must normalise, not be exact string equality.** Bedrock ids appear in both
+prefixed and unprefixed form, so `meta.llama3-3-70b-instruct-v1:0` — the same model without the
+`us.` cross-region prefix — would pass an `===` check, and the run would then report the
+summarizer's self-consistency as independent corroboration while its provenance line names a
+judge that is the model under test. That is undetectable from the output, and it is a plausible
+accident rather than only a malicious one.
+
 ## 8. Metrics
 
 | metric | definition |
 |---|---|
-| **flip rate** | of pairs judged twice, the share where the two orderings disagree |
+| **flip rate** | of **readable** pairs (`pairs − unparseable`), the share where the two orderings disagree |
 | **abstention rate** | of order-consistent pairs, the share answered `unsure` |
 | **agreement with `citedPara`** | of order-consistent, non-abstained pairs, the share where the judge's pick is the paragraph the model cited — with a two-sided binomial *p* against 0.5 |
 | **unparseable** | reported separately, never folded into `unsure` |
 
 Denominators narrow at each step and every one is printed with its numerator, because the last
 metric's denominator may be very small and a bare percentage would hide that.
+
+**The flip denominator excludes unparseable rows** (amended 2026-08-04, still before any
+measurement has run, so this remains pre-registration and not a threshold moved to fit data). An
+unparseable row can never enter the flip numerator, so counting it in the denominator dilutes the
+gate with our own parse failures: 4 flipped + 5 unparseable + 6 consistent reads as 4/15 = 26.7%
+and does not trip, while among the ten pairs we could actually read the flip rate is 40% and
+should. The gate asks whether the judge gives *stable answers*, which is only meaningful over
+pairs where it gave answers at all.
+
+**`agreementRate === null` has two distinct causes and the report must say which.** The flip gate
+tripping is one; `comparable === 0` is the other, and it is not remote — #228 found `citedPara`
+naming neither candidate in **6 of 15** rows, so `comparable` starts at 9 before a single flip or
+abstention. Printing "the flip gate tripped" when it did not would make the run's own output
+assert §3's outcome 1 while the data is outcome 2 or 3, which §13 requires the findings doc to get
+right.
 
 **A pair that flipped is excluded from the last two metrics**, since it has no stable answer to
 compare. Excluded, not resolved by taking one ordering: picking one would be picking the answer.
@@ -149,15 +171,25 @@ Each is a test that fails if the guard is removed.
 3. **`unsure` and unparseable are distinct**, tested on the parser: `{"pick":"unsure"}` returns an
    abstention, garbage returns null, and null is never coerced to an abstention.
 4. **Cache-miss abort** and **empty-population abort**, matching the existing replay runners.
-5. **Every row is printed** — quotation head, both paragraph ids, both orderings' picks, whether
-   it flipped, and whether it agreed. Fifteen rows is small enough to publish whole, and every
+5. **Every row is printed** — quotation head, both paragraph ids, **each ordering's pick
+   separately**, whether it flipped, whether it agreed, and **both paragraph lengths and overlap
+   scores**. A single collapsed flag is not enough: a `FLIPPED` row must show which way each
+   ordering went, an unparseable row must show which ordering failed, and `agreed` must be printed
+   rather than left for the reader to re-derive by applying the digit rule by eye. The lengths and
+   overlaps are there to make §10's length-bias limit testable against any positive result. Fifteen rows is small enough to publish whole, and every
    aggregate above must be checkable against them. The anchor-signals report published all 15
    declines for the same reason, and the two instrument bugs it found were both caught that way.
    Note this is **our report, not the judge prompt**: §5 excludes the paragraph ids from what the
    judge sees, and printing them afterwards is what makes the run auditable. The two audiences
    must not be confused — leaking an id into the prompt would break the blinding this whole
    design rests on, which is why guard 2 tests the prompt's contents directly.
-6. **Reconciliation**: `consistent + flipped + unparseable === pairs`, asserted before printing.
+6. **Reconciliation**: every row lands in exactly one of the three buckets, asserted before
+   printing — but computed **independently of the branch that assigns the bucket**. Classifying
+   each row into a label and tallying by label, then comparing against the counters incremented
+   inside the branches, is a check that can fire. `consistent + flipped + unparseable === pairs`
+   computed from those same branches is an *identity*: the three cases are exhaustive by
+   construction, so the assertion can never trigger. A sibling branch shipped exactly that
+   unreachable assertion and its test passed on the identity rather than the guard.
 7. **Production behaviour unchanged**, proved rather than asserted. Because §11 now modifies
    `summarizer.ts`, "no production file touched" is no longer available as the check. Replaced by a
    differential: run `verifyClaims` over randomized synthetic corpora on both the branch and
@@ -176,6 +208,14 @@ Each is a test that fails if the guard is removed.
   declining was right.
 - **A shared blind spot is invisible.** If the judge and the summarizer misread the same
   near-miss the same way, they agree for the wrong reason and nothing here detects it.
+- **Position bias is controlled; length and salience bias are not.** In this population
+  `citedPara` names `best` twice as often as `rival` (6:3, #228), so *any* judge heuristic that
+  correlates with `best` — prefer the longer paragraph, prefer the one where the matching run
+  starts earlier, prefer the more formal register — yields above-chance agreement without reading
+  the wording. §4's order swap controls exactly one such heuristic and does nothing for the
+  others. That is why §9.5 requires the paragraph lengths and overlaps in the row output: a reader
+  can then test "the judge just picked the longer text" against any positive. Untested is not the
+  same as absent, and outcome 4 in §3 is not distinguishable from a length heuristic without it.
 
 ## 11. Units
 

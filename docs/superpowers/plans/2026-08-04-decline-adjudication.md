@@ -37,7 +37,7 @@ Verified on this branch; do not re-derive.
 - **Copy the replay skeleton from `scripts/cases-anchor-signals.ts`** — the cache key (`sha256(modelId + "\n" + prompt).slice(0,32)`), `readCache`, the curated-summary skip (`if (c.summary && c.summaryMeta?.method !== "llm") { curated++; continue; }`), and the cache-miss `throw`. Do not reinvent them; a partial replay measures an unrepresentative population, which is the failure this line of work keeps hitting.
 - **The judge model default is `us.anthropic.claude-opus-4-5-20251101-v1:0`** — verified invocable by a real Converse call. Two ids written from memory into an earlier spec were dead and a third was listed `ACTIVE` yet "not available for this account", so do not substitute one.
 - **Digit-normalised comparison, for comparability with #228.** That report compared `citedPara` to a paragraph id on the first digit run (`s?.match(/\d+/)?.[0]`). The tally must use the same rule or the two reports cannot be read side by side.
-- **`citedPara` names NEITHER candidate in 4 of the 15.** From #228's published rows. Those cannot contribute to an agreement measurement in either direction and must be their own bucket, excluded from the denominator — counting them as disagreements would manufacture a negative.
+- **`citedPara` names NEITHER candidate in 6 of the 15.** From #228's published rows. Those cannot contribute to an agreement measurement in either direction and must be their own bucket, excluded from the denominator — counting them as disagreements would manufacture a negative.
 
 ## File Structure
 
@@ -386,7 +386,7 @@ Insert into `scripts/test-cases-adjudicate.ts`, before the final `console.log`:
       // unparseable in one ordering -> its own bucket, never an abstention
       row({ first: "best", second: null }),
       // consistent + decided, but cited names NEITHER candidate. Cannot agree or disagree;
-      // counting it as a disagreement would manufacture a negative. #228 found 4 of 15 here.
+      // counting it as a disagreement would manufacture a negative. #228 found 6 of 15 here.
       row({ citedPara: "para-77" }),
     ]);
 
@@ -542,7 +542,7 @@ export function tally(rows: readonly PairRow[]): Tally {
     decided++;
     const namesBest = same(r.citedPara, r.bestPara), namesRival = same(r.citedPara, r.rivalPara);
     // citedPara pointing somewhere else entirely cannot agree OR disagree with the judge.
-    // #228 found 4 of 15 rows here; scoring them as disagreements would manufacture a negative.
+    // #228 found 6 of 15 rows here; scoring them as disagreements would manufacture a negative.
     if (!namesBest && !namesRival) { citedNamesNeither++; continue; }
     if ((r.first === "best" && namesBest) || (r.first === "rival" && namesRival)) agreed++;
   }
@@ -632,7 +632,7 @@ Four denominators, each narrowing, each with its exclusion stated. Two matter mo
 a FLIPPED pair is excluded from abstention and agreement because it has no stable answer
 to compare, and resolving it by taking one ordering would be picking the answer; and a row
 where citedPara names NEITHER candidate is its own bucket, because it can neither agree nor
-disagree and scoring it as a disagreement would manufacture a negative — #228 found 4 of 15
+disagree and scoring it as a disagreement would manufacture a negative — #228 found 6 of 15
 rows there.
 
 The flip gate WITHHOLDS agreementRate and p as null rather than flagging them, so a caller
