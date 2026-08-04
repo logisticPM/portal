@@ -399,7 +399,9 @@ Insert into `scripts/test-cases-adjudicate.ts`, before the final `console.log`:
     assert.equal(t.citedNamesNeither, 1);
     assert.equal(t.comparable, 2, "decided minus cited-names-neither");
     assert.equal(t.agreed, 1);
-    assert.ok(Math.abs(t.agreementRate - 0.5) < 1e-9, "1 of 2 comparable");
+    // Null-checked because agreementRate is `number | null` (the flip gate withholds it) and
+    // this repo is strict — TS18047 otherwise. Same pattern the binomial block below uses for t.p.
+    assert.ok(t.agreementRate !== null && Math.abs(t.agreementRate - 0.5) < 1e-9, "1 of 2 comparable");
 
     // Reconciliation must hold and be asserted, not assumed.
     assert.equal(t.consistent + t.flipped + t.unparseable, t.pairs);
