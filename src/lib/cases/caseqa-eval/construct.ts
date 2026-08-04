@@ -50,6 +50,14 @@ export const MIN_TARGET_AVG_LINE = 200;
 // `filter(Boolean)` rather than a trim-based filter, matching EXACTLY how the corpus was
 // measured — a whitespace-only line is counted, which lowers the average and therefore errs
 // toward rejection. Changing this definition invalidates the thresholds above.
+//
+// Unmeasured false-rejection class (FIX 8, 2026-08-04 review): chunks are split on BLANK
+// LINES only (ingest), so a body paragraph that quotes a statutory provision laid out as
+// (a)/(b)/(c) items on single-newline-separated lines stays one chunk of short lines and is
+// rejected here — and quoted statutory text is exactly what a lay question is most likely to
+// be about. The six-judgment measurement behind MIN_TARGET_AVG_LINE sampled captions, party
+// lists, counsel lists and tables of contents; it did not sample in-body block quotes, so this
+// false-positive rate is unmeasured, not zero.
 export function isProseShaped(text: string): boolean {
   const lines = text.split("\n").filter(Boolean);
   if (!lines.length) return false;
@@ -75,6 +83,15 @@ export interface TargetDraw {
   // concluded it did nothing. Spec §7.6 requires the counters to show which stage is doing the
   // work, and only this one shows stage 1 at all in the common case.
   paragraphsRejectedByShape: number;
+  // FIX 2 (2026-08-04 review). The loop below `break`s the moment `targets.length >= count`, so
+  // cases after that point are never inspected — the three shape counters above therefore
+  // describe a PREFIX of the corpus, not the whole population, while the runner prints them
+  // next to a whole-corpus `casesWithChunks`. Without this number a run where the first 43
+  // shuffled cases happen to be clean prints all-zero rejection counts, which is
+  // indistinguishable from "the corpus has no front matter" — and a reader cannot reconcile,
+  // say, 500 cases / 40 targets / 0 rejections (460 cases unaccounted for). Spec §7.6 now
+  // requires it printed alongside the shape counters.
+  casesExamined: number;
 }
 
 // One target paragraph per case, for up to `count` cases. Cases with no eligible paragraph are
@@ -82,11 +99,14 @@ export interface TargetDraw {
 // instead of being quietly backfilled.
 export function pickTargets(cases: readonly CaseLike[], seed: number, count: number): TargetDraw {
   const targets: Target[] = [];
-  let noLongPara = 0, rejectedByShape = 0, paragraphsRejectedByShape = 0;
+  let noLongPara = 0, rejectedByShape = 0, paragraphsRejectedByShape = 0, casesExamined = 0;
   // Case-level shuffle uses the bare `seed` (unchanged); the paragraph shuffle below is keyed
   // per-case (`i`, this case's position in that shuffled order).
   for (const [i, c] of seededShuffle(cases, seed).entries()) {
     if (targets.length >= count) break;
+    // Counted the moment a case is actually inspected (after the early-exit check above), so
+    // this is exactly the prefix the shape counters below are drawn from — see TargetDraw.
+    casesExamined++;
     const longEnough = (c.chunks ?? []).filter((ch) => ch.text.length >= MIN_TARGET_PARA_CHARS);
     if (!longEnough.length) { noLongPara++; continue; }
     // Stage 1: a long chunk can still be a caption, a party list or a table of contents.
@@ -103,7 +123,7 @@ export function pickTargets(cases: readonly CaseLike[], seed: number, count: num
     const ch = seededShuffle(eligible, seed + i + 1)[0];
     targets.push({ caseId: c.id, paragraph: ch.paragraph, text: ch.text });
   }
-  return { targets, noLongPara, rejectedByShape, paragraphsRejectedByShape };
+  return { targets, noLongPara, rejectedByShape, paragraphsRejectedByShape, casesExamined };
 }
 
 // Normalised on both sides before matching, or "the   Crown" would slip past a check that

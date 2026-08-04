@@ -60,9 +60,29 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     assert.equal(isProseShaped(shaped(52, 37)), false, "a caption block (52 lines, avg 37) must be rejected");
     assert.equal(isProseShaped(shaped(74, 25)), false, "a table of contents (74 lines, avg 25) must be rejected");
     assert.equal(isProseShaped(shaped(1, 2042)), true, "a single long paragraph must be accepted");
-    // Boundary, exactly at and just under.
+    // Boundary, exactly at and just under (parameterised by the constant — catches an
+    // off-by-one in the comparison itself, e.g. `>` instead of `>=`).
     assert.equal(isProseShaped(shaped(1, MIN_TARGET_AVG_LINE + 1)), true, "at the threshold must pass");
     assert.equal(isProseShaped(shaped(10, MIN_TARGET_AVG_LINE - 50)), false, "under the threshold must fail");
+    // FIX 3 (2026-08-04 review): the two assertions above are expressed IN TERMS OF the
+    // constant, so if the constant itself drifts — the reviewer set MIN_TARGET_AVG_LINE to 150
+    // and every assertion in this block, including the one 50-chars-under one above, stayed
+    // green, because 149.9 is under 150 just as surely as it is under 200 — they drift right
+    // along with it and catch nothing. These two are pinned with LITERAL numbers instead, so
+    // moving the constant cannot move the test with it:
+    //   shaped(n, avg) joins `n` lines of length `avg - 1` with `n - 1` newlines, so
+    //   text.length = n*avg - 1 and the computed average is exactly avg - 1/n.
+    // shaped(1, 201): avg = 201 - 1/1 = 200.0 exactly — the literal spec threshold.
+    assert.equal(shaped(1, 201).length, 200, "arithmetic check: this fixture must actually compute to avg 200.0");
+    assert.equal(isProseShaped(shaped(1, 201)), true,
+      "avg 200.0, pinned as a literal number (not MIN_TARGET_AVG_LINE + 1)");
+    // shaped(1, 200): avg = 200 - 1/1 = 199.0 exactly — one unit under the literal threshold.
+    // This is the assertion that actually catches the drift: with the threshold moved to 150,
+    // 199.0 >= 150 is true, so a mutant that lowered the constant would flip this to `true` and
+    // this line — expecting `false`, pinned independently of the constant — fails.
+    assert.equal(shaped(1, 200).length, 199, "arithmetic check: this fixture must actually compute to avg 199.0");
+    assert.equal(isProseShaped(shaped(1, 200)), false,
+      "avg 199.0, one unit under the literal 200 threshold (not MIN_TARGET_AVG_LINE - 1)");
     // Degenerate input must not throw or divide by zero.
     assert.equal(isProseShaped(""), false);
     assert.equal(isProseShaped("\n\n\n"), false, "no non-empty line means no prose");
@@ -110,6 +130,32 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     // wrong-shape paragraph over the floor, so this is the caption alone.
     assert.equal(d2.paragraphsRejectedByShape, 1, "the caption paragraph itself");
     assert.ok(d2.noLongPara >= 1, "c3 has no paragraph over the floor");
+
+    // FIX 1 (2026-08-04 review) — the DISCRIMINATING fixture. The reviewer proved the "cap"
+    // fixture above is not enough: it has ONLY a caption, so `rejectedByShape` (case-level) and
+    // `paragraphsRejectedByShape` (paragraph-level) both read 1, and an implementation that
+    // simply aliased `paragraphsRejectedByShape = rejectedByShape` — exactly the confusion this
+    // counter exists to prevent — would pass it too. This fixture is modelled on the REAL case
+    // that motivated the filter: 2002-bcsc-1199 para-1 is the docket caption that slipped
+    // through as a target in the smoke run, but that SAME case has two good body paragraphs.
+    // Only a fixture where the case-level and paragraph-level counters must DIVERGE (0 vs 1)
+    // can distinguish the real counter from an alias of the other one.
+    const discriminating = { id: "2002-bcsc-1199", chunks: [
+      { paragraph: "para-1", text: caption },                          // the docket caption
+      { paragraph: "para-2", text: long(MIN_TARGET_PARA_CHARS, "E") },  // good body prose
+      { paragraph: "para-3", text: long(MIN_TARGET_PARA_CHARS, "F") },  // good body prose
+    ] };
+    const d3 = pickTargets([discriminating], 1, 10);
+    assert.equal(d3.targets.length, 1,
+      "the case must still be SAMPLED — it has two usable paragraphs despite the caption");
+    assert.equal(d3.targets[0].caseId, "2002-bcsc-1199");
+    assert.notEqual(d3.targets[0].paragraph, "para-1", "the caption itself must never be the chosen target");
+    assert.equal(d3.rejectedByShape, 0,
+      "the case-level counter must stay 0 — the case IS sampled, via para-2 or para-3, exactly " +
+      "as the real 2002-bcsc-1199 run did");
+    assert.equal(d3.paragraphsRejectedByShape, 1,
+      "the paragraph-level counter must still increment for the rejected caption — this is the " +
+      "one fixture that kills an implementation that aliases paragraphsRejectedByShape to rejectedByShape");
   }
 
   // --- pickTargets: paragraph choice is a per-case draw, not one shared draw --------
@@ -131,6 +177,37 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     const p2 = picked.find((p) => p.caseId === "same-count-2")!;
     assert.notEqual(origIndex(p1), origIndex(p2),
       "two cases with the same eligible-paragraph count must not be forced onto the same original index");
+  }
+
+  // --- pickTargets: casesExamined counts a PREFIX, not the corpus (FIX 2, 2026-08-04 review) ---
+  // pickTargets breaks out of its loop the moment it has `count` targets, so cases after that
+  // point are never inspected — the three shape counters therefore describe a prefix of the
+  // corpus, not the whole population. Without casesExamined, a run where the first N shuffled
+  // cases happen to be clean prints all-zero rejection counts, indistinguishable from "the
+  // corpus has no front matter", and a reader cannot reconcile e.g. 500 cases / 40 targets / 0
+  // rejections against a whole-corpus casesWithChunks.
+  {
+    const long = (n: number, tag: string) => tag + "x".repeat(n);
+    const allEligible = Array.from({ length: 10 }, (_, i) => ({
+      id: `e${i}`, chunks: [{ paragraph: "para-1", text: long(MIN_TARGET_PARA_CHARS, `E${i}`) }],
+    }));
+    const stoppedEarly = pickTargets(allEligible, 1, 3);
+    assert.equal(stoppedEarly.targets.length, 3, "count caps the targets found");
+    assert.equal(stoppedEarly.casesExamined, 3,
+      "must stop counting the moment the cap is hit — the other 7 cases were never inspected, " +
+      "so casesExamined must NOT read 10");
+
+    const smallPopulation = Array.from({ length: 3 }, (_, i) => ({
+      id: `s${i}`, chunks: [{ paragraph: "para-1", text: long(MIN_TARGET_PARA_CHARS, `S${i}`) }],
+    }));
+    const examinedAll = pickTargets(smallPopulation, 1, 10); // cap of 10 is never reached
+    assert.equal(examinedAll.casesExamined, 3, "when the cap is never reached, every case examined counts");
+
+    // Rejections still count as "examined": a case that fails stage 1 was inspected, not skipped.
+    const rejectedButExamined = pickTargets(
+      [{ id: "no-para", chunks: [{ paragraph: "para-1", text: "Too short." }] }], 1, 10);
+    assert.equal(rejectedButExamined.casesExamined, 1,
+      "a case rejected for having no long-enough paragraph was still examined");
   }
 
   // --- isLexicalGimme: rejects a long verbatim run, at the boundary ----------------
@@ -367,11 +444,20 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       casesWithChunks: 500, targets: 40, built: 38, gimmes: 1, writerFails: 1, writerMalformed: 6,
       pairs: 18, discardedPairs: 2, addressedFails: 1,
       pairingExhausted: 3, targetDroppedByBudget: 4,
-      noLongPara: 11, targetsRejectedByShape: 12, targetsRejectedByJudge: 13, targetJudgeUnparsed: 14,
-      paragraphsRejectedByShape: 15,
+      // FIX 1 (2026-08-04 review): these six were 11/12/13/14/15 before, and the reviewer
+      // proved `p.includes("15")` for paragraphsRejectedByShape passed even with the line that
+      // prints it DELETED entirely — because the fixture's own `asOf: "2026-07-15"` ends in
+      // "15", coincidentally satisfying the check on its own. Every value below is a two- or
+      // three-digit prime with no shared two-digit substring against any other field here
+      // (seed 7; the digit-pairs inside "2026-07-15", which are only "20","02","26","07","15";
+      // casesWithChunks 500; targets 40; built 38; pairs 18; and the small 1-6 counts) or
+      // against each other, so no accidental match can substitute for the real line.
+      casesExamined: 149,
+      noLongPara: 61, targetsRejectedByShape: 67, paragraphsRejectedByShape: 79,
+      targetsRejectedByJudge: 83, targetJudgeUnparsed: 97,
     });
     ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15", "3", "4", "6",
-     "11", "12", "13", "14", "15"].forEach((s) =>
+     "149", "61", "67", "79", "83", "97"].forEach((s) =>
       assert.ok(p.includes(s), `provenance must include ${s}`));
     // asOf is the corpus stamp: without it a reader cannot tell a prompt regression from the
     // corpus growing underneath a reproducibility-by-seed sample (spec §7 guard 5).
@@ -380,13 +466,26 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     // FIX B/D named counters must reach the provenance line too, not just exist internally.
     assert.ok(/exhausted/i.test(p), "the pairing-exhausted count must be named, not just discardedPairs");
     assert.ok(/budget/i.test(p), "the target-dropped-by-budget count must be named");
+    // FIX 1: pin the LABEL itself, the same way /exhausted/i and /budget/i already pin theirs.
+    // A numeric-only check cannot tell "the line was deleted" from "the number coincidentally
+    // matched something else" — this is what a bare `.includes("79")` alone cannot catch, and
+    // what the mutant that deletes the paragraphsRejectedByShape print line must fail.
+    assert.ok(/paragraphs[^\n]*rejected by the line-shape test/i.test(p),
+      "the paragraph-level shape-rejection line must be present, labelled distinctly from the case-level line");
+    // FIX 2: casesExamined must be labelled, not just a bare number indistinguishable from any
+    // other count in the block.
+    assert.ok(/cases examined/i.test(p), "casesExamined must be labelled");
+    // FIX 6: the case-level and paragraph-level shape counts overlap (a fully-rejected case's
+    // paragraphs are counted in both), and that must be stated or a reader can sum them as if
+    // they were disjoint.
+    assert.ok(/overlap/i.test(p), "the case/paragraph overlap must be disclosed, not left implicit");
   }
 
   // --- guard 7: the chosen targets are printed ------------------------------------
   // The caption bug survived a whole run for one reason: nothing showed what the instrument
   // had picked. An aggregate over an unseen sample is not evidence.
   {
-    const { formatChosenTargets } = await import("../src/lib/cases/caseqa-eval/guards");
+    const { formatChosenTargets, TARGET_PREVIEW_CHARS } = await import("../src/lib/cases/caseqa-eval/guards");
     const out = formatChosenTargets([
       { caseId: "2002-bcsc-1199", paragraph: "para-4", text: "The plaintiff joined Canada as a defendant to these actions in October and November of 2000, and Canada takes no position on the relief sought." },
       { caseId: "2008-scc-41", paragraph: "para-34", text: "Short one." },
@@ -395,14 +494,56 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     assert.ok(out.includes("para-4"), "the paragraph id must appear");
     assert.ok(out.includes("The plaintiff joined Canada"), "the text must appear");
     assert.ok(out.includes("2008-scc-41") && out.includes("para-34"), "every target must appear");
+    // FIX 10 (2026-08-04 review, spec §7.7): this block prints BEFORE question construction, so
+    // a target later dropped as a gimme, malformed, or outside the assembly budget still
+    // appears here — the header must say so, or the row count will not reconcile with `built`.
+    assert.ok(/superset/i.test(out), "the header must state the block is a superset of what gets measured");
     // Long text is truncated so the block stays readable at 40 targets, but the head must
     // be enough to recognise a caption on sight.
     const long = formatChosenTargets([{ caseId: "c", paragraph: "p", text: "y".repeat(400) }]);
     assert.ok(long.includes("y".repeat(120)), "at least 120 characters must survive");
     assert.ok(!long.includes("y".repeat(200)), "and it must not print the whole paragraph");
+    // FIX 9 (2026-08-04 review): the two assertions above only bracket the constant into
+    // [120, 199] — anything in that range would still pass both. Pin it directly instead, so
+    // it cannot drift from the spec §7.7 value of 120 without this failing.
+    assert.equal(TARGET_PREVIEW_CHARS, 120, "spec §7.7 pins the preview length to exactly 120");
     // Empty must not throw — it is a real state (everything rejected) and the caller aborts
     // on it separately.
     assert.equal(typeof formatChosenTargets([]), "string");
+  }
+
+  // --- screenSubstantiveTargets: stage 2 wiring extracted from the runner (FIX 4, 2026-08-04
+  // review) --------------------------------------------------------------------------------
+  // Guard 6 asserts this about stage 2: null is counted apart from `false` and never defaulted,
+  // `false` increments targetsRejectedByJudge (not targetJudgeUnparsed), there is no backfill on
+  // rejection, and survivors are exactly the accepted candidates, in order. Before this fix all
+  // of that lived as a ~12-line loop inside main() in scripts/cases-caseqa-eval.ts, which this
+  // test file never imports — only the parser (parseSubstantive) and the prompt text were
+  // tested, not the wiring. Concretely, someone could collapse the `=== null` and `!substantive`
+  // branches into one, and typecheck plus every OTHER test here would still pass while
+  // "substance screen unparseable" printed 0 forever.
+  {
+    const { screenSubstantiveTargets } = await import("../src/lib/cases/caseqa-eval/substanceScreen");
+    const candidates = [
+      { caseId: "keep-1" }, { caseId: "reject" }, { caseId: "unparsed" }, { caseId: "keep-2" },
+    ];
+    const verdicts: Record<string, boolean | null> = {
+      "keep-1": true, "reject": false, "unparsed": null, "keep-2": true,
+    };
+    const calls: string[] = [];
+    const r = await screenSubstantiveTargets(candidates, async (c) => {
+      calls.push(c.caseId);
+      return verdicts[c.caseId];
+    });
+    assert.deepEqual(calls, candidates.map((c) => c.caseId),
+      "every candidate must be screened exactly once, in order — no backfill on rejection");
+    assert.deepEqual(r.targets.map((t) => t.caseId), ["keep-1", "keep-2"],
+      "survivors must be EXACTLY the accepted candidates, in their original order");
+    assert.equal(r.targetsRejectedByJudge, 1, "false must increment targetsRejectedByJudge");
+    assert.equal(r.targetJudgeUnparsed, 1,
+      "null must increment targetJudgeUnparsed, counted apart from a false — never defaulted to either");
+    assert.equal(r.targets.length + r.targetsRejectedByJudge + r.targetJudgeUnparsed, candidates.length,
+      "every candidate must land in exactly one bucket — nothing dropped silently");
   }
 
   // --- pairing: candidate drawing (FIX B, 2026-08-03 review) -----------------------

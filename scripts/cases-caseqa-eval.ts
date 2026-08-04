@@ -14,8 +14,9 @@ import { answerCaseQuestion } from "../src/lib/cases/caseqa/generator";
 import { pickTargets, buildQuestionPrompt, isLexicalGimme, isWellFormedQuestion } from "../src/lib/cases/caseqa-eval/construct";
 import { buildFaithfulnessPrompt, parseVerdict, buildAddressedPrompt, parseAddressed, buildSubstantivePrompt, parseSubstantive, type Verdict } from "../src/lib/cases/caseqa-eval/judge";
 import { score, type EvalRecord, type ClaimRecord, type FaithfulnessTally } from "../src/lib/cases/caseqa-eval/metrics";
-import { assertDistinctModels, formatProvenance, formatChosenTargets } from "../src/lib/cases/caseqa-eval/guards";
+import { assertDistinctModels, formatProvenance, formatChosenTargets, formatTargetEligibility } from "../src/lib/cases/caseqa-eval/guards";
 import { buildUnanswerablePairs } from "../src/lib/cases/caseqa-eval/pairing";
+import { screenSubstantiveTargets } from "../src/lib/cases/caseqa-eval/substanceScreen";
 import { SCREENING } from "../src/lib/cases/screening";
 
 const SEED = Number(process.env.EVAL_SEED ?? 1);
@@ -91,12 +92,15 @@ async function main() {
   // zeros and exited 0 on 2026-08-02.
   if (!cases.length) throw new Error("no core case has chunks — this run would measure nothing");
 
-  // Built before target selection because stage 2 needs each candidate's styleOfCause. The
-  // existing `byId` below is left as-is so nothing downstream changes.
-  const byIdAll = new Map(cases.map((c) => [c.id, c]));
+  // FIX 7 (2026-08-04 review): this used to exist twice — `byIdAll` here and an identical
+  // `byId` built again below, after `formatChosenTargets`, with a comment claiming a
+  // distinction ("built before target selection... left as-is so nothing downstream changes")
+  // that never existed: both were `new Map(cases.map((c) => [c.id, c]))` over the same `cases`.
+  // One map, built once, used by both stage 2 (below) and everything after it.
+  const byId = new Map(cases.map((c) => [c.id, c]));
 
   const { targets: shapedTargets, noLongPara, rejectedByShape: targetsRejectedByShape,
-    paragraphsRejectedByShape } =
+    paragraphsRejectedByShape, casesExamined } =
     pickTargets(cases, SEED, N_ANSWERABLE);
 
   // Stage 2 (spec §3): stage 1's line-shape test cannot catch back matter — a solicitors'
@@ -104,23 +108,47 @@ async function main() {
   // call per candidate. No backfill on rejection: a skipped case stays skipped, matching what
   // the character floor already does, so the sample stays a function of the seed rather than
   // of the rejection rate.
-  let targetsRejectedByJudge = 0, targetJudgeUnparsed = 0;
-  const targets: typeof shapedTargets = [];
-  for (const t of shapedTargets) {
-    const c = byIdAll.get(t.caseId)!;
-    const substantive = parseSubstantive(await judge.call(buildSubstantivePrompt(t.text, c.styleOfCause)));
-    // Unparseable is counted apart from a `false` and never defaulted: defaulting to true
-    // readmits the front matter this stage exists to exclude, and defaulting to false shrinks
-    // the sample on the strength of a judge failure. Neither is a claim we have earned.
-    if (substantive === null) { targetJudgeUnparsed++; continue; }
-    if (!substantive) { targetsRejectedByJudge++; continue; }
-    targets.push(t);
-  }
+  //
+  // FIX 4 (2026-08-04 review): this used to be a ~12-line loop right here in `main()`, which
+  // the test file could never import or exercise — only `parseSubstantive` (the parser) and
+  // the prompt text were tested, not the wiring that counts rejections and assembles
+  // survivors. `screenSubstantiveTargets` (caseqa-eval/substanceScreen.ts) is that wiring,
+  // extracted as a pure function with the judge call injected, the same shape as
+  // `buildUnanswerablePairs` in pairing.ts.
+  const { targets, targetsRejectedByJudge, targetJudgeUnparsed } = await screenSubstantiveTargets(
+    shapedTargets,
+    async (t) => parseSubstantive(await judge.call(buildSubstantivePrompt(t.text, byId.get(t.caseId)!.styleOfCause))),
+  );
   if (!targets.length) {
-    throw new Error("every candidate target was rejected by the shape filter or the substance screen — nothing to measure");
+    // FIX 5 (2026-08-04 review): this is the one run where these counters matter most — up to
+    // 40 paid judge calls just spent, and nothing left to measure — yet `formatProvenance` is
+    // not reached until after question construction, pairing and answering, all of which are
+    // skipped when we throw here. Print what's known now, before throwing, rather than making
+    // the operator re-run with more logging to find out why.
+    console.log(formatTargetEligibility({
+      casesExamined, noLongPara, targetsRejectedByShape, paragraphsRejectedByShape,
+      targetsRejectedByJudge, targetJudgeUnparsed,
+    }));
+    // The old message unconditionally named "the shape filter or the substance screen" as if
+    // those were the only two possible causes. Two scenarios that message misdescribes: (a)
+    // EVAL_ANSWERABLE=0 — a plausible operator action to run only unanswerables — for which
+    // casesExamined is 0 and NEITHER named filter rejected anything; and (b) every case simply
+    // lacking a paragraph over the length floor, which is `noLongPara`, a filter this message
+    // never named at all. State what the counts actually say instead.
+    const reasons: string[] = [];
+    if (casesExamined === 0) {
+      reasons.push(`0 cases were examined (EVAL_ANSWERABLE=${N_ANSWERABLE} — set it above 0 to sample any targets)`);
+    }
+    if (noLongPara > 0) reasons.push(`${noLongPara} case(s) had no paragraph over the length floor`);
+    if (targetsRejectedByShape > 0) reasons.push(`${targetsRejectedByShape} case(s) rejected by the line-shape test (stage 1)`);
+    if (targetsRejectedByJudge > 0) reasons.push(`${targetsRejectedByJudge} case(s) judged not substantive (stage 2)`);
+    if (targetJudgeUnparsed > 0) reasons.push(`${targetJudgeUnparsed} case(s) had an unparseable stage-2 verdict`);
+    const why = reasons.length
+      ? reasons.join("; ")
+      : "no case was examined and no filter rejected anything — check the corpus population";
+    throw new Error(`no eligible target survived out of ${casesExamined} case(s) examined — ${why}`);
   }
   console.log(formatChosenTargets(targets));
-  const byId = new Map(cases.map((c) => [c.id, c]));
 
   // --- construct questions -------------------------------------------------------
   let gimmes = 0, writerFails = 0, writerMalformed = 0;
@@ -250,7 +278,7 @@ async function main() {
     pairs: pairs.length, discardedPairs, addressedFails,
     pairingExhausted, targetDroppedByBudget,
     noLongPara, targetsRejectedByShape, paragraphsRejectedByShape,
-    targetsRejectedByJudge, targetJudgeUnparsed,
+    targetsRejectedByJudge, targetJudgeUnparsed, casesExamined,
   }));
   console.log(`(requested ${N_ANSWERABLE} answerable / ${N_UNANSWERABLE} unanswerable)`);
 
