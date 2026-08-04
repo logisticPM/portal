@@ -12,9 +12,9 @@ import { modelFromId, cachedModel } from "../src/lib/cases/ingest/llm";
 import { assembleInput } from "../src/lib/cases/ingest/summarizer";
 import { answerCaseQuestion } from "../src/lib/cases/caseqa/generator";
 import { pickTargets, buildQuestionPrompt, isLexicalGimme, isWellFormedQuestion } from "../src/lib/cases/caseqa-eval/construct";
-import { buildFaithfulnessPrompt, parseVerdict, buildAddressedPrompt, parseAddressed, type Verdict } from "../src/lib/cases/caseqa-eval/judge";
+import { buildFaithfulnessPrompt, parseVerdict, buildAddressedPrompt, parseAddressed, buildSubstantivePrompt, parseSubstantive, type Verdict } from "../src/lib/cases/caseqa-eval/judge";
 import { score, type EvalRecord, type ClaimRecord, type FaithfulnessTally } from "../src/lib/cases/caseqa-eval/metrics";
-import { assertDistinctModels, formatProvenance } from "../src/lib/cases/caseqa-eval/guards";
+import { assertDistinctModels, formatProvenance, formatChosenTargets } from "../src/lib/cases/caseqa-eval/guards";
 import { buildUnanswerablePairs } from "../src/lib/cases/caseqa-eval/pairing";
 import { SCREENING } from "../src/lib/cases/screening";
 
@@ -91,7 +91,34 @@ async function main() {
   // zeros and exited 0 on 2026-08-02.
   if (!cases.length) throw new Error("no core case has chunks — this run would measure nothing");
 
-  const targets = pickTargets(cases, SEED, N_ANSWERABLE);
+  // Built before target selection because stage 2 needs each candidate's styleOfCause. The
+  // existing `byId` below is left as-is so nothing downstream changes.
+  const byIdAll = new Map(cases.map((c) => [c.id, c]));
+
+  const { targets: shapedTargets, noLongPara, rejectedByShape: targetsRejectedByShape } =
+    pickTargets(cases, SEED, N_ANSWERABLE);
+
+  // Stage 2 (spec §3): stage 1's line-shape test cannot catch back matter — a solicitors'
+  // register and a list of authorities are long single lines that clear it. One cached judge
+  // call per candidate. No backfill on rejection: a skipped case stays skipped, matching what
+  // the character floor already does, so the sample stays a function of the seed rather than
+  // of the rejection rate.
+  let targetsRejectedByJudge = 0, targetJudgeUnparsed = 0;
+  const targets: typeof shapedTargets = [];
+  for (const t of shapedTargets) {
+    const c = byIdAll.get(t.caseId)!;
+    const substantive = parseSubstantive(await judge.call(buildSubstantivePrompt(t.text, c.styleOfCause)));
+    // Unparseable is counted apart from a `false` and never defaulted: defaulting to true
+    // readmits the front matter this stage exists to exclude, and defaulting to false shrinks
+    // the sample on the strength of a judge failure. Neither is a claim we have earned.
+    if (substantive === null) { targetJudgeUnparsed++; continue; }
+    if (!substantive) { targetsRejectedByJudge++; continue; }
+    targets.push(t);
+  }
+  if (!targets.length) {
+    throw new Error("every candidate target was rejected by the shape filter or the substance screen — nothing to measure");
+  }
+  console.log(formatChosenTargets(targets));
   const byId = new Map(cases.map((c) => [c.id, c]));
 
   // --- construct questions -------------------------------------------------------
@@ -221,6 +248,7 @@ async function main() {
     built: built.length, gimmes, writerFails, writerMalformed,
     pairs: pairs.length, discardedPairs, addressedFails,
     pairingExhausted, targetDroppedByBudget,
+    noLongPara, targetsRejectedByShape, targetsRejectedByJudge, targetJudgeUnparsed,
   }));
   console.log(`(requested ${N_ANSWERABLE} answerable / ${N_UNANSWERABLE} unanswerable)`);
 
