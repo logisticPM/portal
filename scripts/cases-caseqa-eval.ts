@@ -95,7 +95,8 @@ async function main() {
   // existing `byId` below is left as-is so nothing downstream changes.
   const byIdAll = new Map(cases.map((c) => [c.id, c]));
 
-  const { targets: shapedTargets, noLongPara, rejectedByShape: targetsRejectedByShape } =
+  const { targets: shapedTargets, noLongPara, rejectedByShape: targetsRejectedByShape,
+    paragraphsRejectedByShape } =
     pickTargets(cases, SEED, N_ANSWERABLE);
 
   // Stage 2 (spec §3): stage 1's line-shape test cannot catch back matter — a solicitors'
@@ -248,7 +249,8 @@ async function main() {
     built: built.length, gimmes, writerFails, writerMalformed,
     pairs: pairs.length, discardedPairs, addressedFails,
     pairingExhausted, targetDroppedByBudget,
-    noLongPara, targetsRejectedByShape, targetsRejectedByJudge, targetJudgeUnparsed,
+    noLongPara, targetsRejectedByShape, paragraphsRejectedByShape,
+    targetsRejectedByJudge, targetJudgeUnparsed,
   }));
   console.log(`(requested ${N_ANSWERABLE} answerable / ${N_UNANSWERABLE} unanswerable)`);
 

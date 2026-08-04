@@ -105,6 +105,10 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     // corpus, "long but wrong shape" is the front-matter filter doing its job. Merging them
     // would hide whether the shape threshold is throwing away real text.
     assert.equal(d2.rejectedByShape, 1, "the caption case");
+    // PARAGRAPH-level count, which is the only one that moves when a case survives through a
+    // different paragraph — exactly what 2002-bcsc-1199 does in the real corpus. c1 has no
+    // wrong-shape paragraph over the floor, so this is the caption alone.
+    assert.equal(d2.paragraphsRejectedByShape, 1, "the caption paragraph itself");
     assert.ok(d2.noLongPara >= 1, "c3 has no paragraph over the floor");
   }
 
@@ -364,9 +368,10 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       pairs: 18, discardedPairs: 2, addressedFails: 1,
       pairingExhausted: 3, targetDroppedByBudget: 4,
       noLongPara: 11, targetsRejectedByShape: 12, targetsRejectedByJudge: 13, targetJudgeUnparsed: 14,
+      paragraphsRejectedByShape: 15,
     });
     ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15", "3", "4", "6",
-     "11", "12", "13", "14"].forEach((s) =>
+     "11", "12", "13", "14", "15"].forEach((s) =>
       assert.ok(p.includes(s), `provenance must include ${s}`));
     // asOf is the corpus stamp: without it a reader cannot tell a prompt regression from the
     // corpus growing underneath a reproducibility-by-seed sample (spec §7 guard 5).

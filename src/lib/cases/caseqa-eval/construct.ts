@@ -67,6 +67,14 @@ export interface TargetDraw {
   targets: Target[];
   noLongPara: number;      // no paragraph reached MIN_TARGET_PARA_CHARS
   rejectedByShape: number; // had a long paragraph, none of them prose-shaped
+  // PARAGRAPH-level shape rejections, across every case examined. Distinct from
+  // `rejectedByShape`, which is case-level, and the distinction is not academic: the caption
+  // that motivated this filter lives in 2002-bcsc-1199, a case whose OTHER paragraphs are fine.
+  // Stage 1 excluded the caption and the case was still sampled through para-4, so the
+  // case-level counter read 0 on the very run that proved the filter works. A reader would have
+  // concluded it did nothing. Spec §7.6 requires the counters to show which stage is doing the
+  // work, and only this one shows stage 1 at all in the common case.
+  paragraphsRejectedByShape: number;
 }
 
 // One target paragraph per case, for up to `count` cases. Cases with no eligible paragraph are
@@ -74,7 +82,7 @@ export interface TargetDraw {
 // instead of being quietly backfilled.
 export function pickTargets(cases: readonly CaseLike[], seed: number, count: number): TargetDraw {
   const targets: Target[] = [];
-  let noLongPara = 0, rejectedByShape = 0;
+  let noLongPara = 0, rejectedByShape = 0, paragraphsRejectedByShape = 0;
   // Case-level shuffle uses the bare `seed` (unchanged); the paragraph shuffle below is keyed
   // per-case (`i`, this case's position in that shuffled order).
   for (const [i, c] of seededShuffle(cases, seed).entries()) {
@@ -83,6 +91,7 @@ export function pickTargets(cases: readonly CaseLike[], seed: number, count: num
     if (!longEnough.length) { noLongPara++; continue; }
     // Stage 1: a long chunk can still be a caption, a party list or a table of contents.
     const eligible = longEnough.filter((ch) => isProseShaped(ch.text));
+    paragraphsRejectedByShape += longEnough.length - eligible.length;
     if (!eligible.length) { rejectedByShape++; continue; }
     // Per-case seed, NOT the bare `seed`: a Fisher-Yates swap sequence for a given seed depends
     // only on the RNG stream and the array length, so reusing the same seed for every case's
@@ -94,7 +103,7 @@ export function pickTargets(cases: readonly CaseLike[], seed: number, count: num
     const ch = seededShuffle(eligible, seed + i + 1)[0];
     targets.push({ caseId: c.id, paragraph: ch.paragraph, text: ch.text });
   }
-  return { targets, noLongPara, rejectedByShape };
+  return { targets, noLongPara, rejectedByShape, paragraphsRejectedByShape };
 }
 
 // Normalised on both sides before matching, or "the   Crown" would slip past a check that

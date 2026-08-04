@@ -42,6 +42,10 @@ export interface Provenance extends ModelRoles {
   // a single merged number would absorb exactly that signal instead of showing it.
   noLongPara: number;
   targetsRejectedByShape: number;
+  // Paragraph-level, and the only counter that shows stage 1 working in the common case: the
+  // caption lives in a case whose other paragraphs are fine, so it is excluded without the
+  // case-level counter ever moving.
+  paragraphsRejectedByShape: number;
   targetsRejectedByJudge: number;
   targetJudgeUnparsed: number;
 }
@@ -62,7 +66,8 @@ export function formatProvenance(p: Provenance): string {
     `unanswerable pairs ${p.pairs} · discarded ${p.discardedPairs} (unparseable screen ${p.addressedFails})` +
       ` · candidates exhausted (no undrawn case left) ${p.pairingExhausted}`,
     `targets rejected — no paragraph over the length floor ${p.noLongPara}` +
-      ` · wrong shape (front matter) ${p.targetsRejectedByShape}`,
+      ` · every long paragraph the wrong shape ${p.targetsRejectedByShape}`,
+    `  individual paragraphs rejected as front matter ${p.paragraphsRejectedByShape}`,
     `  judged not substantive ${p.targetsRejectedByJudge} · substance screen unparseable ${p.targetJudgeUnparsed}`,
   ].join("\n");
 }
