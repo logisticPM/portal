@@ -22,9 +22,19 @@ const SEED = Number(process.env.EVAL_SEED ?? 1);
 const N_ANSWERABLE = Number(process.env.EVAL_ANSWERABLE ?? 40);
 const N_UNANSWERABLE = Number(process.env.EVAL_UNANSWERABLE ?? 20);
 
-const WRITER = process.env.EVAL_WRITER_MODEL ?? "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
+// Model ids are VERIFIED INVOCABLE on this account, not chosen from memory. The plan's
+// original defaults (claude-3-5-sonnet-20241022, claude-3-7-sonnet-20250219) were both dead:
+// the first smoke run aborted with "This model version has reached the end of its life."
+// A second guess (claude-opus-4-7) is listed ACTIVE by list-inference-profiles yet returned
+// "is not available for this account" — so ACTIVE in that listing does NOT mean invocable
+// here. Each id below was confirmed with a real one-token Converse call.
+//
+// WRITER: already proven in this repo by the briefs path. JUDGE: the strongest
+// confirmed-invocable model, because faithfulness is the one metric that needs judgment.
+// ANSWERER: the PRODUCT's own model — changing it would measure something else.
+const WRITER = process.env.EVAL_WRITER_MODEL ?? "us.anthropic.claude-sonnet-4-6";
 const ANSWERER = process.env.EVAL_ANSWER_MODEL ?? "us.meta.llama3-3-70b-instruct-v1:0";
-const JUDGE = process.env.EVAL_JUDGE_MODEL ?? "us.anthropic.claude-3-7-sonnet-20250219-v1:0";
+const JUDGE = process.env.EVAL_JUDGE_MODEL ?? "us.anthropic.claude-opus-4-5-20251101-v1:0";
 
 // FIX A (2026-08-03 review, BLOCKING): `modelFromId(id)` with no options defaults to
 // `maxTokens: 256` (ingest/llm.ts). That default was written for theme labels, not for this
@@ -266,5 +276,39 @@ async function main() {
   printFaithfulness("combined", m.faithfulness.combined);
   console.log(`  CONTRADICTED ${m.faithfulness.combined.counts.contradicted} — this is the count that must be zero`);
   console.log(`\n  claims dropped by verifyClaims across all answers: ${m.droppedClaims}`);
+
+  // Samples per verdict, so the RUBRIC can be audited and not just the totals.
+  //
+  // The first smoke run returned `overstated` as the second-largest bucket, and that bucket is
+  // where this instrument is most likely to measure itself rather than the product: the ask
+  // prompt demands "plain language a non-lawyer understands", and plain language drops
+  // qualifiers by nature, which is close to the rubric's definition of overstated. Whether
+  // those are real defects or the judge penalising the product for doing what it was told is
+  // not decidable from a count — it needs rows. Same discipline as publishing all 15 declines
+  // in the anchor-signals report: an aggregate nobody can check is not evidence.
+  //
+  // Costs nothing: every verdict is already in `records`.
+  const SAMPLES_PER_VERDICT = 3;
+  const byVerdict = new Map<string, string[]>();
+  for (const r of records) {
+    for (const cl of r.claims) {
+      const key = cl.verdict ?? "unparsed";
+      const bucket = byVerdict.get(key) ?? [];
+      if (bucket.length >= SAMPLES_PER_VERDICT) continue;
+      const para = (byId.get(r.caseId)?.chunks ?? []).find((ch) => ch.paragraph === cl.sourceParagraph);
+      bucket.push(
+        `${r.kind === "answerable" ? "A" : "U"} ${r.caseId} ${cl.sourceParagraph}\n` +
+        `        claim: ${JSON.stringify(cl.text)}\n` +
+        `        para:  ${JSON.stringify((para?.text ?? "<absent>").slice(0, 260))}`);
+      byVerdict.set(key, bucket);
+    }
+  }
+  console.log(`\n--- samples per verdict (A = answerable, U = unanswerable) ---`);
+  for (const v of ["contradicted", "unrelated", "overstated", "supported", "unparsed"]) {
+    const rows = byVerdict.get(v);
+    if (!rows?.length) continue;
+    console.log(`\n  ### ${v}`);
+    for (const row of rows) console.log(`  - ${row}`);
+  }
 }
 main().catch((e) => { console.error("❌ cases-caseqa-eval failed:", e instanceof Error ? e.message : String(e)); process.exit(1); });
