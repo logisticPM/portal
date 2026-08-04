@@ -207,6 +207,31 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     assert.equal(parseAddressed('{"addressed":"yes"}'), null);
   }
 
+  // --- parseSubstantive / buildSubstantivePrompt: stage 2 of target eligibility ------
+  {
+    const { buildSubstantivePrompt, parseSubstantive } =
+      await import("../src/lib/cases/caseqa-eval/judge");
+
+    assert.equal(parseSubstantive('{"substantive":true}'), true);
+    assert.equal(parseSubstantive('{"substantive":false}'), false);
+    assert.equal(parseSubstantive('```json\n{"substantive": false}\n```'), false, "fences must survive");
+    assert.equal(parseSubstantive('{"reason":"caption","substantive":false}'), false);
+    // Unparseable must be null and NEVER default. A judge failure that defaulted to `true`
+    // would readmit exactly the front matter this stage exists to exclude; defaulting to
+    // `false` would silently shrink the sample. Both are claims we have not earned.
+    assert.equal(parseSubstantive("I think so"), null);
+    assert.equal(parseSubstantive('{"substantive":"yes"}'), null, "a string is not a boolean");
+    assert.equal(parseSubstantive(""), null);
+
+    const p = buildSubstantivePrompt("The Crown must consult in good faith.", "Nation v Canada");
+    assert.ok(p.includes("The Crown must consult in good faith."), "the passage must be present");
+    assert.ok(p.includes("Nation v Canada"), "the case must be identified");
+    assert.ok(/substantive/.test(p), "the prompt must ask for the `substantive` field");
+    // The prompt must name the categories it is screening for, or the judge is guessing.
+    ["caption", "counsel", "contents", "authorities"].forEach((k) =>
+      assert.ok(new RegExp(k, "i").test(p), `the prompt must name ${k}`));
+  }
+
   // --- prompts carry what they must ------------------------------------------------
   {
     const f = buildFaithfulnessPrompt("The Crown had to consult first.", "The Crown must consult in good faith before issuing.");
