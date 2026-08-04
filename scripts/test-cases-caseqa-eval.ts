@@ -363,8 +363,10 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       casesWithChunks: 500, targets: 40, built: 38, gimmes: 1, writerFails: 1, writerMalformed: 6,
       pairs: 18, discardedPairs: 2, addressedFails: 1,
       pairingExhausted: 3, targetDroppedByBudget: 4,
+      noLongPara: 11, targetsRejectedByShape: 12, targetsRejectedByJudge: 13, targetJudgeUnparsed: 14,
     });
-    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15", "3", "4", "6"].forEach((s) =>
+    ["W-1", "A-1", "J-1", "7", "500", "40", "38", "18", "2026-07-15", "3", "4", "6",
+     "11", "12", "13", "14"].forEach((s) =>
       assert.ok(p.includes(s), `provenance must include ${s}`));
     // asOf is the corpus stamp: without it a reader cannot tell a prompt regression from the
     // corpus growing underneath a reproducibility-by-seed sample (spec §7 guard 5).
@@ -373,6 +375,29 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
     // FIX B/D named counters must reach the provenance line too, not just exist internally.
     assert.ok(/exhausted/i.test(p), "the pairing-exhausted count must be named, not just discardedPairs");
     assert.ok(/budget/i.test(p), "the target-dropped-by-budget count must be named");
+  }
+
+  // --- guard 7: the chosen targets are printed ------------------------------------
+  // The caption bug survived a whole run for one reason: nothing showed what the instrument
+  // had picked. An aggregate over an unseen sample is not evidence.
+  {
+    const { formatChosenTargets } = await import("../src/lib/cases/caseqa-eval/guards");
+    const out = formatChosenTargets([
+      { caseId: "2002-bcsc-1199", paragraph: "para-4", text: "The plaintiff joined Canada as a defendant to these actions in October and November of 2000, and Canada takes no position on the relief sought." },
+      { caseId: "2008-scc-41", paragraph: "para-34", text: "Short one." },
+    ]);
+    assert.ok(out.includes("2002-bcsc-1199"), "the case id must appear");
+    assert.ok(out.includes("para-4"), "the paragraph id must appear");
+    assert.ok(out.includes("The plaintiff joined Canada"), "the text must appear");
+    assert.ok(out.includes("2008-scc-41") && out.includes("para-34"), "every target must appear");
+    // Long text is truncated so the block stays readable at 40 targets, but the head must
+    // be enough to recognise a caption on sight.
+    const long = formatChosenTargets([{ caseId: "c", paragraph: "p", text: "y".repeat(400) }]);
+    assert.ok(long.includes("y".repeat(120)), "at least 120 characters must survive");
+    assert.ok(!long.includes("y".repeat(200)), "and it must not print the whole paragraph");
+    // Empty must not throw — it is a real state (everything rejected) and the caller aborts
+    // on it separately.
+    assert.equal(typeof formatChosenTargets([]), "string");
   }
 
   // --- pairing: candidate drawing (FIX B, 2026-08-03 review) -----------------------

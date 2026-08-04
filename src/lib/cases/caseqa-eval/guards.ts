@@ -35,6 +35,15 @@ export interface Provenance extends ModelRoles {
   // answerer — see the check beside `assembleInput` in the runner.
   pairingExhausted: number;
   targetDroppedByBudget: number;
+  // Target eligibility, spec §7.6 (2026-08-04). FOUR counters, not one total: `noLongPara` is
+  // a fact about the corpus, `targetsRejectedByShape` is stage 1 working, and the two judge
+  // counters separate "the judge said no" from "the judge could not be parsed". If stage 2
+  // starts rejecting most of what stage 1 passes, the deterministic threshold is wrong — and
+  // a single merged number would absorb exactly that signal instead of showing it.
+  noLongPara: number;
+  targetsRejectedByShape: number;
+  targetsRejectedByJudge: number;
+  targetJudgeUnparsed: number;
 }
 
 // Printed BEFORE any metric. Every discard is named as well as counted: a question set that
@@ -52,5 +61,26 @@ export function formatProvenance(p: Provenance): string {
     `answerable dropped — target paragraph outside assembleInput's budget: ${p.targetDroppedByBudget}`,
     `unanswerable pairs ${p.pairs} · discarded ${p.discardedPairs} (unparseable screen ${p.addressedFails})` +
       ` · candidates exhausted (no undrawn case left) ${p.pairingExhausted}`,
+    `targets rejected — no paragraph over the length floor ${p.noLongPara}` +
+      ` · wrong shape (front matter) ${p.targetsRejectedByShape}`,
+    `  judged not substantive ${p.targetsRejectedByJudge} · substance screen unparseable ${p.targetJudgeUnparsed}`,
   ].join("\n");
+}
+
+// Guard 7 (spec §7.7, 2026-08-04). The caption bug survived an entire run because nothing
+// printed what the instrument had chosen; the aggregate looked well-formed either way. The
+// sample is part of the evidence, so it goes in the output next to the metrics computed from it.
+// 120 to match spec §7.7. Enough to recognise a caption on sight — the one that got through
+// begins "2002BCSC1199 Citation: William et al. v. Riverside Forest Products..." — while
+// keeping a 40-target block readable.
+const TARGET_PREVIEW_CHARS = 120;
+
+export function formatChosenTargets(
+  targets: readonly { caseId: string; paragraph: string; text: string }[],
+): string {
+  const rows = targets.map((t) => {
+    const head = t.text.replace(/\s+/g, " ").slice(0, TARGET_PREVIEW_CHARS);
+    return `  ${t.caseId.padEnd(16)} ${t.paragraph.padEnd(10)} ${JSON.stringify(head)}`;
+  });
+  return [`\n--- chosen targets (${targets.length}) ---`, ...rows].join("\n");
 }
