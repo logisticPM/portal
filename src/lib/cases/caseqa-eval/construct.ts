@@ -30,19 +30,60 @@ export function isWellFormedQuestion(question: string): boolean {
 }
 
 export interface CaseLike { id: string; chunks?: { paragraph: string; text: string }[] }
+
+// Stage 1 of target eligibility (spec §3, 2026-08-04). Front and back matter are laid out as
+// SHORT LINES — one field, party, counsel or table-of-contents entry per line — while body
+// prose is long lines. Measured across six judgments: front/back matter 25-131, body 292-2042.
+// 200 sits inside that gap.
+//
+// Deliberately tuned to avoid FALSE REJECTIONS rather than to catch everything, because the
+// judged stage 2 is the backstop and throwing away real body prose costs sample size for
+// nothing.
+//
+// Two other signals were measured and REJECTED — do not reintroduce them:
+//  - front-matter keywords (Docket, Registry, BETWEEN, Coram, Counsel, ...) fail BOTH ways:
+//    2008-scc-41 chunk 34 and 2024-scc-39 chunk 2 are body reasoning and match, while
+//    2021-onca-779 chunk 2 is a table of contents and does not.
+//  - sentence density does not separate at all: front matter 6-9 per 1,000 chars, body 6-17.
+export const MIN_TARGET_AVG_LINE = 200;
+
+// `filter(Boolean)` rather than a trim-based filter, matching EXACTLY how the corpus was
+// measured — a whitespace-only line is counted, which lowers the average and therefore errs
+// toward rejection. Changing this definition invalidates the thresholds above.
+export function isProseShaped(text: string): boolean {
+  const lines = text.split("\n").filter(Boolean);
+  if (!lines.length) return false;
+  return text.length / lines.length >= MIN_TARGET_AVG_LINE;
+}
+
 export interface Target { caseId: string; paragraph: string; text: string }
 
-// One target paragraph per case, for up to `count` cases. Cases with no paragraph over the
-// floor are skipped rather than substituted, so the shortfall is visible in the count the
-// runner prints instead of being quietly backfilled.
-export function pickTargets(cases: readonly CaseLike[], seed: number, count: number): Target[] {
-  const out: Target[] = [];
+// Why the counts ride along instead of being recomputed by the runner: the two skip reasons
+// are only distinguishable HERE, inside the loop that applies them. `noLongPara` is a fact
+// about the corpus; `rejectedByShape` is the front-matter filter doing its job. Spec §7.6
+// requires them apart, because if stage 1 starts rejecting most cases the threshold is wrong
+// and that must be visible rather than absorbed into a shrunken sample.
+export interface TargetDraw {
+  targets: Target[];
+  noLongPara: number;      // no paragraph reached MIN_TARGET_PARA_CHARS
+  rejectedByShape: number; // had a long paragraph, none of them prose-shaped
+}
+
+// One target paragraph per case, for up to `count` cases. Cases with no eligible paragraph are
+// skipped rather than substituted, so the shortfall is visible in the counts the runner prints
+// instead of being quietly backfilled.
+export function pickTargets(cases: readonly CaseLike[], seed: number, count: number): TargetDraw {
+  const targets: Target[] = [];
+  let noLongPara = 0, rejectedByShape = 0;
   // Case-level shuffle uses the bare `seed` (unchanged); the paragraph shuffle below is keyed
   // per-case (`i`, this case's position in that shuffled order).
   for (const [i, c] of seededShuffle(cases, seed).entries()) {
-    if (out.length >= count) break;
-    const eligible = (c.chunks ?? []).filter((ch) => ch.text.length >= MIN_TARGET_PARA_CHARS);
-    if (!eligible.length) continue;
+    if (targets.length >= count) break;
+    const longEnough = (c.chunks ?? []).filter((ch) => ch.text.length >= MIN_TARGET_PARA_CHARS);
+    if (!longEnough.length) { noLongPara++; continue; }
+    // Stage 1: a long chunk can still be a caption, a party list or a table of contents.
+    const eligible = longEnough.filter((ch) => isProseShaped(ch.text));
+    if (!eligible.length) { rejectedByShape++; continue; }
     // Per-case seed, NOT the bare `seed`: a Fisher-Yates swap sequence for a given seed depends
     // only on the RNG stream and the array length, so reusing the same seed for every case's
     // paragraph shuffle meant every case with the SAME eligible-paragraph count picked the
@@ -51,9 +92,9 @@ export function pickTargets(cases: readonly CaseLike[], seed: number, count: num
     // than the number of cases. Offsetting by the case's own index makes each case's draw
     // independent while staying fully deterministic for a fixed `seed`.
     const ch = seededShuffle(eligible, seed + i + 1)[0];
-    out.push({ caseId: c.id, paragraph: ch.paragraph, text: ch.text });
+    targets.push({ caseId: c.id, paragraph: ch.paragraph, text: ch.text });
   }
-  return out;
+  return { targets, noLongPara, rejectedByShape };
 }
 
 // Normalised on both sides before matching, or "the   Crown" would slip past a check that

@@ -42,6 +42,32 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
   const { MIN_TARGET_PARA_CHARS, GIMME_MIN_RUN, pickTargets, buildQuestionPrompt, isLexicalGimme } =
     await import("../src/lib/cases/caseqa-eval/construct");
 
+  // --- isProseShaped: the measured front-matter / body split ------------------------
+  // Thresholds come from measuring six judgments, not from feel. Fixtures below reproduce
+  // the two closest real cases on either side of the gap, so a change to the threshold
+  // that would misclassify real corpus text fails here.
+  {
+    const { isProseShaped, MIN_TARGET_AVG_LINE } = await import("../src/lib/cases/caseqa-eval/construct");
+    // Build text with an exact target average line length.
+    const shaped = (lines: number, avg: number) =>
+      Array.from({ length: lines }, () => "x".repeat(avg - 1)).join("\n");
+
+    // Closest real FRONT matter: 2021-onca-779 chunk 1, a counsel list, avg 131.
+    assert.equal(isProseShaped(shaped(13, 131)), false, "a counsel list at avg 131 must be rejected");
+    // Closest real BODY prose: 2004-bcsc-142 chunk 19, 7 lines, avg 292.
+    assert.equal(isProseShaped(shaped(7, 292)), true, "body prose at avg 292 must be accepted");
+    // The extremes.
+    assert.equal(isProseShaped(shaped(52, 37)), false, "a caption block (52 lines, avg 37) must be rejected");
+    assert.equal(isProseShaped(shaped(74, 25)), false, "a table of contents (74 lines, avg 25) must be rejected");
+    assert.equal(isProseShaped(shaped(1, 2042)), true, "a single long paragraph must be accepted");
+    // Boundary, exactly at and just under.
+    assert.equal(isProseShaped(shaped(1, MIN_TARGET_AVG_LINE + 1)), true, "at the threshold must pass");
+    assert.equal(isProseShaped(shaped(10, MIN_TARGET_AVG_LINE - 50)), false, "under the threshold must fail");
+    // Degenerate input must not throw or divide by zero.
+    assert.equal(isProseShaped(""), false);
+    assert.equal(isProseShaped("\n\n\n"), false, "no non-empty line means no prose");
+  }
+
   // --- pickTargets: honours the length floor, is seeded, one target per case --------
   {
     const long = (n: number, tag: string) => tag + "x".repeat(n);
@@ -56,7 +82,7 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
         { paragraph: "para-1", text: "Costs to the respondent." } ] },         // no eligible para
     ];
 
-    const picked = pickTargets(cases, 1, 10);
+    const picked = pickTargets(cases, 1, 10).targets;
     assert.equal(picked.length, 2, "c3 has no paragraph over the floor and must be skipped");
     assert.deepEqual(picked.map((p) => p.caseId).sort(), ["c1", "c2"]);
     picked.forEach((p) => assert.ok(p.text.length >= MIN_TARGET_PARA_CHARS));
@@ -64,8 +90,22 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       "the short paragraph must never be chosen");
 
     // Seeded: same seed same picks, and `count` caps the number of CASES.
-    assert.deepEqual(pickTargets(cases, 1, 10), picked, "same seed must pick the same targets");
-    assert.equal(pickTargets(cases, 1, 1).length, 1, "count caps the case list");
+    assert.deepEqual(pickTargets(cases, 1, 10).targets, picked, "same seed must pick the same targets");
+    assert.equal(pickTargets(cases, 1, 1).targets.length, 1, "count caps the case list");
+
+    // Stage 1: a chunk can clear the character floor and still be a caption. This fixture is
+    // shaped like the real one that got through — 2002-bcsc-1199 para-1, a docket header.
+    const caption = "Citation:\n" + Array.from({ length: 40 }, (_, i) => `Field ${i}: value`).join("\n");
+    assert.ok(caption.length >= MIN_TARGET_PARA_CHARS, "the fixture must clear the char floor to be a real test");
+    const withCaption = [...cases, { id: "cap", chunks: [{ paragraph: "para-1", text: caption }] }];
+    const d2 = pickTargets(withCaption, 1, 10);
+    assert.ok(!d2.targets.some((t) => t.caseId === "cap"), "a caption must never be chosen as a target");
+
+    // The two skip reasons are counted SEPARATELY: "no long paragraph" is a fact about the
+    // corpus, "long but wrong shape" is the front-matter filter doing its job. Merging them
+    // would hide whether the shape threshold is throwing away real text.
+    assert.equal(d2.rejectedByShape, 1, "the caption case");
+    assert.ok(d2.noLongPara >= 1, "c3 has no paragraph over the floor");
   }
 
   // --- pickTargets: paragraph choice is a per-case draw, not one shared draw --------
@@ -81,7 +121,7 @@ import type { EvalRecord } from "../src/lib/cases/caseqa-eval/metrics";
       { id: "same-count-1", chunks: mkEligible("X", 5) },
       { id: "same-count-2", chunks: mkEligible("Y", 5) },
     ];
-    const picked = pickTargets(sameCount, 2, 2);
+    const picked = pickTargets(sameCount, 2, 2).targets;
     const origIndex = (p: { paragraph: string }) => Number(p.paragraph.split("-")[1]);
     const p1 = picked.find((p) => p.caseId === "same-count-1")!;
     const p2 = picked.find((p) => p.caseId === "same-count-2")!;
