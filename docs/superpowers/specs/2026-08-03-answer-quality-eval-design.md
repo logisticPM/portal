@@ -48,8 +48,11 @@ labelling, no judge.
 - **Cases:** **40**, drawn by seeded shuffle (`EVAL_SEED`, default `1`) so the set is
   reproducible and re-running after a prompt change measures the same questions.
 - **One target paragraph per case**, drawn by the same seeded shuffle from that case's
-  paragraphs that pass **both** eligibility stages below. The 2026-08-04 amendment added the
-  second stage; the first is unchanged except for the shape test.
+  **stage-1 survivors**, after which stage 2 screens *that one drawn paragraph* and drops the
+  whole case if it fails. Deliberately stated this way round: an earlier draft said "paragraphs
+  that pass both stages", which describes a different sampling distribution — a case with one
+  solicitors' register and 199 good paragraphs yields a target with probability 1 under that
+  reading and is discarded with probability 1/200 under this one.
 - **Unanswerable set:** **20**, formed by pairing the first 20 constructed questions with a
   case drawn — same seed — from the 40 excluding its own source case, then validated per §5.
 - Every count above is printed in the provenance line, so a set that shrank through discards is
@@ -202,12 +205,29 @@ Each is a test, not a comment.
 5. **Provenance line.** Every run prints the three model ids, the corpus `asOf`, question counts
    per bucket, and the discard counts from §5 and guard 2 — before the metrics.
 6. **Target eligibility (2026-08-04).** Both stages of §3 are enforced, and each rejection reason
-   is counted separately: `targetsRejectedByShape`, `targetsRejectedByJudge`,
-   `targetJudgeUnparsed`. Merging them would hide which stage is doing the work — and if stage 2
-   ever rejects most of what stage 1 passes, the deterministic threshold is wrong and that must be
-   visible rather than absorbed.
+   is counted separately — **five counters**:
+   - `noLongPara` — no paragraph reached the character floor. A fact about the corpus.
+   - `targetsRejectedByShape` — case-level: every long paragraph failed the shape test.
+   - `paragraphsRejectedByShape` — **paragraph-level**, and the only one that moves in the common
+     case. The caption that motivated this filter sits in a case whose other paragraphs are fine,
+     so it is excluded while the case is still sampled and the case-level counter stays 0.
+   - `targetsRejectedByJudge` — stage 2 said not substantive.
+   - `targetJudgeUnparsed` — stage 2's answer could not be parsed. Not the same event.
+
+   Merging any of them would hide which stage is doing the work — and if stage 2 ever rejects most
+   of what stage 1 passes, the deterministic threshold is wrong and that must be visible rather
+   than absorbed.
+
+   **The counters describe the cases actually examined, not the corpus.** Target selection stops
+   as soon as it has enough targets, so cases after that point are never inspected. The number of
+   cases examined is therefore printed alongside them; without it a reader cannot tell "the corpus
+   has no front matter" from "the shuffle never reached any", and cannot reconcile the counters
+   against `casesWithChunks`.
 7. **The chosen targets are printed (2026-08-04).** Every selected target — case id, paragraph
-   id, and the first 120 characters — appears in the run output. The caption bug was invisible
+   id, and the first 120 characters — appears in the run output. Note it is a **superset of what
+   was measured**: the block prints before question construction, so a target later dropped as a
+   lexical gimme, as a malformed question, or as outside the assembly budget still appears. The
+   header says so, because otherwise the row count will not reconcile with `built`. The caption bug was invisible
    for one reason only: nothing showed what the instrument had picked. An aggregate computed over
    an unseen sample is the failure mode this whole document keeps guarding against, and the
    sample itself is part of the evidence.
@@ -224,7 +244,20 @@ Each is a test, not a comment.
   are substantive. Verdicts are cached, so a re-run against a fixed corpus reproduces the set —
   but a different judge model, or a cleared cache, can change *which cases are measured*, not
   merely how they score. That is the price of not hand-tuning regexes per court, and it is why
-  the three rejection counters in §7.6 are reported separately.
+  the five rejection counters in §7.6 are reported separately.
+- **The judge selects the sample it later grades (2026-08-04).** Stage 2 and the faithfulness
+  scoring are the same model. `assertDistinctModels` cannot catch this and is not meant to: its
+  concern is a model grading its own *output*, whereas stage 2 grades corpus text. But the
+  consequence is real and one-directional. If the judge systematically prefers passages whose
+  propositions it finds easy to verify, faithfulness is measured on a sample enriched for exactly
+  those, and `supportedRate` is optimistically biased — **unfalsifiable from the output**, because
+  a stage-2-rejected target is never scored, so there is no arm of the experiment that would
+  reveal it. A shared blind spot is worse: if the judge reads editorial headnote material as the
+  court's own text — a category stage 2's own prompt lists, meaning it is known to be confusable —
+  it admits the headnote at stage 2 and then rates claims drawn from it `supported`, reproducing
+  the caption bug one layer deeper with two "independent" checks that are one model agreeing with
+  itself. Bounding it costs one run with `EVAL_JUDGE_MODEL` set to a different id, comparing which
+  cases get dropped. Not done.
 - **Single-case only.** `answerCaseQuestion` answers from one judgment. Cross-case synthesis is
   not in this instrument because it is not in the product.
 - **Faithfulness is judged permissively**, per §6.
@@ -236,7 +269,7 @@ Each is a test, not a comment.
 | file | responsibility | pure? |
 |---|---|---|
 | `src/lib/cases/caseqa-eval/construct.ts` | target-paragraph selection, question-construction prompt, lexical-gimme rejection | pure except the prompt string |
-| `src/lib/cases/caseqa-eval/judge.ts` | faithfulness + unanswerability prompts, verdict parsing | pure parsing; caller makes the call |
+| `src/lib/cases/caseqa-eval/judge.ts` | faithfulness, unanswerability and **target-substance** prompts, verdict parsing | pure parsing; caller makes the call |
 | `src/lib/cases/caseqa-eval/metrics.ts` | the four metrics, reconciliation assertions | pure |
 | `scripts/cases-caseqa-eval.ts` | runner: construct → answer → judge → report, with §7 guards | I/O |
 | `scripts/test-cases-caseqa-eval.ts` | unit tests over the three pure modules | — |
@@ -245,9 +278,9 @@ Each is a test, not a comment.
 
 ## 10. Scale and cost
 
-40 answerable + 20 unanswerable, per §3. Worst case: 40 construction calls, 60 answer calls at up
-to 2 each (120), 20 unanswerability checks, and 240 faithfulness judgments (60 answers × the
-6-claim cap) — under 450 calls. Cheap enough to re-run as a regression gate, which is the point:
+40 answerable + 20 unanswerable, per §3. Worst case: **40 substance screens** (§3 stage 2), 40
+construction calls, 60 answer calls at up to 2 each (120), 20 unanswerability checks, and 240
+faithfulness judgments (60 answers × the 6-claim cap) — under **490** calls. Cheap enough to re-run as a regression gate, which is the point:
 the number must be reproducible after a prompt or model change.
 
 **Caching.** Construction and judging go through the same `cachedCall` the summarizer uses
