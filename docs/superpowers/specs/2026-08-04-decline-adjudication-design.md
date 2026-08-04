@@ -158,6 +158,12 @@ Each is a test that fails if the guard is removed.
    must not be confused — leaking an id into the prompt would break the blinding this whole
    design rests on, which is why guard 2 tests the prompt's contents directly.
 6. **Reconciliation**: `consistent + flipped + unparseable === pairs`, asserted before printing.
+7. **Production behaviour unchanged**, proved rather than asserted. Because §11 now modifies
+   `summarizer.ts`, "no production file touched" is no longer available as the check. Replaced by a
+   differential: run `verifyClaims` over randomized synthetic corpora on both the branch and
+   `origin/main`, and confirm `anchors`, `dropped`, `recovered` and every pre-existing `ClaimDrop`
+   field are identical. This is the check #228 used for the same class of change; it is the reason
+   that change could be trusted, and a `git diff` being non-empty is not a substitute for it.
 
 ## 10. What this cannot establish
 
@@ -180,19 +186,50 @@ Each is a test that fails if the guard is removed.
 | `scripts/cases-adjudicate-declines.ts` | replay, order assignment, judge calls, report | I/O |
 | `scripts/test-cases-adjudicate.ts` | unit tests over the two pure modules | — |
 
-`summarizer.ts` is not modified. This instrument observes the guard; it does not change it.
+### One production file is modified, additively (2026-08-04 amendment)
+
+An earlier draft of this section said `summarizer.ts` is not modified. **That was written before
+checking whether the judge's input was reachable, and it is not.** `ClaimDrop` records
+`quoteLen` — a number — and never the quotation itself, because the quote is a locator the design
+discards. So a drop record cannot supply the one thing the judge must see.
+
+Two alternatives were considered and rejected:
+
+- **Match drops back to the parsed claims on `(normWs(quote).length, citedPara)`.** Ambiguous
+  whenever two claims in one case share both, and a greedy in-order walk mis-associates when a
+  claim that *anchored* shares the key with one that dropped — silently handing the judge the
+  wrong quotation.
+- **Re-derive the declined set in the runner** from the exported `normWs` and
+  `longestCommonSubstringLen`. This is precisely what `2026-07-31-anchor-signals-design.md`
+  rejected: it widened `ClaimDrop` instead, "so the measurement describes exactly what production
+  does rather than a re-implementation of it." A re-implementation risks adjudicating a different
+  population than the guard actually declines.
+
+So `ClaimDrop` gains **one additive, measurement-only field carrying the normalised quote**, in the
+same pattern and for the same reason as `rival`, `rivalPara` and `declinedByGuard` in #228. That
+change passed an 8,000-case differential showing zero effect on anchors, drop counts or
+recoveries, and `ClaimDrop` is not persisted — `cases-summarize.ts` writes `summary` and
+`summaryMeta` only.
+
+**The quotation still never reaches the product.** `CitationAnchor` is unchanged and still has no
+quote field; what the reader sees is untouched. The isolation requirement therefore becomes
+**"production behaviour is unchanged", proved by a differential**, rather than "no production file
+is touched" — a weaker promise, stated plainly instead of quietly.
 
 ## 12. Scale and cost
 
 15 declines × 2 orderings = **30 judge calls**, plus a read-only DynamoDB replay of the core tier
 (~578 `getCase` calls, no LLM). Cheap enough that the position-bias control is free.
 
+The replay is cache-only for the model responses, so the LLM cost is the 30 judge calls alone.
+
 ## 13. Success criteria
 
 - The four metrics printed with their numerators and denominators, from a run whose provenance
   names the judge model and the replay population size.
 - All rows published.
-- Every guard in §9 covered by a test that fails when the guard is removed.
+- Every guard in §9 covered by a test that fails when the guard is removed — including §9.7's
+  differential, whose "test" is the differential run itself and its reported mismatch count.
 - A findings doc that **states in its first paragraph that this is not ground truth**, records
   which of §3's four outcomes the data landed in, and — per the three preceding forensics
   reports — **recommends nothing**.
