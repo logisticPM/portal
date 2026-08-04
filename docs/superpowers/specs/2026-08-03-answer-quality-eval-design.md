@@ -48,13 +48,65 @@ labelling, no judge.
 - **Cases:** **40**, drawn by seeded shuffle (`EVAL_SEED`, default `1`) so the set is
   reproducible and re-running after a prompt change measures the same questions.
 - **One target paragraph per case**, drawn by the same seeded shuffle from that case's
-  paragraphs of **≥300 characters**. The floor excludes procedural one-liners ("Appeal
-  dismissed.", "Costs to the respondent."), which no lay question can be built from and which
-  would score as construction failures rather than product failures.
+  paragraphs that pass **both** eligibility stages below. The 2026-08-04 amendment added the
+  second stage; the first is unchanged except for the shape test.
 - **Unanswerable set:** **20**, formed by pairing the first 20 constructed questions with a
   case drawn — same seed — from the 40 excluding its own source case, then validated per §5.
 - Every count above is printed in the provenance line, so a set that shrank through discards is
   visible rather than silently smaller.
+
+### Target eligibility — two stages (2026-08-04 amendment)
+
+**Why this exists.** The first smoke run built a question from `2002-bcsc-1199 para-1`, which is
+the docket caption — citation line, party names, registry, no substantive content. The writer
+composed a question from it, the product answered citing it, and the judge rated two of the
+resulting claims `supported`. Nothing in the chain could tell it was processing a case header.
+A ≥300-character floor screens out `"Appeal dismissed."` but not a long caption block.
+
+**Stage 1 — shape, deterministic.** A chunk is eligible only if:
+- length **≥300 characters** (unchanged: excludes procedural one-liners), and
+- **average line length ≥200 characters**, where average line length is
+  `text.length / (non-empty line count)`.
+
+The line-length test is drawn from measurement, not intuition. Across six judgments, front and
+back matter clusters at **25–131** and body prose at **292–2042**:
+
+| | avg line length | examples |
+|---|---|---|
+| front matter | 25–131 | caption (`2008-scc-41` chunk 0: 52 lines, 37) · party list (`2024-scc-39` chunk 1: 98) · counsel list (`2021-onca-779` chunk 1: 131) · **table of contents** (`2021-onca-779` chunk 2: 74 lines, 25) |
+| body prose | 292–2042 | `2004-bcsc-142` chunk 19: 292 · `2013-bcca-326` chunk 179: 332 · `2002-bcsc-1199` chunk 1: 989 · `2008-scc-41` chunk 34: 2042 |
+
+200 sits inside that gap. It is deliberately set to avoid **false rejections** rather than to
+catch everything, because stage 2 is the backstop and discarding good body prose costs sample
+size for nothing.
+
+**Two signals measured and rejected**, recorded so they are not re-proposed:
+- **Front-matter keywords** (`Docket`, `Registry`, `BETWEEN`, `Coram`, `Counsel`, …) fail in
+  both directions: `2008-scc-41` chunk 34 and `2024-scc-39` chunk 2 are body reasoning and match,
+  while `2021-onca-779` chunk 2 is a table of contents and does not.
+- **Sentence density** does not separate at all — front matter 6–9 per 1,000 characters, body
+  6–17.
+
+**Stage 2 — substance, judged.** Stage 1 cannot catch back matter, which is long single lines:
+`2024-scc-39` chunk 148 is a 1,123-character solicitors' register and `2008-scc-41` chunk 68 is a
+1,346-character list of authorities. Both clear stage 1, and a lay question built from either is
+the same failure as one built from the caption.
+
+So each stage-1 survivor drawn as a candidate target gets **one judge call**: is this passage
+substantive reasoning or analysis from the body of a decision, or is it front/back matter — a
+caption, party or counsel list, table of contents, list of authorities, solicitors' register, or
+signature block? Verdict `{"substantive": true|false}`.
+
+- `false` → that case is skipped, counted as `targetsRejectedByJudge`.
+- **Unparseable → skipped and counted separately** as `targetJudgeUnparsed`, never defaulted to
+  either answer. Same rule as §5's unanswerability screen: a judge failure must not become a
+  claim about the corpus.
+- Judged through `cachedModel`, so a re-run replays the verdicts and the sample stays
+  reproducible for a fixed corpus.
+
+This is a measurement rather than a stack of hand-tuned regexes, and it matches what §5 already
+does to validate unanswerable pairs. Its cost is ~40 extra calls and a model dependency in
+sampling, disclosed in §8.
 
 This is what makes three of the four metrics objective. It is the central design decision, and
 its cost is stated in §8: questions are synthetic, so they measure the system against questions
@@ -149,6 +201,16 @@ Each is a test, not a comment.
    happen: a new record `kind` added without a branch, silently shrinking every denominator.
 5. **Provenance line.** Every run prints the three model ids, the corpus `asOf`, question counts
    per bucket, and the discard counts from §5 and guard 2 — before the metrics.
+6. **Target eligibility (2026-08-04).** Both stages of §3 are enforced, and each rejection reason
+   is counted separately: `targetsRejectedByShape`, `targetsRejectedByJudge`,
+   `targetJudgeUnparsed`. Merging them would hide which stage is doing the work — and if stage 2
+   ever rejects most of what stage 1 passes, the deterministic threshold is wrong and that must be
+   visible rather than absorbed.
+7. **The chosen targets are printed (2026-08-04).** Every selected target — case id, paragraph
+   id, and the first 120 characters — appears in the run output. The caption bug was invisible
+   for one reason only: nothing showed what the instrument had picked. An aggregate computed over
+   an unseen sample is the failure mode this whole document keeps guarding against, and the
+   sample itself is part of the evidence.
 
 ## 8. What this cannot establish
 
@@ -157,6 +219,12 @@ Each is a test, not a comment.
   caution applies here rather than being discovered later.
 - **Questions are synthetic.** Derived from paragraphs in our own corpus, so they cannot reveal
   what real users ask and miss. The product has no users yet, so no alternative exists.
+- **Sampling now depends on a model (2026-08-04).** Stage 2 of §3 means the question set is no
+  longer a pure function of `EVAL_SEED` and the corpus: a judge decides which candidate targets
+  are substantive. Verdicts are cached, so a re-run against a fixed corpus reproduces the set —
+  but a different judge model, or a cleared cache, can change *which cases are measured*, not
+  merely how they score. That is the price of not hand-tuning regexes per court, and it is why
+  the three rejection counters in §7.6 are reported separately.
 - **Single-case only.** `answerCaseQuestion` answers from one judgment. Cross-case synthesis is
   not in this instrument because it is not in the product.
 - **Faithfulness is judged permissively**, per §6.
