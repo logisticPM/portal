@@ -75,6 +75,18 @@ export type ClaimDropReason = "no_text" | "quote_too_short" | "no_span" | "over_
 export interface ClaimDrop {
   reason: ClaimDropReason;
   quoteLen: number;
+  // The NORMALISED quotation (normWs applied), measurement-only — same pattern and same reason
+  // as `rival`, `rivalPara` and `declinedByGuard` below. Added because the decline-adjudication
+  // instrument must show a blind judge the quotation, and `quoteLen` is a length: the quote is
+  // otherwise unrecoverable from a drop record. Matching drops back to parsed claims on
+  // (quoteLen, citedPara) was rejected — it is ambiguous when two claims share both, and an
+  // in-order walk mis-associates when a claim that ANCHORED shares the key with one that
+  // dropped, silently handing the judge the wrong quotation.
+  //
+  // This does NOT reach the product. `CitationAnchor` still has no quote field; the model's
+  // quotation is still a locator that is discarded once it has found a paragraph. `ClaimDrop`
+  // is never persisted — cases-summarize.ts writes `summary` and `summaryMeta` only.
+  quote: string;
   citedPara: string;
   citedParaFound: boolean;
   overlapMeasured: boolean;
@@ -193,7 +205,7 @@ export function verifyClaims(
       ? scan(quote)
       : { bestOverlap: 0, bestPara: null as string | null, rival: 0, rivalPara: null as string | null };
     drops.push({
-      reason, quoteLen: quote.length, citedPara, citedParaFound: !!findCited(citedPara),
+      reason, quoteLen: quote.length, quote, citedPara, citedParaFound: !!findCited(citedPara),
       overlapMeasured: canMeasure, bestOverlap: s.bestOverlap, bestPara: s.bestPara,
       rival: s.rival, rivalPara: s.rivalPara,
       // Only true when the threshold WAS cleared and ambiguity is what blocked it. A weak
