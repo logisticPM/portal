@@ -14,7 +14,8 @@ import { useRouter } from "next/navigation";
 import { confirmReviewedExtractionAction, openSourceAction } from "@/lib/rap/actions";
 import type { EditableField } from "@/lib/rap/field-edit";
 import { InfoTip } from "@/components/InfoTip";
-import { MARKER_HELP, RULE_HELP } from "@/lib/rap/validation-display";
+import { MARKER_HELP, RULE_HELP, DATE_FIELD_NOTE } from "@/lib/rap/validation-display";
+import { PublishExplainer } from "./PublishExplainer";
 
 export interface FieldGroupView {
   rule: string;
@@ -97,6 +98,8 @@ export function FlaggedFieldsEditor({
         );
       })}
 
+      <PublishExplainer />
+
       <div className="flex items-center gap-3 pt-1">
         <button
           onClick={save}
@@ -159,6 +162,13 @@ function FieldCard({
       <div className="mt-1">
         <EditControl field={field} onEdit={onEdit} />
       </div>
+
+      {field.rule === "date_format" && (
+        <div className="mt-1 flex items-start gap-1 rounded border border-amber/30 bg-amber/5 px-2 py-1 text-ink3 text-xs">
+          <span aria-hidden className="text-amber">ⓘ</span>
+          <span>{DATE_FIELD_NOTE}</span>
+        </div>
+      )}
 
       {field.quote ? (
         <div className="text-ink3 text-xs mt-1">

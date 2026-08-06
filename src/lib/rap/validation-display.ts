@@ -119,6 +119,38 @@ export const MARKER_HELP: Record<string, string> = {
     "The category this commitment falls into, chosen from a fixed set: Employment, Procurement, Cultural learning, Governance, Relationships, Anti-racism, Education & training, Community investment, Environmental, Partnership, or Other. It's a controlled vocabulary — an edit can only pick one of these, and any unrecognized value is filed as “Other”.",
 };
 
+// Reviewer-facing explanation of what "Save & publish" does and what it writes
+// to the database. Single source of truth for BOTH the inline PublishExplainer
+// (on each review card) and the standalone /extract/guide page, so the two can
+// never drift. Plain language first; the "stored" detail names concrete fields
+// for a curious reviewer without assuming they read code.
+
+// The one-line headline: what publishing actually is.
+export const PUBLISH_SUMMARY =
+  "Nothing is saved while you review. When you click Save & publish, the whole document goes live at once — the organization, the RAP, and every commitment (with your edits) become the searchable record on the portal.";
+
+// The three things a reviewer most needs to know about the flow.
+export const PUBLISH_STEPS: readonly string[] = [
+  "Checking “Verified” only marks that you've looked at a field — on its own it saves nothing. You have to verify every flagged field before the Save & publish button turns on.",
+  "Save & publish stores the value that's in each box — your correction if you changed it, otherwise the AI's reading — kept word-for-word, together with the source quote and page it came from.",
+  "Publishing the same document again replaces its previous version rather than adding a second copy, so it's safe to fix something and re-publish.",
+];
+
+// The "exactly what's stored" detail (shown expandable). Names the real fields
+// so the reviewer can see the shape without opening the code.
+export const PUBLISH_STORED_DETAIL: readonly string[] = [
+  "One record is stored per commitment, plus one for the organization and one for the RAP document itself.",
+  "Each commitment keeps its action, deliverable, target, owner, type, and pillar — every value carrying the source quote and page number it was grounded on.",
+  "A commitment's timeline is stored two ways: your exact words are kept as its timeline text, and the portal also tries to read a real calendar date out of them to drive progress and overdue tracking.",
+  "When no calendar date can be read (for example “Throughout the implementation of the Strategy”), the words are still saved but no due date is recorded — so that commitment won't be tracked as overdue.",
+];
+
+// Shown right on a timeline/date field flagged “Unrecognized date” (date_format):
+// the specific consequence for progress tracking. Complements RULE_HELP.date_format
+// (which says what to DO); this says what HAPPENS if the value stays open-ended.
+export const DATE_FIELD_NOTE =
+  "As written, this has no calendar date the portal can read — so no due date will be saved and this commitment won't be tracked as overdue. Enter a real date if the document gives one; if it's genuinely open-ended, verify it as-is.";
+
 // One-line explanation per validation rule, for the group-heading tooltips.
 // Complements groupHint() in ReviewPanel (which only covers quote_not_found).
 export const RULE_HELP: Partial<Record<ValidationRule, string>> = {
