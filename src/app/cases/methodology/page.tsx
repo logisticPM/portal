@@ -61,7 +61,12 @@ export default async function MethodologyPage() {
         </p>
       </section>
 
-      <section className="mt-6">
+      {/* Anchored because this section is what the client meant by "how is completeness
+          displayed" — which courts are in, which are absent, what lacks full text. It was
+          already built and correct, but only reachable by scrolling Methodology, so nobody
+          looking for completeness would find it. /cases now links straight here. The nav is
+          not sticky, so no scroll-margin is needed. */}
+      <section id="coverage" className="mt-6">
         <h2 className="font-serif text-lg">Coverage by jurisdiction</h2>
         <p className="mt-1 text-sm text-ink3">
           Derived from the court of decision. Every Canadian jurisdiction is listed,

@@ -52,6 +52,14 @@ export default async function CasesPage({ searchParams }: { searchParams: Record
       <h1 className="font-serif text-2xl">Legal cases — economic justice</h1>
       <p className="mt-1 text-sm text-ink3">Canada&apos;s Indigenous economic-justice case law, searchable and citation-anchored.</p>
       <p className="mt-1 text-sm"><Link href="/cases/similar" className="text-amber hover:underline">Describe your situation to find similar cases →</Link></p>
+      {/* The coverage table has existed on Methodology since #216, complete with explicit zeros
+          for jurisdictions we hold nothing from. Nobody looking for "is this corpus complete"
+          would think to open a page called Methodology, so the answer was shipped and unfindable.
+          Wording deliberately echoes how the question was actually asked rather than naming the
+          section. Deep link rather than a live "N of 14" here: listFacets carries no court or
+          jurisdiction dimension, so a summary on this page would cost an extra getCorpusStats
+          query for a number the destination already states. */}
+      <p className="mt-1 text-sm"><Link href="/cases/methodology#coverage" className="text-amber hover:underline">Which courts are covered, which are missing, what lacks full text →</Link></p>
 
       <LensSwitcher active={lens} params={searchParams} searching={!!q} />
 
