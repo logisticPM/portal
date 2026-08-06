@@ -72,7 +72,10 @@ export async function ReviewPanel() {
       <div>
         <div className="text-amber text-xs uppercase tracking-widest mb-1">Indigenomics · Extraction QA</div>
         <p className="text-ink3 text-sm mt-1">
-          Confirm the AI read each document correctly. Clean, high-confidence extractions publish automatically and never appear here.
+          Confirm the AI read each document correctly. Clean, high-confidence extractions publish automatically and never appear here.{" "}
+          <a href="/extract/guide" target="_blank" className="text-cedar underline">
+            How review &amp; publish works ↗
+          </a>
         </p>
       </div>
 

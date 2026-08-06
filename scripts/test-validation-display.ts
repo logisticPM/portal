@@ -15,6 +15,10 @@ import {
   pathToField,
   plainLabel,
   summarizeIssues,
+  PUBLISH_SUMMARY,
+  PUBLISH_STEPS,
+  PUBLISH_STORED_DETAIL,
+  DATE_FIELD_NOTE,
 } from "../src/lib/rap/validation-display";
 import type { ExtractedRap, Grounded, ValidationIssue } from "../src/lib/rap/types";
 
@@ -150,6 +154,20 @@ check("empty input yields empty summary",
 const before = tmx.length;
 summarizeIssues(tmx, extracted);
 check("summarizeIssues does not mutate its input", tmx.length === before);
+
+// --- reviewer publish-explainer copy contract -------------------------------
+// The inline PublishExplainer and the /extract/guide page both render these, so
+// lock the shape and the two facts a reviewer must not miss: nothing saves until
+// publish, and an unreadable timeline is not tracked as overdue.
+check("PUBLISH_SUMMARY says nothing saves until publish",
+  /nothing is saved/i.test(PUBLISH_SUMMARY) && /save & publish/i.test(PUBLISH_SUMMARY));
+check("PUBLISH_STEPS is a non-empty list", PUBLISH_STEPS.length >= 1 && PUBLISH_STEPS.every((s) => s.length > 0));
+check("PUBLISH_STEPS explains Verified saves nothing on its own",
+  PUBLISH_STEPS.some((s) => /verified/i.test(s) && /saves nothing|nothing/i.test(s)));
+check("PUBLISH_STORED_DETAIL names the overdue consequence",
+  PUBLISH_STORED_DETAIL.some((s) => /overdue/i.test(s) && /due date/i.test(s)));
+check("DATE_FIELD_NOTE warns no due date → not tracked as overdue",
+  /due date/i.test(DATE_FIELD_NOTE) && /overdue/i.test(DATE_FIELD_NOTE));
 
 console.log(fail === 0 ? "\nall passed" : `\n${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
