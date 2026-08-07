@@ -98,7 +98,8 @@
     "cases:adjudicate:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-adjudicate-declines.ts",
     "cases:caseqa-eval": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-caseqa-eval.ts",
     "cases:caseqa-eval:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-caseqa-eval.ts",
-    "cases:nli-probe:cloud": "cross-env AWS_REGION=us-east-1 BEDROCK_REGION=us-east-1 tsx scripts/cases-nli-probe.ts"
+    "cases:nli-probe:cloud": "cross-env AWS_REGION=us-east-1 BEDROCK_REGION=us-east-1 tsx scripts/cases-nli-probe.ts",
+    "cases:probe-models:cloud": "cross-env AWS_REGION=us-east-1 BEDROCK_REGION=us-east-1 tsx scripts/cases-probe-models.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1078.0",
