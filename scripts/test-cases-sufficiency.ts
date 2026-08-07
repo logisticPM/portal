@@ -3,6 +3,10 @@
 import assert from "node:assert/strict";
 import { buildSufficiencyPrompt, parseSufficiency } from "../src/lib/cases/sufficiency/prompt";
 import { stripTarget, assertTargetAbsent } from "../src/lib/cases/sufficiency/arms";
+import {
+  falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
+  FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER,
+} from "../src/lib/cases/sufficiency/tally";
 
 // --- parseSufficiency --------------------------------------------------------------------
 assert.deepEqual(parseSufficiency('{"reason":"para 12 states the test","sufficient":true}'),
@@ -84,5 +88,38 @@ assert.equal(parseSufficiency('{"sufficient":1}'), null, "1 is not a boolean");
   assert.doesNotThrow(() => assertTargetAbsent("[para para-1] see para-2 above", "para-2"),
     "a mention in prose is not the paragraph itself");
 }
+
+// --- rate definitions --------------------------------------------------------------------
+// The two rates run in OPPOSITE directions over the rater's label, which is exactly the
+// mistake worth pinning: on answerable questions `insufficient` is the error, on unanswerable
+// questions `sufficient` is the error. A single shared helper would get one of them backwards.
+assert.equal(falseRefusalRate({ sufficient: 95, insufficient: 5 }), 0.05,
+  "arm S: refusing an answerable question is the error");
+assert.equal(projectedFalseAnswerRate({ sufficient: 3, insufficient: 12 }), 0.2,
+  "arm X: letting an unanswerable question through is the error");
+assert.equal(falseRefusalRate({ sufficient: 0, insufficient: 0 }), 0, "empty arm is 0, not NaN");
+assert.equal(projectedFalseAnswerRate({ sufficient: 0, insufficient: 0 }), 0, "empty arm is 0, not NaN");
+
+// --- the pre-registered decision ---------------------------------------------------------
+// Boundaries inclusive, as documented.
+assert.equal(decide(FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX), "ship");
+assert.equal(decide(0, 0), "ship");
+// The gate works and the operating point is wrong — a tuning problem, not a dead end.
+assert.equal(decide(0.30, 0.10), "tune-do-not-ship");
+// The gate is safe and catches nothing. #237's gate A was exactly this, and it was not built.
+assert.equal(decide(0.01, 0.90), "inert");
+assert.equal(decide(0.30, 0.90), "unusable");
+assert.equal(decide(FALSE_REFUSAL_MAX + 1e-9, 0.10), "tune-do-not-ship", "strictly above fails");
+assert.equal(decide(0.01, PROJECTED_FALSE_ANSWER_MAX + 1e-9), "inert", "strictly above fails");
+// The baseline is what the 20% is measured against and belongs in the module, not the prose.
+assert.equal(BASELINE_FALSE_ANSWER, 0.938);
+
+// --- call-failure guard ------------------------------------------------------------------
+// A failed call is not a data point. #237's re-run lost 21 calls to an expired token, printed a
+// matrix identical to the previous run, and exited 0 with a SHIP verdict.
+assert.doesNotThrow(() => assertNoCallFailures(0, "arm S"));
+assert.throws(() => assertNoCallFailures(1, "arm S"), /void/);
+assert.throws(() => assertNoCallFailures(7, "arm L"), /7 call\(s\) failed/, "names the count");
+assert.throws(() => assertNoCallFailures(7, "arm L"), /during arm L/, "names the arm");
 
 console.log("✅ test-cases-sufficiency passed");
