@@ -167,7 +167,17 @@ assert.equal(parseSufficiency('{"sufficient":1}'), null, "1 is not a boolean");
   }
   // Reason before label in the output schema, so the model derives before it commits. The
   // project already uses reasoning-first schemas (RM-5) for exactly this reason.
-  assert.ok(p.indexOf('"reason"') < p.indexOf('"sufficient"'), "reason must precede the label");
+  //
+  // Scoped to the SCHEMA LINE, not the whole prompt. A first draft of this compared indexOf
+  // over the entire string and failed against a correct prompt: the prose says
+  // `Answer "sufficient": true only if ...` well before the schema, so the first occurrence of
+  // the quoted key is prose, not schema. Naming the JSON key in the instructions is good prompt
+  // writing; the assertion was measuring the wrong span.
+  const schema = p.split("\n").find((l) => l.trim().startsWith('{"')) ?? "";
+  assert.ok(schema.includes('"reason"') && schema.includes('"sufficient"'),
+    "the output schema line must name both keys");
+  assert.ok(schema.indexOf('"reason"') < schema.indexOf('"sufficient"'),
+    "reason must precede the label in the output schema");
   // The paper's distinction is the whole point: relevant is not sufficient. If the prompt does
   // not say so, the rater collapses to a topic-relevance check and arm L becomes unpassable.
   assert.ok(/relevant/i.test(p) && /not enough|is not sufficient|insufficient/i.test(p),
@@ -263,8 +273,10 @@ like "the test is not load-bearing".
    → must fail on `"no JSON"`.
 2. In the prompt, delete the paragraph beginning `Being relevant is not enough.`
    → must fail on `"prompt must explicitly separate relevant from sufficient"`.
-3. In the prompt, swap the output schema to `{"sufficient":true|false,"reason":"..."}`
-   → must fail on `"reason must precede the label"`.
+3. In the prompt, swap the output schema line to
+   `{"sufficient":true|false,"reason":"one or two sentences"}`
+   → must fail on `"reason must precede the label in the output schema"`. (This is the mutation
+   that proves the narrowed scope did not make the assertion vacuous.)
 
 Restore the file after each. Then run the suite once more and confirm it passes.
 
