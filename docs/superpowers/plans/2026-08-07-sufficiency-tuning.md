@@ -22,6 +22,16 @@ boundary and, separately, corrupted two bytes into NULs. A mutation that does no
 exactly like "the test is not load-bearing", which is the wrong conclusion drawn from a real
 failure to edit.
 
+**Top-level `await` is a transform error in this repo.** `package.json` has no `"type": "module"`,
+so tsx/esbuild emits CJS and rejects top-level `await` outright — no flag fixes it. Every async
+test must live inside an `async function asyncTests() { ... }` invoked with `.then()` at the bottom
+of the file, and the `✅` success line must move INSIDE that `.then()`. If it stays at top level it
+prints before the async assertions run, so a failing test emits a ✅ and then throws.
+
+`scripts/test-cases-nli-probe.ts:84-186` is the reference. I hit this trap there, fixed it, then
+wrote Task 5 as if the wrapper already existed in `test-cases-sufficiency.ts`. It did not, and a
+Task 3 note of mine asserting otherwise was wrong — both caught by implementers.
+
 **Mutation testing, and the trap of the masking assertion.** Every task below names mutations that
 must fail the suite. Two things to check each time:
 
