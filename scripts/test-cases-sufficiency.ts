@@ -1,7 +1,8 @@
 // Tests for the sufficiency instrument's pure parts.
 // Run: npx tsx scripts/test-cases-sufficiency.ts
 import assert from "node:assert/strict";
-import { buildSufficiencyPrompt, parseSufficiency } from "../src/lib/cases/sufficiency/prompt";
+import fsSync from "node:fs";
+import { buildSufficiencyPrompt, parseSufficiency, VARIANTS, VARIANT_IDS } from "../src/lib/cases/sufficiency/prompt";
 import {
   falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER,
@@ -86,5 +87,38 @@ assert.doesNotThrow(() => assertNoCallFailures(0, "arm S"));
 assert.throws(() => assertNoCallFailures(1, "arm S"), /void/);
 assert.throws(() => assertNoCallFailures(7, "arm X"), /7 call\(s\) failed/, "names the count");
 assert.throws(() => assertNoCallFailures(7, "arm X"), /during arm X/, "names the arm");
+
+// --- prompt variants ---------------------------------------------------------------------
+{
+  assert.deepEqual([...VARIANT_IDS], ["P0", "P1", "P2"], "the grid is pre-registered — three variants, in order");
+
+  // P0 must remain byte-identical to what #239 measured, or its 92 cached responses stop
+  // replaying and the published baseline silently becomes a different prompt. Compared against
+  // a golden file rather than an inline string so a diff is readable when it fires.
+  const golden = fsSync.readFileSync("scripts/fixtures/sufficiency-P0.txt", "utf8").replace(/\r\n/g, "\n");
+  assert.equal(VARIANTS.P0("Q_TEXT", "S_TEXT", "B_TEXT").replace(/\r\n/g, "\n"), golden,
+    "P0 changed — this invalidates the #239 baseline and its cache. If intentional, it is a NEW variant, not an edit to P0.");
+
+  for (const id of VARIANT_IDS) {
+    const p = VARIANTS[id]("Q_TEXT", "S_TEXT", "B_TEXT");
+    assert.ok(p.includes("Q_TEXT") && p.includes("S_TEXT") && p.includes("B_TEXT"), `${id} interpolates all three`);
+    const schema = p.split("\n").find((l) => l.trim().startsWith('{"')) ?? "";
+    assert.ok(schema.indexOf('"reason"') < schema.indexOf('"sufficient"'), `${id}: reason must precede the label`);
+    for (const w of ["entailment", "supported", "overstated", "contradicted"]) {
+      assert.ok(!p.includes(w), `${id} leaks faithfulness vocabulary: ${w}`);
+    }
+  }
+
+  // The hypothesis under test: every one of #239's ten refusals used the prompt's own word.
+  // P0 keeps it; P1 and P2 exist precisely to drop it. If a variant kept it, the experiment
+  // would be comparing a thing to itself.
+  assert.ok(VARIANTS.P0("q", "s", "b").includes("definitive"), "P0 keeps 'definitive'");
+  assert.ok(!VARIANTS.P1("q", "s", "b").includes("definitive"), "P1 must drop 'definitive'");
+  assert.ok(!VARIANTS.P2("q", "s", "b").includes("definitive"), "P2 must drop 'definitive'");
+
+  // Distinct text means distinct cache keys, so no variant can replay another's responses.
+  const rendered = VARIANT_IDS.map((id) => VARIANTS[id]("q", "s", "b"));
+  assert.equal(new Set(rendered).size, 3, "all three variants must render differently");
+}
 
 console.log("✅ test-cases-sufficiency passed");

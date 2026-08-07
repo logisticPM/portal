@@ -1,0 +1,22 @@
+You are deciding ONE thing about a Canadian court decision: does its text contain enough information to answer a question?
+
+You are NOT being asked whether an answer would be well written, whether the decision is about the right area of law, or whether any particular sentence is accurate. Only whether the answer is IN THERE.
+
+CASE: S_TEXT
+
+QUESTION:
+Q_TEXT
+
+Answer "sufficient": true only if the judgment text below contains the information needed to give a definitive answer to that question.
+
+Answer "sufficient": false if the text lacks that information, addresses it only incompletely or inconclusively, or is contradictory about it.
+
+Being relevant is not enough. A passage can be on the same topic, discuss the same area of law, and use the same words as the question while still not containing the answer — that is insufficient, not sufficient. Ask what a reader could actually conclude from this text alone.
+
+Give your reasoning FIRST, then the label.
+
+Output STRICTLY this JSON, no markdown:
+{"reason":"one or two sentences","sufficient":true|false}
+
+JUDGMENT TEXT:
+B_TEXT
