@@ -58,3 +58,58 @@ export function assertNoCallFailures(callFailures: number, context: string): voi
     );
   }
 }
+
+// Wilson score interval — the right one for proportions near 0 or 1, where the normal
+// approximation produces negative lower bounds. Both this experiment's bars sit near 0.
+export function wilson(k: number, n: number, z = 1.96): [number, number] {
+  if (n === 0) return [0, 0];
+  const p = k / n, d = 1 + (z * z) / n;
+  const c = p + (z * z) / (2 * n);
+  const m = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return [Math.max(0, (c - m) / d), Math.min(1, (c + m) / d)];
+}
+
+// Reported ALONGSIDE the point-estimate rule in `decide`, never instead of it. #239 judged on
+// point estimates; switching to an interval rule now would move the goalposts mid-experiment,
+// even though it moves them in the harder direction.
+//
+// What this adds is honesty about power: at n=80 a perfect arm S clears a 5% bar and ONE failure
+// does not, so most outcomes in between settle nothing. Saying so up front prevents a later
+// argument that 1 of 80 is "basically 5%".
+export type Confidence = "clears" | "fails" | "inconclusive-at-this-n";
+
+export function classify(k: number, n: number, bar: number): Confidence {
+  const [lo, hi] = wilson(k, n);
+  if (lo <= bar && bar <= hi) return "inconclusive-at-this-n";
+  return hi < bar ? "clears" : "fails";
+}
+
+export interface DevResult { configId: string; armS: ArmCounts; armX: ArmCounts }
+
+// Pre-registered (spec §6): lowest arm-S false refusal AMONG those whose arm-X leakage clears
+// its bar. The order is not cosmetic — leakage is the defect the gate exists to fix, so a
+// configuration that lets questions through is disqualified no matter how few good questions it
+// refuses. Ties break on configId so the same dev data always yields the same choice.
+export function selectOnDev(results: readonly DevResult[]): { chosen: DevResult | null; reason: string } {
+  if (results.length === 0) return { chosen: null, reason: "no configurations were evaluated" };
+  const qualified = results.filter((r) => projectedFalseAnswerRate(r.armX) <= PROJECTED_FALSE_ANSWER_MAX);
+  if (qualified.length === 0) {
+    const best = Math.min(...results.map((r) => projectedFalseAnswerRate(r.armX)));
+    return {
+      chosen: null,
+      reason: `no configuration kept leakage at or below ${(PROJECTED_FALSE_ANSWER_MAX * 100).toFixed(0)}% ` +
+        `(best was ${(best * 100).toFixed(1)}%) — the bar is not relaxed, so there is nothing to test`,
+    };
+  }
+  const sorted = [...qualified].sort((a, b) =>
+    falseRefusalRate(a.armS) - falseRefusalRate(b.armS) ||
+    projectedFalseAnswerRate(a.armX) - projectedFalseAnswerRate(b.armX) ||
+    a.configId.localeCompare(b.configId));
+  const chosen = sorted[0];
+  return {
+    chosen,
+    reason: `${chosen.configId}: false refusal ${(falseRefusalRate(chosen.armS) * 100).toFixed(1)}%, ` +
+      `leakage ${(projectedFalseAnswerRate(chosen.armX) * 100).toFixed(1)}% — lowest false refusal of ` +
+      `${qualified.length} configuration(s) that cleared the leakage bar, out of ${results.length} evaluated`,
+  };
+}

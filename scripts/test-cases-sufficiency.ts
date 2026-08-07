@@ -6,6 +6,7 @@ import { buildSufficiencyPrompt, parseSufficiency, VARIANTS, VARIANT_IDS } from 
 import {
   falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER,
+  wilson, classify, selectOnDev,
 } from "../src/lib/cases/sufficiency/tally";
 import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
 
@@ -157,6 +158,65 @@ assert.throws(() => assertNoCallFailures(7, "arm X"), /during arm X/, "names the
   // the split, and a drift in construction between them could put a question on both sides.
   assert.throws(() => assertDisjoint({ dev: [{ qid: "a" }, { qid: "b" }], test: [{ qid: "b" }] }, key), /1 item/,
     "message must name how many overlapped");
+}
+
+// --- Wilson interval ---------------------------------------------------------------------
+{
+  const [lo, hi] = wilson(0, 80);
+  assert.equal(lo, 0, "0 successes gives a lower bound of exactly 0");
+  // The number that sized this whole experiment: at n=80, a perfect result clears a 5% bar and
+  // a single failure does not. If this drifts, the spec's sizing argument is void.
+  assert.ok(hi > 0.045 && hi < 0.047, `n=80, 0 failures should give ~4.6%, got ${(hi * 100).toFixed(2)}%`);
+  const [, hi1] = wilson(1, 80);
+  assert.ok(hi1 > 0.066 && hi1 < 0.068, `n=80, 1 failure should give ~6.7%, got ${(hi1 * 100).toFixed(2)}%`);
+  // Normal approximation would give a negative lower bound here; Wilson must not.
+  assert.ok(wilson(1, 100)[0] > 0, "lower bound must never go negative");
+  assert.deepEqual(wilson(0, 0), [0, 0], "empty is 0,0 — not NaN");
+}
+
+// --- conclusiveness ----------------------------------------------------------------------
+// Reported ALONGSIDE the point-estimate rule, never instead of it. #239 used point estimates
+// and switching now would move the goalposts mid-experiment.
+assert.equal(classify(0, 80, 0.05), "clears", "interval entirely below the bar");
+// NOT "fails". The point estimate is 1.25% and the CI is [0.22%, 6.75%] — the upper bound sits
+// above 5% but the lower bound is far below it, so at n=80 a single refusal cannot distinguish a
+// rate under the bar from one over it. An earlier draft of this line asserted "fails", conflating
+// "the upper bound exceeds the bar" with "the rate exceeds the bar". That conflation is exactly
+// what classify() exists to prevent, so the test asserting it was self-defeating.
+assert.equal(classify(1, 80, 0.05), "inconclusive-at-this-n", "1.25%, but CI [0.22, 6.75] straddles 5%");
+assert.equal(classify(10, 38, 0.05), "fails", "the #239 result: 26.3%, CI [15.0, 42.0]");
+assert.equal(classify(2, 60, 0.05), "inconclusive-at-this-n", "3.3% but the interval straddles 5%");
+// The #239 arm X result. Upper bound 19.36% sits UNDER the 20% bar, so it clears — narrowly, and
+// the spec's own status table already records it as a pass. "Just inside" is still inside.
+assert.equal(classify(0, 16, 0.20), "clears", "0/16, CI [0.00, 19.36] — entirely under a 20% bar");
+
+// --- dev selection rule ------------------------------------------------------------------
+{
+  const c = (s: number, i: number) => ({ sufficient: s, insufficient: i });
+  // Lowest false refusal among those whose leakage clears the bar.
+  const r = selectOnDev([
+    { configId: "P0/a", armS: c(35, 5), armX: c(0, 20) },   // FR 12.5%, leak 0%
+    { configId: "P0/b", armS: c(38, 2), armX: c(9, 11) },   // FR  5.0%, leak 45% — disqualified
+    { configId: "P0/c", armS: c(37, 3), armX: c(2, 18) },   // FR  7.5%, leak 10% — winner
+  ]);
+  assert.equal(r.chosen?.configId, "P0/c");
+  // A better false-refusal number must NOT rescue a config that leaks. Leakage is the defect
+  // the gate exists for; a gate that lets questions through is not a gate.
+  assert.ok(!/P0\/b/.test(r.reason), "the disqualified config must not be described as the winner");
+
+  // Nothing qualifies -> null and a reason, never a relaxed bar.
+  const none = selectOnDev([{ configId: "P0/a", armS: c(40, 0), armX: c(20, 0) }]);
+  assert.equal(none.chosen, null);
+  assert.match(none.reason, /leak|20/i, "the reason must say why nothing qualified");
+
+  // Deterministic tie-break, so the same dev data always selects the same config.
+  const tie = selectOnDev([
+    { configId: "P0/z", armS: c(37, 3), armX: c(1, 19) },
+    { configId: "P0/a", armS: c(37, 3), armX: c(1, 19) },
+  ]);
+  assert.equal(tie.chosen?.configId, "P0/a", "exact tie breaks on configId, lexicographically");
+
+  assert.equal(selectOnDev([]).chosen, null, "empty input is null, not a crash");
 }
 
 console.log("✅ test-cases-sufficiency passed");
