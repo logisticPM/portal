@@ -2,10 +2,24 @@
 // this changes NOTHING in the product. Wiring is conditional on the pre-registered thresholds in
 // sufficiency/tally.ts and is not in this script.
 //
-// Run: AWS_PROFILE=bedrock npm run cases:sufficiency-eval:cloud
-//
 //   arm S  answerable questions, full body      — ground truth SUFFICIENT by construction
 //   arm X  cross-case unanswerable, full body   — INSUFFICIENT per an LLM screen
+//
+// Two modes, selected by SUFFICIENCY_MODE (default "dev"):
+//   dev   runs the whole pre-registered grid (spec §5) — every STAGE1_RATERS id at prompt P0,
+//         then P1/P2 at whichever rater won stage 1 — prints each configuration's rates, and
+//         names the winner under the pre-registered selection rule (sufficiency/tally.ts's
+//         selectOnDev).
+//   test  runs exactly ONE named configuration (SUFFICIENCY_CONFIG=<variant>/<rater>), once,
+//         against the held-out test split, and appends the result to an append-only manifest
+//         (sufficiency/manifest.ts) so a later reader can see how many times test has been run.
+//
+// The two modes must never disagree about which questions are "dev" and which are "test": both
+// recompute the split from the same seed (sufficiency/split.ts's splitDevTest) in SEPARATE
+// processes. If they ever disagreed, the "held-out" test set would silently contain questions
+// the dev-mode tuning already saw, and no rate reported by test mode would mean what it says.
+//
+// Run: AWS_PROFILE=bedrock npm run cases:sufficiency-eval:cloud
 //
 // There was a third arm. Arm L took arm S's questions and deleted the target paragraph, so that
 // insufficiency would be created by construction rather than certified by a screen. It was
@@ -23,7 +37,7 @@ import path from "node:path";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { modelFromId, cachedModel, hasCached, evictCached } from "../src/lib/cases/ingest/llm";
 import { assembleInput } from "../src/lib/cases/ingest/summarizer";
-import { buildSufficiencyPrompt, parseSufficiency, type Sufficiency } from "../src/lib/cases/sufficiency/prompt";
+import { parseSufficiency } from "../src/lib/cases/sufficiency/prompt";
 import {
   falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER, type ArmCounts,
@@ -97,6 +111,32 @@ async function main() {
     if (r === ANSWERER) throw new Error(`grid contains the answerer (${ANSWERER}) as a rater — it is the subject under test`);
   }
   if (new Set(STAGE1_RATERS).size !== STAGE1_RATERS.length) throw new Error("STAGE1_RATERS contains a duplicate");
+
+  // Test-mode arguments are validated HERE, before the repo read, because they depend only on
+  // env vars and module constants. Positioned after construction (where an earlier draft of this
+  // plan put them) a typo in SUFFICIENCY_CONFIG costs a DynamoDB read and the entire construction
+  // phase before the operator is told the string was malformed — and the role-clash check, which
+  // is the circularity guard, would fire long after it could have.
+  let testConfig: { configId: string; variant: VariantId; raterId: string } | null = null;
+  if (MODE === "test") {
+    const configId = process.env.SUFFICIENCY_CONFIG;
+    if (!configId) {
+      throw new Error(
+        "SUFFICIENCY_MODE=test requires SUFFICIENCY_CONFIG=<variant>/<rater>. It is deliberately not " +
+        "re-derived from dev: the operator states which configuration was chosen, and that statement " +
+        "is what the manifest records.",
+      );
+    }
+    const [variant, ...raterParts] = configId.split("/");
+    const raterId = raterParts.join("/");
+    if (!(VARIANT_IDS as readonly string[]).includes(variant) || !raterId) {
+      throw new Error(`SUFFICIENCY_CONFIG must be <variant>/<rater>, e.g. P1/us.amazon.nova-pro-v1:0 — got "${configId}"`);
+    }
+    if (raterId === JUDGE || raterId === WRITER || raterId === ANSWERER) {
+      throw new Error(`rater ${raterId} holds another role (judge/writer/answerer) — see the grid guard`);
+    }
+    testConfig = { configId, variant: variant as VariantId, raterId };
+  }
 
   const writer = cachedModel(modelFromId(WRITER, { maxTokens: WRITER_MAX_TOKENS }));
   const judge = cachedModel(modelFromId(JUDGE, { maxTokens: JUDGE_MAX_TOKENS }));
@@ -380,22 +420,7 @@ async function main() {
   // The test set can be spent once. The pre-registered rule (spec §2) is that a FAILING result
   // does not license choosing another configuration and trying again — that turns test into a
   // second dev set. This does not prevent a second run; it makes one impossible to hide.
-  const configId = process.env.SUFFICIENCY_CONFIG;
-  if (!configId) {
-    throw new Error(
-      "SUFFICIENCY_MODE=test requires SUFFICIENCY_CONFIG=<variant>/<rater>. It is deliberately not " +
-      "re-derived from dev: the operator states which configuration was chosen, and that statement " +
-      "is what the manifest records.",
-    );
-  }
-  const [variant, ...raterParts] = configId.split("/");
-  const raterId = raterParts.join("/");
-  if (!(VARIANT_IDS as readonly string[]).includes(variant) || !raterId) {
-    throw new Error(`SUFFICIENCY_CONFIG must be <variant>/<rater>, e.g. P1/us.amazon.nova-pro-v1:0 — got "${configId}"`);
-  }
-  if (raterId === JUDGE || raterId === WRITER || raterId === ANSWERER) {
-    throw new Error(`rater ${raterId} holds another role (judge/writer/answerer) — see the grid guard`);
-  }
+  const { configId, variant, raterId } = testConfig!;
 
   const prior = await readTestRuns(outDir);
   if (prior.length) {
