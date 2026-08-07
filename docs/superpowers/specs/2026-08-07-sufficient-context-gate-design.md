@@ -103,8 +103,12 @@ maximally topically similar — the hardest possible negative.
 Arm L has its own weakness and it is stated rather than hidden: **removing the target does not
 strictly guarantee insufficiency**, because a judgment can state the same proposition twice. This
 is not assumed away. Arm L reports its own residual-answerability rate, measured by asking a
-*fourth* model whether the stripped body still addresses the question, and that rate is published
-as a contamination bound, not subtracted out.
+model *independent of the rater* whether the stripped body still addresses the question, and that
+rate is published as a contamination bound, not subtracted out.
+
+The implementation uses the **judge** for that check, not a fourth model. Independence from the
+RATER is the property that matters — the judge did not produce arm L's ground truth, which is
+created by the deletion — so this is not the circularity that rules the judge out for arm X.
 
 Arms X and L bracket the truth from opposite sides — X is the easy negative with a circularity
 bias, L is the adversarial negative with an answerability bias. Neither alone is trustworthy;

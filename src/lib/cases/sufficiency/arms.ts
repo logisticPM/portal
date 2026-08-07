@@ -33,9 +33,13 @@ export function stripTarget<T extends Chunk>(chunks: readonly T[], targetParagra
   return { kept: chunks.filter((c) => c.paragraph !== targetParagraph) };
 }
 
-// assembleInput has a 240,000-char budget and re-picks which chunks survive when the input
-// shrinks, so what it emits after a removal is not simply "the same minus one". This confirms
-// the removal actually reached the assembled text rather than trusting that it did.
+// Confirms stripTarget's removal actually reached the assembled text.
+//
+// Note what this does NOT guard against: assembleInput maps only over the chunks it is handed,
+// so a chunk stripTarget removed can never reappear no matter how the 240,000-char budget
+// re-picks survivors. An earlier comment here claimed budget re-picking as the rationale, which
+// was wrong. The real value is catching a regression in stripTarget itself, and a caller that
+// assembles the WRONG chunk list — both cheap to get wrong and silent if unchecked.
 //
 // Matches the `[para <id>]` tag that assembleInput emits, NOT a bare id: judgments routinely
 // refer to their own paragraph numbers in prose, and a bare-id check would report the target as

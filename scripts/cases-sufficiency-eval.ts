@@ -34,9 +34,13 @@ import { buildSubstantivePrompt, parseSubstantive, buildAddressedPrompt, parseAd
 // Four roles, no model may hold two (spec §5). RATER must differ from all three; the runner
 // refuses to start otherwise, because a rater that is also the judge scores arm X against labels
 // it produced itself, and that agreement would be reported as accuracy.
-const WRITER = process.env.EVAL_WRITER ?? "us.anthropic.claude-sonnet-4-6";
-const JUDGE = process.env.EVAL_JUDGE ?? "us.anthropic.claude-opus-4-5-20251101-v1:0";
-const ANSWERER = process.env.EVAL_ANSWERER ?? "us.meta.llama3-3-70b-instruct-v1:0";
+// Names deliberately identical to cases-caseqa-eval.ts's. Both runners must construct the SAME
+// questions, so an operator who overrides a role for one and not the other would break the
+// premise the construction cross-check exists to protect — while the override silently appeared
+// to work.
+const WRITER = process.env.EVAL_WRITER_MODEL ?? "us.anthropic.claude-sonnet-4-6";
+const JUDGE = process.env.EVAL_JUDGE_MODEL ?? "us.anthropic.claude-opus-4-5-20251101-v1:0";
+const ANSWERER = process.env.EVAL_ANSWER_MODEL ?? "us.meta.llama3-3-70b-instruct-v1:0";
 const RATER = process.env.SUFFICIENCY_RATER ?? "us.anthropic.claude-sonnet-4-6";
 
 // Budgets explicit. #237 lost a whole arm to maxTokens 64: "output STRICTLY this JSON" does not
@@ -78,7 +82,15 @@ async function main() {
       `writer-contamination caveat that MUST appear in the findings doc.`,
     );
   }
-  if (shared) console.warn(`⚠ CONTAMINATED RUN: rater shares an id with another role. Arm S's false-refusal number carries a writer-contamination caveat.\n`);
+  if (shared) {
+    // Name the actual collision. `shared` is true for ANY duplicate among the four, and the
+    // caveat differs by which: rater==writer contaminates arm S (the rater grades questions its
+    // own family wrote), while any other collision means something else entirely.
+    const roles = { writer: WRITER, judge: JUDGE, answerer: ANSWERER, rater: RATER };
+    const collisions = Object.entries(roles)
+      .filter(([r]) => r !== "rater").filter(([, id]) => id === RATER).map(([r]) => r);
+    console.warn(`⚠ CONTAMINATED RUN: rater shares an id with ${collisions.join(" and ")} (${RATER}). This caveat MUST appear in the findings doc.\n`);
+  }
 
   const writer = cachedModel(modelFromId(WRITER, { maxTokens: WRITER_MAX_TOKENS }));
   const judge = cachedModel(modelFromId(JUDGE, { maxTokens: JUDGE_MAX_TOKENS }));
@@ -115,55 +127,92 @@ async function main() {
   const byId = new Map(cases.map((c) => [c.id, c]));
 
   const { targets: shaped } = pickTargets(cases, SEED, N_ANSWERABLE);
-  const { targets } = await screenSubstantiveTargets(shaped, async (t) =>
+  const { targets, targetsRejectedByJudge, targetJudgeUnparsed } = await screenSubstantiveTargets(shaped, async (t) =>
     parseSubstantive(await judge.call(buildSubstantivePrompt(t.text, byId.get(t.caseId)!.styleOfCause))));
   if (!targets.length) throw new Error("no eligible target survived — run the answer-quality eval first to warm the cache");
 
+  // Rejections counted apart from one another, not collapsed into a bare `continue`. The
+  // imported modules already compute these, and the first version of this runner destructured
+  // only the survivors and dropped them. That is the #237 failure mode one step upstream: if the
+  // writer starts truncating or the judge starts returning unparseable screens, the measured
+  // population silently shrinks and nothing in the output says why.
+  let writerFails = 0, writerMalformed = 0, gimmes = 0;
   const built: { caseId: string; qid: string; question: string; targetParagraph: string }[] = [];
   for (const t of targets) {
     const c = byId.get(t.caseId)!;
     const question = (await writer.call(buildQuestionPrompt(c, t))).trim();
-    if (!question || !isWellFormedQuestion(question) || isLexicalGimme(question, t.text)) continue;
+    if (!question) { writerFails++; continue; }
+    if (!isWellFormedQuestion(question)) { writerMalformed++; continue; }
+    if (isLexicalGimme(question, t.text)) { gimmes++; continue; }
     built.push({ caseId: t.caseId, qid: `ans-${built.length + 1}`, question, targetParagraph: t.paragraph });
   }
-  const { pairs } = await buildUnanswerablePairs(built, N_UNANSWERABLE, SEED, async (source, candidate) => {
+  const { pairs, discardedPairs, addressedFails, exhausted } = await buildUnanswerablePairs(built, N_UNANSWERABLE, SEED, async (source, candidate) => {
     const target = byId.get(candidate.caseId)!;
     return parseAddressed(await judge.call(buildAddressedPrompt(source.question, target.styleOfCause,
       assembleInput(target.chunks!, target.outcome.holding))));
   });
   console.log(`construction: ${built.length} answerable · ${pairs.length} unanswerable (seed ${SEED})`);
+  console.log(`  target attrition: rejected by substance screen ${targetsRejectedByJudge} · unparseable screen ${targetJudgeUnparsed}`);
+  console.log(`  question attrition: writer empty ${writerFails} · malformed ${writerMalformed} · lexical gimme ${gimmes}`);
+  console.log(`  pairing attrition: discarded ${discardedPairs} · addressed-screen unparsed ${addressedFails} · candidates exhausted ${exhausted}`);
   console.log(`models: writer ${WRITER} · judge ${JUDGE} · answerer ${ANSWERER} · RATER ${RATER}\n`);
 
-  // --- verify we are measuring the same questions the 93.8% baseline was measured on ------
-  // The threshold in tally.ts is stated against a specific run's baseline. If construction has
-  // drifted, that comparison is meaningless. The persisted eval rows carry qid -> question, so
-  // any qid in both must have the identical text. Missing rows are fine (a refused question
-  // produced no claim rows); a MISMATCH is not.
+  // --- cross-check construction against a prior run ---------------------------------------
+  // What this CAN establish: construction is reproducible — same seed, same cached writer and
+  // judge, same questions out.
+  //
+  // What it CANNOT establish, and what an earlier draft of this block wrongly told the operator
+  // it had: that these are the questions the 93.8% baseline was measured on. That baseline is
+  // the 2026-08-06 run, which persisted NO rows — its 266 judged claims were unrecoverable, and
+  // fixing that is the reason row persistence exists at all. Every file on disk is therefore
+  // from a LATER run. Printing "the baseline does not apply" on mismatch implied the converse
+  // on match, which was a claim this check is structurally unable to make.
   const rowsDir = path.join(process.cwd(), "scripts", ".cache", "eval-rows");
-  let checked = 0;
+  let crossCheck = "not run";
+  let drift: string | null = null;
   try {
     const files = (await fs.readdir(rowsDir)).filter((f) => f.endsWith(".jsonl") && !f.endsWith(".nli.jsonl")).sort();
     const latest = files[files.length - 1];
-    if (latest) {
-      const prior = new Map<string, string>();
-      for (const line of (await fs.readFile(path.join(rowsDir, latest), "utf8")).trim().split("\n")) {
-        const r = JSON.parse(line);
-        if (r.kind === "claim" && r.question) prior.set(r.qid, r.question);
-      }
-      for (const q of [...built, ...pairs]) {
-        const was = prior.get(q.qid);
-        if (was === undefined) continue;
-        if (was !== q.question) {
-          throw new Error(`construction drift: ${q.qid} was "${was.slice(0, 60)}..." in ${latest}, now "${q.question.slice(0, 60)}..." — the ${(BASELINE_FALSE_ANSWER * 100).toFixed(1)}% baseline does not apply to this question set`);
+    if (!latest) {
+      crossCheck = "no prior eval rows on disk — construction NOT cross-checked";
+    } else {
+      const lines = (await fs.readFile(path.join(rowsDir, latest), "utf8")).trim().split("\n").map((l) => JSON.parse(l));
+      const header = lines.find((r) => r.kind === "run");
+      // A prior run at a different seed draws different targets, so every qid names a different
+      // question and EVERY comparison reports drift. That is a mismatched reference, not a
+      // regression — and a check that cries wolf is a check the operator learns to ignore.
+      if (header && header.seed !== SEED) {
+        crossCheck = `prior rows ${latest} are seed ${header.seed}, this run is seed ${SEED} — not comparable, NOT cross-checked`;
+      } else {
+        const prior = new Map<string, string>();
+        for (const r of lines) if (r.kind === "claim" && r.question) prior.set(r.qid, r.question);
+        let checked = 0;
+        for (const q of [...built, ...pairs]) {
+          const was = prior.get(q.qid);
+          if (was === undefined) continue;
+          if (was !== q.question) {
+            drift = `construction drift: ${q.qid} was "${was.slice(0, 60)}..." in ${latest}, now "${q.question.slice(0, 60)}..."`;
+            break;
+          }
+          checked++;
         }
-        checked++;
+        // Zero overlap is NOT a pass. A prior file whose claim rows predate the `question` field,
+        // or a run in which every question was refused (a refused question produces no claim
+        // rows), leaves checked at 0 — which the previous version printed as a match count,
+        // reading exactly like success.
+        crossCheck = checked > 0
+          ? `${checked} qid(s) matched against ${latest} — construction is reproducible (NOT a check against the 93.8% baseline; that run persisted no rows)`
+          : `0 qid(s) overlapped with ${latest} — construction NOT cross-checked`;
       }
-      console.log(`construction cross-check: ${checked} qid(s) matched against ${latest}\n`);
     }
   } catch (e) {
-    if (e instanceof Error && e.message.startsWith("construction drift")) throw e;
-    console.warn(`construction cross-check skipped (${e instanceof Error ? e.message : String(e)})\n`);
+    crossCheck = `skipped (${e instanceof Error ? e.message : String(e)})`;
   }
+  // Thrown outside the try, via a flag rather than by re-matching the message text. The previous
+  // version re-threw on `message.startsWith("construction drift")`, so rewording the operator's
+  // error would have silently downgraded a hard abort into a warning.
+  if (drift) throw new Error(`${drift} — construction is not reproducible, so no cross-run comparison in this report is valid`);
+  console.log(`construction cross-check: ${crossCheck}\n`);
 
   // --- arms -------------------------------------------------------------------------------
   const rows: string[] = [];
@@ -171,22 +220,27 @@ async function main() {
   const score = async (
     label: "S" | "X" | "L",
     items: { caseId: string; qid: string; question: string; body: string; targetParagraph?: string }[],
-  ): Promise<{ counts: ArmCounts; unparsed: number }> => {
+  ): Promise<{ counts: ArmCounts; unparsed: number; failed: number }> => {
     const counts: ArmCounts = { sufficient: 0, insufficient: 0 };
-    let unparsed = 0;
+    let unparsed = 0, failed = 0;
     process.stdout.write(`arm ${label} (${items.length}): `);
     for (const [i, it] of items.entries()) {
       const c = byId.get(it.caseId)!;
+      // `rate` returns null for BOTH a parse failure and a call failure, and those are not the
+      // same thing: an unparsed response is evidence about the rater, a failed call is evidence
+      // about nothing. Distinguished by whether the shared counter moved, so the line printed
+      // just before assertNoCallFailures aborts does not mislabel an outage as parse failures.
+      const failedBefore = callFailures;
       const v = await rate(it.question, c.styleOfCause, it.body);
-      if (v === null) { unparsed++; continue; }
+      if (v === null) { if (callFailures > failedBefore) failed++; else unparsed++; continue; }
       if (v.sufficient) counts.sufficient++; else counts.insufficient++;
       rows.push(JSON.stringify({ kind: "rating", runId, arm: label, caseId: it.caseId, qid: it.qid,
         question: it.question, targetParagraph: it.targetParagraph ?? null,
         sufficient: v.sufficient, reason: v.reason }));
       if ((i + 1) % 10 === 0) process.stdout.write(`${i + 1} `);
     }
-    console.log(`done (${counts.sufficient} sufficient, ${counts.insufficient} insufficient, ${unparsed} unparsed)`);
-    return { counts, unparsed };
+    console.log(`done (${counts.sufficient} sufficient, ${counts.insufficient} insufficient, ${unparsed} unparsed, ${failed} call failures)`);
+    return { counts, unparsed, failed };
   };
 
   // Arm S. The budget guard is FIX D from the answer-quality eval: assembleInput drops chunks
@@ -248,7 +302,11 @@ async function main() {
   console.log(`  projected false answer: ${X.counts.sufficient}/${X.counts.sufficient + X.counts.insufficient} = ${pct(pfa)}   (max ${pct(PROJECTED_FALSE_ANSWER_MAX)}, baseline ${pct(BASELINE_FALSE_ANSWER)})`);
   console.log(`--- arm L (target removed, INSUFFICIENT by construction) — REPORTED, NO THRESHOLD ---`);
   console.log(`  rater says sufficient: ${L.counts.sufficient}/${L.counts.sufficient + L.counts.insufficient}`);
-  console.log(`  residual answerability: ${stillAddressed}/${armLItems.length} still judged addressed after removal (unparsed ${residualUnparsed})`);
+  // Denominator excludes unparseable verdicts. `stillAddressed` only counts a parsed `true`, so
+  // dividing by the full item count understates the bound by up to residualUnparsed/n — and for
+  // a CONTAMINATION bound, understating is the unsafe direction.
+  const residualScored = armLItems.length - residualUnparsed;
+  console.log(`  residual answerability: ${stillAddressed}/${residualScored} still judged addressed after removal (${residualUnparsed} unparseable verdict(s) excluded from the denominator)`);
   console.log(`  ^ contamination bound. Arm L's number is NOT corrected by it — both are published.`);
   console.log(`\n  unparsed ratings: S ${S.unparsed} · X ${X.unparsed} · L ${L.unparsed}`);
   console.log(`  cache entries evicted and re-fetched: ${repairs}`);
@@ -263,12 +321,27 @@ async function main() {
     // later from the JSONL must not be able to lose the caveat.
     JSON.stringify({ kind: "run", runId, writer: WRITER, judge: JUDGE, answerer: ANSWERER, rater: RATER,
       contaminated: shared, seed: SEED, armS: S.counts, armX: X.counts, armL: L.counts, stillAddressed,
-      residualUnparsed, falseRefusal: fr, projectedFalseAnswer: pfa, decision: decide(fr, pfa) }),
+      residualUnparsed, residualScored, falseRefusal: fr, projectedFalseAnswer: pfa, decision: decide(fr, pfa),
+      // Attrition travels with the rows for the same reason `contaminated` does. Without these,
+      // a findings doc written weeks later from the JSONL alone cannot tell whether
+      // falseRefusal 0.03 came from 38 of 38 questions rated or 38 of 60.
+      unparsed: { S: S.unparsed, X: X.unparsed, L: L.unparsed },
+      callFailures: { S: S.failed, X: X.failed, L: L.failed },
+      targetDroppedByBudget, crossCheck,
+      construction: { targetsRejectedByJudge, targetJudgeUnparsed, writerFails, writerMalformed, gimmes,
+        discardedPairs, addressedFails, exhausted } }),
     ...rows,
   ].join("\n") + "\n", "utf8");
   console.log(`\nrows -> ${outFile}`);
 
-  // Reconciliation computed WITHOUT reusing the counters under test.
+  // NOT an independent reconciliation, despite what an earlier comment here claimed. In `score`
+  // the counter increment and the `rows.push` are unconditionally adjacent with no branch
+  // between them, so `rows.length` equals the tally BY CONSTRUCTION and this can never fire
+  // today. It is kept as a tripwire for a FUTURE edit that inserts an early exit between those
+  // two lines — which is a real risk and worth a cheap guard — but it must not be read as
+  // evidence that the two were derived independently. This project has shipped genuinely
+  // unreachable assertions before by re-deriving a check from the branch that assigned the
+  // value; the difference here is that the limitation is stated rather than disguised.
   const persisted = rows.length;
   const tallied = S.counts.sufficient + S.counts.insufficient + X.counts.sufficient
     + X.counts.insufficient + L.counts.sufficient + L.counts.insufficient;
