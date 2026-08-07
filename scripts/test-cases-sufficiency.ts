@@ -2,6 +2,8 @@
 // Run: npx tsx scripts/test-cases-sufficiency.ts
 import assert from "node:assert/strict";
 import fsSync from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { buildSufficiencyPrompt, parseSufficiency, VARIANTS, VARIANT_IDS } from "../src/lib/cases/sufficiency/prompt";
 import {
   falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
@@ -9,6 +11,7 @@ import {
   wilson, classify, selectOnDev,
 } from "../src/lib/cases/sufficiency/tally";
 import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
+import { readTestRuns, appendTestRun } from "../src/lib/cases/sufficiency/manifest";
 
 // --- parseSufficiency --------------------------------------------------------------------
 assert.deepEqual(parseSufficiency('{"reason":"para 12 states the test","sufficient":true}'),
@@ -219,4 +222,26 @@ assert.equal(classify(0, 16, 0.20), "clears", "0/16, CI [0.00, 19.36] — entire
   assert.equal(selectOnDev([]).chosen, null, "empty input is null, not a crash");
 }
 
-console.log("✅ test-cases-sufficiency passed");
+// tsx transpiles these scripts to CJS, where top-level await is a transform error, so the async
+// assertions live in a function that is awaited at the bottom. Same pattern as
+// scripts/test-cases-nli-probe.ts. The manifest is the first async-tested module here; every
+// other assertion in this file is synchronous and stays at top level.
+async function asyncTests() {
+// --- test-run manifest -------------------------------------------------------------------
+{
+  const dir = path.join(os.tmpdir(), `suff-manifest-${process.pid}`);
+  assert.deepEqual(await readTestRuns(dir), [], "no manifest yet is an empty list, not a crash");
+  await appendTestRun(dir, { configId: "P1/nova-pro", at: "2026-08-07T00:00:00Z", armS: { sufficient: 78, insufficient: 2 }, armX: { sufficient: 0, insufficient: 40 } });
+  await appendTestRun(dir, { configId: "P2/nova-pro", at: "2026-08-08T00:00:00Z", armS: { sufficient: 79, insufficient: 1 }, armX: { sufficient: 1, insufficient: 39 } });
+  const runs = await readTestRuns(dir);
+  assert.equal(runs.length, 2, "appends, does not overwrite — a second test run must not erase the first");
+  assert.equal(runs[0].configId, "P1/nova-pro", "order preserved, so 'which was first' is answerable");
+  assert.equal(runs[1].configId, "P2/nova-pro");
+  fsSync.rmSync(dir, { recursive: true, force: true });
+}
+}
+
+asyncTests().then(
+  () => console.log("✅ test-cases-sufficiency passed"),
+  (e) => { console.error(e); process.exit(1); },
+);
