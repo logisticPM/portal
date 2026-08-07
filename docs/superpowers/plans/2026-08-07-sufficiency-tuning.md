@@ -513,10 +513,17 @@ Extend the tally import to add the new names, and add before the final `console.
 // Reported ALONGSIDE the point-estimate rule, never instead of it. #239 used point estimates
 // and switching now would move the goalposts mid-experiment.
 assert.equal(classify(0, 80, 0.05), "clears", "interval entirely below the bar");
-assert.equal(classify(1, 80, 0.05), "fails", "interval entirely above the bar");
+// NOT "fails". The point estimate is 1.25% and the CI is [0.22%, 6.75%] — the upper bound sits
+// above 5% but the lower bound is far below it, so at n=80 a single refusal cannot distinguish a
+// rate under the bar from one over it. An earlier draft of this line asserted "fails", conflating
+// "the upper bound exceeds the bar" with "the rate exceeds the bar". That conflation is exactly
+// what classify() exists to prevent, so the test asserting it was self-defeating.
+assert.equal(classify(1, 80, 0.05), "inconclusive-at-this-n", "1.25%, but CI [0.22, 6.75] straddles 5%");
 assert.equal(classify(10, 38, 0.05), "fails", "the #239 result: 26.3%, CI [15.0, 42.0]");
 assert.equal(classify(2, 60, 0.05), "inconclusive-at-this-n", "3.3% but the interval straddles 5%");
-assert.equal(classify(0, 16, 0.20), "inconclusive-at-this-n", "the #239 arm X: 0/16, upper bound 19.4% — just inside");
+// The #239 arm X result. Upper bound 19.36% sits UNDER the 20% bar, so it clears — narrowly, and
+// the spec's own status table already records it as a pass. "Just inside" is still inside.
+assert.equal(classify(0, 16, 0.20), "clears", "0/16, CI [0.00, 19.36] — entirely under a 20% bar");
 
 // --- dev selection rule ------------------------------------------------------------------
 {

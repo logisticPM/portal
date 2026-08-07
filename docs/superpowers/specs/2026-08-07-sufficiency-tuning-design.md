@@ -42,9 +42,21 @@ Wilson 95% upper bounds on arm S:
 | 2 | 17.3% | 13.5% | 8.7% | 7.0% |
 
 **n=73 is the smallest arm-S size at which a perfect result clears a 5% upper bound.** At n=80,
-zero refusals gives 4.6% and clears it; **one** refusal gives 6.7% and does not. The bar is
-demanding and that is a property of the bar, not a flaw in the plan — stating it now prevents a
-post-hoc argument that "1 of 80 is basically 5%".
+zero refusals gives an upper bound of 4.6% and clears it.
+
+**One refusal at n=80 is `inconclusive`, not a failure**, and the distinction is load-bearing.
+1/80 is a point estimate of 1.25% with a CI of **[0.22%, 6.75%]** — the upper bound sits above the
+bar but the lower bound is far below it, so the data cannot distinguish a rate under 5% from one
+over it. That is *"we cannot tell at this n"*, not *"we proved it is too high"*.
+
+An earlier draft of this spec wrote that one refusal "does not clear" the bar, and the plan's test
+then asserted `classify(1, 80, 0.05) === "fails"` — conflating *the upper bound exceeds the bar*
+with *the rate exceeds the bar*. That conflation is precisely what `classify` exists to prevent,
+so a test asserting it was self-defeating. Caught by the Task 4 implementer.
+
+The bar is demanding and that is a property of the bar, not a flaw in the plan — stating it now
+prevents a post-hoc argument that "1 of 80 is basically 5%". It equally prevents the opposite
+error: treating an inconclusive result as a proven failure.
 
 Arm X is cheap by comparison: 0/40 gives an upper bound of 8.8%, comfortably inside 20%.
 
