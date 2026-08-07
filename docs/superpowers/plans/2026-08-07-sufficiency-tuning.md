@@ -64,7 +64,9 @@ In `scripts/cases-sufficiency-eval.ts`:
 - Delete the import of `stripTarget, assertTargetAbsent`.
 - Delete the whole `// Arm L: the same arm-S questions with the target paragraph deleted.` block through `assertNoCallFailures(callFailures, "arm L");`.
 - Delete the whole `// Arm L's contamination, measured rather than assumed:` block through `assertNoCallFailures(callFailures, "arm L residual check");`.
-- Delete the three `console.log` lines reporting arm L and the residual (`--- arm L (target removed...`, `rater says sufficient...`, `residual answerability...`, and the `^ contamination bound...` line).
+- Delete the four `console.log` lines reporting arm L and the residual (`--- arm L (target removed...`, `rater says sufficient...`, `residual answerability...`, and the `^ contamination bound...` line).
+- Rewrite the file's top-of-file header comment, which documents arm L as a live arm. Replace the block from `// Three-arm measurement` through `// answerability instead of assuming it is zero.` with a two-arm description that records *why* arm L is gone — the 86.8% contamination — and points at the findings doc. A header describing a deleted arm is exactly the stale-comment problem this deletion exists to avoid.
+- Fix the `SUFFICIENCY_ALLOW_SHARED` error message, which says `arms X and L stay clean`. It becomes `arm X stays clean`. (Task 6 removes this whole block, but a factually wrong operator message must not sit in the tree for four tasks.)
 - In the `unparsed ratings` line, drop `· L ${L.unparsed}`.
 - In the persisted run row, drop `armL: L.counts`, `stillAddressed`, `residualUnparsed`, `residualScored`, and the `L` entries inside `unparsed` and `callFailures`.
 - In the final reconciliation, drop the two `L.counts` terms.
@@ -76,10 +78,16 @@ Anything left referencing `L` will fail typecheck, which is the check that this 
 ```bash
 npx tsc --noEmit
 npx tsx scripts/test-cases-sufficiency.ts
-grep -rn "arms\|stripTarget\|assertTargetAbsent\|armL" src/lib/cases/sufficiency/ scripts/cases-sufficiency-eval.ts scripts/test-cases-sufficiency.ts
+grep -rniE "stripTarget|assertTargetAbsent|arm ?L\b|leave-one-out|residualUnparsed|residualScored|stillAddressed" src/ scripts/
 ```
 
 Expected: `tsc` silent; suite prints its `✅`; the grep returns **nothing**.
+
+The grep is case-insensitive and matches real symbols and phrases, not the bare substring `arms`.
+An earlier version did neither and was wrong in both directions: it fired on a generic
+`// --- arms ---` divider that refers to the two surviving arms, and it silently missed the file
+header — which described arm L as live — because that header capitalises `Arms`. It also searched
+only three named files. A completeness check that can give false confidence is worse than none.
 
 - [ ] **Step 5: Commit**
 

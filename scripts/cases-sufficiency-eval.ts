@@ -1,18 +1,22 @@
-// Three-arm measurement of the sufficiency rater (spec 2026-08-07). Phase 1: measurement only —
+// Two-arm measurement of the sufficiency rater (spec 2026-08-07). Phase 1: measurement only —
 // this changes NOTHING in the product. Wiring is conditional on the pre-registered thresholds in
 // sufficiency/tally.ts and is not in this script.
 //
 // Run: AWS_PROFILE=bedrock npm run cases:sufficiency-eval:cloud
 //
-//   arm S  answerable questions, full body        — ground truth SUFFICIENT by construction
-//   arm X  cross-case unanswerable, full body     — INSUFFICIENT per an LLM screen (see below)
-//   arm L  answerable questions, target removed   — INSUFFICIENT by construction
+//   arm S  answerable questions, full body      — ground truth SUFFICIENT by construction
+//   arm X  cross-case unanswerable, full body   — INSUFFICIENT per an LLM screen
 //
-// Arms X and L have opposite biases and bracket the answer. X is the easy negative and its label
-// came from a screen run on the JUDGE model, so a rater that is also the judge would be scoring
-// its own homework. L is the adversarial negative — same judgment, same vocabulary, one
-// paragraph gone — but a judgment can state a proposition twice, so L reports its own residual
-// answerability instead of assuming it is zero.
+// There was a third arm. Arm L took arm S's questions and deleted the target paragraph, so that
+// insufficiency would be created by construction rather than certified by a screen. It was
+// measured and it does not work on this corpus: after the deletion an independent model still
+// judged the question answerable 33/38 = 86.8% of the time, because judgments restate the same
+// proposition across paragraphs. Its ground truth was wrong for six of every seven items, so it
+// was deleted rather than left to look like evidence. See
+// docs/research/2026-08-07-sufficient-context-results.md.
+//
+// Arm X's labels came from a screen run on the JUDGE model, so a rater that is also the judge
+// would be scoring its own homework — hence the role guard below.
 import "./fetch-polyfill";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -20,7 +24,6 @@ import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { modelFromId, cachedModel, hasCached, evictCached } from "../src/lib/cases/ingest/llm";
 import { assembleInput } from "../src/lib/cases/ingest/summarizer";
 import { buildSufficiencyPrompt, parseSufficiency, type Sufficiency } from "../src/lib/cases/sufficiency/prompt";
-import { stripTarget, assertTargetAbsent } from "../src/lib/cases/sufficiency/arms";
 import {
   falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER, type ArmCounts,
@@ -78,7 +81,7 @@ async function main() {
       `four roles must be four DIFFERENT models, got writer=${WRITER} judge=${JUDGE} ` +
       `answerer=${ANSWERER} rater=${RATER}. Run 'npm run cases:probe-models:cloud' to find a ` +
       `fourth invocable id and set SUFFICIENCY_RATER. If none exists, re-run with ` +
-      `SUFFICIENCY_ALLOW_SHARED=1 — arms X and L stay clean, but arm S carries a ` +
+      `SUFFICIENCY_ALLOW_SHARED=1 — arm X stays clean, but arm S carries a ` +
       `writer-contamination caveat that MUST appear in the findings doc.`,
     );
   }
@@ -266,32 +269,6 @@ async function main() {
   const X = await score("X", armXItems);
   assertNoCallFailures(callFailures, "arm X");
 
-  // Arm L: the same arm-S questions with the target paragraph deleted.
-  const armLItems = armSItems.map((it) => {
-    const c = byId.get(it.caseId)!;
-    const { kept } = stripTarget(c.chunks!, it.targetParagraph);
-    const body = assembleInput(kept, c.outcome.holding);
-    assertTargetAbsent(body, it.targetParagraph);
-    return { ...it, body };
-  });
-  const L = await score("L", armLItems);
-  assertNoCallFailures(callFailures, "arm L");
-
-  // Arm L's contamination, measured rather than assumed: a judgment can state the same
-  // proposition twice, so removing the target does not strictly guarantee unanswerability. The
-  // JUDGE is asked — independent of the RATER, which is the separation that matters here.
-  process.stdout.write(`arm L residual answerability (${armLItems.length}): `);
-  let stillAddressed = 0, residualUnparsed = 0;
-  for (const it of armLItems) {
-    const c = byId.get(it.caseId)!;
-    try {
-      const a = parseAddressed(await judge.call(buildAddressedPrompt(it.question, c.styleOfCause, it.body)));
-      if (a === null) residualUnparsed++; else if (a) stillAddressed++;
-    } catch (e) { callFailures++; console.warn("  [judge failed]", e instanceof Error ? e.message : String(e)); }
-  }
-  console.log("done");
-  assertNoCallFailures(callFailures, "arm L residual check");
-
   // --- report -----------------------------------------------------------------------------
   const fr = falseRefusalRate(S.counts);
   const pfa = projectedFalseAnswerRate(X.counts);
@@ -300,15 +277,7 @@ async function main() {
   console.log(`  false refusal: ${S.counts.insufficient}/${S.counts.sufficient + S.counts.insufficient} = ${pct(fr)}   (max ${pct(FALSE_REFUSAL_MAX)})`);
   console.log(`--- arm X (cross-case, INSUFFICIENT per an LLM screen) ---`);
   console.log(`  projected false answer: ${X.counts.sufficient}/${X.counts.sufficient + X.counts.insufficient} = ${pct(pfa)}   (max ${pct(PROJECTED_FALSE_ANSWER_MAX)}, baseline ${pct(BASELINE_FALSE_ANSWER)})`);
-  console.log(`--- arm L (target removed, INSUFFICIENT by construction) — REPORTED, NO THRESHOLD ---`);
-  console.log(`  rater says sufficient: ${L.counts.sufficient}/${L.counts.sufficient + L.counts.insufficient}`);
-  // Denominator excludes unparseable verdicts. `stillAddressed` only counts a parsed `true`, so
-  // dividing by the full item count understates the bound by up to residualUnparsed/n — and for
-  // a CONTAMINATION bound, understating is the unsafe direction.
-  const residualScored = armLItems.length - residualUnparsed;
-  console.log(`  residual answerability: ${stillAddressed}/${residualScored} still judged addressed after removal (${residualUnparsed} unparseable verdict(s) excluded from the denominator)`);
-  console.log(`  ^ contamination bound. Arm L's number is NOT corrected by it — both are published.`);
-  console.log(`\n  unparsed ratings: S ${S.unparsed} · X ${X.unparsed} · L ${L.unparsed}`);
+  console.log(`\n  unparsed ratings: S ${S.unparsed} · X ${X.unparsed}`);
   console.log(`  cache entries evicted and re-fetched: ${repairs}`);
   console.log(`\n--- pre-registered decision ---`);
   console.log(`  VERDICT: ${decide(fr, pfa).toUpperCase()}`);
@@ -320,13 +289,13 @@ async function main() {
     // `contaminated` travels with the rows, not just the console: a findings doc written weeks
     // later from the JSONL must not be able to lose the caveat.
     JSON.stringify({ kind: "run", runId, writer: WRITER, judge: JUDGE, answerer: ANSWERER, rater: RATER,
-      contaminated: shared, seed: SEED, armS: S.counts, armX: X.counts, armL: L.counts, stillAddressed,
-      residualUnparsed, residualScored, falseRefusal: fr, projectedFalseAnswer: pfa, decision: decide(fr, pfa),
+      contaminated: shared, seed: SEED, armS: S.counts, armX: X.counts,
+      falseRefusal: fr, projectedFalseAnswer: pfa, decision: decide(fr, pfa),
       // Attrition travels with the rows for the same reason `contaminated` does. Without these,
       // a findings doc written weeks later from the JSONL alone cannot tell whether
       // falseRefusal 0.03 came from 38 of 38 questions rated or 38 of 60.
-      unparsed: { S: S.unparsed, X: X.unparsed, L: L.unparsed },
-      callFailures: { S: S.failed, X: X.failed, L: L.failed },
+      unparsed: { S: S.unparsed, X: X.unparsed },
+      callFailures: { S: S.failed, X: X.failed },
       targetDroppedByBudget, crossCheck,
       construction: { targetsRejectedByJudge, targetJudgeUnparsed, writerFails, writerMalformed, gimmes,
         discardedPairs, addressedFails, exhausted } }),
@@ -344,7 +313,7 @@ async function main() {
   // value; the difference here is that the limitation is stated rather than disguised.
   const persisted = rows.length;
   const tallied = S.counts.sufficient + S.counts.insufficient + X.counts.sufficient
-    + X.counts.insufficient + L.counts.sufficient + L.counts.insufficient;
+    + X.counts.insufficient;
   if (persisted !== tallied) throw new Error(`persisted ${persisted} rows but tallied ${tallied} ratings`);
 }
 
