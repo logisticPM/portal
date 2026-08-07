@@ -28,8 +28,12 @@ import {
   falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER, type ArmCounts,
 } from "../src/lib/cases/sufficiency/tally";
+import { VARIANTS, VARIANT_IDS, type VariantId } from "../src/lib/cases/sufficiency/prompt";
+import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
+import { wilson, classify, selectOnDev, type DevResult } from "../src/lib/cases/sufficiency/tally";
+import { readTestRuns, appendTestRun } from "../src/lib/cases/sufficiency/manifest";
 import { callParsed, type CacheOps } from "../src/lib/cases/nli-probe/repair";
-import { pickTargets, buildQuestionPrompt, isWellFormedQuestion, isLexicalGimme } from "../src/lib/cases/caseqa-eval/construct";
+import { pickTargets, buildQuestionPrompt, isWellFormedQuestion, isLexicalGimme, MIN_TARGET_PARA_CHARS, isProseShaped } from "../src/lib/cases/caseqa-eval/construct";
 import { screenSubstantiveTargets } from "../src/lib/cases/caseqa-eval/substanceScreen";
 import { buildUnanswerablePairs } from "../src/lib/cases/caseqa-eval/pairing";
 import { buildSubstantivePrompt, parseSubstantive, buildAddressedPrompt, parseAddressed } from "../src/lib/cases/caseqa-eval/judge";
@@ -44,8 +48,6 @@ import { buildSubstantivePrompt, parseSubstantive, buildAddressedPrompt, parseAd
 const WRITER = process.env.EVAL_WRITER_MODEL ?? "us.anthropic.claude-sonnet-4-6";
 const JUDGE = process.env.EVAL_JUDGE_MODEL ?? "us.anthropic.claude-opus-4-5-20251101-v1:0";
 const ANSWERER = process.env.EVAL_ANSWER_MODEL ?? "us.meta.llama3-3-70b-instruct-v1:0";
-const RATER = process.env.SUFFICIENCY_RATER ?? "us.anthropic.claude-sonnet-4-6";
-
 // Budgets explicit. #237 lost a whole arm to maxTokens 64: "output STRICTLY this JSON" does not
 // stop a model reasoning in prose first, a response truncated mid-reasoning still has a text
 // part so llm.ts does not throw, and the label silently fails to parse — non-randomly, skewed
@@ -55,63 +57,49 @@ const WRITER_MAX_TOKENS = 512;
 const JUDGE_MAX_TOKENS = 1024;
 
 const SEED = Number(process.env.EVAL_SEED ?? 1);
-const N_ANSWERABLE = Number(process.env.EVAL_ANSWERABLE ?? 40);
-const N_UNANSWERABLE = Number(process.env.EVAL_UNANSWERABLE ?? 20);
+// Sized by what a 5% bar can be measured against, not by round numbers (spec §3): n=73 is the
+// smallest arm-S test set where a perfect result clears a 5% Wilson upper bound. At 80, zero
+// refusals gives 4.6% and clears; ONE gives 6.7% and does not.
+const N_ANSWERABLE = Number(process.env.EVAL_ANSWERABLE ?? 120);
+const N_UNANSWERABLE = Number(process.env.EVAL_UNANSWERABLE ?? 60);
+const DEV_ANSWERABLE = Number(process.env.SUFFICIENCY_DEV_ANSWERABLE ?? 40);
+const DEV_UNANSWERABLE = Number(process.env.SUFFICIENCY_DEV_UNANSWERABLE ?? 20);
+
+const MODE = process.env.SUFFICIENCY_MODE ?? "dev";
+
+// The grid, pre-registered (spec §5). Not "until something passes".
+//
+// us.deepseek.r1-v1:0 is invocable and deliberately excluded: it is a reasoning model, this
+// prompt already asks for reasoning before the label, and that combination is the
+// budget-starvation shape that cost #237 an entire arm.
+const STAGE1_RATERS = [
+  "us.amazon.nova-pro-v1:0",
+  "us.meta.llama4-maverick-17b-instruct-v1:0",
+  "cohere.command-r-plus-v1:0",
+  "us.amazon.nova-lite-v1:0",
+];
+const STAGE2_VARIANTS: VariantId[] = ["P1", "P2"];
 
 let repairs = 0;
 const CACHE_OPS: CacheOps = { hasCached, evictCached };
 
 async function main() {
-  // Spec §5's fallback: if no fourth id is invocable, the rater may share the WRITER's id and
-  // the report carries a contamination caveat (the rater would be grading questions its own
-  // family wrote). Sharing the JUDGE's id is never allowed under any flag — the judge produced
-  // arm X's labels, so that pairing turns arm X into self-agreement, which is the one result
-  // this whole design exists to avoid.
-  const shared = new Set([WRITER, JUDGE, ANSWERER, RATER]).size !== 4;
-  const allowShared = process.env.SUFFICIENCY_ALLOW_SHARED === "1";
-  if (RATER === JUDGE) {
-    throw new Error(
-      `rater must not be the judge (${JUDGE}): the judge produced arm X's "does not address" ` +
-      `labels, so scoring the rater against them would measure self-agreement and report it as ` +
-      `accuracy. No flag overrides this. Run 'npm run cases:probe-models:cloud' and set SUFFICIENCY_RATER.`,
-    );
+  // Role separation, now against every rater in the grid rather than one. A rater that is also
+  // the judge would be scored against arm X labels the judge itself produced; one that is the
+  // writer wrote arm S's questions; one that is the answerer is the subject under test.
+  //
+  // The #239 `SUFFICIENCY_ALLOW_SHARED` escape hatch is gone. It existed because only three
+  // invocable ids were known; the probe has since found eight, so a contaminated run is no
+  // longer a necessary compromise and the flag would only be a way to make one by accident.
+  for (const r of STAGE1_RATERS) {
+    if (r === JUDGE) throw new Error(`grid contains the judge (${JUDGE}) as a rater — that scores it against its own arm-X labels`);
+    if (r === WRITER) throw new Error(`grid contains the writer (${WRITER}) as a rater — it wrote arm S's questions`);
+    if (r === ANSWERER) throw new Error(`grid contains the answerer (${ANSWERER}) as a rater — it is the subject under test`);
   }
-  if (shared && !allowShared) {
-    throw new Error(
-      `four roles must be four DIFFERENT models, got writer=${WRITER} judge=${JUDGE} ` +
-      `answerer=${ANSWERER} rater=${RATER}. Run 'npm run cases:probe-models:cloud' to find a ` +
-      `fourth invocable id and set SUFFICIENCY_RATER. If none exists, re-run with ` +
-      `SUFFICIENCY_ALLOW_SHARED=1 — arm X stays clean, but arm S carries a ` +
-      `writer-contamination caveat that MUST appear in the findings doc.`,
-    );
-  }
-  if (shared) {
-    // Name the actual collision. `shared` is true for ANY duplicate among the four, and the
-    // caveat differs by which: rater==writer contaminates arm S (the rater grades questions its
-    // own family wrote), while any other collision means something else entirely.
-    const roles = { writer: WRITER, judge: JUDGE, answerer: ANSWERER, rater: RATER };
-    const collisions = Object.entries(roles)
-      .filter(([r]) => r !== "rater").filter(([, id]) => id === RATER).map(([r]) => r);
-    console.warn(`⚠ CONTAMINATED RUN: rater shares an id with ${collisions.join(" and ")} (${RATER}). This caveat MUST appear in the findings doc.\n`);
-  }
+  if (new Set(STAGE1_RATERS).size !== STAGE1_RATERS.length) throw new Error("STAGE1_RATERS contains a duplicate");
 
   const writer = cachedModel(modelFromId(WRITER, { maxTokens: WRITER_MAX_TOKENS }));
   const judge = cachedModel(modelFromId(JUDGE, { maxTokens: JUDGE_MAX_TOKENS }));
-  const rater = cachedModel(modelFromId(RATER, { maxTokens: RATER_MAX_TOKENS }));
-
-  let callFailures = 0;
-  const rate = async (question: string, styleOfCause: string, body: string): Promise<Sufficiency | null> => {
-    try {
-      const { value, repaired } = await callParsed(
-        rater, buildSufficiencyPrompt(question, styleOfCause, body), parseSufficiency, CACHE_OPS);
-      if (repaired) repairs++;
-      return value;
-    } catch (e) {
-      callFailures++;
-      console.warn("  [rater failed]", e instanceof Error ? e.message : String(e));
-      return null;
-    }
-  };
 
   // --- construction: the SAME modules the answer-quality eval uses ------------------------
   // Not a copy of its logic — these are the shared, unit-tested modules it imports. Same seed
@@ -127,6 +115,21 @@ async function main() {
     if (c?.chunks?.length) cases.push(c);
   }
   if (!cases.length) throw new Error("no core case has chunks — this run would measure nothing");
+  // pickTargets draws at most ONE target per case, so N_ANSWERABLE questions needs N_ANSWERABLE
+  // cases with an eligible paragraph. Checked BEFORE spending anything: silently drawing fewer
+  // would report every rate over a smaller n than the spec sized for, and that sizing is the
+  // entire argument that a 5% bar is measurable at all.
+  const eligibleCases = cases.filter((c) =>
+    (c.chunks ?? []).some((ch) => ch.text.length >= MIN_TARGET_PARA_CHARS && isProseShaped(ch.text))).length;
+  console.log(`pool: ${cases.length} core case(s) with chunks · ${eligibleCases} with a stage-1-eligible paragraph`);
+  if (eligibleCases < N_ANSWERABLE) {
+    throw new Error(
+      `need ${N_ANSWERABLE} eligible cases for ${N_ANSWERABLE} answerable questions (one target per case), ` +
+      `have ${eligibleCases}. Lower EVAL_ANSWERABLE and re-derive the split sizes from spec §3's power ` +
+      `table — do NOT keep an 80-question test target on a smaller pool, because the 5% bar stops ` +
+      `being measurable.`,
+    );
+  }
   const byId = new Map(cases.map((c) => [c.id, c]));
 
   const { targets: shaped } = pickTargets(cases, SEED, N_ANSWERABLE);
@@ -158,7 +161,7 @@ async function main() {
   console.log(`  target attrition: rejected by substance screen ${targetsRejectedByJudge} · unparseable screen ${targetJudgeUnparsed}`);
   console.log(`  question attrition: writer empty ${writerFails} · malformed ${writerMalformed} · lexical gimme ${gimmes}`);
   console.log(`  pairing attrition: discarded ${discardedPairs} · addressed-screen unparsed ${addressedFails} · candidates exhausted ${exhausted}`);
-  console.log(`models: writer ${WRITER} · judge ${JUDGE} · answerer ${ANSWERER} · RATER ${RATER}\n`);
+  console.log(`models: writer ${WRITER} · judge ${JUDGE} · answerer ${ANSWERER}\n`);
 
   // --- cross-check construction against a prior run ---------------------------------------
   // What this CAN establish: construction is reproducible — same seed, same cached writer and
@@ -184,8 +187,15 @@ async function main() {
       // A prior run at a different seed draws different targets, so every qid names a different
       // question and EVERY comparison reports drift. That is a mismatched reference, not a
       // regression — and a check that cries wolf is a check the operator learns to ignore.
+      // A prior run at a different seed OR a different draw size is a mismatched reference, not
+      // a regression. buildUnanswerablePairs draws its candidates from `built`, so changing
+      // N_ANSWERABLE changes arm X's pairings by design — reporting that as drift would train
+      // the operator to ignore the check.
+      const sizeChanged = header && (header.answerable !== N_ANSWERABLE || header.unanswerable !== N_UNANSWERABLE);
       if (header && header.seed !== SEED) {
         crossCheck = `prior rows ${latest} are seed ${header.seed}, this run is seed ${SEED} — not comparable, NOT cross-checked`;
+      } else if (sizeChanged) {
+        crossCheck = `prior rows ${latest} drew ${header!.answerable}/${header!.unanswerable}, this run draws ${N_ANSWERABLE}/${N_UNANSWERABLE} — arm X pairings differ by design, NOT cross-checked`;
       } else {
         const prior = new Map<string, string>();
         for (const r of lines) if (r.kind === "claim" && r.question) prior.set(r.qid, r.question);
@@ -217,104 +227,218 @@ async function main() {
   if (drift) throw new Error(`${drift} — construction is not reproducible, so no cross-run comparison in this report is valid`);
   console.log(`construction cross-check: ${crossCheck}\n`);
 
-  // --- arms -------------------------------------------------------------------------------
+  // Split ONCE, before any rating. Both modes recompute it from the same seed in separate
+  // processes; if they disagreed, "held out" would be false and every number in the test report
+  // would be a dev number wearing a test label.
+  const splitS = splitDevTest(built, SEED, DEV_ANSWERABLE);
+  const splitX = splitDevTest(pairs, SEED, DEV_UNANSWERABLE);
+  assertDisjoint(splitS, (q) => q.qid);
+  assertDisjoint(splitX, (q) => q.qid);
+  console.log(`split (seed ${SEED}): arm S dev ${splitS.dev.length} / test ${splitS.test.length} · arm X dev ${splitX.dev.length} / test ${splitX.test.length}`);
+  console.log(`  dev  S: ${splitS.dev.map((q) => q.qid).join(" ")}`);
+  console.log(`  test S: ${splitS.test.map((q) => q.qid).join(" ")}`);
+  console.log(`  dev  X: ${splitX.dev.map((q) => q.qid).join(" ")}`);
+  console.log(`  test X: ${splitX.test.map((q) => q.qid).join(" ")}\n`);
+
+  // One cached model per rater id, built lazily so a grid entry never reached costs nothing.
+  const raterCache = new Map<string, ReturnType<typeof cachedModel>>();
+  const raterFor = (id: string) => {
+    if (!raterCache.has(id)) raterCache.set(id, cachedModel(modelFromId(id, { maxTokens: RATER_MAX_TOKENS })));
+    return raterCache.get(id)!;
+  };
+
+  let callFailures = 0;
+  const rate = async (raterId: string, variant: VariantId, question: string, styleOfCause: string, body: string) => {
+    try {
+      const { value, repaired } = await callParsed(
+        raterFor(raterId), VARIANTS[variant](question, styleOfCause, body), parseSufficiency, CACHE_OPS);
+      if (repaired) repairs++;
+      return value;
+    } catch (e) {
+      callFailures++;
+      console.warn("  [rater failed]", e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  };
+
   const rows: string[] = [];
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
+
   const score = async (
-    label: "S" | "X" | "L",
-    items: { caseId: string; qid: string; question: string; body: string; targetParagraph?: string }[],
+    configId: string, raterId: string, variant: VariantId, arm: "S" | "X",
+    items: { caseId: string; qid: string; question: string; body: string }[],
   ): Promise<{ counts: ArmCounts; unparsed: number; failed: number }> => {
     const counts: ArmCounts = { sufficient: 0, insufficient: 0 };
     let unparsed = 0, failed = 0;
-    process.stdout.write(`arm ${label} (${items.length}): `);
+    process.stdout.write(`  ${configId} arm ${arm} (${items.length}): `);
     for (const [i, it] of items.entries()) {
       const c = byId.get(it.caseId)!;
       // `rate` returns null for BOTH a parse failure and a call failure, and those are not the
       // same thing: an unparsed response is evidence about the rater, a failed call is evidence
-      // about nothing. Distinguished by whether the shared counter moved, so the line printed
-      // just before assertNoCallFailures aborts does not mislabel an outage as parse failures.
+      // about nothing.
       const failedBefore = callFailures;
-      const v = await rate(it.question, c.styleOfCause, it.body);
+      const v = await rate(raterId, variant, it.question, c.styleOfCause, it.body);
       if (v === null) { if (callFailures > failedBefore) failed++; else unparsed++; continue; }
       if (v.sufficient) counts.sufficient++; else counts.insufficient++;
-      rows.push(JSON.stringify({ kind: "rating", runId, arm: label, caseId: it.caseId, qid: it.qid,
-        question: it.question, targetParagraph: it.targetParagraph ?? null,
-        sufficient: v.sufficient, reason: v.reason }));
-      if ((i + 1) % 10 === 0) process.stdout.write(`${i + 1} `);
+      rows.push(JSON.stringify({ kind: "rating", runId, mode: MODE, configId, rater: raterId, variant,
+        arm, caseId: it.caseId, qid: it.qid, question: it.question, sufficient: v.sufficient, reason: v.reason }));
+      if ((i + 1) % 20 === 0) process.stdout.write(`${i + 1} `);
     }
-    console.log(`done (${counts.sufficient} sufficient, ${counts.insufficient} insufficient, ${unparsed} unparsed, ${failed} call failures)`);
+    console.log(`done (${counts.sufficient}S ${counts.insufficient}I, ${unparsed} unparsed, ${failed} failed)`);
     return { counts, unparsed, failed };
   };
 
-  // Arm S. The budget guard is FIX D from the answer-quality eval: assembleInput drops chunks
-  // over 240,000 chars, so on a very long judgment the by-construction target can be absent from
-  // the body the rater sees — which would score as a rater error when the cause is upstream.
-  const armSItems: { caseId: string; qid: string; question: string; body: string; targetParagraph: string }[] = [];
+  // Bodies assembled once and indexed by qid, so either half of the split can be materialised
+  // without re-assembling. The budget guard is FIX D from the answer-quality eval: assembleInput
+  // drops chunks over 240,000 chars, so on a very long judgment the by-construction target can be
+  // absent from the body the rater sees — which would score as a rater error when the cause is
+  // upstream of it.
+  const bodyOf = new Map<string, { caseId: string; qid: string; question: string; body: string }>();
   let targetDroppedByBudget = 0;
   for (const b of built) {
     const c = byId.get(b.caseId)!;
     const body = assembleInput(c.chunks!, c.outcome.holding);
     if (!body.includes(`[para ${b.targetParagraph}]`)) { targetDroppedByBudget++; continue; }
-    armSItems.push({ ...b, body });
+    bodyOf.set(b.qid, { caseId: b.caseId, qid: b.qid, question: b.question, body });
+  }
+  for (const p of pairs) {
+    const c = byId.get(p.caseId)!;
+    bodyOf.set(p.qid, { caseId: p.caseId, qid: p.qid, question: p.question, body: assembleInput(c.chunks!, c.outcome.holding) });
   }
   if (targetDroppedByBudget) console.log(`(${targetDroppedByBudget} answerable question(s) skipped: target dropped by the assembly budget)`);
-  const S = await score("S", armSItems);
-  assertNoCallFailures(callFailures, "arm S");
-
-  // Arm X.
-  const armXItems = pairs.map((p) => {
-    const c = byId.get(p.caseId)!;
-    return { ...p, body: assembleInput(c.chunks!, c.outcome.holding) };
-  });
-  const X = await score("X", armXItems);
-  assertNoCallFailures(callFailures, "arm X");
-
-  // --- report -----------------------------------------------------------------------------
-  const fr = falseRefusalRate(S.counts);
-  const pfa = projectedFalseAnswerRate(X.counts);
-  const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
-  console.log(`\n--- arm S (answerable, SUFFICIENT by construction) ---`);
-  console.log(`  false refusal: ${S.counts.insufficient}/${S.counts.sufficient + S.counts.insufficient} = ${pct(fr)}   (max ${pct(FALSE_REFUSAL_MAX)})`);
-  console.log(`--- arm X (cross-case, INSUFFICIENT per an LLM screen) ---`);
-  console.log(`  projected false answer: ${X.counts.sufficient}/${X.counts.sufficient + X.counts.insufficient} = ${pct(pfa)}   (max ${pct(PROJECTED_FALSE_ANSWER_MAX)}, baseline ${pct(BASELINE_FALSE_ANSWER)})`);
-  console.log(`\n  unparsed ratings: S ${S.unparsed} · X ${X.unparsed}`);
-  console.log(`  cache entries evicted and re-fetched: ${repairs}`);
-  console.log(`\n--- pre-registered decision ---`);
-  console.log(`  VERDICT: ${decide(fr, pfa).toUpperCase()}`);
+  const itemsFor = (qs: { qid: string }[]) =>
+    qs.map((q) => bodyOf.get(q.qid)).filter((x): x is NonNullable<typeof x> => x !== undefined);
 
   const outDir = path.join(process.cwd(), "scripts", ".cache", "sufficiency-rows");
-  await fs.mkdir(outDir, { recursive: true });
-  const outFile = path.join(outDir, `${runId}.jsonl`);
-  await fs.writeFile(outFile, [
-    // `contaminated` travels with the rows, not just the console: a findings doc written weeks
-    // later from the JSONL must not be able to lose the caveat.
-    JSON.stringify({ kind: "run", runId, writer: WRITER, judge: JUDGE, answerer: ANSWERER, rater: RATER,
-      contaminated: shared, seed: SEED, armS: S.counts, armX: X.counts,
-      falseRefusal: fr, projectedFalseAnswer: pfa, decision: decide(fr, pfa),
-      // Attrition travels with the rows for the same reason `contaminated` does. Without these,
-      // a findings doc written weeks later from the JSONL alone cannot tell whether
-      // falseRefusal 0.03 came from 38 of 38 questions rated or 38 of 60.
-      unparsed: { S: S.unparsed, X: X.unparsed },
-      callFailures: { S: S.failed, X: X.failed },
-      targetDroppedByBudget, crossCheck,
-      construction: { targetsRejectedByJudge, targetJudgeUnparsed, writerFails, writerMalformed, gimmes,
-        discardedPairs, addressedFails, exhausted } }),
-    ...rows,
-  ].join("\n") + "\n", "utf8");
-  console.log(`\nrows -> ${outFile}`);
+  const persist = async (header: Record<string, unknown>) => {
+    await fs.mkdir(outDir, { recursive: true });
+    const outFile = path.join(outDir, `${runId}.jsonl`);
+    await fs.writeFile(outFile, [
+      // Attrition and the split travel with the rows. A findings doc written weeks later from
+      // the JSONL alone must be able to tell whether a rate came from 80 of 80 or 80 of 120,
+      // and which questions were held out.
+      JSON.stringify({ ...header, seed: SEED, writer: WRITER, judge: JUDGE, answerer: ANSWERER,
+        nAnswerable: N_ANSWERABLE, nUnanswerable: N_UNANSWERABLE,
+        devS: splitS.dev.map((q) => q.qid), testS: splitS.test.map((q) => q.qid),
+        devX: splitX.dev.map((q) => q.qid), testX: splitX.test.map((q) => q.qid),
+        targetDroppedByBudget, repairs, crossCheck,
+        construction: { targetsRejectedByJudge, targetJudgeUnparsed, writerFails, writerMalformed, gimmes,
+          discardedPairs, addressedFails, exhausted } }),
+      ...rows,
+    ].join("\n") + "\n", "utf8");
+    console.log(`\nrows -> ${outFile}`);
+  };
 
-  // NOT an independent reconciliation, despite what an earlier comment here claimed. In `score`
-  // the counter increment and the `rows.push` are unconditionally adjacent with no branch
-  // between them, so `rows.length` equals the tally BY CONSTRUCTION and this can never fire
-  // today. It is kept as a tripwire for a FUTURE edit that inserts an early exit between those
-  // two lines — which is a real risk and worth a cheap guard — but it must not be read as
-  // evidence that the two were derived independently. This project has shipped genuinely
-  // unreachable assertions before by re-deriving a check from the branch that assigned the
-  // value; the difference here is that the limitation is stated rather than disguised.
-  const persisted = rows.length;
-  const tallied = S.counts.sufficient + S.counts.insufficient + X.counts.sufficient
-    + X.counts.insufficient;
-  if (persisted !== tallied) throw new Error(`persisted ${persisted} rows but tallied ${tallied} ratings`);
+  if (MODE === "dev") {
+    const devS = itemsFor(splitS.dev), devX = itemsFor(splitX.dev);
+    const results: DevResult[] = [];
+
+    console.log(`--- stage 1: ${STAGE1_RATERS.length} rater(s) at P0 ---`);
+    for (const raterId of STAGE1_RATERS) {
+      const configId = `P0/${raterId}`;
+      const S = await score(configId, raterId, "P0", "S", devS);
+      const X = await score(configId, raterId, "P0", "X", devX);
+      assertNoCallFailures(callFailures, `stage 1, ${configId}`);
+      results.push({ configId, armS: S.counts, armX: X.counts });
+    }
+
+    const stage1 = selectOnDev(results);
+    console.log(`\nstage 1 winner: ${stage1.reason}`);
+    if (!stage1.chosen) {
+      console.log("\nno configuration cleared the leakage bar at stage 1 — stopping. The bar is not relaxed.");
+      await persist({ kind: "dev", runId, results, chosen: null, reason: stage1.reason });
+      return;
+    }
+    // configId is `P0/<rater>` and a rater id can itself contain "/", so rejoin everything after
+    // the first segment rather than taking [1].
+    const winner = stage1.chosen.configId.split("/").slice(1).join("/");
+
+    console.log(`\n--- stage 2: ${STAGE2_VARIANTS.join(", ")} at ${winner} ---`);
+    for (const variant of STAGE2_VARIANTS) {
+      const configId = `${variant}/${winner}`;
+      const S = await score(configId, winner, variant, "S", devS);
+      const X = await score(configId, winner, variant, "X", devX);
+      assertNoCallFailures(callFailures, `stage 2, ${configId}`);
+      results.push({ configId, armS: S.counts, armX: X.counts });
+    }
+
+    console.log(`\n--- all ${results.length} configuration(s) on dev ---`);
+    for (const r of results) {
+      const fr = falseRefusalRate(r.armS), pfa = projectedFalseAnswerRate(r.armX);
+      console.log(`  ${r.configId.padEnd(48)} false refusal ${(fr * 100).toFixed(1).padStart(5)}%  leakage ${(pfa * 100).toFixed(1).padStart(5)}%`);
+    }
+    const final = selectOnDev(results);
+    console.log(`\n--- chosen (pre-registered rule) ---\n  ${final.reason}`);
+    if (final.chosen) {
+      console.log(`\nRun the test set ONCE with:\n  AWS_PROFILE=bedrock SUFFICIENCY_MODE=test SUFFICIENCY_CONFIG=${final.chosen.configId} npm run cases:sufficiency-eval:cloud`);
+    }
+    await persist({ kind: "dev", runId, results, chosen: final.chosen?.configId ?? null, reason: final.reason });
+    return;
+  }
+
+  // --- test mode --------------------------------------------------------------------------
+  // The test set can be spent once. The pre-registered rule (spec §2) is that a FAILING result
+  // does not license choosing another configuration and trying again — that turns test into a
+  // second dev set. This does not prevent a second run; it makes one impossible to hide.
+  const configId = process.env.SUFFICIENCY_CONFIG;
+  if (!configId) {
+    throw new Error(
+      "SUFFICIENCY_MODE=test requires SUFFICIENCY_CONFIG=<variant>/<rater>. It is deliberately not " +
+      "re-derived from dev: the operator states which configuration was chosen, and that statement " +
+      "is what the manifest records.",
+    );
+  }
+  const [variant, ...raterParts] = configId.split("/");
+  const raterId = raterParts.join("/");
+  if (!(VARIANT_IDS as readonly string[]).includes(variant) || !raterId) {
+    throw new Error(`SUFFICIENCY_CONFIG must be <variant>/<rater>, e.g. P1/us.amazon.nova-pro-v1:0 — got "${configId}"`);
+  }
+  if (raterId === JUDGE || raterId === WRITER || raterId === ANSWERER) {
+    throw new Error(`rater ${raterId} holds another role (judge/writer/answerer) — see the grid guard`);
+  }
+
+  const prior = await readTestRuns(outDir);
+  if (prior.length) {
+    console.log(`⚠ THE TEST SET HAS ALREADY BEEN RUN ${prior.length} TIME(S):`);
+    for (const p of prior) {
+      console.log(`    ${p.at}  ${p.configId}  arm S refused ${p.armS.insufficient}/${p.armS.sufficient + p.armS.insufficient} · arm X leaked ${p.armX.sufficient}/${p.armX.sufficient + p.armX.insufficient}`);
+    }
+    console.log(`  This is attempt ${prior.length + 1}. Any report MUST say so — a configuration selected by\n  re-running on the held-out set is a dev result wearing a test label.\n`);
+  }
+
+  const testS = itemsFor(splitS.test), testX = itemsFor(splitX.test);
+  console.log(`--- TEST SET, ${configId} ---`);
+  const S = await score(configId, raterId, variant as VariantId, "S", testS);
+  assertNoCallFailures(callFailures, "test arm S");
+  const X = await score(configId, raterId, variant as VariantId, "X", testX);
+  assertNoCallFailures(callFailures, "test arm X");
+
+  const fr = falseRefusalRate(S.counts), pfa = projectedFalseAnswerRate(X.counts);
+  const nS = S.counts.sufficient + S.counts.insufficient, nX = X.counts.sufficient + X.counts.insufficient;
+  const [frLo, frHi] = wilson(S.counts.insufficient, nS);
+  const [pfaLo, pfaHi] = wilson(X.counts.sufficient, nX);
+  const frConf = classify(S.counts.insufficient, nS, FALSE_REFUSAL_MAX);
+  const pfaConf = classify(X.counts.sufficient, nX, PROJECTED_FALSE_ANSWER_MAX);
+  const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+  console.log(`\n--- result ---`);
+  console.log(`  false refusal:          ${S.counts.insufficient}/${nS} = ${pct(fr)}  95% CI [${pct(frLo)}, ${pct(frHi)}]  bar ${pct(FALSE_REFUSAL_MAX)}  ${frConf}`);
+  console.log(`  projected false answer: ${X.counts.sufficient}/${nX} = ${pct(pfa)}  95% CI [${pct(pfaLo)}, ${pct(pfaHi)}]  bar ${pct(PROJECTED_FALSE_ANSWER_MAX)}  ${pfaConf}`);
+  console.log(`  unparsed: S ${S.unparsed} · X ${X.unparsed}   cache evictions: ${repairs}`);
+  console.log(`\n  VERDICT (point estimate, same rule as #239): ${decide(fr, pfa).toUpperCase()}`);
+  console.log(`  attempt ${prior.length + 1} on the test set`);
+
+  await appendTestRun(outDir, { configId, at: new Date().toISOString(), armS: S.counts, armX: X.counts });
+  await persist({ kind: "test", runId, configId, rater: raterId, variant,
+    armS: S.counts, armX: X.counts, falseRefusal: fr, projectedFalseAnswer: pfa,
+    frCI: [frLo, frHi], pfaCI: [pfaLo, pfaHi], frConfidence: frConf, pfaConfidence: pfaConf,
+    decision: decide(fr, pfa), attempt: prior.length + 1,
+    unparsed: { S: S.unparsed, X: X.unparsed }, callFailures: { S: S.failed, X: X.failed } });
+
+  // Kept as a tripwire for a future edit that separates the counter from the row push. NOT an
+  // independent reconciliation: in `score` the two are unconditionally adjacent, so this cannot
+  // fire today.
+  const tallied = S.counts.sufficient + S.counts.insufficient + X.counts.sufficient + X.counts.insufficient;
+  if (rows.length !== tallied) throw new Error(`persisted ${rows.length} rows but tallied ${tallied} ratings`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
