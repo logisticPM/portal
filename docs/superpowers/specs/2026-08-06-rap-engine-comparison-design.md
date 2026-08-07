@@ -144,6 +144,25 @@ results/<doc>/<engine>.json   # raw per-run outputs (grounded commitments + timi
   md→PDF pipeline).
 - Reproducible harness under `scripts/engine-eval/`.
 
+## 8.1 Estimated cost to run (one full pass)
+
+Extractor is Claude Sonnet 4.6 on Bedrock ($3/$15 per M tokens). Corpus is 8 docs
+/ 239 pages / ~110k tokens of document text; split-schema extraction re-reads
+text ~2–2.5×; ~30 commitments/doc; judges score the 7 non-gold docs × 3 engines.
+
+| Line item | Cost |
+|---|---|
+| Engines 2 & 3 — Claude Sonnet 4.6 extraction (×2) | ~$3 |
+| Textract LAYOUT (engine 2 only), 239 pp × ~$0.004/pp | ~$1 |
+| BDA (engine 1), 239 pp × $0.010–$0.040/pp *(rate uncertain)* | ~$2.4–$9.6 |
+| Judges — Nova Pro + Kimi K2.5 (~1.9M in + 190k out) | ~$2–5 |
+| Gold scoring + cross-engine agreement (deterministic) | ~$0 |
+| **Total (one run, +30% buffer for retries/chunking)** | **≈ $11–$25 (~$15 likely)** |
+
+Plus ~30–45 min human adjudication (no dollar cost). Biggest uncertainty is BDA's
+custom-blueprint per-page rate; even at the high end the total is <$25 — negligible
+against the project's ~$0.06 net 7-month spend, and the account carries credits.
+
 ## 9. Risks and limitations
 
 - **n=1 gold anchor.** True precision/recall is only measured on BoC; the other 7
