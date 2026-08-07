@@ -154,7 +154,7 @@ text ~2–2.5×; ~30 commitments/doc; judges score the 7 non-gold docs × 3 engi
 |---|---|
 | Engines 2 & 3 — Claude Sonnet 4.6 extraction (×2) | ~$3 |
 | Textract LAYOUT (engine 2 only), 239 pp × ~$0.004/pp | ~$1 |
-| BDA (engine 1), 239 pp × $0.010–$0.040/pp *(rate uncertain)* | ~$2.4–$9.6 |
+| BDA (engine 1), 239 pp — custom blueprint $0.040/pp (confirmed); standard $0.010/pp | ~$2.4–$9.6 (likely ~$9.6 on custom output) |
 | Judges — Nova Pro + Kimi K2.5 (~1.9M in + 190k out) | ~$2–5 |
 | Gold scoring + cross-engine agreement (deterministic) | ~$0 |
 | **Total (one run, +30% buffer for retries/chunking)** | **≈ $11–$25 (~$15 likely)** |
