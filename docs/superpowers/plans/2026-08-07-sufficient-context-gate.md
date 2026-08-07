@@ -947,11 +947,15 @@ Report `DONE`. Do **not** run the credentialed measurement; that is an operator 
 - [ ] **Step 1: Confirm the product is untouched**
 
 ```bash
-git diff --stat origin/main..HEAD -- src/ | grep -v "src/lib/cases/sufficiency/" || echo "NO PRODUCT FILES CHANGED"
+git diff --name-only origin/main..HEAD -- src/ | grep -v "^src/lib/cases/sufficiency/" || echo "none — product untouched"
 ```
 
-Expected: `NO PRODUCT FILES CHANGED`. Phase 1 is measurement only. If any file outside
+Expected: `none — product untouched`. Phase 1 is measurement only. If any file outside
 `src/lib/cases/sufficiency/` appears, that is a spec violation — report it rather than fixing it.
+
+Use `--name-only`, not `--stat`: `--stat` emits a trailing `N files changed, ...` summary line
+that survives the `grep -v` and reads exactly like a violation. A check that cries wolf on a
+clean branch gets ignored on a dirty one.
 
 - [ ] **Step 2: Confirm the eval runner is untouched**
 
