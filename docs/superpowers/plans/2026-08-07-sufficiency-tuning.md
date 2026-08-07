@@ -78,16 +78,31 @@ Anything left referencing `L` will fail typecheck, which is the check that this 
 ```bash
 npx tsc --noEmit
 npx tsx scripts/test-cases-sufficiency.ts
-grep -rniE "stripTarget|assertTargetAbsent|arm ?L\b|leave-one-out|residualUnparsed|residualScored|stillAddressed" src/ scripts/
+grep -rnE "stripTarget|assertTargetAbsent|residualUnparsed|residualScored|stillAddressed" src/ scripts/ --exclude-dir=.cache
 ```
 
 Expected: `tsc` silent; suite prints its `✅`; the grep returns **nothing**.
 
-The grep is case-insensitive and matches real symbols and phrases, not the bare substring `arms`.
-An earlier version did neither and was wrong in both directions: it fired on a generic
-`// --- arms ---` divider that refers to the two surviving arms, and it silently missed the file
-header — which described arm L as live — because that header capitalises `Arms`. It also searched
-only three named files. A completeness check that can give false confidence is worse than none.
+**Identifiers only — deliberately not prose.** This check took two attempts to get right, and both
+failures are instructive:
+
+1. The first version matched the bare substring `arms` and was case-sensitive. It fired on a
+   generic `// --- arms ---` divider referring to the two *surviving* arms, and silently missed
+   the file header describing arm L as live, because that header capitalises `Arms`.
+2. The second version added `arm ?L` and `leave-one-out`. Those are prose, and this task
+   *requires* prose about arm L — the rewritten header explains why it was deleted. A check that
+   the mandated text guarantees will fail is not a check.
+
+So: match the identifiers that must be gone, and leave the explanation alone. Prose describing
+why something was removed is the thing you want to keep; a symbol that survives its module is the
+thing you want to catch. `--exclude-dir=.cache` skips gitignored run artifacts from earlier runs,
+which are data, not source.
+
+Separately, update the two stale references the identifier grep will *not* catch, because they are
+prose and string literals rather than symbols: the comment in the prompt test that ends "...and arm
+L becomes unpassable" (rewrite it in terms of arm X, which is where topic-relevance collapse would
+actually show), and the two `assertNoCallFailures(7, "arm L")` calls, whose context string should
+name a surviving arm.
 
 - [ ] **Step 5: Commit**
 

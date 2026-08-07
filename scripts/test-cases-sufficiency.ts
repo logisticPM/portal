@@ -48,7 +48,8 @@ assert.equal(parseSufficiency('{"sufficient":1}'), null, "1 is not a boolean");
   assert.ok(schema.indexOf('"reason"') < schema.indexOf('"sufficient"'),
     "reason must precede the label in the output schema");
   // The paper's distinction is the whole point: relevant is not sufficient. If the prompt does
-  // not say so, the rater collapses to a topic-relevance check and arm L becomes unpassable.
+  // not say so, the rater collapses to a topic-relevance check — it would pass every cross-case
+  // question in arm X, because those judgments are all on the same area of law.
   assert.ok(/relevant/i.test(p) && /not enough|is not sufficient|insufficient/i.test(p),
     "prompt must explicitly separate relevant from sufficient");
 }
@@ -83,7 +84,7 @@ assert.equal(BASELINE_FALSE_ANSWER, 0.938);
 // matrix identical to the previous run, and exited 0 with a SHIP verdict.
 assert.doesNotThrow(() => assertNoCallFailures(0, "arm S"));
 assert.throws(() => assertNoCallFailures(1, "arm S"), /void/);
-assert.throws(() => assertNoCallFailures(7, "arm L"), /7 call\(s\) failed/, "names the count");
-assert.throws(() => assertNoCallFailures(7, "arm L"), /during arm L/, "names the arm");
+assert.throws(() => assertNoCallFailures(7, "arm X"), /7 call\(s\) failed/, "names the count");
+assert.throws(() => assertNoCallFailures(7, "arm X"), /during arm X/, "names the arm");
 
 console.log("✅ test-cases-sufficiency passed");
