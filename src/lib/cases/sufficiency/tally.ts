@@ -79,17 +79,58 @@ export function wilson(k: number, n: number, z = 1.96): [number, number] {
 export type Confidence = "clears" | "fails" | "inconclusive-at-this-n";
 
 export function classify(k: number, n: number, bar: number): Confidence {
+  // n=0 is not "clears". wilson(k, 0) returns [0, 0], which sits below every bar, so an arm that
+  // measured nothing would report the most favourable label available. An instrument must not be
+  // able to conclude anything from no data.
+  if (n <= 0) throw new Error(`classify called with n=${n} — an empty arm has no conclusiveness`);
   const [lo, hi] = wilson(k, n);
   if (lo <= bar && bar <= hi) return "inconclusive-at-this-n";
   return hi < bar ? "clears" : "fails";
 }
 
-export interface DevResult { configId: string; armS: ArmCounts; armX: ArmCounts }
+// `unparsed` and `failed` are both optional so that callers (and the tests above) which only ever
+// measured counts keep type-checking unchanged; a config with no `unparsed` field is treated as
+// having parsed everything. `failed` is carried for the same reason the persisted test-mode row
+// carries `callFailures` alongside `unparsed`: a failed call and an unparsed response are
+// different evidence (nothing about the rater vs. something no parser accepts), and a findings
+// doc read later should not have to guess which one a dropped item was. selectOnDev does not
+// need to inspect `failed` itself — assertNoCallFailures already aborts the run the moment any
+// call fails, so no row that reaches here can carry a nonzero one — but the field travels with
+// the row for the record.
+export interface DevResult {
+  configId: string; armS: ArmCounts; armX: ArmCounts;
+  unparsed?: { S: number; X: number };
+  failed?: { S: number; X: number };
+}
+
+// Above this fraction of a configuration's combined arm, a "rate" is a rate over whoever the
+// parse failure happened to spare, not over the population the experiment drew. That is not a
+// smaller sample of the same measurement — the survivors are selected by whatever broke parsing,
+// which is evidence about the rater, not about the questions.
+const MAX_UNPARSED_FRACTION = 0.10;
+
+// Total items the configuration was actually asked to rate in an arm, including the ones it
+// failed to parse. `assertNoCallFailures` has already run by the time a row reaches `results`, so
+// there is no `failed` component left to account for here — only sufficient/insufficient/unparsed.
+function armSize(counts: ArmCounts, unparsed: number): number {
+  return counts.sufficient + counts.insufficient + unparsed;
+}
+
+function unparsedFraction(r: DevResult): number {
+  const s = armSize(r.armS, r.unparsed?.S ?? 0) + armSize(r.armX, r.unparsed?.X ?? 0);
+  if (s === 0) return 0;
+  return ((r.unparsed?.S ?? 0) + (r.unparsed?.X ?? 0)) / s;
+}
 
 // Pre-registered (spec §6): lowest arm-S false refusal AMONG those whose arm-X leakage clears
 // its bar. The order is not cosmetic — leakage is the defect the gate exists to fix, so a
 // configuration that lets questions through is disqualified no matter how few good questions it
 // refuses. Ties break on configId so the same dev data always yields the same choice.
+//
+// The unparsed filter runs SECOND, after leakage and before the false-refusal minimisation, for
+// the same reason leakage runs first: a configuration must clear both correctness gates before
+// its false-refusal number is even looked at, because a false refusal rate bought by discarding
+// the hard-to-parse cases is not a rate this selection rule is allowed to prefer.
 export function selectOnDev(results: readonly DevResult[]): { chosen: DevResult | null; reason: string } {
   if (results.length === 0) return { chosen: null, reason: "no configurations were evaluated" };
   const qualified = results.filter((r) => projectedFalseAnswerRate(r.armX) <= PROJECTED_FALSE_ANSWER_MAX);
@@ -101,7 +142,18 @@ export function selectOnDev(results: readonly DevResult[]): { chosen: DevResult 
         `(best was ${(best * 100).toFixed(1)}%) — the bar is not relaxed, so there is nothing to test`,
     };
   }
-  const sorted = [...qualified].sort((a, b) =>
+  const parsedEnough = qualified.filter((r) => unparsedFraction(r) <= MAX_UNPARSED_FRACTION);
+  if (parsedEnough.length === 0) {
+    const best = Math.min(...qualified.map(unparsedFraction));
+    return {
+      chosen: null,
+      reason: `every configuration that cleared the leakage bar failed to parse more than ` +
+        `${(MAX_UNPARSED_FRACTION * 100).toFixed(0)}% of its combined arm (best was ${(best * 100).toFixed(1)}%) ` +
+        `— a rate computed over the survivors of a parse failure is not comparable to one computed over a ` +
+        `full arm, so the bar is not relaxed and there is nothing to test`,
+    };
+  }
+  const sorted = [...parsedEnough].sort((a, b) =>
     falseRefusalRate(a.armS) - falseRefusalRate(b.armS) ||
     projectedFalseAnswerRate(a.armX) - projectedFalseAnswerRate(b.armX) ||
     a.configId.localeCompare(b.configId));
@@ -110,6 +162,7 @@ export function selectOnDev(results: readonly DevResult[]): { chosen: DevResult 
     chosen,
     reason: `${chosen.configId}: false refusal ${(falseRefusalRate(chosen.armS) * 100).toFixed(1)}%, ` +
       `leakage ${(projectedFalseAnswerRate(chosen.armX) * 100).toFixed(1)}% — lowest false refusal of ` +
-      `${qualified.length} configuration(s) that cleared the leakage bar, out of ${results.length} evaluated`,
+      `${parsedEnough.length} configuration(s) that cleared the leakage bar and the unparsed threshold, ` +
+      `out of ${results.length} evaluated`,
   };
 }

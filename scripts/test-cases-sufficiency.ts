@@ -1,6 +1,7 @@
 // Tests for the sufficiency instrument's pure parts.
 // Run: npx tsx scripts/test-cases-sufficiency.ts
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -100,9 +101,25 @@ assert.throws(() => assertNoCallFailures(7, "arm X"), /during arm X/, "names the
   // P0 must remain byte-identical to what #239 measured, or its 92 cached responses stop
   // replaying and the published baseline silently becomes a different prompt. Compared against
   // a golden file rather than an inline string so a diff is readable when it fires.
-  const golden = fsSync.readFileSync("scripts/fixtures/sufficiency-P0.txt", "utf8").replace(/\r\n/g, "\n");
-  assert.equal(VARIANTS.P0("Q_TEXT", "S_TEXT", "B_TEXT").replace(/\r\n/g, "\n"), golden,
+  //
+  // Raw bytes, deliberately NOT normalised. The cache key is sha256(modelId + "\n" + prompt) over
+  // the exact string sent to the model, so an \r\n-stripping comparison here could pass while a
+  // `core.autocrlf=true` checkout had already changed the bytes inside this template literal —
+  // the golden test would be green and the cache key would be a different one anyway.
+  const golden = fsSync.readFileSync("scripts/fixtures/sufficiency-P0.txt", "utf8");
+  const renderedP0 = VARIANTS.P0("Q_TEXT", "S_TEXT", "B_TEXT");
+  assert.equal(renderedP0, golden,
     "P0 changed — this invalidates the #239 baseline and its cache. If intentional, it is a NEW variant, not an edit to P0.");
+  // The #239 cache identity, pinned as a literal rather than derived from the fixture file at
+  // runtime: sha256 of P0("Q_TEXT","S_TEXT","B_TEXT") exactly as it would be sent to the rater.
+  // A corrupting checkout could rewrite the golden file's line endings along with the source,
+  // in which case the raw-byte comparison above would still pass — this constant does not move
+  // just because both sides of that comparison moved together.
+  assert.equal(
+    crypto.createHash("sha256").update(renderedP0, "utf8").digest("hex"),
+    "ba7ecd128725722c1c30f8ffbeb49ff34d4907282f10605dd078cd81ac5036cc",
+    "P0's rendered sha256 no longer matches the #239 cache identity",
+  );
 
   for (const id of VARIANT_IDS) {
     const p = VARIANTS[id]("Q_TEXT", "S_TEXT", "B_TEXT");
@@ -193,6 +210,12 @@ assert.equal(classify(2, 60, 0.05), "inconclusive-at-this-n", "3.3% but the inte
 // the spec's own status table already records it as a pass. "Just inside" is still inside.
 assert.equal(classify(0, 16, 0.20), "clears", "0/16, CI [0.00, 19.36] — entirely under a 20% bar");
 
+// n=0 must throw, not return the most favourable label. wilson(k,0) is [0,0], which sits under
+// every bar, so an arm that measured nothing would otherwise report "clears" — and decide() would
+// turn that into SHIP.
+assert.throws(() => classify(0, 0, 0.05), /empty arm/, "n=0 has no conclusiveness");
+assert.throws(() => classify(0, -1, 0.05), /empty arm/, "negative n too");
+
 // --- dev selection rule ------------------------------------------------------------------
 {
   const c = (s: number, i: number) => ({ sufficient: s, insufficient: i });
@@ -220,6 +243,20 @@ assert.equal(classify(0, 16, 0.20), "clears", "0/16, CI [0.00, 19.36] — entire
   assert.equal(tie.chosen?.configId, "P0/a", "exact tie breaks on configId, lexicographically");
 
   assert.equal(selectOnDev([]).chosen, null, "empty input is null, not a crash");
+
+  // A rate computed over the survivors of a parse failure is not comparable to one computed over
+  // a full arm. This config's false refusal (0%) is the lowest of the two AND it clears the
+  // leakage bar, but 30 of its 40 arm-S items never parsed (30/60 = 50% combined) — it must lose
+  // to a configuration with a worse false refusal but a clean parse, not win on a number bought by
+  // discarding the hard cases.
+  const highUnparsed = selectOnDev([
+    { configId: "P0/lowfr-highunparsed", armS: c(10, 0), armX: c(0, 20), unparsed: { S: 30, X: 0 } },
+    { configId: "P0/higherfr-clean", armS: c(37, 3), armX: c(2, 18), unparsed: { S: 0, X: 0 } },
+  ]);
+  assert.equal(highUnparsed.chosen?.configId, "P0/higherfr-clean",
+    "the high-unparsed config must not win even though its false refusal on survivors is lowest");
+  assert.ok(!/lowfr-highunparsed/.test(highUnparsed.reason),
+    "the disqualified-by-unparsed config must not be described as the winner");
 }
 
 // tsx transpiles these scripts to CJS, where top-level await is a transform error, so the async

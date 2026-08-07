@@ -16,12 +16,31 @@ export interface TestRun { configId: string; at: string; armS: ArmCounts; armX: 
 const FILE = "test-runs.jsonl";
 
 // A missing manifest means no test run has happened yet, which is the normal first case — not
-// an error.
+// an error. A manifest that fails to READ for any other reason, or that exists but fails to
+// PARSE, is not that case: a process killed mid-append leaves a truncated final line on disk,
+// and that is damage, not absence. Reporting it as "no prior runs" would erase the one thing this
+// file exists to preserve — so only ENOENT is swallowed; every other failure, especially a
+// JSON.parse rejection, propagates instead of being folded into the empty-list case.
 export async function readTestRuns(dir: string): Promise<TestRun[]> {
+  const file = path.join(dir, FILE);
+  let raw: string;
   try {
-    const raw = await fs.readFile(path.join(dir, FILE), "utf8");
-    return raw.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as TestRun);
-  } catch { return []; }
+    raw = await fs.readFile(file, "utf8");
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
+  }
+  return raw.trim().split("\n").filter(Boolean).map((l, i) => {
+    try {
+      return JSON.parse(l) as TestRun;
+    } catch (e) {
+      throw new Error(
+        `${file} line ${i + 1} is not valid JSON — the manifest is damaged, not empty (a killed ` +
+        `process can truncate the last append). Recover or remove the bad line by hand; do not treat ` +
+        `this as "no prior runs". Underlying error: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  });
 }
 
 export async function appendTestRun(dir: string, run: TestRun): Promise<void> {

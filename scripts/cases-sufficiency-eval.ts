@@ -78,6 +78,9 @@ const N_ANSWERABLE = Number(process.env.EVAL_ANSWERABLE ?? 120);
 const N_UNANSWERABLE = Number(process.env.EVAL_UNANSWERABLE ?? 60);
 const DEV_ANSWERABLE = Number(process.env.SUFFICIENCY_DEV_ANSWERABLE ?? 40);
 const DEV_UNANSWERABLE = Number(process.env.SUFFICIENCY_DEV_UNANSWERABLE ?? 20);
+// The smallest arm-S size at which 0 refusals gives a Wilson upper bound at or under 5%
+// (spec §3). Below this the experiment cannot clear its own bar even with a perfect result.
+const ARM_S_FLOOR = 73;
 
 const MODE = process.env.SUFFICIENCY_MODE ?? "dev";
 
@@ -144,6 +147,16 @@ async function main() {
     }
     if (raterId === JUDGE || raterId === WRITER || raterId === ANSWERER) {
       throw new Error(`rater ${raterId} holds another role (judge/writer/answerer) — see the grid guard`);
+    }
+    // The grid is pre-registered (spec §5). Dev enforces it by construction; without this, the
+    // single path that SPENDS the test set would accept any model string — including
+    // us.deepseek.r1-v1:0, which the spec excludes by name. Recording it in the manifest is not
+    // enough: by then the test set is gone.
+    if (!STAGE1_RATERS.includes(raterId)) {
+      throw new Error(
+        `rater ${raterId} is not in the pre-registered grid: ${STAGE1_RATERS.join(", ")}. ` +
+        `Testing a configuration the grid never contained is not the experiment that was registered.`,
+      );
     }
     testConfig = { configId, variant: variant as VariantId, raterId };
   }
@@ -371,7 +384,7 @@ async function main() {
         nAnswerable: N_ANSWERABLE, nUnanswerable: N_UNANSWERABLE,
         devS: splitS.dev.map((q) => q.qid), testS: splitS.test.map((q) => q.qid),
         devX: splitX.dev.map((q) => q.qid), testX: splitX.test.map((q) => q.qid),
-        targetDroppedByBudget, repairs, crossCheck,
+        targetDroppedByBudget, repairs, crossCheck, devSplitChecked: MODE === "test" ? devSplitChecked : null,
         construction: { targetsRejectedByJudge, targetJudgeUnparsed, writerFails, writerMalformed, gimmes,
           discardedPairs, addressedFails, exhausted } }),
       ...rows,
@@ -380,6 +393,15 @@ async function main() {
   };
 
   if (MODE === "dev") {
+    // The forbidden move — picking a new configuration after seeing a test result — happens HERE,
+    // in dev, not in test mode. Warning only in test mode would warn the one place the mistake
+    // cannot be made.
+    const priorTest = await readTestRuns(outDir);
+    if (priorTest.length) {
+      console.log(`⚠ THE TEST SET HAS ALREADY BEEN RUN ${priorTest.length} TIME(S):`);
+      for (const p of priorTest) console.log(`    ${p.at}  ${p.configId}`);
+      console.log(`  Re-tuning now and testing again is the move spec §2 pre-registers against: a\n  configuration chosen after seeing the held-out set is a dev result wearing a test label.\n`);
+    }
     const devS = itemsFor(splitS.dev), devX = itemsFor(splitX.dev);
     const results: DevResult[] = [];
 
@@ -389,7 +411,8 @@ async function main() {
       const S = await score(configId, raterId, "P0", "S", devS);
       const X = await score(configId, raterId, "P0", "X", devX);
       assertNoCallFailures(callFailures, `stage 1, ${configId}`);
-      results.push({ configId, armS: S.counts, armX: X.counts });
+      results.push({ configId, armS: S.counts, armX: X.counts,
+        unparsed: { S: S.unparsed, X: X.unparsed }, failed: { S: S.failed, X: X.failed } });
     }
 
     const stage1 = selectOnDev(results);
@@ -409,7 +432,8 @@ async function main() {
       const S = await score(configId, winner, variant, "S", devS);
       const X = await score(configId, winner, variant, "X", devX);
       assertNoCallFailures(callFailures, `stage 2, ${configId}`);
-      results.push({ configId, armS: S.counts, armX: X.counts });
+      results.push({ configId, armS: S.counts, armX: X.counts,
+        unparsed: { S: S.unparsed, X: X.unparsed }, failed: { S: S.failed, X: X.failed } });
     }
 
     console.log(`\n--- all ${results.length} configuration(s) on dev ---`);
@@ -441,8 +465,54 @@ async function main() {
     console.log(`  This is attempt ${prior.length + 1}. Any report MUST say so — a configuration selected by\n  re-running on the held-out set is a dev result wearing a test label.\n`);
   }
 
+  // The dev run and this run are separate processes that each recompute the split from the same
+  // seed. That is only a guarantee if the INPUT was identical: splitDevTest is Fisher-Yates over
+  // indices, so both the order and the length of `built` matter, and `qid` is positional — losing
+  // a single question to a writer failure or gaining one core case renumbers everything and
+  // re-draws the split. Nothing else in this runner would notice; assertDisjoint cannot, because
+  // two slices of one array are disjoint no matter which array it was.
+  //
+  // So compare against what dev actually held out, rather than trusting that the seed was enough.
+  const priorDev = (await fs.readdir(outDir).catch(() => [] as string[]))
+    .filter((f) => f.endsWith(".jsonl")).sort();
+  let devSplitChecked = "no prior dev run on disk — SPLIT NOT VERIFIED against dev";
+  for (const f of priorDev.reverse()) {
+    const first = (await fs.readFile(path.join(outDir, f), "utf8")).split("\n")[0];
+    let h: Record<string, unknown>;
+    try { h = JSON.parse(first); } catch { continue; }
+    if (h.mode !== "dev" || !Array.isArray(h.testS)) continue;
+    const wantS = (h.testS as string[]).join(","), gotS = splitS.test.map((q) => q.qid).join(",");
+    const wantX = (h.testX as string[]).join(","), gotX = splitX.test.map((q) => q.qid).join(",");
+    if (wantS !== gotS || wantX !== gotX) {
+      throw new Error(
+        `HELD-OUT SET DOES NOT MATCH THE DEV RUN (${f}). Construction changed between the two runs, ` +
+        `so this "test" set contains questions tuning may already have seen and no number from it ` +
+        `would mean what it says.\n` +
+        `  dev arm S held out ${(h.testS as string[]).length}: ${wantS.slice(0, 120)}...\n` +
+        `  this run computed  ${splitS.test.length}: ${gotS.slice(0, 120)}...\n` +
+        `Re-run dev, or investigate what changed in the corpus.`,
+      );
+    }
+    devSplitChecked = `matches dev run ${f} (${splitS.test.length} arm-S + ${splitX.test.length} arm-X qids identical)`;
+    break;
+  }
+  console.log(`held-out split: ${devSplitChecked}\n`);
   const testS = itemsFor(splitS.test), testX = itemsFor(splitX.test);
   console.log(`--- TEST SET, ${configId} ---`);
+  // Spec §3 sizes this experiment off one fact: n=73 is the smallest arm-S test set where a
+  // perfect result clears a 5% upper bound. The pool guard above counts eligible CASES; what
+  // reaches here is QUESTIONS, after substance-screen, writer, gimme and assembly-budget
+  // attrition. #239 lost 2 of 40 that way. If the held-out arm has shrunk below the floor, the
+  // run cannot answer the question it was designed to answer, and finding that out after paying
+  // for it is worse than being told now.
+  if (testS.length < ARM_S_FLOOR) {
+    throw new Error(
+      `held-out arm S has ${testS.length} questions, below the ${ARM_S_FLOOR} needed for a perfect ` +
+      `result to clear a ${(FALSE_REFUSAL_MAX * 100).toFixed(0)}% upper bound (spec §3). Attrition ate ` +
+      `the margin. Raise EVAL_ANSWERABLE and re-run dev — do NOT report a rate over a smaller n.`,
+    );
+  }
+  if (testX.length === 0) throw new Error("held-out arm X is empty — nothing to measure leakage against");
   const S = await score(configId, raterId, variant as VariantId, "S", testS);
   assertNoCallFailures(callFailures, "test arm S");
   const X = await score(configId, raterId, variant as VariantId, "X", testX);
