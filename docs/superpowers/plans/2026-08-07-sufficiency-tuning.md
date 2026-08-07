@@ -22,6 +22,21 @@ boundary and, separately, corrupted two bytes into NULs. A mutation that does no
 exactly like "the test is not load-bearing", which is the wrong conclusion drawn from a real
 failure to edit.
 
+**Mutation testing, and the trap of the masking assertion.** Every task below names mutations that
+must fail the suite. Two things to check each time:
+
+1. *Did the edit apply?* Re-read the region. See above for why.
+2. *Did the assertion you were aiming at actually fire?* `assert` throws on the first failure, so a
+   mutation can be caught by an **earlier** assertion while the one it targets never runs — leaving
+   that one unverified, and it could be dead. This happened in Task 3: removing the shuffle was
+   caught by a cross-seed determinism check sitting above `"split must be shuffled"`, and an
+   off-by-one slice was caught by a length check sitting above the partition assertion.
+
+   When the message that fires is not the one predicted, do **not** reorder the shipped test to
+   force it. Isolate: temporarily comment out the earlier guard, re-apply the mutation, confirm the
+   intended assertion fires, then restore both. Both Task 3 assertions were confirmed load-bearing
+   this way.
+
 ---
 
 ## File Structure
