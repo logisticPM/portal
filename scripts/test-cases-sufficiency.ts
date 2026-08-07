@@ -7,6 +7,7 @@ import {
   falseRefusalRate, projectedFalseAnswerRate, decide, assertNoCallFailures,
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER,
 } from "../src/lib/cases/sufficiency/tally";
+import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
 
 // --- parseSufficiency --------------------------------------------------------------------
 assert.deepEqual(parseSufficiency('{"reason":"para 12 states the test","sufficient":true}'),
@@ -119,6 +120,43 @@ assert.throws(() => assertNoCallFailures(7, "arm X"), /during arm X/, "names the
   // Distinct text means distinct cache keys, so no variant can replay another's responses.
   const rendered = VARIANT_IDS.map((id) => VARIANTS[id]("q", "s", "b"));
   assert.equal(new Set(rendered).size, 3, "all three variants must render differently");
+}
+
+// --- dev/test split ----------------------------------------------------------------------
+{
+  const items = Array.from({ length: 10 }, (_, i) => ({ qid: `q${i}` }));
+  const s = splitDevTest(items, 1, 4);
+  assert.equal(s.dev.length, 4);
+  assert.equal(s.test.length, 6);
+  // Every item lands in exactly one side. A split that drops or duplicates an item silently
+  // changes the denominator of every rate in the experiment.
+  assert.deepEqual(
+    [...s.dev, ...s.test].map((x) => x.qid).sort(),
+    items.map((x) => x.qid).sort(),
+    "dev + test must partition the input exactly",
+  );
+  // Deterministic: the whole method rests on test being the SAME held-out set across the dev
+  // run and the later test run, which are separate processes.
+  assert.deepEqual(splitDevTest(items, 1, 4), s, "same seed, same split");
+  assert.notDeepEqual(splitDevTest(items, 2, 4).dev, s.dev, "different seed, different split");
+  // Not simply the first N — an unshuffled split would correlate with corpus order.
+  assert.notDeepEqual(s.dev.map((x) => x.qid), ["q0", "q1", "q2", "q3"], "split must be shuffled");
+
+  assert.throws(() => splitDevTest(items, 1, 11), /11/, "devCount above the population must throw, naming it");
+  assert.throws(() => splitDevTest(items, 1, -1), /-1/, "negative devCount must throw, naming it");
+  assert.deepEqual(splitDevTest(items, 1, 0), { dev: [], test: splitDevTest(items, 1, 0).test }, "devCount 0 is legal");
+}
+
+// --- assertDisjoint ----------------------------------------------------------------------
+{
+  const key = (x: { qid: string }) => x.qid;
+  assert.doesNotThrow(() => assertDisjoint({ dev: [{ qid: "a" }], test: [{ qid: "b" }] }, key));
+  assert.throws(() => assertDisjoint({ dev: [{ qid: "a" }], test: [{ qid: "a" }] }, key), /a/,
+    "an overlapping qid must throw, naming it");
+  // The guard exists for the cross-process case: the dev run and the test run each recompute
+  // the split, and a drift in construction between them could put a question on both sides.
+  assert.throws(() => assertDisjoint({ dev: [{ qid: "a" }, { qid: "b" }], test: [{ qid: "b" }] }, key), /1 item/,
+    "message must name how many overlapped");
 }
 
 console.log("✅ test-cases-sufficiency passed");
