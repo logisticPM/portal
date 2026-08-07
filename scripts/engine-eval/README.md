@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This harness compares three document-extraction engines for RAP text-layer quality, cost, and recall on a curated corpus of 8 real RAP PDFs. The evaluation implements the specification in [RAP Engine Comparison Spec](../../docs/specs/engine-comparison.md).
+This harness compares three document-extraction engines for RAP text-layer quality, cost, and recall on a curated corpus of 8 real RAP PDFs. The evaluation implements the specification in [RAP Engine Comparison Spec](../../docs/superpowers/specs/2026-08-06-rap-engine-comparison-design.md).
 
 ## Execution Order
 
@@ -53,7 +53,7 @@ Env vars: `AWS_PROFILE`, `BEDROCK_REGION=ca-central-1` (set in script).
 ```bash
 npm run eval:run:bda
 ```
-Env vars: `AWS_PROFILE`, `BDA_PROJECT_ARN`, `BDA_PROFILE_ARN`, `BDA_OUTPUT_BUCKET`, `BEDROCK_REGION=us-east-1` (set in script).
+Env vars: `RAP_UPLOAD_BUCKET`, `BDA_PROJECT_ARN`, `BDA_PROFILE_ARN`, `BDA_OUTPUT_BUCKET` (plus `EXTRACTION_IMPL`, `BEDROCK_REGION=us-east-1`, `AWS_PROFILE=isb`, set in script).
 
 ### Phase 4: Scoring
 ```bash

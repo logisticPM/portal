@@ -84,6 +84,11 @@ async function main() {
   // Dual-judge the non-gold findings (Nova Pro + Kimi K2.5).
   const judgeA = modelFromId(process.env.JUDGE_A_MODEL ?? "us.amazon.nova-pro-v1:0", { maxTokens: 256 });
   const judgeB = openRouterModel(process.env.JUDGE_B_MODEL ?? "moonshotai/kimi-k2.5", { maxTokens: 256 });
+  for (const j of [judgeA, judgeB]) {
+    if (/claude|anthropic/i.test(j.id)) {
+      throw new Error(`Judge model must not be a Claude/Anthropic family (no engine judges itself): ${j.id}`);
+    }
+  }
   const judged = await judgeFindings(
     allFindings, { id: judgeA.id, call: judgeA.call }, judgeB,
     (f) => pageText(pageTextByDoc.get(f.docKey)!, f.page),

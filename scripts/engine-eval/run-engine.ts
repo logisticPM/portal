@@ -10,7 +10,7 @@ if (!["bda", "textract", "textlayer"].includes(engine)) {
 }
 // Fail fast on missing env for the chosen engine.
 const need = engine === "bda"
-  ? ["EXTRACTION_IMPL", "BEDROCK_REGION", "RAP_UPLOAD_BUCKET", "BDA_PROJECT_ARN", "BDA_PROFILE_ARN"]
+  ? ["EXTRACTION_IMPL", "BEDROCK_REGION", "RAP_UPLOAD_BUCKET", "BDA_PROJECT_ARN", "BDA_PROFILE_ARN", "BDA_OUTPUT_BUCKET"]
   : ["EXTRACTION_IMPL", "DOC_LOADER", "BEDROCK_REGION", "RAP_UPLOAD_BUCKET"];
 for (const k of need) if (!process.env[k]) throw new Error(`missing env ${k} for engine ${engine}`);
 
