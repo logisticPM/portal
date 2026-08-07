@@ -117,6 +117,16 @@ async function main() {
   // plan put them) a typo in SUFFICIENCY_CONFIG costs a DynamoDB read and the entire construction
   // phase before the operator is told the string was malformed — and the role-clash check, which
   // is the circularity guard, would fire long after it could have.
+  // Reject an unrecognised mode by name, before anything else reads it. Hoisting the test-mode
+  // validation behind `MODE === "test"` introduced this: a typo like `Test` or `tset` used to
+  // fall through to the config check and get a helpful message, but would now skip that block,
+  // skip the dev block, and die on `testConfig!` with a raw destructuring TypeError. An
+  // instrument whose whole purpose is to keep dev and test apart must not treat an unreadable
+  // mode as either one.
+  if (MODE !== "dev" && MODE !== "test") {
+    throw new Error(`SUFFICIENCY_MODE must be "dev" or "test" — got "${MODE}". Nothing ran.`);
+  }
+
   let testConfig: { configId: string; variant: VariantId; raterId: string } | null = null;
   if (MODE === "test") {
     const configId = process.env.SUFFICIENCY_CONFIG;
