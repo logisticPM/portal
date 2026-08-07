@@ -10,6 +10,18 @@
 
 **Spec:** [`docs/superpowers/specs/2026-08-07-sufficiency-tuning-design.md`](../specs/2026-08-07-sufficiency-tuning-design.md)
 
+**Line endings are MIXED in this repo, and it matters.** `core.autocrlf=true` with no `.gitattributes`,
+so files that arrived via a git checkout are CRLF (`scripts/cases-sufficiency-eval.ts`,
+`scripts/cases-caseqa-eval.ts`, `src/lib/cases/ingest/llm.ts`, `package.json`) while files created
+recently by an editor are LF (`src/lib/cases/sufficiency/{prompt,tally}.ts`,
+`scripts/test-cases-sufficiency.ts`). Task 6 does byte-exact replacements in a CRLF file.
+
+Use the Edit tool, which handles either. Do **not** use shell one-liners (`perl -0pi`, `sed`) for
+multi-line matches: earlier in this project a `perl -0pi` substitution silently failed on a CRLF
+boundary and, separately, corrupted two bytes into NULs. A mutation that does not apply reads
+exactly like "the test is not load-bearing", which is the wrong conclusion drawn from a real
+failure to edit.
+
 ---
 
 ## File Structure
