@@ -61,8 +61,7 @@ npm run eval:score
 ```
 Generates the comparison scorecard and human-review worklist.
 
-**Required env vars:**
-- `OPENROUTER_API_KEY` (for OpenRouter judge LLM calls)
+**Judges:** two independent non-Claude families, both on Bedrock — Amazon Nova Pro (`us.amazon.nova-pro-v1:0`) + DeepSeek V3.2 (`deepseek.v3.2`), called via the shared Converse client. No third-party API key or data egress. Requires Bedrock on-demand model access enabled in the account (us-east-1) and `AWS_PROFILE=isb`. Override with `JUDGE_A_MODEL` / `JUDGE_B_MODEL` — they must stay non-Claude (the harness asserts this at startup, since the extractor is Claude and no engine may judge itself).
 
 **Outputs:**
 - `docs/rap-engine-comparison.md` — committed scorecard with P/R/F1, cost estimates, and recommendation
@@ -89,7 +88,8 @@ Generates the comparison scorecard and human-review worklist.
 | `BDA_PROJECT_ARN` | BDA project ARN | BDA run | From AWS console or stack outputs |
 | `BDA_PROFILE_ARN` | BDA inference profile ARN | BDA run | From AWS console or stack outputs |
 | `BDA_OUTPUT_BUCKET` | S3 bucket for BDA results | BDA run | From stack outputs |
-| `OPENROUTER_API_KEY` | Judge LLM API key | Scoring | OpenRouter account (https://openrouter.ai) |
+| `JUDGE_A_MODEL` | Judge A model id (optional) | Scoring | default `us.amazon.nova-pro-v1:0` (Bedrock) |
+| `JUDGE_B_MODEL` | Judge B model id (optional) | Scoring | default `deepseek.v3.2` (Bedrock) |
 
 ## Outputs
 
@@ -140,8 +140,7 @@ npm run eval:run:textract &
 npm run eval:run:bda &
 wait
 
-# Phase 4: Score
-export OPENROUTER_API_KEY=<key>
+# Phase 4: Score (judges run on Bedrock — no extra key needed)
 npm run eval:score
 
 # Phase 5: Review results

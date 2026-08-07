@@ -9,7 +9,6 @@ import { scoreGrounding } from "./grounding";
 import { loadLocalDocText, pageText } from "./util";
 import { estimateCost } from "./cost";
 import { judgeFindings, cohenKappa, buildWorklist, type Finding } from "./judge";
-import { openRouterModel } from "./openrouter";
 import { modelFromId } from "@/lib/cases/ingest/llm";
 
 const ENGINES: EngineKey[] = ["bda", "textract", "textlayer"];
@@ -81,16 +80,17 @@ async function main() {
     agreementByDoc.push({ doc: doc.key, engines: perDocEngines });
   }
 
-  // Dual-judge the non-gold findings (Nova Pro + Kimi K2.5).
+  // Dual-judge the non-gold findings — two independent non-Claude families,
+  // both on Bedrock (Amazon Nova Pro + DeepSeek V3.2). No third-party egress.
   const judgeA = modelFromId(process.env.JUDGE_A_MODEL ?? "us.amazon.nova-pro-v1:0", { maxTokens: 256 });
-  const judgeB = openRouterModel(process.env.JUDGE_B_MODEL ?? "moonshotai/kimi-k2.5", { maxTokens: 256 });
+  const judgeB = modelFromId(process.env.JUDGE_B_MODEL ?? "deepseek.v3.2", { maxTokens: 256 });
   for (const j of [judgeA, judgeB]) {
     if (/claude|anthropic/i.test(j.id)) {
       throw new Error(`Judge model must not be a Claude/Anthropic family (no engine judges itself): ${j.id}`);
     }
   }
   const judged = await judgeFindings(
-    allFindings, { id: judgeA.id, call: judgeA.call }, judgeB,
+    allFindings, { id: judgeA.id, call: judgeA.call }, { id: judgeB.id, call: judgeB.call },
     (f) => pageText(pageTextByDoc.get(f.docKey)!, f.page),
   );
   const kappa = cohenKappa(judged.map((j) => j.verdictA), judged.map((j) => j.verdictB));

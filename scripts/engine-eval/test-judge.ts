@@ -1,5 +1,5 @@
 import { parseVerdict, cohenKappa, buildWorklist, judgeFindings } from "./judge";
-import type { JudgeModel } from "./openrouter";
+import type { JudgeModel } from "./judge";
 let fail = 0;
 function check(name: string, ok: boolean) { console.log(`${ok ? "✅" : "❌"} ${name}`); if (!ok) fail++; }
 

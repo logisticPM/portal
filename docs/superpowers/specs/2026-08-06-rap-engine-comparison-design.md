@@ -72,8 +72,9 @@ scope. So quality is measured in three tiers, all engine-neutral:
 1. **Gold anchor (BoC, n=1, deep).** Run all three engines on BoC; compute true
    commitment **precision and recall** against the existing gold set. Zero new labeling.
 2. **Dual-LLM-judge triage (other 7 docs × 3 engines).** Two judges of **different
-   families from Claude and from each other** — **Amazon Nova Pro** (Bedrock,
-   in-account) and **Kimi K2.5** (OpenRouter) — score each extracted commitment on:
+   families from Claude and from each other**, both on Bedrock (in-account, no
+   third-party egress) — **Amazon Nova Pro** (`us.amazon.nova-pro-v1:0`) and
+   **DeepSeek V3.2** (`deepseek.v3.2`) — score each extracted commitment on:
    value-supported, quote-verbatim-present-and-supports, page-correct. Judges
    **agree → auto-label**; **disagree → human worklist**, hard-capped at ~25 items
    (~30–45 min total). Inter-judge agreement (Cohen's κ) is reported (mirrors the
@@ -119,7 +120,7 @@ scripts/engine-eval/
   run-bda.ts        # us-east-1: upload to S3, InvokeDataAutomationAsync, chunk >20pp, merge with page offset
   run-textract.ts   # SSO/ca-central-1: Textract LAYOUT → Claude extraction
   run-textlayer.ts  # local/ca: embedded-text loader → Claude extraction
-  judge.ts          # Nova Pro + Kimi K2.5 per-commitment scoring
+  judge.ts          # Nova Pro + DeepSeek V3.2 (both Bedrock) per-commitment scoring
   score.ts          # gold P/R + cross-engine agreement + operational metrics → scorecard.md + worklist.html
 results/<doc>/<engine>.json   # raw per-run outputs (grounded commitments + timing + token/page counts)
 ```
@@ -155,7 +156,7 @@ text ~2–2.5×; ~30 commitments/doc; judges score the 7 non-gold docs × 3 engi
 | Engines 2 & 3 — Claude Sonnet 4.6 extraction (×2) | ~$3 |
 | Textract LAYOUT (engine 2 only), 239 pp × ~$0.004/pp | ~$1 |
 | BDA (engine 1), 239 pp — custom blueprint $0.040/pp (confirmed); standard $0.010/pp | ~$2.4–$9.6 (likely ~$9.6 on custom output) |
-| Judges — Nova Pro + Kimi K2.5 (~1.9M in + 190k out) | ~$2–5 |
+| Judges — Nova Pro + DeepSeek V3.2, both Bedrock (~1.9M in + 190k out) | ~$2–5 |
 | Gold scoring + cross-engine agreement (deterministic) | ~$0 |
 | **Total (one run, +30% buffer for retries/chunking)** | **≈ $11–$25 (~$15 likely)** |
 
@@ -175,10 +176,11 @@ against the project's ~$0.06 net 7-month spend, and the account carries credits.
 - **BDA page inference** — excluded from the page reference; BDA scored on content,
   flagged on pages.
 - **Cost is estimated**, not billed (token/page × published price), for reproducibility.
-- **Judge model access is a dependency.** Nova Pro needs Bedrock model access in
-  the account (us-east-1); Kimi K2.5 needs an OpenRouter API key. If either is
-  unavailable at build time, substitute another non-Claude family from the
-  research set (GLM 5 / DeepSeek V3.2) rather than falling back to a Claude judge.
+- **Judge model access is a dependency.** Both judges (Nova Pro, DeepSeek V3.2)
+  need Bedrock on-demand access enabled in the account (us-east-1). If either is
+  unavailable, substitute another non-Claude Bedrock family (Mistral Large 3 /
+  Llama 3 70B) via `JUDGE_A_MODEL`/`JUDGE_B_MODEL` — the harness asserts judges are
+  non-Claude. No OpenRouter / third-party key is used (keeps RAP text in-account).
 
 ## 10. Out of scope
 

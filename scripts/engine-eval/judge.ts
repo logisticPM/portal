@@ -1,4 +1,4 @@
-import type { JudgeModel } from "./openrouter";
+export interface JudgeModel { id: string; call: (prompt: string) => Promise<string> }
 
 export interface JudgeVerdict { real: boolean }
 export interface Finding { docKey: string; engine: string; action: string; quote: string | null; page: number | null }

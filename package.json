@@ -103,7 +103,7 @@
     "eval:run:textract": "cross-env AWS_PROFILE=isb EXTRACTION_IMPL=bedrock DOC_LOADER=textract BEDROCK_REGION=ca-central-1 tsx scripts/engine-eval/run-engine.ts textract",
     "eval:run:bda": "cross-env AWS_PROFILE=isb EXTRACTION_IMPL=bda BEDROCK_REGION=us-east-1 tsx scripts/engine-eval/run-engine.ts bda",
     "eval:score": "tsx scripts/engine-eval/score.ts",
-    "eval:test": "tsx scripts/engine-eval/test-corpus.ts && tsx scripts/engine-eval/test-gold-score.ts && tsx scripts/engine-eval/test-agreement.ts && tsx scripts/engine-eval/test-grounding.ts && tsx scripts/engine-eval/test-openrouter.ts && tsx scripts/engine-eval/test-judge.ts && tsx scripts/engine-eval/test-cost.ts"
+    "eval:test": "tsx scripts/engine-eval/test-corpus.ts && tsx scripts/engine-eval/test-gold-score.ts && tsx scripts/engine-eval/test-agreement.ts && tsx scripts/engine-eval/test-grounding.ts && tsx scripts/engine-eval/test-judge.ts && tsx scripts/engine-eval/test-cost.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1078.0",
