@@ -101,7 +101,13 @@
     "cases:nli-probe:cloud": "cross-env AWS_REGION=us-east-1 BEDROCK_REGION=us-east-1 tsx scripts/cases-nli-probe.ts",
     "cases:probe-models:cloud": "cross-env AWS_REGION=us-east-1 BEDROCK_REGION=us-east-1 tsx scripts/cases-probe-models.ts",
     "cases:sufficiency-eval": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-sufficiency-eval.ts",
-    "cases:sufficiency-eval:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-sufficiency-eval.ts"
+    "cases:sufficiency-eval:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-sufficiency-eval.ts",
+    "eval:upload": "cross-env AWS_PROFILE=isb AWS_REGION=ca-central-1 tsx scripts/engine-eval/upload-corpus.ts",
+    "eval:run:textlayer": "cross-env AWS_PROFILE=isb EXTRACTION_IMPL=bedrock DOC_LOADER=textlayer BEDROCK_REGION=ca-central-1 tsx scripts/engine-eval/run-engine.ts textlayer",
+    "eval:run:textract": "cross-env AWS_PROFILE=isb EXTRACTION_IMPL=bedrock DOC_LOADER=textract BEDROCK_REGION=ca-central-1 tsx scripts/engine-eval/run-engine.ts textract",
+    "eval:run:bda": "cross-env AWS_PROFILE=isb EXTRACTION_IMPL=bda BEDROCK_REGION=us-east-1 tsx scripts/engine-eval/run-engine.ts bda",
+    "eval:score": "tsx scripts/engine-eval/score.ts",
+    "eval:test": "tsx scripts/engine-eval/test-corpus.ts && tsx scripts/engine-eval/test-gold-score.ts && tsx scripts/engine-eval/test-agreement.ts && tsx scripts/engine-eval/test-grounding.ts && tsx scripts/engine-eval/test-judge.ts && tsx scripts/engine-eval/test-cost.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1078.0",

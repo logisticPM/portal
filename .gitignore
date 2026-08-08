@@ -24,3 +24,6 @@ scripts/.cache/
 # fixture in scripts/fixtures/). Untracked but kept: re-deriving a Textract dump
 # costs money.
 scratchpad/
+
+# Engine evaluation results — ephemeral extraction artifacts and logs
+scripts/engine-eval/results/
