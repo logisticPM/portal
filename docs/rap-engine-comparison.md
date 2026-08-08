@@ -85,6 +85,32 @@ product), is the most expensive per page, and is the most brittle on odd PDFs
 data (κ=0), whichever engine is chosen, the **human-in-the-loop review stays load-
 bearing** — it is not replaceable by an LLM agreement check.
 
+### Is Bedrock + Textract-LAYOUT valid in Canada?
+
+This qualifies the "primary" recommendation, because the platform's residency story
+lives in ca-central-1:
+
+- **Textract (incl. LAYOUT) is available as a service in ca-central-1**, and a human
+  SSO session already invokes it there — so the *document-reading* step can run
+  in-country.
+- **On the current `ca` account**, Textract-for-Lambda is denied by the parent-org
+  SCP (principal-conditional: human principals yes, Lambda execution roles no). So
+  Bedrock+Textract **cannot be the automated `ca` pipeline today** — which is exactly
+  why the `ca` stage ships **text-layer**. On the client's own account (no such SCP),
+  Bedrock+Textract runs as an automated Lambda in ca-central-1.
+- **The Claude extraction step is Bedrock inference, and Canada is not a Bedrock
+  inference geography** — so that step routes to the `us.`/global inference profile
+  regardless of engine (text-layer has the identical limitation). "In CA" therefore
+  means **data-at-rest + document-reading in Canada; the LLM inference still leaves
+  Canada.** Hosting ≠ inference.
+
+**Net:** on the client's own account, Bedrock+Textract is CA-valid at the storage +
+OCR layer (and is the primary recommendation). On an SCP-restricted account — or when
+maximal in-country document handling is the priority — **text-layer** is the only
+automated in-country reader, and its grounding fidelity here was actually the best of
+the three. Neither engine achieves in-country *inference*; that is a Bedrock-geography
+limitation, not an engine choice.
+
 *Method notes: gold P/R/F1 is n=1 (Bank of Canada); non-gold recall is relative to
 the union of all engines and cannot see a defect all three miss; BDA pages are never
 used as a reference; all counts are absolute, not ratios. The run executed in
