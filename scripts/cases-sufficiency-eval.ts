@@ -90,10 +90,25 @@ const MODE = process.env.SUFFICIENCY_MODE ?? "dev";
 // us.deepseek.r1-v1:0 is invocable and deliberately excluded: it is a reasoning model, this
 // prompt already asks for reasoning before the label, and that combination is the
 // budget-starvation shape that cost #237 an entire arm.
+// AMENDED 2026-08-07, and the amendment is a deviation from pre-registration that must be
+// disclosed in any report built on this run. `cohere.command-r-plus-v1:0` was in the registered
+// grid and has been removed: the provider now refuses it with
+//
+//   Access denied. This Model is marked by provider as Legacy and you have not been actively
+//   using the model in the last 30 days. Please upgrade to an active model on Amazon Bedrock
+//
+// It produced ZERO ratings — all 59 of its calls were denied — so dropping it cannot shift the
+// selection toward or away from any result. That is the only reason this is defensible: a model
+// removed because we disliked its numbers would invalidate the experiment.
+//
+// It also falsifies an assumption in cases-probe-models.ts. That script exists because
+// `list-inference-profiles` reporting ACTIVE does not mean invocable; this shows that invocable
+// *at probe time* does not mean invocable later either. The probe said INVOCABLE for this id a
+// few hours before these 59 denials. A grid should be re-probed immediately before a paid run,
+// not once at the start of the project.
 const STAGE1_RATERS = [
   "us.amazon.nova-pro-v1:0",
   "us.meta.llama4-maverick-17b-instruct-v1:0",
-  "cohere.command-r-plus-v1:0",
   "us.amazon.nova-lite-v1:0",
 ];
 const STAGE2_VARIANTS: VariantId[] = ["P1", "P2"];

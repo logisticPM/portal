@@ -94,8 +94,29 @@ writer, judge, or answerer:
 | --- | --- |
 | `us.amazon.nova-pro-v1:0` | the #239 baseline |
 | `us.meta.llama4-maverick-17b-instruct-v1:0` | shares a vendor with the answerer — allowed, recorded as weaker separation |
-| `cohere.command-r-plus-v1:0` | |
+| ~~`cohere.command-r-plus-v1:0`~~ | **REMOVED 2026-08-07 — see the amendment below** |
 | `us.amazon.nova-lite-v1:0` | |
+
+### Amendment, 2026-08-07 — a pre-registration deviation, disclosed
+
+`cohere.command-r-plus-v1:0` was registered and has been **removed from the grid**. Mid-run the
+provider began refusing it:
+
+> Access denied. This Model is marked by provider as Legacy and you have not been actively using
+> the model in the last 30 days. Please upgrade to an active model on Amazon Bedrock
+
+All **59** of its calls were denied, so it produced **zero ratings**. That is the only thing that
+makes this defensible: removing a configuration that contributed no data cannot move the selection
+toward or away from any result. **A model dropped because its numbers were unwelcome would
+invalidate the experiment**, and any report on this run must say which of the two happened.
+
+The grid is therefore **three raters at stage 1, not four**, and stage 1 is a comparison of three.
+
+It also falsifies an assumption behind `scripts/cases-probe-models.ts`. That script exists because
+`list-inference-profiles` reporting ACTIVE does not mean invocable — and this shows that invocable
+*at probe time* does not mean invocable later. The probe reported this exact id as INVOCABLE a few
+hours before the 59 denials. **Re-probe the grid immediately before a paid run**, not once at the
+start of the project.
 
 `us.deepseek.r1-v1:0` is excluded by design: it is a reasoning model and this prompt already asks
 for reasoning before the label, which is exactly the budget-starvation shape that cost #237 an
