@@ -25,20 +25,53 @@ export function judgePrompt(f: Finding, sourceWindow: string): string {
   ].join("\n");
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function isThrottle(e: unknown): boolean {
+  const err = e as { name?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+  const s = `${err?.name ?? ""} ${err?.message ?? ""}`;
+  return /throttl|too many requests|429/i.test(s) || err?.$metadata?.httpStatusCode === 429;
+}
+
+// Bedrock judge calls throttle under load; retry throttles with exponential
+// backoff (well beyond the SDK's ~3 attempts). Non-throttle errors bubble up.
+async function callWithRetry(model: JudgeModel, prompt: string, attempts = 6): Promise<string> {
+  let delay = 800;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await model.call(prompt);
+    } catch (e) {
+      if (i === attempts - 1 || !isThrottle(e)) throw e;
+      await sleep(delay + Math.floor(Math.random() * 400));
+      delay *= 2;
+    }
+  }
+  throw new Error("unreachable");
+}
+
 export async function judgeFindings(
   findings: Finding[],
   judgeA: JudgeModel,
   judgeB: JudgeModel,
   pageTextFor: (f: Finding) => string,
+  opts?: { paceMs?: number },
 ): Promise<JudgedFinding[]> {
+  const paceMs = opts?.paceMs ?? 0;
   const out: JudgedFinding[] = [];
+  let skipped = 0;
   for (const f of findings) {
     const prompt = judgePrompt(f, pageTextFor(f));
-    const [ra, rb] = await Promise.all([judgeA.call(prompt), judgeB.call(prompt)]);
-    const va = parseVerdict(ra).real;
-    const vb = parseVerdict(rb).real;
-    out.push({ ...f, verdictA: va, verdictB: vb, agree: va === vb });
+    try {
+      const [ra, rb] = await Promise.all([callWithRetry(judgeA, prompt), callWithRetry(judgeB, prompt)]);
+      const va = parseVerdict(ra).real;
+      const vb = parseVerdict(rb).real;
+      out.push({ ...f, verdictA: va, verdictB: vb, agree: va === vb });
+    } catch {
+      skipped++; // persistent failure on this finding — skip rather than abort the whole pass
+    }
+    if (paceMs) await sleep(paceMs);
   }
+  if (skipped) console.warn(`judgeFindings: skipped ${skipped}/${findings.length} findings after retries`);
   return out;
 }
 

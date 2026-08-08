@@ -9,7 +9,7 @@ import { scoreGrounding } from "./grounding";
 import { loadLocalDocText, pageText } from "./util";
 import { estimateCost } from "./cost";
 import { judgeFindings, cohenKappa, buildWorklist, type Finding } from "./judge";
-import { modelFromId } from "@/lib/cases/ingest/llm";
+import { modelFromId, cachedModel } from "@/lib/cases/ingest/llm";
 
 const ENGINES: EngineKey[] = ["bda", "textract", "textlayer"];
 const resultsDir = resolve(__dirname, "results");
@@ -82,8 +82,10 @@ async function main() {
 
   // Dual-judge the non-gold findings — two independent non-Claude families,
   // both on Bedrock (Amazon Nova Pro + DeepSeek V3.2). No third-party egress.
-  const judgeA = modelFromId(process.env.JUDGE_A_MODEL ?? "us.amazon.nova-pro-v1:0", { maxTokens: 256 });
-  const judgeB = modelFromId(process.env.JUDGE_B_MODEL ?? "deepseek.v3.2", { maxTokens: 256 });
+  // cachedModel persists each verdict to disk (scripts/.cache/llm), so a re-run
+  // after a throttle resumes from cache instead of re-billing.
+  const judgeA = cachedModel(modelFromId(process.env.JUDGE_A_MODEL ?? "us.amazon.nova-pro-v1:0", { maxTokens: 256 }));
+  const judgeB = cachedModel(modelFromId(process.env.JUDGE_B_MODEL ?? "deepseek.v3.2", { maxTokens: 256 }));
   for (const j of [judgeA, judgeB]) {
     if (/claude|anthropic/i.test(j.id)) {
       throw new Error(`Judge model must not be a Claude/Anthropic family (no engine judges itself): ${j.id}`);
@@ -92,6 +94,7 @@ async function main() {
   const judged = await judgeFindings(
     allFindings, { id: judgeA.id, call: judgeA.call }, { id: judgeB.id, call: judgeB.call },
     (f) => pageText(pageTextByDoc.get(f.docKey)!, f.page),
+    { paceMs: Number(process.env.JUDGE_PACE_MS ?? 200) },
   );
   const kappa = cohenKappa(judged.map((j) => j.verdictA), judged.map((j) => j.verdictB));
   const worklist = buildWorklist(judged, WORKLIST_CAP);
