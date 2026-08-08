@@ -46,6 +46,7 @@ import { VARIANTS, VARIANT_IDS, type VariantId } from "../src/lib/cases/sufficie
 import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
 import { wilson, classify, selectOnDev, type DevResult } from "../src/lib/cases/sufficiency/tally";
 import { readTestRuns, appendTestRun } from "../src/lib/cases/sufficiency/manifest";
+import { retryingModel } from "../src/lib/cases/sufficiency/retrying";
 import { callParsed, type CacheOps } from "../src/lib/cases/nli-probe/repair";
 import { pickTargets, buildQuestionPrompt, isWellFormedQuestion, isLexicalGimme, MIN_TARGET_PARA_CHARS, isProseShaped } from "../src/lib/cases/caseqa-eval/construct";
 import { screenSubstantiveTargets } from "../src/lib/cases/caseqa-eval/substanceScreen";
@@ -98,6 +99,7 @@ const STAGE1_RATERS = [
 const STAGE2_VARIANTS: VariantId[] = ["P1", "P2"];
 
 let repairs = 0;
+let retries = 0;
 const CACHE_OPS: CacheOps = { hasCached, evictCached };
 
 async function main() {
@@ -303,10 +305,17 @@ async function main() {
   console.log(`  dev  X: ${splitX.dev.map((q) => q.qid).join(" ")}`);
   console.log(`  test X: ${splitX.test.map((q) => q.qid).join(" ")}\n`);
 
-  // One cached model per rater id, built lazily so a grid entry never reached costs nothing.
+  // One retrying-and-cached model per rater id, built lazily so a grid entry never reached
+  // costs nothing. Retry sits OUTERMOST — retryingModel(cachedModel(...), ...) — so a cache
+  // hit returns from inside cachedCall and never reaches this wrapper's try/catch: a replayed
+  // response never spends retry budget or increments `retries`.
   const raterCache = new Map<string, ReturnType<typeof cachedModel>>();
   const raterFor = (id: string) => {
-    if (!raterCache.has(id)) raterCache.set(id, cachedModel(modelFromId(id, { maxTokens: RATER_MAX_TOKENS })));
+    if (!raterCache.has(id)) {
+      raterCache.set(id, retryingModel(cachedModel(modelFromId(id, { maxTokens: RATER_MAX_TOKENS })), {
+        attempts: 5, baseDelayMs: 2000, onRetry: () => { retries++; },
+      }));
+    }
     return raterCache.get(id)!;
   };
 
@@ -384,7 +393,7 @@ async function main() {
         nAnswerable: N_ANSWERABLE, nUnanswerable: N_UNANSWERABLE,
         devS: splitS.dev.map((q) => q.qid), testS: splitS.test.map((q) => q.qid),
         devX: splitX.dev.map((q) => q.qid), testX: splitX.test.map((q) => q.qid),
-        targetDroppedByBudget, repairs, crossCheck, devSplitChecked: MODE === "test" ? devSplitChecked : null,
+        targetDroppedByBudget, repairs, retries, crossCheck, devSplitChecked: MODE === "test" ? devSplitChecked : null,
         construction: { targetsRejectedByJudge, targetJudgeUnparsed, writerFails, writerMalformed, gimmes,
           discardedPairs, addressedFails, exhausted } }),
       ...rows,
@@ -419,6 +428,7 @@ async function main() {
     console.log(`\nstage 1 winner: ${stage1.reason}`);
     if (!stage1.chosen) {
       console.log("\nno configuration cleared the leakage bar at stage 1 — stopping. The bar is not relaxed.");
+      console.log(`retries: ${retries}`);
       await persist({ kind: "dev", runId, results, chosen: null, reason: stage1.reason });
       return;
     }
@@ -446,6 +456,7 @@ async function main() {
     if (final.chosen) {
       console.log(`\nRun the test set ONCE with:\n  AWS_PROFILE=bedrock SUFFICIENCY_MODE=test SUFFICIENCY_CONFIG=${final.chosen.configId} npm run cases:sufficiency-eval:cloud`);
     }
+    console.log(`retries: ${retries}`);
     await persist({ kind: "dev", runId, results, chosen: final.chosen?.configId ?? null, reason: final.reason });
     return;
   }
@@ -528,7 +539,7 @@ async function main() {
   console.log(`\n--- result ---`);
   console.log(`  false refusal:          ${S.counts.insufficient}/${nS} = ${pct(fr)}  95% CI [${pct(frLo)}, ${pct(frHi)}]  bar ${pct(FALSE_REFUSAL_MAX)}  ${frConf}`);
   console.log(`  projected false answer: ${X.counts.sufficient}/${nX} = ${pct(pfa)}  95% CI [${pct(pfaLo)}, ${pct(pfaHi)}]  bar ${pct(PROJECTED_FALSE_ANSWER_MAX)}  ${pfaConf}`);
-  console.log(`  unparsed: S ${S.unparsed} · X ${X.unparsed}   cache evictions: ${repairs}`);
+  console.log(`  unparsed: S ${S.unparsed} · X ${X.unparsed}   cache evictions: ${repairs} · retries: ${retries}`);
   console.log(`\n  VERDICT (point estimate, same rule as #239): ${decide(fr, pfa).toUpperCase()}`);
   console.log(`  attempt ${prior.length + 1} on the test set`);
 

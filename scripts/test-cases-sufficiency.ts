@@ -13,6 +13,7 @@ import {
 } from "../src/lib/cases/sufficiency/tally";
 import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
 import { readTestRuns, appendTestRun } from "../src/lib/cases/sufficiency/manifest";
+import { isTransient, retryingModel } from "../src/lib/cases/sufficiency/retrying";
 
 // --- parseSufficiency --------------------------------------------------------------------
 assert.deepEqual(parseSufficiency('{"reason":"para 12 states the test","sufficient":true}'),
@@ -93,6 +94,34 @@ assert.doesNotThrow(() => assertNoCallFailures(0, "arm S"));
 assert.throws(() => assertNoCallFailures(1, "arm S"), /void/);
 assert.throws(() => assertNoCallFailures(7, "arm X"), /7 call\(s\) failed/, "names the count");
 assert.throws(() => assertNoCallFailures(7, "arm X"), /during arm X/, "names the arm");
+
+// --- retry-on-throttle: isTransient classification --------------------------------------
+// Conservative by design: only the Bedrock/service exceptions this module names, or the
+// literal throttling message, count as transient. Everything else — including this run's own
+// truncation guard — must return false, because a wrongly-transient classification silently
+// retries a real failure and, if the retry happens to succeed for an unrelated reason, reports
+// it as though nothing went wrong.
+{
+  for (const name of [
+    "ThrottlingException", "TooManyRequestsException", "ServiceUnavailableException",
+    "ModelTimeoutException", "InternalServerException",
+  ]) {
+    const e = new Error("some detail");
+    e.name = name;
+    assert.equal(isTransient(e), true, `${name} must be transient`);
+  }
+  assert.equal(
+    isTransient(new Error("Too many requests, please wait before trying again.")),
+    true, "the literal Bedrock throttling message must be transient even under a generic Error name",
+  );
+  assert.equal(isTransient(new Error("boom")), false, "an ordinary error must not be treated as transient");
+  assert.equal(
+    isTransient(new Error("us.amazon.nova-pro-v1:0: response truncated at maxTokens=1024 with no text part — raise maxTokens")),
+    false, "a truncation error is a real failure of the run's own making, not infrastructure noise",
+  );
+  assert.equal(isTransient("boom"), false, "a non-Error throw must not be treated as transient");
+  assert.equal(isTransient(undefined), false, "undefined must not be treated as transient");
+}
 
 // --- prompt variants ---------------------------------------------------------------------
 {
@@ -275,6 +304,86 @@ async function asyncTests() {
   assert.equal(runs[0].configId, "P1/nova-pro", "order preserved, so 'which was first' is answerable");
   assert.equal(runs[1].configId, "P2/nova-pro");
   fsSync.rmSync(dir, { recursive: true, force: true });
+}
+
+// --- retryingModel: bounded retry-on-throttle -------------------------------------------
+// Mirrors nli-probe/repair.ts's callParsed tests: a small mock model recording its calls, and
+// injected sleep/onRetry so nothing here waits on a real clock.
+{
+  const throttle = (): Error => {
+    const e = new Error("Too many requests, please wait before trying again.");
+    e.name = "ThrottlingException";
+    return e;
+  };
+
+  // Transient on attempt 1, then succeeds: the call returns the value, and exactly one retry
+  // was recorded — not zero (the failure must be seen) and not more (one success ends the loop).
+  {
+    const calls: string[] = [];
+    const m = { id: "rater-1", call: async (p: string) => { calls.push(p); if (calls.length === 1) throw throttle(); return "OK"; } };
+    const sleeps: number[] = [];
+    const retries: Array<[number, unknown]> = [];
+    const wrapped = retryingModel(m, {
+      attempts: 5, baseDelayMs: 100,
+      sleep: async (ms) => { sleeps.push(ms); },
+      onRetry: (attempt, e) => retries.push([attempt, e]),
+    });
+    const out = await wrapped.call("PROMPT");
+    assert.equal(out, "OK");
+    assert.equal(wrapped.id, "rater-1", "the wrapper preserves the model id — same shape as cachedModel");
+    assert.deepEqual(calls, ["PROMPT", "PROMPT"], "retried with the SAME prompt");
+    assert.equal(retries.length, 1, "onRetry called exactly once");
+    assert.equal(sleeps.length, 1, "sleep called exactly once");
+  }
+
+  // Non-transient error: rethrown immediately — no retry budget spent on a failure retrying
+  // cannot fix.
+  {
+    const calls: string[] = [];
+    const m = { id: "rater-1", call: async (p: string) => { calls.push(p); throw new Error("boom"); } };
+    const sleeps: number[] = [];
+    const retries: unknown[] = [];
+    const wrapped = retryingModel(m, {
+      attempts: 5, baseDelayMs: 100,
+      sleep: async (ms) => { sleeps.push(ms); },
+      onRetry: (_attempt, e) => retries.push(e),
+    });
+    await assert.rejects(wrapped.call("PROMPT"), /boom/);
+    assert.equal(calls.length, 1, "a non-transient error must not be retried");
+    assert.equal(sleeps.length, 0, "sleep must never be called for a non-transient error");
+    assert.equal(retries.length, 0, "onRetry must never be called for a non-transient error");
+  }
+
+  // Transient every time: rethrows the LAST attempt's error, unchanged (same object), after
+  // exactly `attempts` calls — not attempts+1, not an earlier attempt's error, and not a new
+  // error of this module's own making.
+  {
+    let n = 0;
+    let lastThrown: Error | null = null;
+    const m = { id: "rater-1", call: async () => { n++; const e = throttle(); lastThrown = e; throw e; } };
+    const sleeps: number[] = [];
+    const wrapped = retryingModel(m, { attempts: 4, baseDelayMs: 50, sleep: async (ms) => { sleeps.push(ms); } });
+    let caught: unknown = null;
+    try { await wrapped.call("PROMPT"); assert.fail("must throw once attempts are exhausted"); }
+    catch (e) { caught = e; }
+    assert.equal(n, 4, "exactly `attempts` calls, no more");
+    assert.equal(sleeps.length, 3, "one sleep between each pair of attempts, none after the last");
+    assert.equal(caught, lastThrown, "must rethrow the LAST attempt's error object, unchanged");
+  }
+
+  // Backoff grows: recorded sleep durations must be non-decreasing. baseDelayMs bounds the
+  // jitter to less than one doubling step, so this pins a guaranteed-by-construction ordering
+  // (see retrying.ts), not a flaky assertion about Math.random().
+  {
+    const m = { id: "rater-1", call: async () => { throw throttle(); } };
+    const sleeps: number[] = [];
+    const wrapped = retryingModel(m, { attempts: 5, baseDelayMs: 20, sleep: async (ms) => { sleeps.push(ms); } });
+    await assert.rejects(wrapped.call("PROMPT"));
+    assert.equal(sleeps.length, 4);
+    for (let i = 1; i < sleeps.length; i++) {
+      assert.ok(sleeps[i] >= sleeps[i - 1], `sleep durations must be non-decreasing, got ${JSON.stringify(sleeps)}`);
+    }
+  }
 }
 }
 

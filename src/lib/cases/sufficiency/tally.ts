@@ -53,8 +53,9 @@ export function assertNoCallFailures(callFailures: number, context: string): voi
     throw new Error(
       `${callFailures} call(s) failed outright during ${context} — the run is void, not merely ` +
       `incomplete. Unlike an unparsed response, a failed call says nothing about the rater, so ` +
-      `every rate below it would be computed over an arbitrary subset. Fix the cause (most often: ` +
-      `expired credentials) and re-run; responses already cached will replay for free.`,
+      `every rate below it would be computed over an arbitrary subset. Transient throttles are ` +
+      `now retried (sufficiency/retrying.ts), so a failure surviving to here is something else — ` +
+      `check credentials and the model id first. Responses already cached will replay for free.`,
     );
   }
 }
