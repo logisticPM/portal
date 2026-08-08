@@ -28,6 +28,19 @@ LLM agreement does not work here; the human-in-the-loop review the portal alread
 has is the right instrument, and these judges are useful only to surface the
 handful of disagreements (10) for a person to look at.
 
+**Human adjudication of the 10 disagreements (2026-08-08).** All 10 were
+Nova=real / DeepSeek=not-real. A human resolved them **6 real, 4 not-real** (8
+distinct findings — two duplicate pairs). The stricter judge (DeepSeek) was
+*correct* on 4 (the model had reached past its cited quote — e.g. an OPG action
+naming a "CCNS mandate" and pillars absent from the quote, a compound OPG action
+whose specifics weren't grounded, a past-tense Deloitte supplier statement recast
+as a forward commitment, and a bare "Enhance current procurement" fragment) and
+*wrong* on 6 (most clearly the verbatim, concrete Deloitte "stand up R8dius"
+commitment). Neither judge was reliably right — the split fell exactly on the
+vague/inferred-vs-specific/grounded boundary, which is why a human, not an LLM
+agreement check, is the correct arbiter. Per-item verdicts + rationale:
+`scripts/engine-eval/results/adjudications.json`.
+
 ## Findings
 
 - **Gold accuracy (Bank of Canada, the one oracle-labeled doc).** All three are
