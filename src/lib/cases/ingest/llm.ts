@@ -103,10 +103,30 @@ async function converse(modelId: string, prompt: string, opts?: CallOpts): Promi
   return (await bedrockConverse()).send(modelId, prompt, opts);
 }
 
+// Exported so callers that can detect a SEMANTICALLY invalid cached response can act on
+// it. cachedCall below refuses to store an EMPTY response because a 0-byte entry replays
+// forever; it cannot see the other version of the same problem — a non-empty response that
+// no parser will ever accept, most often a reasoning preamble truncated before its JSON.
+// Only the caller holding the parser knows that, so the key and the eviction live here
+// while the decision lives there. Duplicating the key formula at a call site would mean a
+// change here silently stops evicting.
+export const cacheKeyFor = (modelId: string, prompt: string): string =>
+  createHash("sha256").update(modelId + "\n" + prompt).digest("hex").slice(0, 32);
+
+const cacheFileFor = (modelId: string, prompt: string) => path.join(CACHE, cacheKeyFor(modelId, prompt) + ".txt");
+
+export async function hasCached(modelId: string, prompt: string): Promise<boolean> {
+  try { await fs.access(cacheFileFor(modelId, prompt)); return true; } catch { return false; }
+}
+
+// Returns whether an entry was actually removed. Absent is not an error.
+export async function evictCached(modelId: string, prompt: string): Promise<boolean> {
+  try { await fs.unlink(cacheFileFor(modelId, prompt)); return true; } catch { return false; }
+}
+
 let cacheWriteWarned = false;
 export async function cachedCall(m: LlmModel, prompt: string): Promise<string> {
-  const key = createHash("sha256").update(m.id + "\n" + prompt).digest("hex").slice(0, 32);
-  const file = path.join(CACHE, key + ".txt");
+  const file = cacheFileFor(m.id, prompt);
   try { return await fs.readFile(file, "utf8"); } catch { /* miss (incl. no cache dir) */ }
   const out = await m.call(prompt);
   // Never cache an empty response. A 0-byte entry replays forever and bypasses

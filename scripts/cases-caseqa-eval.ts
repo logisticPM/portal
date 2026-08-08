@@ -7,6 +7,8 @@
 //
 // Needs DynamoDB read + Bedrock. Writes nothing to the table.
 import "./fetch-polyfill";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { dynamoCaseRepo } from "../src/lib/cases/repo.dynamo";
 import { modelFromId, cachedModel } from "../src/lib/cases/ingest/llm";
 import { assembleInput } from "../src/lib/cases/ingest/summarizer";
@@ -281,6 +283,50 @@ async function main() {
     targetsRejectedByJudge, targetJudgeUnparsed, casesExamined,
   }));
   console.log(`(requested ${N_ANSWERABLE} answerable / ${N_UNANSWERABLE} unanswerable)`);
+
+  // --- persist every judged claim, BEFORE scoring ---------------------------------
+  // Written before score() deliberately: score() throws on a reconciliation failure, and a run
+  // that has already spent ~490 Bedrock calls should not lose its rows to an assertion. The
+  // rows are the expensive part; the metrics can be recomputed from them.
+  //
+  // Why this exists at all: the 2026-08-06 run printed 3 samples per verdict and nothing else,
+  // so its 266 judged claims were unrecoverable — and because the answerer is deliberately
+  // uncached (it is the thing under test), re-running produces DIFFERENT claims rather than the
+  // same ones. A follow-up probe on that run's rows was therefore impossible, and had to make do
+  // with the 12 printed samples. Persisting costs nothing and removes that trap.
+  //
+  // Self-contained on purpose: the full paragraph text is stored, not just its id. The sample
+  // printer truncates to 120 chars, and a consumer that re-fetched paragraphs from DynamoDB
+  // would silently depend on the corpus not having moved since the run.
+  const runId = new Date().toISOString().replace(/[:.]/g, "-");
+  const outDir = path.join(process.cwd(), "scripts", ".cache", "eval-rows");
+  const questionOf = new Map<string, string>([
+    ...built.map((b) => [b.qid, b.question] as const),
+    ...pairs.map((p) => [p.qid, p.question] as const),
+  ]);
+  const lines: string[] = [JSON.stringify({
+    kind: "run", runId, writer: WRITER, answerer: ANSWERER, judge: JUDGE,
+    seed: SEED, asOf: SCREENING.asOf, answerable: N_ANSWERABLE, unanswerable: N_UNANSWERABLE,
+  })];
+  let claimRows = 0;
+  for (const r of records) {
+    const chunks = byId.get(r.caseId)?.chunks ?? [];
+    for (const cl of r.claims) {
+      lines.push(JSON.stringify({
+        kind: "claim", runId, bucket: r.kind, caseId: r.caseId, qid: r.qid,
+        question: questionOf.get(r.qid) ?? null,
+        targetParagraph: r.kind === "answerable" ? r.targetParagraph : null,
+        sourceParagraph: cl.sourceParagraph,
+        paragraphText: chunks.find((ch) => ch.paragraph === cl.sourceParagraph)?.text ?? null,
+        text: cl.text, verdict: cl.verdict,
+      }));
+      claimRows++;
+    }
+  }
+  await fs.mkdir(outDir, { recursive: true });
+  const outFile = path.join(outDir, `${runId}.jsonl`);
+  await fs.writeFile(outFile, lines.join("\n") + "\n", "utf8");
+  console.log(`\nrows persisted: ${claimRows} judged claims -> ${outFile}`);
 
   const m = score(records);
   console.log(`\n--- answerable (target paragraph known by construction) ---`);
