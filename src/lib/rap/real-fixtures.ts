@@ -42,7 +42,7 @@ export const orgs: RapOrganization[] = [
 
 // --- RAP documents ---------------------------------------------------------
 // sourceS3Key = primary public source (URL) or local sample path.
-export const raps: RapDocument[] = [
+const rapsBase: Omit<RapDocument, "frameworkRefs">[] = [
   { id: "rap-boc-2024", orgId: "org-boc", title: "Reconciliation Action Plan", jurisdiction: "CA", rapType: null, publicationDate: "2024-09-01", periodStart: "2024-01-01", periodEnd: "2027-12-31", sourceS3Key: "https://www.bankofcanada.ca/wp-content/uploads/2024/09/reconciliation-action-plan.pdf", extractionId: "real-boc", claimBasis: "self_reported", status: "active", createdAt: "2024-09-01T00:00:00.000Z", dataClass: "public" },
   { id: "rap-rbc-2025", orgId: "org-rbc", title: "Pathways to Economic Prosperity (inaugural RAP)", jurisdiction: "CA", rapType: null, publicationDate: "2025-06-20", periodStart: "2025-01-01", periodEnd: "2028-12-31", sourceS3Key: "https://www.rbc.com/indigenous/_assets-custom/pdfs/reconciliation-action-plan-EN.pdf", extractionId: "real-rbc", claimBasis: "self_reported", status: "active", createdAt: "2025-06-20T00:00:00.000Z", dataClass: "public" },
   { id: "rap-telus-2025", orgId: "org-telus", title: "Indigenous Reconciliation & Connectivity Report (7th ed.)", jurisdiction: "CA", rapType: null, publicationDate: "2025-11-19", periodStart: "2025-01-01", periodEnd: "2026-12-31", sourceS3Key: "https://www.telus.com/en/social-impact/indigenous-reconciliation", extractionId: "real-telus", claimBasis: "independently_verified", status: "active", createdAt: "2025-11-19T00:00:00.000Z", dataClass: "public" },
@@ -54,6 +54,10 @@ export const raps: RapDocument[] = [
   { id: "rap-teck-2024", orgId: "org-teck", title: "Sustainability Report — Indigenous Peoples (RAP in development)", jurisdiction: "CA", rapType: null, publicationDate: "2024-01-01", periodStart: "2023-01-01", periodEnd: "2023-12-31", sourceS3Key: "https://www.teck.com/sustainability/", extractionId: "real-teck", claimBasis: "self_reported", status: "active", createdAt: "2024-01-01T00:00:00.000Z", dataClass: "public" },
   { id: "rap-gc-2024", orgId: "org-gc", title: "Mandatory Minimum 5% Indigenous Procurement Target — FY2023-24 Results", jurisdiction: "CA", rapType: null, publicationDate: "2024-01-01", periodStart: "2023-04-01", periodEnd: "2024-03-31", sourceS3Key: "https://open.canada.ca/data/en/dataset/5d27d152-09d8-4303-adc4-0c46b4a9733b", extractionId: "real-gc", claimBasis: "statutory", status: "active", createdAt: "2024-01-01T00:00:00.000Z", dataClass: "public" },
 ];
+
+// frameworkRefs is persisted on RapDocument as of 2026-08; left empty for these
+// real orgs (not independently verified — it populates from real extractions).
+export const raps: RapDocument[] = rapsBase.map((r) => ({ ...r, frameworkRefs: [] }));
 
 const src = (quote: string, page: number | null = null) => ({ quote, page });
 const prov = (sourceUrl: string, basis: ClaimBasis = "self_reported") => ({

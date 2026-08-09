@@ -363,6 +363,10 @@ export interface RapDocument {
   title: string;
   jurisdiction: Jurisdiction;
   rapType: RapType | null;
+  // Frameworks the RAP references (UNDRIP, TRC CtA 92, OCAP, PAIR, other) — a
+  // controlled enum extracted from the header, persisted here as of 2026-08.
+  // Empty on records published before that; readers default to [].
+  frameworkRefs: FrameworkRef[];
   publicationDate: string; // ISO 8601
   periodStart: string;
   periodEnd: string;
