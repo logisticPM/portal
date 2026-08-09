@@ -621,6 +621,50 @@ git commit -m "fix(eval): add citation-graph extras to the judging pool"
 
 ---
 
+### Task 4b: Refuse to build a BM25-only pool
+
+**Files:**
+- Modify: `scripts/cases-eval.ts` (CRLF)
+
+Added 2026-08-09, after the first draft of Task 5's npm script omitted `EMBED_PROVIDER` / `EMBED_MODEL` / `EMBED_DIM`. With no embedder configured, `getEmbedder()` returns the stub, its id never matches the `titan` id stored in the index, `rankBoth` leaves `queryVec` null, and **`hybrid` comes back byte-identical to `bm25`**. The pool would then be BM25-only — exactly the single-system bias pooling exists to prevent — and nothing in the output would say so. Task 4 has just spent its whole rationale on the pool's independence; a misconfigured env would have quietly undone it.
+
+The env fix alone is not enough, because the next person to write a pool script can make the same omission. `poolMode` should refuse.
+
+- [ ] **Step 1: Add the guard**
+
+In `poolMode`, take `denseOn` from `rankBoth` and abort on it:
+
+```ts
+    const { bm25, hybrid, denseOn } = await rankBoth(idx.searcher, q.query, embedder, idx.embedderId, idx.vdim);
+    // Dense off means hybrid IS bm25 — same array, not merely similar — so this pool would be
+    // BM25-only and every case dense alone would have found is absent from the gold permanently.
+    // scoreMode only warns about this because a BM25-only score run is still a disclosed
+    // measurement; a BM25-only POOL silently corrupts every future run scored against it.
+    if (!denseOn) throw new Error(
+      `dense is OFF (index embedder=${idx.embedderId ?? "none"}, dim=${idx.vdim ?? "none"}), so hybrid is identical to BM25 and this pool would be BM25-only. ` +
+      `Run \`npm run cases:pool:cloud\`, which sets EMBED_PROVIDER/EMBED_MODEL/EMBED_DIM and INDEX_BUCKET to match cases:eval:cloud. Nothing written.`);
+```
+
+The check is query-independent — `denseOn` depends only on whether the embedder matches the index — so it fires on the first query and costs nothing.
+
+- [ ] **Step 2: Verify**
+
+```bash
+npx tsc --noEmit
+npx tsx scripts/test-cases-retrieval.ts
+```
+
+Expected: both clean. `poolMode` needs a corpus and credentials, so it is not run here.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/cases-eval.ts
+git commit -m "fix(eval): refuse to pool when dense is off, which would silently make hybrid = BM25"
+```
+
+---
+
 ### Task 5: The judging runner
 
 **Files:**
@@ -747,10 +791,10 @@ async function main() {
 main().catch((e) => { console.error(e); process.exit(1); });
 ```
 
-Add to `package.json`:
+Add to `package.json`. **`cases:pool:cloud` is `cases:eval:cloud` plus `--pool` and nothing else** — same `INDEX_BUCKET`, same `EMBED_*`. That is the invariant, not a coincidence: the pool must be drawn from the same index and the same embedder the scoring run ranks against, or candidates come from one retrieval stack and are scored on another. The first draft of this plan omitted `EMBED_*` and `INDEX_BUCKET`, which would have silently produced a BM25-only pool (see Task 4b).
 
 ```json
-    "cases:pool:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-eval.ts --pool",
+    "cases:pool:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases INDEX_BUCKET=indigenomics-portal-production-casesindexbucket-bbdveozx EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 BEDROCK_REGION=us-east-1 tsx scripts/cases-eval.ts --pool",
     "cases:judge-pool:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-judge-pool.ts",
 ```
 
