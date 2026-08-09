@@ -231,6 +231,7 @@ export function buildCanonical(
     title: val(extracted.rapTitle) ?? `${orgName} RAP`,
     jurisdiction: val(extracted.jurisdiction) ?? "other",
     rapType: val(extracted.rapType),
+    frameworkRefs: val(extracted.frameworkRefs) ?? [],
     publicationDate: val(extracted.publicationDate) ?? meta.now,
     periodStart: period?.start ?? "",
     periodEnd: period?.end ?? "",

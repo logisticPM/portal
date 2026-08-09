@@ -18,6 +18,7 @@ import type {
   RapType,
 } from "./types";
 import { RAP_SCHEMA_VERSION } from "./types";
+import type { FrameworkRef } from "./types";
 
 const g = <T>(value: T | null, quote: string | null, page: number | null, confidence: number): Grounded<T> => ({
   value, quote, page, confidence, flagged: confidence < 0.85 || (value !== null && quote === null),
@@ -47,7 +48,7 @@ export const orgs: RapOrganization[] = [
   { id: "org-teck", name: "Teck Resources", sector: "mining", sizeBand: "1000_plus", region: "BC", createdAt: "2024-06-30T00:00:00.000Z", ...noRegistry, dataClass: "org_submitted" },
 ];
 
-export const raps: RapDocument[] = [
+const rapsBase: Omit<RapDocument, "frameworkRefs">[] = [
   { id: "rap-rbc-2025", orgId: "org-rbc", title: "Pathways to Economic Prosperity", jurisdiction: "CA", rapType: null, publicationDate: "2025-06-20", periodStart: "2025-01-01", periodEnd: "2027-12-31", sourceS3Key: "uploads/seed/rbc.pdf", extractionId: "seed-rbc", claimBasis: "self_reported", status: "active", createdAt: "2025-06-20T00:00:00.000Z", dataClass: "org_submitted" },
   { id: "rap-agnico-2024", orgId: "org-agnico", title: "Reconciliation Action Plan 2024", jurisdiction: "CA", rapType: null, publicationDate: "2024-07-10", periodStart: "2024-01-01", periodEnd: "2027-12-31", sourceS3Key: "uploads/seed/agnico.pdf", extractionId: "seed-agnico", claimBasis: "self_reported", status: "active", createdAt: "2024-07-10T00:00:00.000Z", dataClass: "org_submitted" },
   { id: "rap-telus-2024", orgId: "org-telus", title: "Indigenous Reconciliation & Connectivity Report", jurisdiction: "CA", rapType: null, publicationDate: "2024-11-19", periodStart: "2024-01-01", periodEnd: "2026-12-31", sourceS3Key: "uploads/seed/telus.pdf", extractionId: "seed-telus", claimBasis: "self_reported", status: "active", createdAt: "2024-11-19T00:00:00.000Z", dataClass: "org_submitted" },
@@ -59,6 +60,13 @@ export const raps: RapDocument[] = [
   { id: "rap-ctc-2025", orgId: "org-ctc", title: "Indigenous Relations Strategy", jurisdiction: "CA", rapType: null, publicationDate: "2025-01-22", periodStart: "2025-01-01", periodEnd: "2027-12-31", sourceS3Key: "uploads/seed/ctc.pdf", extractionId: "seed-ctc", claimBasis: "self_reported", status: "active", createdAt: "2025-01-22T00:00:00.000Z", dataClass: "org_submitted" },
   { id: "rap-teck-2024", orgId: "org-teck", title: "Reconciliation Action Plan", jurisdiction: "CA", rapType: null, publicationDate: "2024-06-30", periodStart: "2024-01-01", periodEnd: "2027-12-31", sourceS3Key: "uploads/seed/teck.pdf", extractionId: "seed-teck", claimBasis: "self_reported", status: "active", createdAt: "2024-06-30T00:00:00.000Z", dataClass: "org_submitted" },
 ];
+
+// frameworkRefs is persisted on RapDocument as of 2026-08; demo seed values here
+// so the framework badges are visible in mock mode.
+export const raps: RapDocument[] = rapsBase.map((r) => ({
+  ...r,
+  frameworkRefs: ["undrip", "trc_cta_92"] as FrameworkRef[],
+}));
 
 const src = (quote: string, page: number) => ({ quote, page });
 const prov = (s3: string, conf: number, basis: ClaimBasis = "self_reported"): Provenance => ({

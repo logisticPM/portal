@@ -36,6 +36,15 @@ async function setShowcaseOptIn(formData: FormData) {
 
 const STATUSES: ProgressStatus[] = ["not_started", "on_track", "delayed", "met", "missed"];
 
+// Compact badge labels for the RAP's referenced frameworks.
+const FRAMEWORK_BADGE: Record<string, string> = {
+  undrip: "UNDRIP",
+  trc_cta_92: "TRC CtA 92",
+  ocap: "OCAP®",
+  pair: "PAIR",
+  other: "Other framework",
+};
+
 const STATUS_PILL: Record<ProgressStatus, string> = {
   not_started: "text-ink3 border-ink/15",
   on_track: "text-cedar border-cedar/40 bg-cedar/10",
@@ -159,6 +168,19 @@ export default async function MyRapPage() {
                         {r.rap.jurisdiction} · {r.rap.periodStart}–{r.rap.periodEnd}
                       </div>
                     </div>
+
+                    {(r.rap.frameworkRefs ?? []).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {(r.rap.frameworkRefs ?? []).map((fw) => (
+                          <span
+                            key={fw}
+                            className="text-[11px] rounded border border-line bg-bg/40 text-ink2 px-2 py-0.5"
+                          >
+                            {FRAMEWORK_BADGE[fw] ?? fw}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="space-y-3">
                       {r.commitments.map(({ commitment: c, rollup }) => (

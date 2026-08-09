@@ -26,6 +26,7 @@ const RAP_FIELDS: [string, string][] = [
   ["Title", "the RAP title"],
   ["RAP type", "Reflect / Innovate / Stretch / Elevate"],
   ["Jurisdiction", "jurisdiction"],
+  ["Framework references", "UNDRIP, TRC Call to Action 92, OCAP®, PAIR (shown as badges on the RAP)"],
   ["Publication date", "the publication date"],
   ["Reporting period (start → end)", "the period covered, split into a start and an end date"],
   ["Source PDF, extraction ID, status, data class", "recorded automatically as provenance"],
@@ -45,9 +46,9 @@ const COMMITMENT_FIELDS: [string, string][] = [
 
 // Extracted and reviewable, retained on the raw extraction job, but NOT written
 // into the published organization / RAP / commitment record today (no field for
-// them in the canonical types — see publish.ts buildCanonical).
+// them in the canonical types — see publish.ts buildCanonical). Framework
+// references used to be here; they are now persisted on the RAP document.
 const CAPTURED_NOT_PUBLISHED: [string, string][] = [
-  ["Framework references", "UNDRIP, TRC Call to Action 92, OCAP®, PAIR"],
   ["Governance body", "the RAP working group / board sponsor"],
   ["Review cycle", "annual / biennial / 3-year"],
   ["PAIR level", "CCIB PAIR accreditation level"],
