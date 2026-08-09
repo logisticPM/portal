@@ -7,6 +7,17 @@
 
 This documents what we learned deploying and testing the RAP extraction pipeline on real AWS, the decision we made, and the open path for later. Written for the team + client.
 
+> **Update (2026-08) — empirical n=8 comparison.** The single-document (Bank of Canada)
+> findings and the BDA-vs-Bedrock tradeoffs below were later validated with a live,
+> billed comparison of all three engines across **8 real RAPs** — full scorecard and
+> recommendation in **`docs/rap-engine-comparison.md`**. Headline: on the client's own
+> (unrestricted) account, **Bedrock + Textract-LAYOUT** is the recommended primary
+> (best coverage, real page numbers, 8/8 docs), **text-layer** the cheapest/best-grounding
+> fallback, **BDA** only where speed > provenance. Also validated the research's ecological
+> boundary — two independent LLM judges agreed at κ=0 (both assent ~99%), so LLM-judge
+> auto-validation does not transfer to real data and human-in-the-loop review stays
+> load-bearing.
+
 ---
 
 ## Decision (TL;DR)
