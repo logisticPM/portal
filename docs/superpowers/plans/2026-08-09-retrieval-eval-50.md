@@ -435,13 +435,21 @@ and this block before the final `console.log`:
 
   // Deterministic given the seed — a report whose CI moves between runs is not a report.
   assert.deepEqual(pairedBootstrap(b, a, 7, 500), pairedBootstrap(b, a, 7, 500), "same seed, same interval");
-  assert.notDeepEqual(pairedBootstrap(b, a, 7, 500), pairedBootstrap(b, a, 8, 500), "different seed, different resamples");
+  // Two seeds must be compared on data with real spread. On `b` vs `a` every delta is 0.1 and the
+  // resample mean takes FIVE distinct doubles in total, so seeds 7 and 8 agree on `lo` and differ
+  // only in the last bit of `hi` — measured, not assumed. That passes today by one ulp and would
+  // flip to a false failure on any change of seed, iteration count, or summation order.
+  const spread = Array.from({ length: 20 }, (_, i) => i / 20);
+  const zeros = spread.map(() => 0);
+  assert.notDeepEqual(pairedBootstrap(spread, zeros, 7, 500), pairedBootstrap(spread, zeros, 8, 500), "different seed, different resamples");
 
   assert.throws(() => pairedBootstrap([0.1], [0.1, 0.2], 1, 100), /same length/, "unpaired input is a bug, not a wide interval");
   assert.throws(() => pairedBootstrap([], [], 1, 100), /empty/, "no queries means no interval");
 
   assert.ok(formatDelta("routed−hybrid", pairedBootstrap(b, a, 1, 2000)).includes("routed−hybrid"));
-  assert.ok(/not separated/.test(formatDelta("x", same)), "an unseparated comparison must say so in words, not just in numbers");
+  // Case-insensitive: the module prints "NOT separated", and a case-sensitive /not separated/ does
+  // not match it — as written this assertion failed against correct code.
+  assert.ok(/not separated/i.test(formatDelta("x", same)), "an unseparated comparison must say so in words, not just in numbers");
 }
 ```
 
