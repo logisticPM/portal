@@ -86,6 +86,8 @@
     "cases:eval:bedrock": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 BEDROCK_REGION=us-east-1 tsx scripts/cases-eval.ts",
     "cases:eval:pool:bedrock": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 BEDROCK_REGION=us-east-1 tsx scripts/cases-eval.ts --pool",
     "cases:eval:bedrock:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 tsx scripts/cases-eval.ts",
+    "cases:pool:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases INDEX_BUCKET=indigenomics-portal-production-casesindexbucket-bbdveozx EMBED_PROVIDER=bedrock EMBED_MODEL=amazon.titan-embed-text-v2:0 EMBED_DIM=1024 BEDROCK_REGION=us-east-1 tsx scripts/cases-eval.ts --pool",
+    "cases:judge-pool:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases REPO_IMPL=dynamo BEDROCK_REGION=us-east-1 tsx scripts/cases-judge-pool.ts",
     "cases:index-build": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases tsx scripts/cases-index-build.ts",
     "cases:index-build:cloud": "cross-env AWS_REGION=us-east-1 CASES_TABLE=LegalCases tsx scripts/cases-index-build.ts",
     "cases:quant-eval": "cross-env DYNAMO_ENDPOINT=http://localhost:8000 CASES_TABLE=LegalCases REPO_IMPL=dynamo tsx scripts/cases-quant-eval.ts",
