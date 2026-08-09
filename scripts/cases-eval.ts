@@ -23,6 +23,10 @@ import { EVAL_QUERIES } from "../src/lib/cases/validate/eval-queries";
 
 const GOLD = process.env.GOLD_FILE ?? "docs/research/gold/cases-retrieval-gold.jsonl";
 const POOL_K = 20;
+// Extras are capped and the cap is reported, because judging cost scales with the pool and an
+// unbounded citation graph would silently multiply it.
+const NEIGHBOUR_SEEDS = 5;
+const MAX_EXTRAS = 10;
 
 async function loadGold(): Promise<GoldQuery[] | null> {
   let text: string;
@@ -112,12 +116,33 @@ async function poolMode(): Promise<void> {
   const idx = await getSearchIndex();
   const embedder = getEmbedder();
   const worklist: { qid: string; query: string; layer: string; candidates: string[] }[] = [];
+  let extrasAdded = 0;
   for (const q of EVAL_QUERIES) {
     const { bm25, hybrid } = await rankBoth(idx.searcher, q.query, embedder, idx.embedderId, idx.vdim);
-    // Wave A: pool = union of the two ranked lists' top-K. Wave B adds structured
-    // extras (same-theme core, seeds, Gallagher list, citation-graph neighbours).
-    worklist.push({ qid: q.qid, query: q.query, layer: q.layer, candidates: poolCandidates([bm25, hybrid], [], POOL_K) });
+    // Pool every system scoreMode scores. routed adds NOTHING today and that is not an oversight:
+    // it is a per-query selector between these same two lists, so its candidates are already a
+    // subset of the union. It is passed so the pool stays correct if routed ever becomes a genuine
+    // merged ranking, which is the change that would silently reintroduce single-system bias.
+    const routed = routeQuery(q.query, idx).useDense ? hybrid : bm25;
+    // This is the line that actually changes the pool, and the defect that is real: with `[]`
+    // extras, every judged case is one the retrievers themselves retrieved, so a relevant case
+    // neither finds is invisible rather than missed, and recall@10 is really POOLED recall.
+    // Citation-graph neighbours are picked by who-cited-whom — a signal neither retriever ranks
+    // on — so they are the one source of candidates a lexical and a dense retriever can both miss.
+    const base = poolCandidates([bm25, hybrid, routed], [], POOL_K);
+    const neighbours: string[] = [];
+    for (const id of base.slice(0, NEIGHBOUR_SEEDS)) {
+      const c = idx.cases.get(id);
+      for (const cited of c?.casesCited ?? []) {
+        if (neighbours.length >= MAX_EXTRAS) break;
+        const hit = [...idx.cases.values()].find((x) => x.citation === cited);
+        if (hit && !base.includes(hit.id) && !neighbours.includes(hit.id)) neighbours.push(hit.id);
+      }
+    }
+    extrasAdded += neighbours.length;
+    worklist.push({ qid: q.qid, query: q.query, layer: q.layer, candidates: poolCandidates([bm25, hybrid, routed], neighbours, POOL_K) });
   }
+  console.error(`pooled ${worklist.length} queries · ${extrasAdded} citation-graph extra(s) added · POOL_K=${POOL_K} MAX_EXTRAS=${MAX_EXTRAS}`);
   console.log(JSON.stringify(worklist, null, 2));
 }
 
