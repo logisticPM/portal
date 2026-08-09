@@ -118,7 +118,14 @@ async function poolMode(): Promise<void> {
   const worklist: { qid: string; query: string; layer: string; candidates: string[] }[] = [];
   let extrasAdded = 0;
   for (const q of EVAL_QUERIES) {
-    const { bm25, hybrid } = await rankBoth(idx.searcher, q.query, embedder, idx.embedderId, idx.vdim);
+    const { bm25, hybrid, denseOn } = await rankBoth(idx.searcher, q.query, embedder, idx.embedderId, idx.vdim);
+    // Dense off means hybrid IS bm25 — the same array, not merely a similar one — so this pool would
+    // be BM25-only and every case dense alone would have found is absent from the gold permanently.
+    // scoreMode only warns about this because a BM25-only score run is still a disclosed
+    // measurement; a BM25-only POOL silently corrupts every future run scored against it.
+    if (!denseOn) throw new Error(
+      `dense is OFF (index embedder=${idx.embedderId ?? "none"}, dim=${idx.vdim ?? "none"}), so hybrid is identical to BM25 and this pool would be BM25-only. ` +
+      `Run \`npm run cases:pool:cloud\`, which sets EMBED_PROVIDER/EMBED_MODEL/EMBED_DIM and INDEX_BUCKET to match cases:eval:cloud. Nothing written.`);
     // Pool every system scoreMode scores. routed adds NOTHING today and that is not an oversight:
     // it is a per-query selector between these same two lists, so its candidates are already a
     // subset of the union. It is passed so the pool stays correct if routed ever becomes a genuine
