@@ -31,8 +31,28 @@ export const EVAL_QUERIES: EvalQuery[] = [
   { qid: "topical-006", query: "self-government", layer: "topical" },
 
   // --- wave C (2026-08-09), taking the set to 50 -------------------------------------------
-  // known_item (+11): PASTE the output of `npm run cases:draw-known-items:cloud` here. Drawn from
-  // the corpus rather than written from memory, so every query resolves to a real case.
+  // known_item (+11): drawn from the corpus by `npm run cases:draw-known-items:cloud` (seed 1),
+  // not written from memory — a citation whose case is not in THIS corpus scores 0 for every
+  // system and reads as a retrieval failure when it is a query-set defect.
+  //
+  // Each was then checked to name one case. The first draw produced
+  // "British Columbia (Ministry of Forests)", which matches FOUR — a generic Crown party is a
+  // topical query wearing this label, and the layer's premise is that one exact string names one
+  // case. The drawing script's party filter already stripped R / The Queen / His Majesty for that
+  // reason and was simply incomplete; it now also strips the provinces, Canada, Attorney General
+  // and Minister, and the set was redrawn. Nothing had been measured, so this is query-set
+  // construction, not selection on a result.
+  { qid: "known-007", query: "2002 BCSC 1199", layer: "known_item" },                    // → 2002-bcsc-1199
+  { qid: "known-008", query: "Husby Forest Products", layer: "known_item" },             // → 2004-bcsc-142
+  { qid: "known-009", query: "2026 FC 386", layer: "known_item" },                       // → 2026-fc-386
+  { qid: "known-010", query: "Penner", layer: "known_item" },                            // → 2018-bcsc-26
+  { qid: "known-011", query: "2012 BCSC 1256", layer: "known_item" },                    // → 2012-bcsc-1256
+  { qid: "known-012", query: "Stoney Creek Indian Band", layer: "known_item" },          // → 1999-bcca-293 (+1 related)
+  { qid: "known-013", query: "2016 BCSC 355", layer: "known_item" },                     // → 2016-bcsc-355
+  { qid: "known-014", query: "The Taku River Tlingit First Nation", layer: "known_item" }, // → 1999-bcca-442
+  { qid: "known-015", query: "2018 ONCA 816", layer: "known_item" },                     // → 2018-onca-816
+  { qid: "known-016", query: "Big Island Lake Cree Nation", layer: "known_item" },       // → 2025-fc-415
+  { qid: "known-017", query: "2012 BCCA 333", layer: "known_item" },                     // → 2012-bcca-333
 
   // conceptual (+11) — plain-language questions written from the DOCTRINAL AREA, never from a
   // target case. A query written while looking at the case it should retrieve inherits that case's

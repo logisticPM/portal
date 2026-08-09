@@ -21,7 +21,16 @@ const TAKEN = ["2014 SCC 44", "2004 SCC 73", "Delgamuukw", "Sparrow", "Guerin", 
 // so bare it matches everything.
 function partyName(styleOfCause: string): string | null {
   const left = styleOfCause.split(/\s+v\.?\s+/i)[0]?.trim() ?? "";
-  const cleaned = left.replace(/^(R|Regina|The Queen|His Majesty|Her Majesty)\b.*/i, "").trim();
+  // Strip parties that name a Crown or government rather than a specific litigant. The first
+  // version stopped at R / Regina / The Queen / His Majesty / Her Majesty and let
+  // "British Columbia (Ministry of Forests)" through — which matches FOUR cases in this corpus,
+  // so it is a topical query wearing the known_item label. The layer's premise is that one exact
+  // string names one case and BM25 must win on it; a party the Crown uses in a quarter of the
+  // docket does not test that.
+  const cleaned = left.replace(
+    /^(R|Regina|The Queen|His Majesty|Her Majesty|Canada|British Columbia|Ontario|Alberta|Saskatchewan|Manitoba|Quebec|Yukon|Northwest Territories|Nunavut|Attorney General|Minister)\b.*/i,
+    "",
+  ).trim();
   return cleaned.length >= 6 && cleaned.length <= 60 ? cleaned : null;
 }
 
