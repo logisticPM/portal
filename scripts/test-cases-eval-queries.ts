@@ -35,5 +35,35 @@ assert.ok(EVAL_QUERIES.some((q) => q.layer === "topical"), "has topical");
   }
   // every query is covered by the gold
   for (const q of EVAL_QUERIES) assert.ok(qseen.has(q.qid), `no gold for query ${q.qid}`);
+
+  // --- wave C: the set is 50, layered, and every entry is distinct --------------------------
+  {
+    // 50 is not decorative: the spec sizes the paired bootstrap against it, and a layer that
+    // silently lost entries would make its per-layer mean a different measurement than the
+    // report claims.
+    assert.equal(EVAL_QUERIES.length, 50, "the eval surface is 50 queries — changing it changes what every number means");
+    const byLayer = (l: string) => EVAL_QUERIES.filter((q) => q.layer === l).length;
+    assert.equal(byLayer("known_item"), 17, "known_item layer size");
+    assert.equal(byLayer("conceptual"), 17, "conceptual layer size");
+    assert.equal(byLayer("topical"), 16, "topical layer size");
+    assert.equal(byLayer("known_item") + byLayer("conceptual") + byLayer("topical"), EVAL_QUERIES.length,
+      "every query is in one of the three layers — an unknown layer would vanish from the per-layer report");
+
+    // A duplicate qid silently overwrites in any Map keyed by it, including the gold loader's.
+    const qids = EVAL_QUERIES.map((q) => q.qid);
+    assert.equal(new Set(qids).size, qids.length, "qids must be unique");
+    // A duplicate query string would be judged twice and counted twice, weighting it double.
+    const texts = EVAL_QUERIES.map((q) => q.query.trim().toLowerCase());
+    assert.equal(new Set(texts).size, texts.length, "query strings must be unique");
+
+    // Shape sanity per layer. known_item is a lookup string; conceptual is a sentence. A conceptual
+    // query that is three words long is a topical query wearing the wrong label, and it would be
+    // scored as evidence that dense retrieval helps on conceptual queries.
+    for (const q of EVAL_QUERIES.filter((x) => x.layer === "known_item"))
+      assert.ok(q.query.length <= 60, `known_item query is too long to be a lookup: ${q.qid}`);
+    for (const q of EVAL_QUERIES.filter((x) => x.layer === "conceptual"))
+      assert.ok(q.query.length >= 40, `conceptual query is too short to be a plain-language question: ${q.qid}`);
+  }
+
   console.log(`✅ eval-queries + gold consistent (${EVAL_QUERIES.length} queries, ${gold.length} gold)`);
 })().catch((e) => { console.error("❌ test failed:", e); process.exit(1); });
