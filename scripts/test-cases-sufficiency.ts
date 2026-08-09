@@ -11,7 +11,7 @@ import {
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER,
   wilson, classify, selectOnDev,
 } from "../src/lib/cases/sufficiency/tally";
-import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
+import { splitDevTest, assertDisjoint, isDevHeader } from "../src/lib/cases/sufficiency/split";
 import { readTestRuns, appendTestRun } from "../src/lib/cases/sufficiency/manifest";
 import { isTransient, retryingModel } from "../src/lib/cases/sufficiency/retrying";
 
@@ -60,6 +60,26 @@ assert.equal(parseSufficiency('{"sufficient":1}'), null, "1 is not a boolean");
   // question in arm X, because those judgments are all on the same area of law.
   assert.ok(/relevant/i.test(p) && /not enough|is not sufficient|insufficient/i.test(p),
     "prompt must explicitly separate relevant from sufficient");
+}
+
+// --- isDevHeader -------------------------------------------------------------------------
+// The input is built the way persist() in cases-sufficiency-eval.ts builds a dev header, so a
+// field rename on either side breaks this test. That is the whole point: the first version of the
+// caller read `h.mode`, which persist() never writes, so it matched nothing, printed "SPLIT NOT
+// VERIFIED", and let the 2026-08-09 run spend the held-out set anyway. A predicate that can
+// silently match nothing is worse than no predicate — the caller reports a clean miss and carries
+// on.
+{
+  const devHeader = { kind: "dev", runId: "r", results: [], chosen: "P1/x", reason: "",
+    seed: 1, writer: "w", judge: "j", answerer: "a", nAnswerable: 120, nUnanswerable: 60,
+    devS: ["ans-1"], testS: ["ans-2", "ans-3"], devX: ["un-1"], testX: ["un-2"] };
+  assert.equal(isDevHeader(devHeader), true, "must match a header shaped the way persist() writes one");
+  assert.equal(isDevHeader({ ...devHeader, kind: "test" }), false, "a test-mode header is not a dev header");
+  assert.equal(isDevHeader({ ...devHeader, kind: undefined }), false, "the discriminator is 'kind' — 'mode' is what the broken version read");
+  assert.equal(isDevHeader({ ...devHeader, testS: undefined }), false, "a dev header with no testS cannot be compared against");
+  assert.equal(isDevHeader({ ...devHeader, testX: undefined }), false, "nor one with no testX");
+  assert.equal(isDevHeader(null), false);
+  assert.equal(isDevHeader("dev"), false);
 }
 
 // --- rate definitions --------------------------------------------------------------------

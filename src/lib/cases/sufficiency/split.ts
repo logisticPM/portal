@@ -37,3 +37,21 @@ export function assertDisjoint<T>(s: Split<T>, key: (t: T) => string): void {
     );
   }
 }
+
+// Does this persisted run header describe a DEV run that recorded its held-out split?
+//
+// Exists as a named, tested predicate because the inline version of it was wrong in the way that
+// is hardest to notice: it read `h.mode`, while persist() writes `kind`. `undefined !== "dev"` is
+// true for every row ever written, so the guard skipped every file, reported "SPLIT NOT VERIFIED",
+// and let the run continue. It was the fix for a blocking review finding and it verified nothing.
+//
+// The test that pins this builds its input the way persist() builds one, so a field rename on
+// either side breaks it. A predicate that can silently match nothing is worse than no predicate,
+// because the caller reports a clean "not verified" and carries on.
+export interface DevRunHeader { kind: "dev"; testS: string[]; testX: string[] }
+
+export function isDevHeader(h: unknown): h is DevRunHeader {
+  if (!h || typeof h !== "object") return false;
+  const r = h as Record<string, unknown>;
+  return r.kind === "dev" && Array.isArray(r.testS) && Array.isArray(r.testX);
+}

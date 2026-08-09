@@ -43,7 +43,7 @@ import {
   FALSE_REFUSAL_MAX, PROJECTED_FALSE_ANSWER_MAX, BASELINE_FALSE_ANSWER, type ArmCounts,
 } from "../src/lib/cases/sufficiency/tally";
 import { VARIANTS, VARIANT_IDS, type VariantId } from "../src/lib/cases/sufficiency/prompt";
-import { splitDevTest, assertDisjoint } from "../src/lib/cases/sufficiency/split";
+import { splitDevTest, assertDisjoint, isDevHeader } from "../src/lib/cases/sufficiency/split";
 import { wilson, classify, selectOnDev, type DevResult } from "../src/lib/cases/sufficiency/tally";
 import { readTestRuns, appendTestRun } from "../src/lib/cases/sufficiency/manifest";
 import { retryingModel } from "../src/lib/cases/sufficiency/retrying";
@@ -502,11 +502,17 @@ async function main() {
   const priorDev = (await fs.readdir(outDir).catch(() => [] as string[]))
     .filter((f) => f.endsWith(".jsonl")).sort();
   let devSplitChecked = "no prior dev run on disk — SPLIT NOT VERIFIED against dev";
+  let devSplitVerified = false;
   for (const f of priorDev.reverse()) {
     const first = (await fs.readFile(path.join(outDir, f), "utf8")).split("\n")[0];
     let h: Record<string, unknown>;
     try { h = JSON.parse(first); } catch { continue; }
-    if (h.mode !== "dev" || !Array.isArray(h.testS)) continue;
+    // `kind`, not `mode`. persist() writes `kind: "dev"` / `kind: "test"`; the first version of
+    // this guard read `h.mode`, which is undefined in every row ever written, so it skipped every
+    // file and reported "SPLIT NOT VERIFIED" — then spent the test set anyway. It was the fix for
+    // a BLOCKING review finding and it verified nothing. isDevHeader() now owns this predicate so
+    // a test can pin it against a header built the way persist() builds one.
+    if (!isDevHeader(h)) continue;
     const wantS = (h.testS as string[]).join(","), gotS = splitS.test.map((q) => q.qid).join(",");
     const wantX = (h.testX as string[]).join(","), gotX = splitX.test.map((q) => q.qid).join(",");
     if (wantS !== gotS || wantX !== gotX) {
@@ -520,7 +526,19 @@ async function main() {
       );
     }
     devSplitChecked = `matches dev run ${f} (${splitS.test.length} arm-S + ${splitX.test.length} arm-X qids identical)`;
+    devSplitVerified = true;
     break;
+  }
+  // Not finding a dev run is FATAL, not a warning. This check is the only thing standing between
+  // "held out" and "tuning already saw these", and a run that cannot confirm it is a run whose
+  // headline number carries an unverifiable claim. The 2026-08-09 run printed this as a warning
+  // and proceeded; the split turned out to be identical, but that was luck, not evidence.
+  if (!devSplitVerified) {
+    throw new Error(
+      `${devSplitChecked}. Refusing to spend the test set on an unverifiable held-out claim. ` +
+      `Run dev mode first (it persists testS/testX), or if this is a legacy row set, verify the ` +
+      `split by hand and record that you did in the findings doc.`,
+    );
   }
   console.log(`held-out split: ${devSplitChecked}\n`);
   const testS = itemsFor(splitS.test), testX = itemsFor(splitX.test);
