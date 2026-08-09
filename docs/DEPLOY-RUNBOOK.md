@@ -175,6 +175,16 @@ Note the outputs: the **CloudFront URL** and the SST-generated **table/bucket na
 
 Deploy once with `mock` to prove the infra, then switch the engine.
 
+> **Which engine? See the empirical comparison — `docs/rap-engine-comparison.md`** (live
+> n=8 run across three engines). **Recommended for a client-owned, unrestricted account:
+> Option B with `DOC_LOADER=textract` (Bedrock + Textract-LAYOUT)** — best coverage, real
+> (read, not inferred) page numbers, and the only engine that processed all 8 test docs.
+> Use **`DOC_LOADER=textlayer`** as the cheapest / best-grounding / most residency-friendly
+> fallback for born-digital PDFs (no OCR, so it can't read scanned docs). Use **BDA
+> (Option A)** only where speed matters more than provenance. Note: the LLM extraction
+> step is Bedrock inference either way, and Canada is not a Bedrock inference geography, so
+> inference leaves Canada regardless of engine ("in-CA" = data-at-rest + OCR in Canada).
+
 ### Option A — BDA (managed, multi-page, **us-east-1 only**)
 
 1. Create the blueprint from `src/lib/rap/bda-blueprint.json` **in us-east-1**:

@@ -259,7 +259,10 @@ account with no such SCPs**, those become capabilities they *gain* — they can 
 `EXTRACTION_IMPL=bedrock` + `DOC_LOADER=textract` for full grounded OCR and enable
 CloudTrail. The workaround code stays but becomes optional. **Document that these limits
 are an artifact of this org, not inherent to the product**, so the client doesn't inherit
-a phantom limitation.
+a phantom limitation. The live **three-engine comparison (`docs/rap-engine-comparison.md`,
+n=8)** backs this: on an unrestricted account, `bedrock` + `textract` is the recommended
+primary (best coverage + real page numbers), with `textlayer` as the cheapest/best-grounding
+fallback and BDA only where speed beats provenance.
 
 ### 4.4 Data hygiene before handoff
 
