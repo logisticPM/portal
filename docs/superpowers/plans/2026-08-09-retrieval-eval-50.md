@@ -27,7 +27,7 @@
 | `src/lib/cases/validate/paired.ts` (create) | Paired bootstrap CI over per-query deltas. Pure, seeded. |
 | `scripts/cases-draw-known-items.ts` (create) | Draws real citations/party names from the corpus for the known_item layer. Ops-only, run once, output pasted into the query set. |
 | `scripts/cases-judge-pool.ts` (create) | Pool worklist → gold JSONL. Credentialed. Retry, call-failure guard, self-consistency sample. |
-| `scripts/cases-eval.ts` (modify) | Pool across BM25 ∪ hybrid ∪ routed + extras; paired CIs; label recall as pooled; `--subset` for the 18-query rescore |
+| `scripts/cases-eval.ts` (modify) | Add citation-graph extras to the pool (routed is a selector and adds nothing — see Task 4); paired CIs; label recall as pooled; `--subset` for the 18-query rescore |
 | `scripts/test-cases-eval-queries.ts` (modify) | Query-set invariants |
 | `scripts/test-cases-retrieval.ts` (modify) | Tests for `judge-rel` and `paired` |
 
@@ -526,14 +526,16 @@ git commit -m "feat(eval): paired bootstrap CI over per-query deltas"
 
 ---
 
-### Task 4: Pool across every system that gets scored
+### Task 4: Give the pool a contribution the retrievers cannot make
 
 **Files:**
 - Modify: `scripts/cases-eval.ts` (CRLF)
 
 - [ ] **Step 1: Fix the pool**
 
-This is the defect the spec calls Defect 1. `poolMode` pools `BM25 ∪ hybrid` and passes `[]` for extras, while `scoreMode` also scores **routed**; `scoreQuery` grades an unjudged case `rel 0`, so a case only routed surfaces scores zero whether or not it is relevant.
+This is the defect the spec calls Defect 1, **as corrected on 2026-08-09**. `poolMode` pools `BM25 ∪ hybrid` and passes `[]` for extras, so every judged case is one the retrievers themselves retrieved, and a relevant case neither of them finds is invisible rather than counted as missed. That makes `recall@10` a *pooled* recall that overstates true recall for all three systems at once.
+
+The spec originally claimed the bias ran *against routed*, because routed is scored but never pooled. That was wrong: `routed` is a per-query **selector** (`route.useDense ? hybrid : bm25`, `cases-eval.ts:73`), not a third ranking, so its candidates are a subset of `BM25 ∪ hybrid` and `poolCandidates` — a dedupe-union — already covers it. Passing `routed` below therefore adds **nothing today**. Keep it anyway, and say so in the comment: it costs one argument and keeps the pool correct if routed ever becomes a merged ranking. The line that actually changes the pool is the citation-graph extras.
 
 In `scripts/cases-eval.ts`, replace the body of `poolMode`:
 
@@ -562,14 +564,16 @@ async function poolMode(): Promise<void> {
   let extrasAdded = 0;
   for (const q of EVAL_QUERIES) {
     const { bm25, hybrid } = await rankBoth(idx.searcher, q.query, embedder, idx.embedderId, idx.vdim);
-    // Pool EVERY system scoreMode scores, not just the two that existed when pooling was written.
-    // routed was added later and never pooled, so any case it alone surfaced was graded rel 0 by
-    // scoreQuery's unjudged convention — whether or not it was relevant. §4 of the 2026-06-30 spec
-    // is titled "avoid single-system bias"; this is what makes that true again.
+    // Pool every system scoreMode scores. routed adds NOTHING today and that is not an oversight:
+    // it is a per-query selector between these same two lists, so its candidates are already a
+    // subset of the union. It is passed so the pool stays correct if routed ever becomes a genuine
+    // merged ranking, which is the change that would silently reintroduce single-system bias.
     const routed = routeQuery(q.query, idx).useDense ? hybrid : bm25;
-    // The structured extras the old comment promised and never wired: citation-graph neighbours of
-    // what is already pooled. A case cited by a pooled case is exactly what a lexical and a dense
-    // retriever can BOTH miss, so it is the part of the pool neither system can contribute.
+    // This is the line that actually changes the pool, and the defect that is real: with `[]`
+    // extras, every judged case is one the retrievers themselves retrieved, so a relevant case
+    // neither finds is invisible rather than missed, and recall@10 is really POOLED recall.
+    // Citation-graph neighbours are picked by who-cited-whom — a signal neither retriever ranks
+    // on — so they are the one source of candidates a lexical and a dense retriever can both miss.
     const base = poolCandidates([bm25, hybrid, routed], [], POOL_K);
     const neighbours: string[] = [];
     for (const id of base.slice(0, NEIGHBOUR_SEEDS)) {
@@ -612,7 +616,7 @@ Expected: both clean. `poolMode` needs a corpus, so it is not run here.
 
 ```bash
 git add scripts/cases-eval.ts
-git commit -m "fix(eval): pool across every system scored, plus citation-graph extras"
+git commit -m "fix(eval): add citation-graph extras to the judging pool"
 ```
 
 ---

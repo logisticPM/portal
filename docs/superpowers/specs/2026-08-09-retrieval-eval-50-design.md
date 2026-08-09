@@ -11,14 +11,27 @@ The published run states its own weakness: *"n=18. Six queries per layer. A 0.06
 queries is a direction, not a precise effect size."* True — and two other defects matter more,
 because they bias the numbers rather than merely widen them.
 
-**Defect 1 — the pool covers two of the three systems being compared.**
+**Defect 1 — nothing independent contributes to the pool.**
 [`cases-eval.ts:119`](../../../scripts/cases-eval.ts) pools `BM25 ∪ hybrid` at K=20 and passes `[]`
-for extras; the runner then also scores **routed**. `scoreQuery` grades an unjudged case as
-`rel 0` ([`retrieval.ts:13`](../../../src/lib/cases/validate/retrieval.ts)). So any case routed
-surfaces that the other two miss is scored zero *whether or not it is relevant*. §4 of the 2026-06-30
-spec titles itself "avoid single-system bias" and the implementation does not achieve it for the
-system added afterwards. Routed already scores highest (0.492), so the bias understates it — which
-makes it easy to ignore and no less wrong.
+for extras, so every case ever judged is a case one of the two retrievers already retrieved.
+`scoreQuery` grades an unjudged case as `rel 0`
+([`retrieval.ts:13`](../../../src/lib/cases/validate/retrieval.ts)), so a relevant case that *no*
+system retrieves is invisible — it lowers nobody's score and cannot be counted as missed. The
+reported `recall@10` is therefore **pooled** recall, recall relative to what the systems themselves
+found, and it overstates true recall for all three at once. §4 of the 2026-06-30 spec names the
+extras that would fix this ("same-theme core, seeds, Gallagher list, citation-graph neighbours") and
+wires none of them.
+
+> **Corrected during execution, 2026-08-09.** This section first claimed the pool was biased
+> *against routed*, reasoning that routed is scored but never pooled. That was wrong, and the
+> correction matters because the original claim would have gone into a client-facing findings note.
+> `routed` is a per-query **selector** — `route.useDense ? hybrid : bm25`
+> ([`cases-eval.ts:73`](../../../scripts/cases-eval.ts)) — not a third ranking. Its candidates are a
+> subset of `BM25 ∪ hybrid` by construction, `poolCandidates` is a dedupe-union
+> ([`retrieval.ts:49`](../../../src/lib/cases/validate/retrieval.ts)), and so pooling the two
+> already covers routed completely. There is no routed-only case and there never was. What survives
+> is the defect above, which is about the pool's *independence* rather than its coverage of the
+> systems being compared.
 
 **Defect 2 — the original judge no longer exists.** Gold is stamped `judge: "claude-opus-4-8"`.
 Probed 2026-08-09:
@@ -58,10 +71,20 @@ quality. This is the same failure the answer-quality eval guards with `isLexical
 they are human-authored; it is that no query was written while looking at the case it should
 retrieve.
 
-**Pool — every scored system, plus the extras the code already promised.**
-`BM25 ∪ hybrid ∪ routed` at K=20, plus structured extras the 2026-06-30 comment names and never
-wired: same-theme core cases and citation-graph neighbours of already-pooled cases. Extras are
-capped so judging cost stays bounded, and the cap is reported.
+**Pool — extras chosen by a signal the retrievers do not use.**
+`BM25 ∪ hybrid ∪ routed` at K=20. Routed contributes nothing today (see Defect 1); it is passed so
+the pool stays correct if routed ever becomes a genuine merged ranking instead of a selector.
+
+The part that does change the pool is **citation-graph neighbours** of already-pooled cases: a case
+cited by a pooled case is selected by who-cited-whom, a signal neither retriever ranks on, so it is
+the one source of candidates a lexical and a dense retriever can *both* miss. Capped, with the cap
+reported, because judging cost scales with the pool.
+
+Same-theme core — the other extras source the 2026-06-30 comment names — is **deferred, not
+dropped**. Themes are a per-case label assigned at ingest from the decision's own text, so
+same-theme extras would enlarge the pool along roughly the axis the retrievers already rank on,
+at a judging cost that scales with the corpus rather than with the pool. Citation-graph first;
+if pooled recall still looks suspiciously high, that is the next lever.
 
 **Gold — one judge, all 50.** Rubric text is **unchanged** (`rel-v1`: 2 = controlling authority,
 1 = materially relevant but secondary, 0 = off-topic). Changing the rubric would break comparability
