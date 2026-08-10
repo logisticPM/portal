@@ -933,8 +933,16 @@ Summarise: which mutations were confirmed to apply and fail, anything that survi
 
 ## After the plan
 
-1. Operator: `AWS_PROFILE=bedrock npm run cases:draw-known-items:cloud`, paste the 11 lines, commit.
-2. Operator: re-probe the judge, then `npm run cases:pool:cloud > pool.json`.
+1. ~~Operator: `AWS_PROFILE=bedrock npm run cases:draw-known-items:cloud`, paste the 11 lines, commit.~~ **Done 2026-08-09** (`df0aaf9`).
+2. Operator: re-probe the judge (invocable at probe time is not invocable later), then `AWS_PROFILE=bedrock npm run cases:pool:cloud > pool.json`.
 3. Operator: `AWS_PROFILE=bedrock npm run cases:judge-pool:cloud -- pool.json` (~2,000 calls).
-4. Operator: `npm run cases:eval:cloud`, then again with `--subset=known-00,known-001,conceptual-00,topical-00` restricted to the original 18 qids.
+4. Operator: `AWS_PROFILE=bedrock npm run cases:eval:cloud`, then the 18-query rescore:
+
+   ```bash
+   AWS_PROFILE=bedrock npm run cases:eval:cloud -- --subset=known-001,known-002,known-003,known-004,known-005,known-006,conceptual-001,conceptual-002,conceptual-003,conceptual-004,conceptual-005,conceptual-006,topical-001,topical-002,topical-003,topical-004,topical-005,topical-006
+   ```
+
+   **Every qid in full, and that is not verbosity.** `--subset` matches by PREFIX, so this step originally read `--subset=known-00,conceptual-00,topical-00`, which matches `known-001` through `known-009` — it would have scored **27** queries while the findings doc called them "the original 18". Nine new queries, graded only by the new judge, folded into the one comparison whose entire purpose is to isolate the judge change from the sample-size change. A full qid is a prefix of itself and of nothing else, so the list above cannot do that.
+
+   **Check the printed line says `subset: 18/50`** before using the numbers. If it says anything else, the prefixes are wrong and the rescore is not a rescore.
 5. Findings doc → `docs/research/2026-08-XX-retrieval-eval-50-results.md`, recommending nothing.
