@@ -124,6 +124,43 @@ automated in-country reader, and its grounding fidelity here was actually the be
 the three. Neither engine achieves in-country *inference*; that is a Bedrock-geography
 limitation, not an engine choice.
 
+### If the client uses TELUS's Canadian-hosted models (closes the inference gap)
+
+The one residency limitation above — that the **LLM inference step leaves Canada** because Bedrock
+has no Canadian inference geography — is a limitation of the *model host*, not of the pipeline.
+The client's partnership with **TELUS**, which provides its own Canadian-hosted models, removes it:
+if the extraction LLM runs on a **TELUS model hosted in Canada** instead of Claude-on-Bedrock, then
+**both document-reading and inference can stay in-country**, closing the last gap.
+
+The document-reader choice is independent of the LLM, so the coverage/scanned-PDF trade-off is
+unchanged. With a TELUS model as the extractor:
+
+- **Primary (best coverage, fully in-country): Textract-LAYOUT reader → TELUS model.** Textract runs
+  as a service in `ca-central-1`, and inference now runs on TELUS in Canada — so this keeps
+  Textract-LAYOUT's advantages (best coverage, real page numbers, solid grounding) *and* becomes
+  end-to-end in-country. This is the strongest option once TELUS inference is available: it is the
+  same primary recommendation as above, with the inference caveat resolved.
+- **Residency-max / cheapest: text-layer reader → TELUS model.** No AWS AI service touches the
+  document at all — reading is glyph-geometry and inference is on TELUS — so nothing leaves Canada,
+  at the lowest cost. Still born-digital only (no OCR for scanned PDFs).
+- **BDA becomes irrelevant for this goal.** BDA *is* an AWS model bundled with its reader (you cannot
+  substitute a TELUS model into it) and is `us-east-1`-only, so it cannot be made in-country. Consider
+  it only if residency is set aside entirely and raw speed is the priority.
+
+**Caveats specific to switching the extractor model:**
+
+- **Re-validate quality first.** The scorecard above measured extraction with **Claude Sonnet** as the
+  LLM. A different model can change precision/recall and grounding fidelity, so **re-run this
+  harness with the TELUS model as the extractor** and confirm parity before committing — the loader
+  numbers carry over, the model-dependent numbers do not.
+- **Integration is a small seam, not a rearchitecture.** Extraction already dispatches through a
+  model seam (`BEDROCK_MODEL_ID` / `modelFromId`); pointing it at TELUS means adding a provider
+  adapter (endpoint + auth), not rebuilding the pipeline.
+- **Cost model shifts** from Bedrock per-token to TELUS pricing for the LLM step; any OCR cost
+  (Textract per-page) is unchanged and only applies to the Textract reader.
+- **Human-in-the-loop review still stays load-bearing** — the κ=0 finding is about LLM *judge*
+  auto-validation and is independent of which model does the extraction.
+
 *Method notes: gold P/R/F1 is n=1 (Bank of Canada); non-gold recall is relative to
 the union of all engines and cannot see a defect all three miss; BDA pages are never
 used as a reference; all counts are absolute, not ratios. The run executed in
