@@ -176,8 +176,9 @@ Note the outputs: the **CloudFront URL** and the SST-generated **table/bucket na
 - [ ] Delete the **103 `@demo` company accounts** and retire the shared `demo-portal-2026`
       password. **Keep `institute@demo`** (the Indigenomics staff account — a separate singleton)
       for the Institute's initial access, but give it a real, private password. Optionally leave one
-      or two demo company logins for exploring. *(No purge script exists yet — this is manual;
-      seeding is scripted.)*
+      or two demo company logins for exploring. Run **`npx sst shell --stage <stage> -- tsx
+      scripts/purge-demo-logins.ts`** (dry-run; add `--apply` to delete, `--keep a@demo,b@demo` to
+      retain extras) — it keeps `institute@demo` by default.
 - [ ] Review **`src/lib/commitments/org-bn-map.ts`** (self-flagged "VERIFY BEFORE PROD MIGRATION").
 - [ ] Replace the sample fixture corpora in `scripts/fixtures/` with the client's own documents.
 

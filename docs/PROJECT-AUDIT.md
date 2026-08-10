@@ -278,8 +278,9 @@ fallback and BDA only where speed beats provenance.
   **Keep `institute@demo`** — the Indigenomics Institute staff account (a separate singleton, not
   one of the 103) — so the Institute retains access from day one, but **set it a real, private
   password** in place of the shared demo one. Optionally leave one or two demo company logins for
-  the client to explore with. *(A small keep-list purge script would make this repeatable — not
-  yet written.)*
+  the client to explore with. Use **`scripts/purge-demo-logins.ts`** for this — it deletes the
+  `@demo` login accounts except a keep-list (default: `institute@demo`), is **dry-run by default**,
+  and deletes only with `--apply`.
 - Review **`org-bn-map.ts`** — hand-curated Canadian Business-Number crosswalk, self-flagged
   "VERIFY BEFORE PROD MIGRATION."
 - Replace **fixture corpora** (real Bank of Canada / RBC RAP content sits in
