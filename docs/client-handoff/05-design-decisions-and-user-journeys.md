@@ -233,6 +233,20 @@ ownership share — keeping the strongest few per commitment.
 > - **Demo-scale** — the Institute radar ranks across a capped set (top ~100 commitments); weights are
 >   hand-tuned with no feedback/learning loop; unknown ownership is assumed at bare majority (51%).
 
+**Future enhancement — an evidence-based "track record" signal.** Today the fit score is
+*attribute-based* only: it scores whether a supplier *looks* like a fit (sector, keywords, identity
+tier, ownership), not whether it has *actually delivered*. The platform already captures the raw
+material to do better — the **confirmed procurement lines** (a company reports spend naming a
+supplier, the supplier confirms it) are a real collaboration history. A "track record" term could
+raise suppliers with confirmed deliveries, weighted toward the same sector and comparable companies,
+making matches evidence-based rather than attribute-based. It should **augment, not dominate**, the
+score, for three reasons: (a) **cold start / incumbent bias** — new suppliers have no history, so
+over-weighting it entrenches "rich-get-richer" and works against surfacing new Indigenous businesses
+(the platform's goal); (b) **same-pair vs cross-company** — a prior deal between *this* supplier and
+*this* company is a near-redundant match, whereas deliveries to *other* companies are the real
+capability proof, and the two should be weighted differently; (c) **data sparsity** — at demo scale
+there is little confirmed data yet, so the signal stays thin until real transactions accrue.
+
 ### C.2 Notifications — weekly overdue / at-risk milestone digest
 
 **What it does.** A weekly digest of **overdue and at-risk** RAP milestones across the Index,

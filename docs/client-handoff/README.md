@@ -101,8 +101,8 @@ Each is explained where it matters in the documents above; collected here so not
 - **Demo data must be replaced** — 103 demo company logins, a shared password, a hand-curated
   business-number crosswalk flagged "verify before production," and sample corpora that include
   copyright-sensitive third-party RAP content. **Keep `institute@demo`** (with a real password) for
-  the Institute's access. Note: **seeding is scripted but purging is not** — removing demo data is
-  manual today. *(01 §4.4; 02 §5.3)*
+  the Institute's access. A purge script (`scripts/purge-demo-logins.ts`, dry-run by default) removes
+  the `@demo` logins except a keep-list. *(01 §4.4; 02 §5.3)*
 - **Only the `production` stage retains data on teardown** — every other stage, **including the
   Canadian `ca` stage**, is destroyed (tables, buckets, and data) by `sst remove`. Protect a real
   `ca` residency environment deliberately (backups / point-in-time recovery) before it holds real
