@@ -21,10 +21,18 @@ for the target AWS account.
 
 | Decision | Options | Notes |
 |---|---|---|
-| **Stage name** | `production` / `ca` / any dev name | `production` is `retain` (its data survives `sst remove`); all other stages are `remove`. |
+| **Stage name** | `production` / `ca` / any dev name | `production` is `retain` (its data survives `sst remove`); all other stages are `remove`. **See the caveat below.** |
 | **Region** | `us-east-1` (default) / `ca-central-1` (residency) | See §3. Bedrock/BDA/Textract availability differs by region. |
 | **Extraction engine** | `mock` / `bda` / `bedrock` | `mock` first to validate infra, then turn on real AI (§6). |
 | **Legal-cases data** | receive an export / rebuild via pipeline | The `LegalCases` table is not SST-managed — see §5.2. |
+
+> ⚠️ **Only `production` retains data — `ca` does not.** The removal policy keys on the literal
+> stage name `production` (`sst.config.ts:27`): `production` is `retain`, and **every other stage —
+> including `ca` — is `remove`**, so `sst remove` (or deleting the stack) destroys that stage's
+> DynamoDB tables and S3 buckets *and all their data*. This matters because `ca` is the
+> Canadian-residency stage. If you run a **real** residency environment there, protect it
+> deliberately — enable DynamoDB point-in-time recovery + backups, or move the retention rule off
+> the hardcoded `"production"` name — **before** it holds real data.
 
 ---
 
@@ -165,7 +173,11 @@ Note the outputs: the **CloudFront URL** and the SST-generated **table/bucket na
 
 ### 5.3 Before-handoff data hygiene (new client production)
 
-- [ ] Purge/replace the **103 `@demo` accounts** and the shared `demo-portal-2026` password.
+- [ ] Delete the **103 `@demo` company accounts** and retire the shared `demo-portal-2026`
+      password. **Keep `institute@demo`** (the Indigenomics staff account — a separate singleton)
+      for the Institute's initial access, but give it a real, private password. Optionally leave one
+      or two demo company logins for exploring. *(No purge script exists yet — this is manual;
+      seeding is scripted.)*
 - [ ] Review **`src/lib/commitments/org-bn-map.ts`** (self-flagged "VERIFY BEFORE PROD MIGRATION").
 - [ ] Replace the sample fixture corpora in `scripts/fixtures/` with the client's own documents.
 
@@ -238,6 +250,9 @@ curl -s -o /dev/null -w "%{http_code}\n" "$URL/coverage"   # expect 200
 - **Tear a stage down when idle:** `npx sst remove --stage <stage>`.
 - Remember `production` is `retain` — its data buckets survive a remove and need manual
   cleanup if you truly want everything gone.
+- **Non-production stages (including `ca`) do NOT retain** — `sst remove` deletes their DynamoDB
+  tables and S3 buckets and all their data. Back up first if the stage holds anything you need
+  (see the §0 caveat).
 
 ---
 
