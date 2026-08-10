@@ -19,10 +19,18 @@ import { rankWithSearcher, type Searcher } from "../src/lib/cases/search/hybrid"
 import { evalAbortReason } from "../src/lib/cases/validate/eval-guards";
 import { routeQuery } from "../src/lib/cases/search/route";
 import { scoreQuery, aggregate, poolCandidates, type GoldQuery, type Aggregate } from "../src/lib/cases/validate/retrieval";
+import { pairedBootstrap, formatDelta } from "../src/lib/cases/validate/paired";
 import { EVAL_QUERIES } from "../src/lib/cases/validate/eval-queries";
 
 const GOLD = process.env.GOLD_FILE ?? "docs/research/gold/cases-retrieval-gold.jsonl";
+// `--subset=<prefix,prefix>` scores only the matching qids. The point is one specific comparison:
+// the 18 wave-A/B queries under the NEW gold, against the published numbers for the same 18 under
+// the OLD gold. That isolates the judge change from the sample-size change — otherwise a moved
+// number has two possible causes and no way to tell them apart.
+const SUBSET = (process.argv.find((a) => a.startsWith("--subset="))?.split("=")[1] ?? "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
 const POOL_K = 20;
+const DELTA_SEED = Number(process.env.EVAL_SEED ?? 1);
 // Extras are capped and the cap is reported, because judging cost scales with the pool and an
 // unbounded citation graph would silently multiply it.
 const NEIGHBOUR_SEEDS = 5;
@@ -59,13 +67,18 @@ const fmt = (a: Aggregate): string =>
 async function scoreMode(): Promise<void> {
   const gold = await loadGold();
   if (!gold) { console.log(`ℹ️  no gold at ${GOLD} — retrieval UNVALIDATED.`); return; }
+  const scoped = SUBSET.length ? gold.filter((g) => SUBSET.some((p) => g.qid.startsWith(p))) : gold;
+  if (SUBSET.length) {
+    if (!scoped.length) throw new Error(`--subset matched 0 of ${gold.length} queries — check the prefixes`);
+    console.log(`subset: ${scoped.length}/${gold.length} queries matching ${SUBSET.join(", ")}`);
+  }
   const idx = await getSearchIndex();
   const embedder = getEmbedder();
   const bm25Scores = [], hybridScores = [], routedScores = [];
   let denseAny = false;
   let emptyLists = 0, totalLists = 0;
   const misroutes: string[] = [];
-  for (const g of gold) {
+  for (const g of scoped) {
     const { bm25, hybrid, denseOn } = await rankBoth(idx.searcher, g.query, embedder, idx.embedderId, idx.vdim);
     emptyLists += (bm25.length === 0 ? 1 : 0) + (hybrid.length === 0 ? 1 : 0);
     totalLists += 2;
@@ -92,7 +105,7 @@ async function scoreMode(): Promise<void> {
   console.log(`index: source=${idx.source}${idx.buildId ? ` build=${idx.buildId} (${builtAt})` : ""} cases=${idx.cases.size}`);
   if (newer > 0)
     console.log(`⚠ ${newer} case(s) were ingested AFTER this artifact was built — the numbers below describe a stale corpus snapshot.`);
-  console.log(`gold=${gold.length} queries · embedder=${idx.embedderId ?? "(none)"} · dense=${denseAny ? "ON" : "SKIPPED (no matching vectors)"}`);
+  console.log(`gold=${scoped.length} queries · embedder=${idx.embedderId ?? "(none)"} · dense=${denseAny ? "ON" : "SKIPPED (no matching vectors)"}`);
 
   const abort = evalAbortReason({
     caseCount: idx.cases.size,
@@ -106,10 +119,20 @@ async function scoreMode(): Promise<void> {
   console.log(`BM25   overall: ${fmt(b.overall)}`);
   console.log(`Hybrid overall: ${fmt(h.overall)}`);
   console.log(`Routed overall: ${fmt(rt.overall)}`);
-  console.log(`Δ nDCG@10  hybrid−bm25 = ${(h.overall.ndcg10 - b.overall.ndcg10).toFixed(3)} · routed−bm25 = ${(rt.overall.ndcg10 - b.overall.ndcg10).toFixed(3)} · routed−hybrid = ${(rt.overall.ndcg10 - h.overall.ndcg10).toFixed(3)}`);
+  // Paired, because all three systems are scored on the SAME queries. A difference of aggregate
+  // means carries the variance of query difficulty, which is far larger than the variance between
+  // these systems; the paired delta does not. The published 18-query run reported the aggregate
+  // difference and correctly declined to call 0.068 an effect size — this is what earns that word.
+  const nd = (s: { ndcg10: number }[]) => s.map((x) => x.ndcg10);
+  console.log(`Δ nDCG@10, paired bootstrap over ${bm25Scores.length} queries (seed ${DELTA_SEED}):`);
+  console.log(`  ${formatDelta("hybrid−bm25 ", pairedBootstrap(nd(hybridScores), nd(bm25Scores), DELTA_SEED))}`);
+  console.log(`  ${formatDelta("routed−bm25 ", pairedBootstrap(nd(routedScores), nd(bm25Scores), DELTA_SEED))}`);
+  console.log(`  ${formatDelta("routed−hybrid", pairedBootstrap(nd(routedScores), nd(hybridScores), DELTA_SEED))}`);
+  console.log(`  "NOT separated" means the 95% interval includes 0 — the pre-registered condition for declining to call one system better.`);
+  console.log(`recall@10 above is POOLED recall: the denominator is relevant cases WITHIN the judged pool, not all relevant cases in the corpus. It is not comparable across runs with different pooling.`);
   for (const layer of Object.keys(h.byLayer))
     console.log(`  [${layer}] BM25 ${fmt(b.byLayer[layer])} | Hybrid ${fmt(h.byLayer[layer])} | Routed ${fmt(rt.byLayer[layer])}`);
-  console.log(`classifier: ${gold.length - misroutes.length}/${gold.length} correctly routed${misroutes.length ? " · misroutes: " + misroutes.join(", ") : ""}`);
+  console.log(`classifier: ${scoped.length - misroutes.length}/${scoped.length} correctly routed${misroutes.length ? " · misroutes: " + misroutes.join(", ") : ""}`);
 }
 
 async function poolMode(): Promise<void> {
