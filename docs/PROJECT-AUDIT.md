@@ -130,9 +130,15 @@ guard itself does not verify the HMAC — by design; the server does.)
 - **Demo auth is intentionally insecure** — 103 seeded logins share the password
   `demo-portal-2026`; must be purged before any real client production.
 - **Legacy dual-model** — `src/lib/repo` (report→confirm) coexists with the RAP layer.
-- **Known TODOs** — the Bedrock pipeline's LLM-as-judge second pass is stubbed;
-  `sectorFields`/`pillars` are derived, not extracted; the `RAP_INDEX_SOURCE` cutover to
-  the real RAP graph is partial.
+- **Known TODOs (none are blockers).** (a) The extraction pipeline's *optional* second-pass
+  LLM-as-judge ("does each quote support its value?") is not implemented — safe to omit, because
+  the existing validation gate + human review already decide what publishes, and the live engine
+  study (`rap-engine-comparison.md`) found an LLM judge does not transfer to this data (κ=0).
+  (b) `sectorFields`/`pillars` are **derived deterministically from the commitments**, not asked
+  of the LLM — this is intentional (more reliable than a model guess), not an unfinished feature.
+  (c) The `RAP_INDEX_SOURCE` cutover is partial: the Explore view already unions seeded +
+  published-RAP data (`"merge"`), but the Table view still reads the seeded domain directly, so a
+  full "published-RAP-only" cutover would also move the Table view onto the same seam.
 - **Testing** — no unit framework, but ~90 `tsx` assertion/parity harnesses give strong
   scenario coverage of pure logic; no CI-enforced coverage thresholds.
 
@@ -266,7 +272,14 @@ fallback and BDA only where speed beats provenance.
 
 ### 4.4 Data hygiene before handoff
 
-- Purge/replace the **103 `@demo` accounts** and the `demo-portal-2026` password.
+- **Demo logins.** Seeding is scripted (`scripts/seed-org-logins.ts`, `scripts/seed-sst.ts`),
+  but **there is no purge script yet** — removing demo data is manual today. Before real use,
+  delete the **103 `@demo` company accounts** and retire the shared `demo-portal-2026` password.
+  **Keep `institute@demo`** — the Indigenomics Institute staff account (a separate singleton, not
+  one of the 103) — so the Institute retains access from day one, but **set it a real, private
+  password** in place of the shared demo one. Optionally leave one or two demo company logins for
+  the client to explore with. *(A small keep-list purge script would make this repeatable — not
+  yet written.)*
 - Review **`org-bn-map.ts`** — hand-curated Canadian Business-Number crosswalk, self-flagged
   "VERIFY BEFORE PROD MIGRATION."
 - Replace **fixture corpora** (real Bank of Canada / RBC RAP content sits in

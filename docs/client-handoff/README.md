@@ -57,6 +57,7 @@ you choose, the **human-in-the-loop review step stays essential**. See
 | 02 | **[Deploy Runbook](./02-deploy-runbook.md)** | A linear "zero → running" checklist to stand the platform up in a fresh AWS account: prerequisites, per-account setup, region/residency choice, turning on real AI, verification, cost & teardown, troubleshooting. | Whoever deploys it |
 | 03 | **[RAP Engine Comparison](./03-rap-engine-comparison.md)** | A live, measured comparison of the three document-extraction engines, with a recommendation for your account and whether each is valid in Canada. | Technical + product |
 | 04 | **[Monitoring & Security Brief](./04-monitoring-and-security-brief.md)** | Plain-language summary of the self-monitoring and the security filter (WAF) we added, and their known limits. | Everyone |
+| 05 | **[Design Decisions & User Journeys](./05-design-decisions-and-user-journeys.md)** | How each of the three users (business, supplier, Institute) uses the platform end-to-end, and **why** key choices were made (BN identity, the review gate, multiple engines, evidence precedence, …). Also documents the **Alignment** and **Notifications** tabs and their caveats. | Everyone |
 
 ---
 
@@ -73,8 +74,10 @@ You can sign in to explore. All demo accounts share the password **`demo-portal-
 - **A company view** (their own RAP commitments): e.g. `atb-financial@demo` or `bc-hydro@demo`
   (the full list of 103 demo organizations is in `../demo-org-logins.md`)
 
-> These demo accounts and the shared password are **for exploring the sandbox demo only**. They
-> must be **purged before real use** — see the data-hygiene checklist in
+> These demo accounts and the shared password are **for exploring the sandbox demo**. Before real
+> use, the 103 demo *company* logins and the shared password should be removed — but **keep
+> `institute@demo`** (giving it a real, private password) so the Indigenomics Institute keeps
+> access through the transition. See the data-hygiene checklist in
 > [01 · Project Audit](./01-project-audit.md) §4.4 and [02 · Deploy Runbook](./02-deploy-runbook.md) §5.3.
 
 ---
@@ -95,9 +98,15 @@ Each is explained where it matters in the documents above; collected here so not
   rest and must be either exported to you or rebuilt from source. *(01 §4.1; 02 §5.2)*
 - **AI extraction needs human review.** Automated AI-checks-AI validation does not transfer to
   this data. *(03)*
-- **Demo data must be replaced** — 103 demo logins, a shared password, a hand-curated
+- **Demo data must be replaced** — 103 demo company logins, a shared password, a hand-curated
   business-number crosswalk flagged "verify before production," and sample corpora that include
-  copyright-sensitive third-party RAP content. *(01 §4.4; 02 §5.3)*
+  copyright-sensitive third-party RAP content. **Keep `institute@demo`** (with a real password) for
+  the Institute's access. Note: **seeding is scripted but purging is not** — removing demo data is
+  manual today. *(01 §4.4; 02 §5.3)*
+- **Only the `production` stage retains data on teardown** — every other stage, **including the
+  Canadian `ca` stage**, is destroyed (tables, buckets, and data) by `sst remove`. Protect a real
+  `ca` residency environment deliberately (backups / point-in-time recovery) before it holds real
+  data. *(02 §0, §8)*
 - **Security filter (WAF) ships in "count-only" mode** — it watches and reports but does not yet
   block; flip it to blocking after a short observation window. *(04; 02 §7)*
 - **Engine robustness is real but imperfect** — on the test set one engine failed on one
@@ -105,6 +114,38 @@ Each is explained where it matters in the documents above; collected here so not
   it cannot read scanned (image-only) PDFs. *(03, "Findings")*
 - **Some internal documentation says "SST v3"** while the code uses v4 — reconcile before the
   first deploy. *(02 §1; 01 Appendix)*
+
+---
+
+## AWS & platform terms, in plain language
+
+The documents in this package use some Amazon Web Services (AWS) and technical terms. Here is what
+they mean and how this platform uses each — you can refer back to this while reading.
+
+| Term | What it means (and how this platform uses it) |
+|---|---|
+| **AWS** | Amazon Web Services — the cloud provider the whole platform runs on. |
+| **AWS account** | Your own, isolated space within AWS, with its own login, resources, and bill. Today the platform runs in a shared *sandbox* account; you would run it in your own. |
+| **Region** | A geographic location where AWS runs its data centres (e.g. `us-east-1` = Virginia, `ca-central-1` = Montreal). Where your data physically lives. |
+| **Lambda** | A small piece of code that runs on demand without a server to manage — you pay only when it runs. The app itself and the document-reading jobs run as Lambdas. |
+| **CloudFront** | AWS's content delivery network — the fast, secure front door that serves the website to visitors. Its address is the `…cloudfront.net` URL. |
+| **DynamoDB** | AWS's managed database — where organizations, RAPs, and commitments are stored. |
+| **S3** | AWS's file storage — where uploaded PDFs and generated data files are kept. |
+| **Bedrock** | AWS's service for running AI (large language) models. **This is where almost all the cost is** — it reads documents and extracts commitments. |
+| **Inference / inference profile** | "Inference" is the act of running the AI model on your input. An "inference profile" tells AWS which region runs it. Bedrock has no Canadian inference profile, so the AI step runs in the US even when data rests in Canada. |
+| **Textract** | AWS's document-reading (OCR) service — turns a PDF's pages into text the AI can process. Blocked in the sandbox by org policy; available in your own account. |
+| **BDA (Bedrock Data Automation)** | An alternative, managed AWS document-extraction engine — one of the three engines compared in doc 03. |
+| **SES (Simple Email Service)** | AWS's email-sending service — used to send the monitoring alert emails and notifications. |
+| **WAF (Web Application Firewall)** | A security filter in front of the website that screens traffic and can block harmful requests (doc 04). |
+| **SCP (Service Control Policy)** | An organization-wide rule set by whoever owns the parent AWS organization. The sandbox's SCPs block Textract/CloudTrail — these are the university org's rules and **disappear in your own account**. |
+| **ARN (Amazon Resource Name)** | The unique full address of an AWS resource (a long `arn:aws:…` string). A few are hardcoded to the sandbox account and must be recreated in yours (01 §4.1). |
+| **SST** | The open-source toolkit used to define and deploy all the AWS resources with one command (`sst deploy`). |
+| **OpenNext** | The adapter that lets the Next.js website run on AWS Lambda + CloudFront. |
+| **SSM / Parameter Store** | AWS's secure store for configuration secrets (e.g. the session signing key). |
+| **OIDC + deploy role** | A secure way to let the code repository deploy to AWS automatically, without long-lived passwords. Optional. |
+| **PITR (point-in-time recovery)** | A DynamoDB backup feature that lets you restore the database to an earlier moment — recommended for a real `ca` environment. |
+| **CloudWatch / X-Ray** | AWS's monitoring and request-tracing tools — used for the self-monitoring in doc 04. |
+| **`retain` vs `remove`** | Whether a stage's data survives teardown. Only `production` is `retain`; `ca` and others are `remove` (deleted by `sst remove`). See 02 §0. |
 
 ---
 
