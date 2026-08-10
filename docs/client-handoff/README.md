@@ -57,6 +57,7 @@ you choose, the **human-in-the-loop review step stays essential**. See
 | 02 | **[Deploy Runbook](./02-deploy-runbook.md)** | A linear "zero → running" checklist to stand the platform up in a fresh AWS account: prerequisites, per-account setup, region/residency choice, turning on real AI, verification, cost & teardown, troubleshooting. | Whoever deploys it |
 | 03 | **[RAP Engine Comparison](./03-rap-engine-comparison.md)** | A live, measured comparison of the three document-extraction engines, with a recommendation for your account and whether each is valid in Canada. | Technical + product |
 | 04 | **[Monitoring & Security Brief](./04-monitoring-and-security-brief.md)** | Plain-language summary of the self-monitoring and the security filter (WAF) we added, and their known limits. | Everyone |
+| 05 | **[Design Decisions & User Journeys](./05-design-decisions-and-user-journeys.md)** | How each of the three users (business, supplier, Institute) uses the platform end-to-end, and **why** key choices were made (BN identity, the review gate, multiple engines, evidence precedence, …). Also documents the **Alignment** and **Notifications** tabs and their caveats. | Everyone |
 
 ---
 
