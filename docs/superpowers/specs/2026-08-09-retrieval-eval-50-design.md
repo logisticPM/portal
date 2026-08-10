@@ -1,0 +1,167 @@
+# Retrieval Eval at n=50 — Design
+
+**Date:** 2026-08-09 · **Branch:** `feat/retrieval-eval-50` · closes RM-3 item A.
+Supersedes the query set and gold of
+[`2026-06-30-retrieval-eval-gold-design.md`](../../specs/2026-06-30-retrieval-eval-gold-design.md);
+last results [`2026-08-03-retrieval-eval-production-searcher.md`](../../research/2026-08-03-retrieval-eval-production-searcher.md).
+
+## 1. Why, and why n is the smallest of three problems
+
+The published run states its own weakness: *"n=18. Six queries per layer. A 0.06 difference on six
+queries is a direction, not a precise effect size."* True — and two other defects matter more,
+because they bias the numbers rather than merely widen them.
+
+**Defect 1 — nothing independent contributes to the pool.**
+[`cases-eval.ts:119`](../../../scripts/cases-eval.ts) pools `BM25 ∪ hybrid` at K=20 and passes `[]`
+for extras, so every case ever judged is a case one of the two retrievers already retrieved.
+`scoreQuery` grades an unjudged case as `rel 0`
+([`retrieval.ts:13`](../../../src/lib/cases/validate/retrieval.ts)), so a relevant case that *no*
+system retrieves is invisible — it lowers nobody's score and cannot be counted as missed. The
+reported `recall@10` is therefore **pooled** recall, recall relative to what the systems themselves
+found, and it overstates true recall for all three at once. §4 of the 2026-06-30 spec names the
+extras that would fix this ("same-theme core, seeds, Gallagher list, citation-graph neighbours") and
+wires none of them.
+
+> **Corrected during execution, 2026-08-09.** This section first claimed the pool was biased
+> *against routed*, reasoning that routed is scored but never pooled. That was wrong, and the
+> correction matters because the original claim would have gone into a client-facing findings note.
+> `routed` is a per-query **selector** — `route.useDense ? hybrid : bm25`
+> ([`cases-eval.ts:73`](../../../scripts/cases-eval.ts)) — not a third ranking. Its candidates are a
+> subset of `BM25 ∪ hybrid` by construction, `poolCandidates` is a dedupe-union
+> ([`retrieval.ts:49`](../../../src/lib/cases/validate/retrieval.ts)), and so pooling the two
+> already covers routed completely. There is no routed-only case and there never was. What survives
+> is the defect above, which is about the pool's *independence* rather than its coverage of the
+> systems being compared.
+
+**Defect 2 — the original judge no longer exists.** Gold is stamped `judge: "claude-opus-4-8"`.
+Probed 2026-08-09:
+
+```
+no   claude-opus-4-8                 The provided model identifier is invalid.
+no   us.anthropic.claude-opus-4-8    ...is not available for this account
+```
+
+So the existing 140 judgments **cannot be extended, reproduced, or audited by their own judge**.
+"Keep the 18, add 32 with a new judge" would produce a gold whose two halves came from different
+and partly unavailable processes. That is not a preference — it removes the option.
+
+**Defect 3 — n=18.**
+
+## 2. What is built
+
+A 50-query set, a pool that covers every system scored, and one gold produced by one currently
+invocable judge over all 50.
+
+**Query set — 50, layered 17 / 17 / 16.** The existing 18 are **kept as queries**: they are
+well-layered and were written independently of any target document. 32 are added.
+
+New queries are constructed *without reference to a target document*, which is the control that
+matters. A query generated **from** the case it is supposed to retrieve inherits that case's
+vocabulary, and lexical retrieval then wins for a reason that has nothing to do with retrieval
+quality. This is the same failure the answer-quality eval guards with `isLexicalGimme`.
+
+- `known_item` (+11): real neutral citations and party names drawn from the corpus by a seeded
+  shuffle. Grounded in documents by definition — a known-item query *is* the citation — so no
+  leakage concern. Each must resolve to ≥1 case or it is discarded and redrawn.
+- `conceptual` (+11): plain-language questions in the style of the existing six, written from the
+  *doctrinal area*, not from any case. Must not contain the doctrinal term of art the target uses.
+- `topical` (+10): broad themes from the corpus theme taxonomy plus economic-justice vocabulary.
+
+**Honest label:** these queries are model-written, as the original 18 were. The claim is *not* that
+they are human-authored; it is that no query was written while looking at the case it should
+retrieve.
+
+**Pool — extras chosen by a signal the retrievers do not use.**
+`BM25 ∪ hybrid ∪ routed` at K=20. Routed contributes nothing today (see Defect 1); it is passed so
+the pool stays correct if routed ever becomes a genuine merged ranking instead of a selector.
+
+The part that does change the pool is **citation-graph neighbours** of already-pooled cases: a case
+cited by a pooled case is selected by who-cited-whom, a signal neither retriever ranks on, so it is
+the one source of candidates a lexical and a dense retriever can *both* miss. Capped, with the cap
+reported, because judging cost scales with the pool.
+
+Same-theme core — the other extras source the 2026-06-30 comment names — is **deferred, not
+dropped**. Themes are a per-case label assigned at ingest from the decision's own text, so
+same-theme extras would enlarge the pool along roughly the axis the retrievers already rank on,
+at a judging cost that scales with the corpus rather than with the pool. Citation-graph first;
+if pooled recall still looks suspiciously high, that is the next lever.
+
+**Gold — one judge, all 50.** Rubric text is **unchanged** (`rel-v1`: 2 = controlling authority,
+1 = materially relevant but secondary, 0 = off-topic). Changing the rubric would break comparability
+for no reason; what changed is the judge, and the `judge` field already records that. Stamped
+`judge: us.anthropic.claude-opus-4-5-20251101-v1:0`, `judgedAt: 2026-08-09`.
+
+That judge is the answer-quality eval's judge. **Not circular here**: it never sees a ranking, only
+(query, case) pairs, and retrieval quality is not what it was used to measure elsewhere.
+
+## 3. Two things reported that the old harness could not
+
+**Replay determinism — and an honest statement that the gold has no error bar.** This section first
+claimed "judge self-consistency": a sample re-judged *at a different position in the worklist*, its
+agreement rate reported as the gold's error bar. That was wrong twice over. The runner re-issues the
+**byte-identical** prompt to the same model at temperature 0, and Bedrock Converse is stateless — so
+worklist position cannot influence the answer even in principle, and nothing is varied between the
+two calls. The number it produces is endpoint and cache determinism, which will read ~100%.
+
+It is still worth running as a sanity check on the endpoint, and it is reported under that name. But
+**this gold has no measured error bar**, and the findings doc must say so rather than cite a ~100%
+replay figure as if it were one. A real error bar needs a perturbation: a second judge model on a
+sample (inter-judge agreement), a reordered rubric, or temperature > 0. That is the obvious next
+increment and is deliberately not in this wave.
+
+**Paired effect sizes with uncertainty.** The published run compared aggregate means on 18 queries
+and called a 0.068 difference a direction. At n=50 the harness reports **per-query paired deltas**
+with a bootstrap 95% CI, and a system difference is described as *supported* only when the CI
+excludes 0. Pre-registered now, before any number is seen:
+
+> `routed − hybrid`, `hybrid − bm25`, `routed − bm25` on nDCG@10, each as a paired bootstrap CI over
+> the 50 queries. A comparison whose CI includes 0 is reported as **not separated at n=50**,
+> whichever way the point estimate falls.
+
+## 4. The comparability break, and how it is decomposed
+
+New gold means the headline numbers are **not** comparable to 2026-08-03. Rather than assert the
+break is small, it is measured:
+
+| reported | query set | gold | what it isolates |
+| --- | --- | --- | --- |
+| published | 18 | old (`claude-opus-4-8`) | the record as it stands |
+| **re-scored 18** | 18 | **new** | the effect of the **judge change alone** |
+| **headline 50** | 50 | new | the measurement going forward |
+
+The middle row costs nothing extra — it is the same scoring code over a subset — and it is the only
+way to say whether a moved number came from the gold or from the larger sample.
+
+## 5. What is explicitly not claimed
+
+- **Not licensed-practitioner judgment.** Every relevance grade is model output. Unchanged from the
+  2026-06-30 spec and restated because n=50 makes the numbers look more authoritative than they are.
+- **`recall@10` is pooled recall**, not true recall: the denominator is relevant cases *within the
+  pool*, so it cannot be compared across runs with different pooling. The old report did not say
+  this. It will.
+- **Not an answer to client question 4.** This measures whether relevant *cases* surface, not
+  whether the generated answer is right.
+- Nothing here changes product behaviour.
+
+## 6. Guards
+
+- **Abort rather than score nothing.** `evalAbortReason` already does this; unchanged.
+- **A call that fails outright voids the judging run**, as in the sufficiency harness — with
+  transient throttles retried first, since judging is ~2,000 calls.
+- **Every query must have ≥1 judged case at rel≥1**, or it is reported as a dead query rather than
+  silently contributing a zero to every system equally.
+- **Re-probe the judge immediately before the judging run.** The cohere incident (2026-08-07) showed
+  invocable-at-probe-time does not mean invocable later.
+
+## 7. Cost
+
+50 queries × pool of roughly 40 ≈ **2,000 judge calls**, plus the replay sample. Prompts carry the
+query and compact case metadata, not full judgment text, so these are small calls. Responses are
+cached, so a re-run replays free — **except the replay sample**, whose cache entries are evicted
+both before and after the second call so the cache is never left holding a response that contradicts
+the gold just written. Those prompts are paid for again on a re-run.
+
+The call count is a check on the run, not just a budget: it assumes the judge can resolve the whole
+corpus. When the runner loaded only the 452 core cases while the pool was drawn from all 5,049, ~90%
+of candidates were unresolvable and the run would have finished in a few hundred calls. **If the run
+comes in far under 2,000, something is being dropped** — do not accept the gold.

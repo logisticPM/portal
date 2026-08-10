@@ -19,10 +19,28 @@ import { rankWithSearcher, type Searcher } from "../src/lib/cases/search/hybrid"
 import { evalAbortReason } from "../src/lib/cases/validate/eval-guards";
 import { routeQuery } from "../src/lib/cases/search/route";
 import { scoreQuery, aggregate, poolCandidates, type GoldQuery, type Aggregate } from "../src/lib/cases/validate/retrieval";
+import { pairedBootstrap, formatDelta } from "../src/lib/cases/validate/paired";
 import { EVAL_QUERIES } from "../src/lib/cases/validate/eval-queries";
 
 const GOLD = process.env.GOLD_FILE ?? "docs/research/gold/cases-retrieval-gold.jsonl";
+// `--subset=<qid,qid>` scores only those exact qids. The point is one specific comparison: the 18
+// wave-A/B queries under the NEW gold, against the published numbers for the same 18 under the OLD
+// gold. That isolates the judge change from the sample-size change — otherwise a moved number has
+// two possible causes and no way to tell them apart.
+//
+// EXACT ids, not prefixes. This was prefix-matched, and the documented invocation was
+// `--subset=known-00,conceptual-00,topical-00` — which matches known-001 THROUGH known-009 and so
+// scored 27 queries while calling them the original 18, quietly folding in nine new queries graded
+// only by the new judge. That is the confound the flag exists to remove. Exact matching cannot do
+// it, and an id that matches nothing is a hard error rather than a silently smaller sample.
+const SUBSET = (process.argv.find((a) => a.startsWith("--subset="))?.split("=")[1] ?? "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
 const POOL_K = 20;
+const DELTA_SEED = Number(process.env.EVAL_SEED ?? 1);
+// Extras are capped and the cap is reported, because judging cost scales with the pool and an
+// unbounded citation graph would silently multiply it.
+const NEIGHBOUR_SEEDS = 5;
+const MAX_EXTRAS = 10;
 
 async function loadGold(): Promise<GoldQuery[] | null> {
   let text: string;
@@ -55,13 +73,20 @@ const fmt = (a: Aggregate): string =>
 async function scoreMode(): Promise<void> {
   const gold = await loadGold();
   if (!gold) { console.log(`ℹ️  no gold at ${GOLD} — retrieval UNVALIDATED.`); return; }
+  const scoped = SUBSET.length ? gold.filter((g) => SUBSET.includes(g.qid)) : gold;
+  if (SUBSET.length) {
+    const unknown = SUBSET.filter((q) => !gold.some((g) => g.qid === q));
+    if (unknown.length)
+      throw new Error(`--subset names ${unknown.length} qid(s) that are not in the gold: ${unknown.join(", ")}. Scoring the rest would silently report a smaller sample than asked for.`);
+    console.log(`subset: ${scoped.length}/${gold.length} queries · ${SUBSET.join(", ")}`);
+  }
   const idx = await getSearchIndex();
   const embedder = getEmbedder();
   const bm25Scores = [], hybridScores = [], routedScores = [];
   let denseAny = false;
   let emptyLists = 0, totalLists = 0;
   const misroutes: string[] = [];
-  for (const g of gold) {
+  for (const g of scoped) {
     const { bm25, hybrid, denseOn } = await rankBoth(idx.searcher, g.query, embedder, idx.embedderId, idx.vdim);
     emptyLists += (bm25.length === 0 ? 1 : 0) + (hybrid.length === 0 ? 1 : 0);
     totalLists += 2;
@@ -88,7 +113,7 @@ async function scoreMode(): Promise<void> {
   console.log(`index: source=${idx.source}${idx.buildId ? ` build=${idx.buildId} (${builtAt})` : ""} cases=${idx.cases.size}`);
   if (newer > 0)
     console.log(`⚠ ${newer} case(s) were ingested AFTER this artifact was built — the numbers below describe a stale corpus snapshot.`);
-  console.log(`gold=${gold.length} queries · embedder=${idx.embedderId ?? "(none)"} · dense=${denseAny ? "ON" : "SKIPPED (no matching vectors)"}`);
+  console.log(`gold=${scoped.length} queries · embedder=${idx.embedderId ?? "(none)"} · dense=${denseAny ? "ON" : "SKIPPED (no matching vectors)"}`);
 
   const abort = evalAbortReason({
     caseCount: idx.cases.size,
@@ -102,22 +127,72 @@ async function scoreMode(): Promise<void> {
   console.log(`BM25   overall: ${fmt(b.overall)}`);
   console.log(`Hybrid overall: ${fmt(h.overall)}`);
   console.log(`Routed overall: ${fmt(rt.overall)}`);
-  console.log(`Δ nDCG@10  hybrid−bm25 = ${(h.overall.ndcg10 - b.overall.ndcg10).toFixed(3)} · routed−bm25 = ${(rt.overall.ndcg10 - b.overall.ndcg10).toFixed(3)} · routed−hybrid = ${(rt.overall.ndcg10 - h.overall.ndcg10).toFixed(3)}`);
+  // Paired, because all three systems are scored on the SAME queries. A difference of aggregate
+  // means carries the variance of query difficulty, which is far larger than the variance between
+  // these systems; the paired delta does not. The published 18-query run reported the aggregate
+  // difference and correctly declined to call 0.068 an effect size — this is what earns that word.
+  const nd = (s: { ndcg10: number }[]) => s.map((x) => x.ndcg10);
+  console.log(`Δ nDCG@10, paired bootstrap over ${bm25Scores.length} queries (seed ${DELTA_SEED}):`);
+  console.log(`  ${formatDelta("hybrid−bm25 ", pairedBootstrap(nd(hybridScores), nd(bm25Scores), DELTA_SEED))}`);
+  console.log(`  ${formatDelta("routed−bm25 ", pairedBootstrap(nd(routedScores), nd(bm25Scores), DELTA_SEED))}`);
+  console.log(`  ${formatDelta("routed−hybrid", pairedBootstrap(nd(routedScores), nd(hybridScores), DELTA_SEED))}`);
+  console.log(`  "NOT separated" means the 95% interval includes 0 — the pre-registered condition for declining to call one system better.`);
+  console.log(`  Three intervals at 95% each: the chance that at least one is spuriously separated is ~14%, not 5%. Treat a single separation among the three as weaker than its own interval suggests.`);
+  // A query whose gold contains no rel>=1 scores 0 for every system and contributes an exactly-zero
+  // paired delta. It cannot discriminate between systems; it only pulls every mean toward zero while
+  // n still counts it. Reported here because the header's n would otherwise overstate how many
+  // queries actually carried information.
+  const dead = scoped.filter((g) => !g.judgments.some((j) => j.rel >= 1)).map((g) => g.qid);
+  if (dead.length)
+    console.log(`⚠ ${dead.length}/${scoped.length} queries have NO case graded rel>=1: they score 0 for every system and contribute a zero delta, so the means above are diluted and only ${scoped.length - dead.length} queries actually discriminate: ${dead.join(", ")}`);
+  console.log(`recall@10 above is POOLED recall: the denominator is relevant cases WITHIN the judged pool, not all relevant cases in the corpus. It is not comparable across runs with different pooling.`);
   for (const layer of Object.keys(h.byLayer))
     console.log(`  [${layer}] BM25 ${fmt(b.byLayer[layer])} | Hybrid ${fmt(h.byLayer[layer])} | Routed ${fmt(rt.byLayer[layer])}`);
-  console.log(`classifier: ${gold.length - misroutes.length}/${gold.length} correctly routed${misroutes.length ? " · misroutes: " + misroutes.join(", ") : ""}`);
+  console.log(`classifier: ${scoped.length - misroutes.length}/${scoped.length} correctly routed${misroutes.length ? " · misroutes: " + misroutes.join(", ") : ""}`);
 }
 
 async function poolMode(): Promise<void> {
   const idx = await getSearchIndex();
   const embedder = getEmbedder();
   const worklist: { qid: string; query: string; layer: string; candidates: string[] }[] = [];
+  let extrasAdded = 0;
   for (const q of EVAL_QUERIES) {
-    const { bm25, hybrid } = await rankBoth(idx.searcher, q.query, embedder, idx.embedderId, idx.vdim);
-    // Wave A: pool = union of the two ranked lists' top-K. Wave B adds structured
-    // extras (same-theme core, seeds, Gallagher list, citation-graph neighbours).
-    worklist.push({ qid: q.qid, query: q.query, layer: q.layer, candidates: poolCandidates([bm25, hybrid], [], POOL_K) });
+    const { bm25, hybrid, denseOn } = await rankBoth(idx.searcher, q.query, embedder, idx.embedderId, idx.vdim);
+    // Dense off means hybrid IS bm25 — the same array, not merely a similar one — so this pool would
+    // be BM25-only and every case dense alone would have found is absent from the gold permanently.
+    // scoreMode only warns about this because a BM25-only score run is still a disclosed
+    // measurement; a BM25-only POOL silently corrupts every future run scored against it.
+    if (!denseOn) throw new Error(
+      `dense is OFF (index embedder=${idx.embedderId ?? "none"}, dim=${idx.vdim ?? "none"}), so hybrid is identical to BM25 and this pool would be BM25-only. ` +
+      `Run \`npm run cases:pool:cloud\`, which sets EMBED_PROVIDER/EMBED_MODEL/EMBED_DIM and INDEX_BUCKET to match cases:eval:cloud. Nothing written.`);
+    // Pool every system scoreMode scores. routed adds NOTHING today and that is not an oversight:
+    // it is a per-query selector between these same two lists, so its candidates are already a
+    // subset of the union. It is passed so the pool stays correct if routed ever becomes a genuine
+    // merged ranking, which is the change that would silently reintroduce single-system bias.
+    const routed = routeQuery(q.query, idx).useDense ? hybrid : bm25;
+    // This is the line that actually changes the pool, and the defect that is real: with `[]`
+    // extras, every judged case is one the retrievers themselves retrieved, so a relevant case
+    // neither finds is invisible rather than missed, and recall@10 is really POOLED recall.
+    // Citation-graph neighbours are picked by who-cited-whom — a signal neither retriever ranks
+    // on — so they are the one source of candidates a lexical and a dense retriever can both miss.
+    const base = poolCandidates([bm25, hybrid, routed], [], POOL_K);
+    const neighbours: string[] = [];
+    for (const id of base.slice(0, NEIGHBOUR_SEEDS)) {
+      const c = idx.cases.get(id);
+      for (const cited of c?.casesCited ?? []) {
+        if (neighbours.length >= MAX_EXTRAS) break;
+        // Match citation2 as well, the way the product's own citation graph resolves a cite
+        // (query.ts). Many cases carry a parallel citation, and matching only the primary one
+        // silently halves the yield of the extras — the one part of the pool neither retriever
+        // can contribute, and the whole substance of this change.
+        const hit = [...idx.cases.values()].find((x) => x.citation === cited || x.citation2 === cited);
+        if (hit && !base.includes(hit.id) && !neighbours.includes(hit.id)) neighbours.push(hit.id);
+      }
+    }
+    extrasAdded += neighbours.length;
+    worklist.push({ qid: q.qid, query: q.query, layer: q.layer, candidates: poolCandidates([bm25, hybrid, routed], neighbours, POOL_K) });
   }
+  console.error(`pooled ${worklist.length} queries · ${extrasAdded} citation-graph extra(s) added · POOL_K=${POOL_K} MAX_EXTRAS=${MAX_EXTRAS}`);
   console.log(JSON.stringify(worklist, null, 2));
 }
 
