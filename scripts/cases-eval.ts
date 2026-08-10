@@ -23,10 +23,16 @@ import { pairedBootstrap, formatDelta } from "../src/lib/cases/validate/paired";
 import { EVAL_QUERIES } from "../src/lib/cases/validate/eval-queries";
 
 const GOLD = process.env.GOLD_FILE ?? "docs/research/gold/cases-retrieval-gold.jsonl";
-// `--subset=<prefix,prefix>` scores only the matching qids. The point is one specific comparison:
-// the 18 wave-A/B queries under the NEW gold, against the published numbers for the same 18 under
-// the OLD gold. That isolates the judge change from the sample-size change — otherwise a moved
-// number has two possible causes and no way to tell them apart.
+// `--subset=<qid,qid>` scores only those exact qids. The point is one specific comparison: the 18
+// wave-A/B queries under the NEW gold, against the published numbers for the same 18 under the OLD
+// gold. That isolates the judge change from the sample-size change — otherwise a moved number has
+// two possible causes and no way to tell them apart.
+//
+// EXACT ids, not prefixes. This was prefix-matched, and the documented invocation was
+// `--subset=known-00,conceptual-00,topical-00` — which matches known-001 THROUGH known-009 and so
+// scored 27 queries while calling them the original 18, quietly folding in nine new queries graded
+// only by the new judge. That is the confound the flag exists to remove. Exact matching cannot do
+// it, and an id that matches nothing is a hard error rather than a silently smaller sample.
 const SUBSET = (process.argv.find((a) => a.startsWith("--subset="))?.split("=")[1] ?? "")
   .split(",").map((s) => s.trim()).filter(Boolean);
 const POOL_K = 20;
@@ -67,10 +73,12 @@ const fmt = (a: Aggregate): string =>
 async function scoreMode(): Promise<void> {
   const gold = await loadGold();
   if (!gold) { console.log(`ℹ️  no gold at ${GOLD} — retrieval UNVALIDATED.`); return; }
-  const scoped = SUBSET.length ? gold.filter((g) => SUBSET.some((p) => g.qid.startsWith(p))) : gold;
+  const scoped = SUBSET.length ? gold.filter((g) => SUBSET.includes(g.qid)) : gold;
   if (SUBSET.length) {
-    if (!scoped.length) throw new Error(`--subset matched 0 of ${gold.length} queries — check the prefixes`);
-    console.log(`subset: ${scoped.length}/${gold.length} queries matching ${SUBSET.join(", ")}`);
+    const unknown = SUBSET.filter((q) => !gold.some((g) => g.qid === q));
+    if (unknown.length)
+      throw new Error(`--subset names ${unknown.length} qid(s) that are not in the gold: ${unknown.join(", ")}. Scoring the rest would silently report a smaller sample than asked for.`);
+    console.log(`subset: ${scoped.length}/${gold.length} queries · ${SUBSET.join(", ")}`);
   }
   const idx = await getSearchIndex();
   const embedder = getEmbedder();
@@ -129,6 +137,14 @@ async function scoreMode(): Promise<void> {
   console.log(`  ${formatDelta("routed−bm25 ", pairedBootstrap(nd(routedScores), nd(bm25Scores), DELTA_SEED))}`);
   console.log(`  ${formatDelta("routed−hybrid", pairedBootstrap(nd(routedScores), nd(hybridScores), DELTA_SEED))}`);
   console.log(`  "NOT separated" means the 95% interval includes 0 — the pre-registered condition for declining to call one system better.`);
+  console.log(`  Three intervals at 95% each: the chance that at least one is spuriously separated is ~14%, not 5%. Treat a single separation among the three as weaker than its own interval suggests.`);
+  // A query whose gold contains no rel>=1 scores 0 for every system and contributes an exactly-zero
+  // paired delta. It cannot discriminate between systems; it only pulls every mean toward zero while
+  // n still counts it. Reported here because the header's n would otherwise overstate how many
+  // queries actually carried information.
+  const dead = scoped.filter((g) => !g.judgments.some((j) => j.rel >= 1)).map((g) => g.qid);
+  if (dead.length)
+    console.log(`⚠ ${dead.length}/${scoped.length} queries have NO case graded rel>=1: they score 0 for every system and contribute a zero delta, so the means above are diluted and only ${scoped.length - dead.length} queries actually discriminate: ${dead.join(", ")}`);
   console.log(`recall@10 above is POOLED recall: the denominator is relevant cases WITHIN the judged pool, not all relevant cases in the corpus. It is not comparable across runs with different pooling.`);
   for (const layer of Object.keys(h.byLayer))
     console.log(`  [${layer}] BM25 ${fmt(b.byLayer[layer])} | Hybrid ${fmt(h.byLayer[layer])} | Routed ${fmt(rt.byLayer[layer])}`);
@@ -165,7 +181,11 @@ async function poolMode(): Promise<void> {
       const c = idx.cases.get(id);
       for (const cited of c?.casesCited ?? []) {
         if (neighbours.length >= MAX_EXTRAS) break;
-        const hit = [...idx.cases.values()].find((x) => x.citation === cited);
+        // Match citation2 as well, the way the product's own citation graph resolves a cite
+        // (query.ts). Many cases carry a parallel citation, and matching only the primary one
+        // silently halves the yield of the extras — the one part of the pool neither retriever
+        // can contribute, and the whole substance of this change.
+        const hit = [...idx.cases.values()].find((x) => x.citation === cited || x.citation2 === cited);
         if (hit && !base.includes(hit.id) && !neighbours.includes(hit.id)) neighbours.push(hit.id);
       }
     }

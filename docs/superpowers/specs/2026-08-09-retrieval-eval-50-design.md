@@ -96,9 +96,18 @@ That judge is the answer-quality eval's judge. **Not circular here**: it never s
 
 ## 3. Two things reported that the old harness could not
 
-**Judge self-consistency.** A sample of judged pairs is re-judged at a different position in the
-worklist and the agreement rate is reported. A gold built by one model with no consistency figure
-is a gold whose error bars are unknown. This is a reported number, not a gate.
+**Replay determinism — and an honest statement that the gold has no error bar.** This section first
+claimed "judge self-consistency": a sample re-judged *at a different position in the worklist*, its
+agreement rate reported as the gold's error bar. That was wrong twice over. The runner re-issues the
+**byte-identical** prompt to the same model at temperature 0, and Bedrock Converse is stateless — so
+worklist position cannot influence the answer even in principle, and nothing is varied between the
+two calls. The number it produces is endpoint and cache determinism, which will read ~100%.
+
+It is still worth running as a sanity check on the endpoint, and it is reported under that name. But
+**this gold has no measured error bar**, and the findings doc must say so rather than cite a ~100%
+replay figure as if it were one. A real error bar needs a perturbation: a second judge model on a
+sample (inter-judge agreement), a reordered rubric, or temperature > 0. That is the obvious next
+increment and is deliberately not in this wave.
 
 **Paired effect sizes with uncertainty.** The published run compared aggregate means on 18 queries
 and called a 0.068 difference a direction. At n=50 the harness reports **per-query paired deltas**
@@ -146,6 +155,13 @@ way to say whether a moved number came from the gold or from the larger sample.
 
 ## 7. Cost
 
-50 queries × pool of roughly 40 ≈ **2,000 judge calls**, plus a self-consistency sample. Prompts
-carry the query and compact case metadata, not full judgment text, so these are small calls.
-Responses are cached, so a re-run replays free.
+50 queries × pool of roughly 40 ≈ **2,000 judge calls**, plus the replay sample. Prompts carry the
+query and compact case metadata, not full judgment text, so these are small calls. Responses are
+cached, so a re-run replays free — **except the replay sample**, whose cache entries are evicted
+both before and after the second call so the cache is never left holding a response that contradicts
+the gold just written. Those prompts are paid for again on a re-run.
+
+The call count is a check on the run, not just a budget: it assumes the judge can resolve the whole
+corpus. When the runner loaded only the 452 core cases while the pool was drawn from all 5,049, ~90%
+of candidates were unresolvable and the run would have finished in a few hundred calls. **If the run
+comes in far under 2,000, something is being dropped** — do not accept the gold.

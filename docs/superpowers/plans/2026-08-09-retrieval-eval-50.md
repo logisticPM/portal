@@ -911,10 +911,12 @@ git commit -m "feat(eval): paired bootstrap deltas, pooled-recall labelling, --s
 - [ ] **Step 1: Scope containment**
 
 ```bash
-git diff --name-only origin/main...HEAD -- src/ | grep -v "^src/lib/cases/validate/"
+git diff --name-only origin/main...HEAD -- src/ | grep -v "^src/lib/cases/validate/" | grep -v "^src/lib/cases/search/build-index.ts$"
 ```
 
 Expected: no output.
+
+**One deliberate exception, `src/lib/cases/search/build-index.ts`.** Two `console.log` diagnostics became `console.error`. `cases-eval.ts --pool` writes the worklist JSON to **stdout** and the operator redirects it to `pool.json`; both lines fire on the artifact path, so they landed inside that file and made it unparseable — step 2 of the operator sequence was not executable. Changing the stream is the fix; capturing it in the eval code would only have hidden it. Nothing else in `src/` outside `validate/` may change.
 
 **Three dots, not two.** `git diff a..b` compares the two trees, so every file changed *on main* since this branch forked also shows up — on 2026-08-09 that was six unrelated RAP and client-handoff files, which read exactly like a scope violation by this branch. `a...b` diffs from the merge-base, i.e. only what this branch did. A containment check that fires on every branch not perfectly rebased is a check people learn to ignore.
 
@@ -938,7 +940,13 @@ Summarise: which mutations were confirmed to apply and fail, anything that survi
 ## After the plan
 
 1. ~~Operator: `AWS_PROFILE=bedrock npm run cases:draw-known-items:cloud`, paste the 11 lines, commit.~~ **Done 2026-08-09** (`df0aaf9`).
-2. Operator: re-probe the judge (invocable at probe time is not invocable later), then `AWS_PROFILE=bedrock npm run cases:pool:cloud > pool.json`.
+2. Operator: re-probe the judge (invocable at probe time is not invocable later), then
+
+   ```bash
+   AWS_PROFILE=bedrock npm run --silent cases:pool:cloud > pool.json
+   ```
+
+   **`--silent` is required.** Without it npm writes its `> pkg@version script` banner to stdout, which lands inside `pool.json` ahead of the array and makes `JSON.parse` throw. The index's own diagnostics were moved to stderr for the same reason. Check the file starts with `[` before continuing. Note `>` truncates `pool.json` before the process starts, so a failed pool run leaves an empty file where a good one used to be — keep the previous pool if you care about it.
 3. Operator: `AWS_PROFILE=bedrock npm run cases:judge-pool:cloud -- pool.json` (~2,000 calls).
 4. Operator: `AWS_PROFILE=bedrock npm run cases:eval:cloud`, then the 18-query rescore:
 

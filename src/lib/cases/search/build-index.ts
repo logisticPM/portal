@@ -77,7 +77,10 @@ export async function getSearchIndex(force = false): Promise<SearchIndex> {
       }
       const loaded = loadArtifacts(bm25, vectors);
       cached = { units: [], cases: loaded.cases, embedderId: loaded.embedderId, vdim: loaded.vdim, searcher: loaded.searcher, source: "artifact", buildId: loaded.buildId };
-      console.log(`[index] artifact loaded (buildId=${loaded.buildId}, cases=${loaded.cases.size})`);
+      // stderr, not stdout: `cases-eval.ts --pool` writes the worklist JSON to stdout and the
+      // operator redirects it to pool.json. A diagnostic on stdout lands inside that file and makes
+      // it unparseable. Diagnostics belong on stderr for exactly this reason.
+      console.error(`[index] artifact loaded (buildId=${loaded.buildId}, cases=${loaded.cases.size})`);
       return cached;
     } catch (e) {
       console.warn(`[index] artifact load failed (${(e as Error).message}) (source=${fileDir || bucket}) → falling back to table scan`);
@@ -167,6 +170,8 @@ async function streamVectorsToTmp(bucket: string, Key: string): Promise<VectorsS
     } catch { return null; }
   };
   process.once("exit", () => { void unlink(file).catch(() => {}); });
-  console.log(`[index] vectors streamed to ${file} (bin ${(bin.length / 1e6).toFixed(1)}MB resident, int8 ${(i8Sec.len / 1e6).toFixed(1)}MB on disk)`);
+  // stderr for the same reason as the artifact-loaded line above: this fires on the artifact path,
+  // which is the path `--pool` runs on, and stdout there is the worklist JSON.
+  console.error(`[index] vectors streamed to ${file} (bin ${(bin.length / 1e6).toFixed(1)}MB resident, int8 ${(i8Sec.len / 1e6).toFixed(1)}MB on disk)`);
   return { bin, unitIdx, vdim, count: Number(header.count), buildId: String(header.buildId), readInt8Row: readRow };
 }

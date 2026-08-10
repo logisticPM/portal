@@ -35,6 +35,10 @@ export function pairedBootstrap(a: number[], b: number[], seed: number, iteratio
   return { mean, lo, hi, separated: lo > 0 || hi < 0, n };
 }
 
+// 4 decimals, not 3. "separated" is the load-bearing word and it means the interval excludes 0, so
+// the bound carrying that claim must be legible: at 3 decimals a genuinely separated interval can
+// print as [0.000, 0.000] next to the word "separated", which a reader cannot reconcile and cannot
+// check. Rounding must never hide the sign of the bound the conclusion rests on.
 export const formatDelta = (label: string, d: Delta): string =>
-  `${label} = ${d.mean >= 0 ? "+" : ""}${d.mean.toFixed(3)}  95% CI [${d.lo.toFixed(3)}, ${d.hi.toFixed(3)}]  ` +
+  `${label} = ${d.mean >= 0 ? "+" : ""}${d.mean.toFixed(4)}  95% CI [${d.lo.toFixed(4)}, ${d.hi.toFixed(4)}]  ` +
   `${d.separated ? "separated" : "NOT separated at n=" + d.n}`;
