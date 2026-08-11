@@ -11,6 +11,13 @@
 //    (CCAB/CCIB PAIR, TRC Call to Action #92), a different maturity framework.
 //  • Figures are illustrative snapshots drawn from the cited public sources;
 //    verify against the source before treating any number as exact.
+//
+// NOTE (2026-08-10 link re-check): three rotted source URLs were refreshed here
+// and in DATA_VERIFICATION.md — Northwestel (2025 Reconciliation Report), Sun Life
+// (Indigenous Commitments page), and Alberta Health Services (Indigenous Health
+// Commitments PDF). These changes are NOT yet in production: the live commitments
+// table (DynamoDB) still serves the old URLs until the seed data is redeployed/
+// reseeded. Deliberately not reseeded — do so on the next deploy.
 import type {
   Commitment,
   CommitmentType,
