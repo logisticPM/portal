@@ -58,6 +58,7 @@ you choose, the **human-in-the-loop review step stays essential**. See
 | 03 | **[RAP Engine Comparison](./03-rap-engine-comparison.md)** | A live, measured comparison of the three document-extraction engines, with a recommendation for your account and whether each is valid in Canada. | Technical + product |
 | 04 | **[Monitoring & Security Brief](./04-monitoring-and-security-brief.md)** | Plain-language summary of the self-monitoring and the security filter (WAF) we added, and their known limits. | Everyone |
 | 05 | **[Design Decisions & User Journeys](./05-design-decisions-and-user-journeys.md)** | How each of the three users (business, supplier, Institute) uses the platform end-to-end, and **why** key choices were made (BN identity, the review gate, multiple engines, evidence precedence, …). Also documents the **Alignment** and **Notifications** tabs and their caveats. | Everyone |
+| 06 | **[RAP Research — Data Verification & How Commitments Vary](./06-rap-research-data-verification-and-commitment-variation.md)** | What we learned about **verifying data sources** (the locate-and-quote contract, the human review gate, the κ≈0 finding that ruled out AI auto-validation) and how real RAPs **vary** — inconsistent terminology, and many commitments with **no due date and no measurable target**. Candid but evidenced, with the honest limits. | Everyone |
 
 ---
 
