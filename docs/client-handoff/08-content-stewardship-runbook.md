@@ -24,7 +24,7 @@ Confusing them is the most common mistake.
 
 | | **The seeded RAP Index** | **The RAP-extraction data** |
 |---|---|---|
-| What it is | ~115 hand-curated commitments from public disclosures | AI-read commitments from uploaded RAP PDFs |
+| What it is | ~106 commitments from ~100 organizations' public disclosures | AI-read commitments from uploaded RAP PDFs |
 | Where users see it | `/commitments`, `/organizations`, `/my-commitments` | `/extract`, `/my-rap` |
 | Where it's edited | **in code** (`fixtures.ts`), then re-seeded to the database | **in the browser** (the review queue) |
 | Who can edit it | a **developer** (needs repo + terminal + AWS) | an **Institute curator** (just logs in) |
@@ -65,7 +65,8 @@ reports what a company *said*, faithfully, with its source.
 
 ## Part B · Updating the seeded RAP Index (a developer task)
 
-The ~115 Index commitments live **in code** (`src/lib/commitments/fixtures.ts`), not in a database
+The ~106 seeded Index commitments (from ~100 organizations) live **in code**
+(`src/lib/commitments/fixtures.ts`), not in a database
 you can edit through a screen. They reach production by running a **seed script** that writes them
 into the live table.
 
@@ -139,7 +140,7 @@ companies, consider a documented correction/right-of-reply process (it's on the 
 
 Organization identity is anchored to the 9-digit **CRA Business Number (BN)**. A curated crosswalk
 (`org-bn-map.ts`) maps org → BN for **37 of the 103** seeded orgs; its header warns *"⚠️ VERIFY
-BEFORE THE PROD MIGRATION,"* and the remaining 63 are documented (in `bn-curation-worksheet.md`) as
+BEFORE THE PROD MIGRATION,"* and 63 of the remainder are documented (in `bn-curation-worksheet.md`) as
 *deliberately* not curated, with the reason for each (banks, crown corporations, universities, etc.).
 
 **Curating a new org** = look up its BN from the correct registry, add a row, and run the validator

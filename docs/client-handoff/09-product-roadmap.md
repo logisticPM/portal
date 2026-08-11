@@ -42,8 +42,8 @@ these.
 - **Flip the web firewall (WAF) to blocking.** It's in watch-only mode today; a one-setting change
   after a short observation window. *(Config flip · small)*
 - **Move alerts off a personal address; get SES out of sandbox.** System alerts and the weekly digest
-  currently point at a capstone member's Northeastern email, and production email delivery is not yet
-  enabled. Subscribe a shared Institute inbox and request SES production access. *(Ops · small)*
+  currently point at a project team address set at deploy time (not a shared Institute inbox), and
+  production email delivery is not yet enabled. Subscribe a shared Institute inbox and request SES production access. *(Ops · small)*
 - **Add a custom domain** (+ certificate). None is configured today. *(Ops · small)*
 - **Purge demo data and rotate the shared password** before real users — see [08 §G](./08-content-stewardship-runbook.md). *(Ops · small)*
 - **Provision the client-owned AWS account** — its own AI (Bedrock/BDA) project + ARNs, secrets,
@@ -70,17 +70,21 @@ path. Several pieces are stubbed or structurally incomplete.
 - **Finish the Business-Number crosswalk curation** (37 of 103 orgs done; the file says *"verify
   before the prod migration"*). Human registry lookups; gated on the ISED check above for
   auto-validation. *(Data/curation · medium)*
-- **Fix or honestly reframe the "Confirmed" tier.** On the Index it is **structurally always 0%** —
-  no runtime path can move a commitment to "confirmed." Either build the counterparty-attestation
-  bridge or reframe the tile so it isn't silently empty. *(Engineering + data · medium)*
+- **Reframe the headline "Confirmed" tile (and grow the confirmed signal).** A supplier-attested-
+  procurement → "confirmed" **evidence bridge is already built** and surfaces on organization pages —
+  but it is fixture-gated (few real supplier attestations exist yet) and does **not** feed the
+  headline `/commitments` "confirmed" percentage. That headline tile is status-based and
+  **structurally 0%**, because no writer ever sets a commitment's status to "confirmed." So the work
+  is twofold: reframe the headline tile so it isn't silently empty, and grow the real supplier
+  attestations that drive the bridge that already exists. *(Engineering + data · medium)*
 - **Onboard real Indigenous suppliers.** The supplier confirmation *flow* is real code, but the
   supplier pool and confirmations are fixtures ("until a real set of suppliers is seeded, matches are
   fixture-quality"). This is an adoption/data effort more than a build. *(Data + adoption · medium–large)*
 - **Build the company-account ↔ seeded-data crosswalk** (flagged internally as **P0**). Today a
   logged-in company is linked to a separate data world from its own public seeded commitments — the
   two don't join. *(Engineering · medium)*
-- **Ship the "trackability" signal** (a rare quick win). The data model already records whether each
-  commitment has a due date and a measurable target; surfacing *how many of an org's commitments are
+- **Ship the "trackability" signal** (a rare quick win). The data model already records each
+  commitment's target year and (optional) target text; surfacing *how many of an org's commitments are
   actually trackable* turns the honest gap in [06](./06-rap-research-data-verification-and-commitment-variation.md)
   into a first-class accountability feature. *(Engineering · small)*
 - **Build the deferred governance enforcement layer** — the consent record, access-audit log,
@@ -122,7 +126,7 @@ path. Several pieces are stubbed or structurally incomplete.
 |---|---|---|---|
 | Data & Trust | ISED registry verification | Stub | small–med · eng |
 | | BN-map curation (37/103) | Partial | med · data |
-| | "Confirmed" tier (always 0%) | Not built | med · eng+data |
+| | "Confirmed" tier (headline tile 0%; evidence bridge built, fixture-gated) | Partial | med · eng+data |
 | | Real supplier onboarding | Partial (code real, data fixture) | med–lg · data |
 | | Trackability signal | Not built | **small · eng (quick win)** |
 | | Governance enforcement (consent/audit/KMS/ca-central-1) | Deferred (tag only built) | large · eng+gov |

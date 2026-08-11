@@ -27,7 +27,7 @@ public promises comparable across organizations. It is **a data view, not a rati
 
 **Where the data comes from.** Every sourced commitment links to a **first-party public page** —
 the organization's own disclosure. We do not use sensitive or community-held Indigenous data; that
-stays with communities. Each commitment stores the exact source it came from, and all source links
+stays with communities. Each sourced commitment stores the exact source it came from, and all source links
 are periodically checked (last verified 2026-08-10).
 
 **How we handle accuracy.** Figures shown are **illustrative snapshots** taken from the cited
@@ -113,8 +113,9 @@ sensitive-data concerns.
   what organizations *said*, quote/link the source, and avoid asserting truth or adequacy. Keep that
   discipline in any future editorializing.
 - **The "illustrative snapshot" disclaimer is load-bearing** — keep it visible next to figures.
-- **Sample/test data must not ship.** The repository's test fixtures include real, copyright-bearing
-  RAP documents used only for development; these are removed before real deployment (see
+- **Sample/test data must not ship.** The repository's test fixtures include **verbatim text excerpts
+  from real RAPs** (e.g. RBC and Bank of Canada page excerpts in the extraction fixtures) used only for
+  development; these are removed before real deployment (see
   [02 · Deploy Runbook §5.3](./02-deploy-runbook.md)). Published data should be limited to the curated
   public-disclosure sources.
 - **This is not legal advice.** Before public launch, the Institute may wish to have counsel review

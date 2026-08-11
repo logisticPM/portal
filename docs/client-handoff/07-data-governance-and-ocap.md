@@ -90,7 +90,9 @@ hang on.
 This is the question an Indigenous-data-sovereignty audience will ask first, so state it precisely.
 
 - **Where data can rest:** the platform is built so a Canadian (`ca-central-1`) stack can be deployed
-  for data residency — the region is a one-line switch. **Today, production still runs in `us-east-1`,
+  for data residency — the region *default* is a one-line config change, though the actual migration
+  (every resource is re-created rather than moved, and the public URL changes) is the deferred Phase 2,
+  see Part G. **Today, production still runs in `us-east-1`,
   and all of its data is public**, so there is no residency violation; the Canadian migration is a
   *pre-emptive* design step, not yet executed (see Part G).
 - **The legal-cases corpus stays in `us-east-1` on purpose.** Those are **public court decisions**
@@ -115,7 +117,7 @@ notifications digest, and the RAP-extraction canonical data. Public court cases 
 **Personal data** (kept minimal):
 - **Login credentials** — email + password. Passwords are stored **scrypt-hashed** (meeting the OWASP
   minimum), never in plain text.
-- **Session cookie** — a signed token carrying the user's role and email (for audit/display).
+- **Session cookie** — a signed token carrying the user's role, party id, and email (for audit/display).
 - **Company self-submissions** — first-party commitment entries by a logged-in company.
 - **Uploaded RAP documents** — the PDFs a company or curator uploads, stored in a private S3 bucket
   (browser-to-S3 via a short-lived signed URL; the bucket blocks all public access).

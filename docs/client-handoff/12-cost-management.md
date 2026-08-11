@@ -42,7 +42,7 @@ From the real billing data (Jan–Aug 2026, gross):
 | DynamoDB / S3 / Config / CloudWatch / CloudFront / SQS | <$3 total | ~1% | The serverless infrastructure |
 
 **And it is bursty.** Of the ~$371, **$366 was a single month (July)** — the capstone crunch of
-re-running extraction over corpora and eval loops. Months with no development ran **~$0.14–$4/month.**
+re-running extraction over corpora and eval loops. Months with no development ran **from ~$0.14 (Mar–Jun combined) to ~$4/month.**
 This is *development* volume, not steady-state serving.
 
 ---

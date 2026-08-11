@@ -77,8 +77,9 @@ The platform involves several distinct bodies of content, each with its own IP p
   reproduction terms (some court sites impose crawling/reuse conditions) should be respected; the
   platform already honors `robots.txt` (`robots-parser` dependency).
 - **Sample / test fixtures — must be removed before distribution.** The repository's test data
-  (`scripts/fixtures/`) includes **real, copyright-bearing RAP documents** (e.g. Bank of Canada, RBC)
-  used only for development. These must be purged before real deployment or any public repository —
+  (`scripts/fixtures/`) contains derived JSON, some of which holds **verbatim text excerpts from real
+  RAPs** (RBC and Bank of Canada page excerpts in the `textlayer-geometry-*` fixtures) used only for
+  development. These must be purged before real deployment or any public repository —
   this is already on the pre-launch checklist ([02 · Deploy Runbook §5.3](./02-deploy-runbook.md),
   [08 · Content Stewardship §G](./08-content-stewardship-runbook.md)).
 - **Institute-generated content** (framing, methodology, briefings) — owned by the Institute.
@@ -123,7 +124,7 @@ Before the platform is published, distributed, or launched publicly:
 - [ ] **Decide and document code ownership** (IP-assignment / handoff letter).
 - [ ] **Add a `LICENSE` file** matching that decision (+ `NOTICE` if open-sourcing).
 - [ ] **Run a dependency license scan** (`npx license-checker`) and keep the attribution output.
-- [ ] **Remove the copyright-bearing sample fixtures** from `scripts/fixtures/` (also a data-hygiene
+- [ ] **Remove the sample fixtures containing verbatim RAP excerpts** from `scripts/fixtures/` (also a data-hygiene
       step in [08 §G](./08-content-stewardship-runbook.md)).
 - [ ] **Confirm AWS/Bedrock model terms** for the Institute's own account.
 - [ ] **Confirm OCAP® usage** posture (alignment, not certification) and any court-source reuse terms.
