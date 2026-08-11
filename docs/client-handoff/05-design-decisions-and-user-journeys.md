@@ -86,8 +86,10 @@ underneath all three.
 ### B.1 Business Number (BN) as organization identity — resolved in the review queue
 
 **Decision.** A published organization is keyed on its **federal Business Number**, resolved during
-review (verified free against the ISED federal registry, with a pre-filled Corporations Canada
-lookup link), **not** on the organization name the AI read from the document.
+review (with a real Business-Number checksum pre-check and a pre-filled federal registry lookup
+link), **not** on the organization name the AI read from the document. *(The automated ISED registry
+verification is scaffolded but **not yet activated** — the default provider is a stub, so today an
+entity the registry can't confirm resolves as self-asserted; the checksum pre-check does run.)*
 
 **Why.** *A name is not an identity.* The same brand can hide several legal entities, and one entity
 can be written several ways:
@@ -266,10 +268,12 @@ row per week, re-runnable without duplicates.
 > - **Email is in the AWS "sandbox."** SES will only send to **verified** addresses (not arbitrary
 >   staff inboxes) until AWS production access is requested — which has **not** been done. Sender *and*
 >   recipient must be verified, per region.
-> - **Production currently does not send.** The recipient/sender aren't configured on the production
->   stage, so it records **"skipped"** every week (the in-app inbox still works); the **Canadian (`ca`)
->   stage does send** real email, verified end-to-end. Configuration is baked in at deploy time, so a
->   deploy that forgets it **silently reverts to "skipped"** — there's no warning.
+> - **The weekly automated digest is production-only.** The scheduled weekly cron runs **only on
+>   `production`** — dev and `ca` stages deliberately have no weekly schedule (so they never emit
+>   stray emails); on `ca`, the digest is sent only via the manual "Generate & send now" button
+>   (which was verified end-to-end). On production it records **"skipped"** each week until the
+>   sender/recipient are configured (the in-app inbox still works); and since that config is baked
+>   in at deploy time, a deploy that forgets it **silently reverts to "skipped"** with no warning.
 > - **Institute-only** — there are no company-facing notifications today (company demo logins are
 >   placeholders and undeliverable).
 > - Digest content is aggregate, PII-free commitment data by design.

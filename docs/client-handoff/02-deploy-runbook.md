@@ -71,7 +71,7 @@ In the **Bedrock console → Model access**, in your chosen `BEDROCK_REGION`, en
 
 - [ ] A **Claude** model (RAP extraction — `InvokeModel` 403s without it).
 - [ ] **Amazon Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) — embeddings.
-- [ ] **Llama 3.3 70B** (legal-cases briefs / Q&A), if using the cases features.
+- [ ] **Claude Sonnet 4.6** (`us.anthropic.claude-sonnet-4-6`) — legal-cases briefs / Q&A, if using the cases features. *(This is the model the shipped config pins via `BRIEF_MODEL` on both the web and worker functions; the code's fallback default is Llama 3.3 70B, but every deployed stage overrides it to Sonnet — so enable Sonnet, not Llama.)*
 
 ### 2.3 SES sender identity (required for notifications)
 
@@ -129,7 +129,7 @@ inline env where the value is sensitive.
 | `REVIEW_MODE` | `indigenomics` (queue) / `off` (auto-publish) | `indigenomics` |
 | `RAP_CORS_ORIGINS` | allowed upload origins (comma-sep) | your CloudFront/custom-domain URL + `http://localhost:3000` |
 | `DIGEST_SENDER` / `DIGEST_RECIPIENT` | notification email (verified SES) | your addresses |
-| `ALERTS_EMAIL` | observability SNS subscription (ca stage) | your address |
+| `ALERTS_EMAIL` | observability SNS subscription (ca + production) | your address |
 | `WAF_BLOCKING` | flip the CloudFront WAF from count-only to blocking (`observe` stages) | unset = count-only; `true` = enforce |
 | `RAP_TABLE` / `RAP_UPLOAD_BUCKET` / `RAP_ANALYTICS_BUCKET` | wired by SST | *(auto)* |
 
@@ -216,8 +216,8 @@ SST_AWS_REGION=ca-central-1 EXTRACTION_IMPL=bedrock BEDROCK_MODEL_ID=<Claude pro
   npx sst deploy --stage <stage>
 ```
 
-Requires `textract:StartDocumentTextDetection` + `GetDocumentTextDetection` +
-`bedrock:InvokeModel`. *(In the sandbox these Textract calls are SCP-blocked, which is why
+Requires `textract:StartDocumentAnalysis` + `textract:GetDocumentAnalysis` (LAYOUT) +
+`bedrock:InvokeModelWithResponseStream`. *(In the sandbox these Textract calls are SCP-blocked, which is why
 the `ca` stage uses `DOC_LOADER=textlayer` instead — not needed in an unrestricted account.)*
 
 ---
@@ -233,8 +233,8 @@ curl -s -o /dev/null -w "%{http_code}\n" "$URL/coverage"   # expect 200
 - [ ] Sign in as **Indigenomics** → `/rap/upload`, upload a sample RAP → job reaches
       `PENDING_REVIEW` (flagged) or auto-publishes → appears on `/rap`.
 - [ ] Record a progress update → the `RollupAggregator` recomputes (check its CloudWatch logs).
-- [ ] **ca stage only:** confirm the SNS **email subscription** (click the confirmation link
-      sent to `ALERTS_EMAIL`) so alarms can notify.
+- [ ] **`ca` + `production` (`observe`):** confirm the SNS **email subscription** (click the confirmation link
+      sent to `ALERTS_EMAIL`) so alarms can notify. Production has the same observability stack, so it needs this too.
 - [ ] **`ca` + `production` (`observe`):** a **WAFv2 WebACL auto-attaches** to the CloudFront
       distribution (rate-limit + AWS managed CommonRuleSet + KnownBadInputs), created in
       us-east-1. It ships **count-first** — nothing is blocked yet. Confirm attachment:

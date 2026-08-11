@@ -94,6 +94,13 @@ but it grounds by confidence with inferred pages (weakest for a citation-anchore
 product), is the most expensive per page, and is the most brittle on odd PDFs
 (Deloitte). Not the default for this platform's provenance-first goals.
 
+> **What the live deployment runs today.** For transparency: the current hosted `production`
+> stage runs **BDA** (it was chosen for the hosted demo), i.e. the engine ranked lowest on
+> provenance here. **Textract-LAYOUT is the recommendation for the client's own production
+> account** — where the Textract SCP block doesn't apply — so expect to switch production's
+> `EXTRACTION_IMPL` to Textract-LAYOUT there. The `ca` demo stage already runs the text-layer
+> fallback.
+
 **Cross-cutting caveat:** because LLM-judge auto-validation does not transfer to this
 data (κ=0), whichever engine is chosen, the **human-in-the-loop review stays load-
 bearing** — it is not replaceable by an LLM agreement check.
@@ -128,9 +135,11 @@ limitation, not an engine choice.
 
 The one residency limitation above — that the **LLM inference step leaves Canada** because Bedrock
 has no Canadian inference geography — is a limitation of the *model host*, not of the pipeline.
-The client's partnership with **TELUS**, which provides its own Canadian-hosted models, removes it:
-if the extraction LLM runs on a **TELUS model hosted in Canada** instead of Claude-on-Bedrock, then
-**both document-reading and inference can stay in-country**, closing the last gap.
+The client's (currently exploratory) partnership with **TELUS** could remove it: **if** TELUS
+provides a model **hosted in Canada** and the extraction LLM runs there instead of Claude-on-Bedrock,
+then both document-reading and inference **could** stay in-country, closing the last gap. *(This is a
+prospective path, not a shipped capability — the repo does not yet confirm Canadian-hosted TELUS
+inference; treat it as a direction to validate.)*
 
 The document-reader choice is independent of the LLM, so the coverage/scanned-PDF trade-off is
 unchanged. With a TELUS model as the extractor:

@@ -7,13 +7,13 @@ The part of the platform that reads uploaded RAP PDFs and pulls out their commit
 We added this after a real incident: a settings change once stopped the document-reading step from working, yet the system still reported success — so the failure was invisible and could have gone unnoticed for weeks. Now:
 
 - The system checks itself every 15 minutes for any document that failed or got stuck.
-- Failed documents are kept for two weeks instead of disappearing, so nothing is lost and every failure can be examined.
+- When a document-reading job **hard-crashes**, its failure record is kept for two weeks (in a dead-letter queue) so it can be inspected or retried; ordinary handled failures stay visible in the review queue. Nothing is silently lost.
 - We are emailed automatically if anything looks wrong, so problems surface in minutes rather than when someone notices missing data.
 - A simple dashboard shows at a glance whether extraction is running normally.
 
 ## 2. A protective filter at the platform's entrance
 
-We added a security filter that screens every visitor before they reach the site and turns away harmful traffic. It guards against three things:
+We added a security filter that screens every visitor before they reach the site and — once blocking is switched on — will turn away harmful traffic. **Today it runs in watch-only (count) mode: it logs what it *would* block but blocks nothing yet** (see the closing note). It is designed to guard against three things:
 
 - **Floods** of automated traffic that could slow the site down or run up cost.
 - **Common attacks** — for example, attempts to sneak harmful commands in through the site's input boxes.

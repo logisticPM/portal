@@ -36,8 +36,9 @@ client's own account.
 out-of-band data table, re-provisioned secrets/SES/OIDC, and a region-strategy decision),
 detailed in §4.
 
-**Main caveats for an auditor:** demo-mode is the default everywhere (synthetic data, a
-shared demo password), a legacy "report→confirm" data layer coexists with the newer
+**Main caveats for an auditor:** demo-mode is the default everywhere (the app runs a mock data layer and a
+shared demo password by default — note the dashboard *dataset* itself is real: 100 genuine
+organizations sourced from public disclosures, with only 3 fictional demo accounts), a legacy "report→confirm" data layer coexists with the newer
 RAP-extraction layer, and the app runs in a **governance-constrained sandbox account**
 where Textract and CloudTrail are blocked by parent-org SCPs.
 
@@ -77,7 +78,7 @@ SCP-blocked** in this org — see §4.3.
 - **Web server Lambda** — 2048 MB; carries Bedrock/Textract/SES/Lambda-invoke IAM.
 - **`RapExtract`** — 1536 MB, 900 s timeout; async fire-and-forget extraction worker
   (X-Ray Active on `ca` + `production`).
-- **`BriefGen`** — 1536 MB, 120 s; async legal-brief + case-Q&A worker.
+- **`BriefGen`** — 2048 MB, 300 s; async legal-brief + case-Q&A worker.
 - **Stream processors** — `RollupAggregator` (RapData stream → recompute commitment
   rollups), `AlignmentEngine` (Commitments stream → recompute supplier matches).
 - **Crons** — `StuckJobMonitor` (15 min, `ca` + `production`), `CaseMonitor` (weekly new-case scan),
@@ -127,8 +128,9 @@ guard itself does not verify the HMAC — by design; the server does.)
 
 - **Mock is the default** — real DB and real AI only engage when env flags are set (SST
   sets them on deployed stages).
-- **Demo auth is intentionally insecure** — 103 seeded logins share the password
-  `demo-portal-2026`; must be purged before any real client production.
+- **Demo auth is intentionally insecure** — 103 demo *company* logins (plus the 10 supplier
+  `@demo` accounts and `institute@demo`) share the password `demo-portal-2026`; must be purged
+  before any real client production.
 - **Legacy dual-model** — `src/lib/repo` (report→confirm) coexists with the RAP layer.
 - **Known TODOs (none are blockers).** (a) The extraction pipeline's *optional* second-pass
   LLM-as-judge ("does each quote support its value?") is not implemented — safe to omit, because
@@ -273,8 +275,9 @@ fallback and BDA only where speed beats provenance.
 ### 4.4 Data hygiene before handoff
 
 - **Demo logins.** Seeding is scripted (`scripts/seed-org-logins.ts`, `scripts/seed-sst.ts`),
-  but **there is no purge script yet** — removing demo data is manual today. Before real use,
-  delete the **103 `@demo` company accounts** and retire the shared `demo-portal-2026` password.
+  and purging is scripted too (`scripts/purge-demo-logins.ts` — dry-run by default, `--apply`
+  to delete). Before real use, delete the **103 `@demo` company accounts** (plus the 10 supplier
+  `@demo` accounts) and retire the shared `demo-portal-2026` password.
   **Keep `institute@demo`** — the Indigenomics Institute staff account (a separate singleton, not
   one of the 103) — so the Institute retains access from day one, but **set it a real, private
   password** in place of the shared demo one. Optionally leave one or two demo company logins for
@@ -329,8 +332,9 @@ fallback and BDA only where speed beats provenance.
 - SST v3-vs-v4 documentation drift.
 - OpenNext implicit resources (revalidation queue, ISR table, image Lambda) not named in
   config — enumerate from deployed state during migration.
-- Dense retrieval `vectors.bin` (~979 MB) OOMs the request Lambda even at 3008 MB → dense
-  is opt-in.
+- Dense retrieval is **on by default** (`EMBED_PROVIDER=bedrock`): the `vectors.bin` artifact
+  was quantized (~985 MB → ~31 MB resident), resolving the earlier OOM at 3008 MB that had made
+  it opt-in.
 - Legacy report→confirm layer coexisting with the RAP layer (dual data model).
 
 ---

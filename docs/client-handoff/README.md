@@ -73,7 +73,8 @@ You can sign in to explore. All demo accounts share the password **`demo-portal-
 
 - **Indigenomics staff view** (the review/extraction queue): `institute@demo`
 - **A company view** (their own RAP commitments): e.g. `atb-financial@demo` or `bc-hydro@demo`
-  (the full list of 103 demo organizations is in `../demo-org-logins.md`)
+  (the full list of the 103 demo company logins is in `../demo-org-logins.md`; 100 map to real,
+  publicly-sourced organizations, 3 are fictional demo companies)
 
 > These demo accounts and the shared password are **for exploring the sandbox demo**. Before real
 > use, the 103 demo *company* logins and the shared password should be removed — but **keep

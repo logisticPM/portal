@@ -102,9 +102,9 @@ Not all data deserves equal trust, and the platform never pretends otherwise. Ea
   the other side of the transaction). Only these can raise a commitment to "confirmed."
 - **Research** — curated by our team from an organization's public disclosure. This is the default
   for the seed dataset.
-- **Self-reported** — entered by a company about itself. These are **opt-in** and **do not count
-  toward the headline figures** unless the organization's identity is registry-verified and it
-  chooses to be shown.
+- **Self-reported** — entered by a company about itself. These are **opt-in** (surfaced only when
+  the organization's identity is registry-verified and it opts in) and **never count toward the
+  headline figures** — opting in makes them *shown*, not *counted*.
 
 A self-report can **never** be silently promoted to "confirmed." Identity itself is anchored to the
 organization's **CRA Business Number** (with a checksum pre-filter and a registry lookup), so
@@ -148,8 +148,10 @@ A client should know these plainly:
   measured *relative to the combined output of all engines* — a defect every engine misses is
   invisible.
 - **The production default engine (BDA) infers page numbers** rather than reading them, and is
-  brittle on unusual PDFs. A back-fill step recovers verbatim quotes for it, but not trustworthy
-  pages. Textract-LAYOUT is the recommendation precisely to avoid this.
+  brittle on unusual PDFs. A back-fill step recovers verbatim quotes — and reliable pages — for the
+  values it can locate in the document's own text layer (best-effort, PDF-only; any value it can't
+  locate keeps BDA's inferred page). Textract-LAYOUT is the recommendation precisely to avoid
+  depending on that back-fill.
 - **Scanned / image-only PDFs are untested** — the corpus was all "born-digital," and the
   text-layer engine has no OCR.
 - **The business-registry (ISED) integration is coded but not yet activated** against the live API;
@@ -210,8 +212,8 @@ verified material:
 
 - **TELUS** — *"Maintain a public Indigenous reconciliation action plan"* (no date)
 - **Agnico Eagle** — *"Publish a Reconciliation Action Plan"* (no date)
-- The **entire Bank of Canada** commitment set is stored with no dates, because the document states
-  none.
+- The **Bank of Canada gold set** (our human-verified transcription) is stored with no dates,
+  because the document states none.
 
 These are governance- or announcement-style statements. Read strictly, a commitment with **no date
 and no measure is not trackable** — there is no moment at which it can be said to be met or missed.
@@ -226,10 +228,12 @@ version made that mistake.)*
 ### B.4 · Many commitments have **no measurable target**
 
 Alongside missing dates, many commitments carry **no metric, KPI, or numeric target** — they are
-purely qualitative. Our verified examples (Bank of Canada, RBC, TELUS, Agnico) are dominated by
-qualitative action verbs: *"Develop a framework…," "Engage in regular dialogue…," "Seek guidance
-from…," "Maintain…"* The Bank of Canada set is explicitly a set of **"qualitative pathways with no
-headline dollar targets."**
+purely qualitative. The Bank of Canada set is explicitly **"qualitative pathways with no headline
+dollar targets,"** and the RAP-publication pledges above (TELUS, Agnico) name no measure; these
+undated, unmeasurable commitments read as bare action verbs: *"Develop a framework…," "Engage in
+regular dialogue…," "Seek guidance from…," "Maintain…"* (The point is not that these organizations
+have no metrics — TELUS and Agnico do report hard dollar figures on *other* commitments — but that a
+substantial share of individual commitments carry nothing measurable at all.)
 
 A commitment with neither a target nor a date offers a tracking platform **nothing to track**. This
 is the crux of the accountability gap: the plan can be published and celebrated without ever
@@ -257,10 +261,10 @@ commitments today, and where it can go next.
 - **Grounding + human review** that absorbs structural variation safely: nullable-by-contract
   fields mean a RAP that omits owners, dates, or targets is handled honestly rather than
   hallucinated into completeness (A.2–A.4, B.2).
-- **A progress and risk engine.** Commitments carry a status (on-track / delayed / met / missed /
-  stalled) and an append-only history; the platform computes **overdue** and **at-risk** flags and
-  produces plain-language digests ("N commitments are past their target year without
-  confirmation").
+- **A progress and risk engine.** Commitments carry a status (committed / in-progress / reported /
+  confirmed / stalled) and an append-only history; the platform computes **overdue** and
+  **at-risk** flags and produces plain-language digests ("N commitments are past their target year
+  without confirmation").
 - **A confirmation-integrity view.** The dashboard measures the gap between what is *self-reported*
   and what is *independently confirmed* — the very gap the platform exists to surface — and never
   inflates a self-report into a confirmation.
@@ -302,7 +306,7 @@ commitments today, and where it can go next.
 - The verbatim-quote gate — `src/lib/rap/validate.ts`.
 - Source ranking (confirmed > research > self-reported) — `src/lib/index-evidence/resolver.ts`,
   `status-map.ts`.
-- The overdue / at-risk risk engine — `src/lib/rap/insights.ts`.
+- The overdue / at-risk risk engine — `src/lib/commitments/insights.ts`.
 
 **Honesty summary for the client:** the *design* evidence is strong and first-hand; the *real-RAP*
 evidence is small but genuine (one gold set + curated real figures + a live 8-document run). The
