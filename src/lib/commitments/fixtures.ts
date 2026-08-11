@@ -12,12 +12,12 @@
 //  • Figures are illustrative snapshots drawn from the cited public sources;
 //    verify against the source before treating any number as exact.
 //
-// NOTE (2026-08-10 link re-check): three rotted source URLs were refreshed here
-// and in DATA_VERIFICATION.md — Northwestel (2025 Reconciliation Report), Sun Life
-// (Indigenous Commitments page), and Alberta Health Services (Indigenous Health
-// Commitments PDF). These changes are NOT yet in production: the live commitments
-// table (DynamoDB) still serves the old URLs until the seed data is redeployed/
-// reseeded. Deliberately not reseeded — do so on the next deploy.
+// NOTE (2026-08-10 link re-check; reseeded to production 2026-08-11): three rotted
+// source URLs were refreshed here and in DATA_VERIFICATION.md — Northwestel (2025
+// Reconciliation Report), Sun Life (Indigenous Commitments page), and Alberta Health
+// Services (Indigenous Health Commitments PDF). These fixes ARE now live in production:
+// the Commitments table was reseeded on 2026-08-11 (commitments-only upsert), verified
+// against the live table.
 import type {
   Commitment,
   CommitmentType,

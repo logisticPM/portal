@@ -182,4 +182,4 @@ Local dev reads fixtures; production reads DynamoDB. Company self-submissions ar
 
 ---
 
-*Generated from `src/lib/commitments/fixtures.ts` + `org-profiles.ts`; URL statuses from a live HTTP check on 2026-07-08, re-checked 2026-08-10. The three rotted links (Northwestel, Sun Life, Alberta Health Services) were refreshed in both this doc and `fixtures.ts`; **production DynamoDB still carries the old URLs until the seed data is redeployed/reseeded**.*
+*Generated from `src/lib/commitments/fixtures.ts` + `org-profiles.ts`; URL statuses from a live HTTP check on 2026-07-08, re-checked 2026-08-10. The three rotted links (Northwestel, Sun Life, Alberta Health Services) were refreshed in both this doc and `fixtures.ts`, and **reseeded to production on 2026-08-11** (Commitments table upsert, verified against the live table).*
