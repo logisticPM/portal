@@ -4,7 +4,7 @@
 **Scope:** the commitments dataset behind the RAP Index dashboard (`/commitments`), the Organizations pages (`/organizations`), and company self-service (`/my-commitments`).
 **Method:** sourced records are drawn from the organization's **own public disclosure** (reconciliation / ESG / supplier page, or a first-party news release), each storing a `source {label, url}`. All 102 unique source URLs were HTTP-checked on 2026-07-08 and re-checked on 2026-08-10 (see verdict below).
 
-> **Overall verdict: the sourced dataset is real and fully linked.** All 106 sourced commitments (100 genuine Canadian organizations) link to a first-party public page. On the original 2026-07-08 check all 102 of 102 URLs resolved; a **re-check on 2026-08-10** found 3 links had since rotted — Northwestel's was updated to its current [2025 Reconciliation Report](https://www.nwtel.ca/sites/default/files/PDFs/NWTel_Reconciliation-Report_2025_Download.pdf), and **2 remain broken and pending replacement** (Sun Life and Alberta Health Services), so **100 of 102 currently resolve**. A separate, clearly-labelled set of 9 **company self-submissions** (3 built-in demo login accounts: Northway Energy, Cedar Trust Bank, Maple Telecom) carry no external source — they are entered through the portal by the logged-in company, exactly as the product's self-report flow intends. **Figures are illustrative snapshots** taken from the cited sources; confirm against the source before quoting as exact.
+> **Overall verdict: the sourced dataset is real and fully linked.** All 106 sourced commitments (100 genuine Canadian organizations) link to a first-party public page. On the original 2026-07-08 check all 102 of 102 URLs resolved; a **re-check on 2026-08-10** found 3 links had since rotted, all now **refreshed to current first-party URLs**: Northwestel → its [2025 Reconciliation Report](https://www.nwtel.ca/sites/default/files/PDFs/NWTel_Reconciliation-Report_2025_Download.pdf) (verified live); Sun Life → its Indigenous Commitments page; Alberta Health Services → its Indigenous Health Commitments (Roadmap to Wellness) PDF. (The Sun Life and AHS pages are bot-/geo-protected against automated checks — confirm in-browser.) A separate, clearly-labelled set of 9 **company self-submissions** (3 built-in demo login accounts: Northway Energy, Cedar Trust Bank, Maple Telecom) carry no external source — they are entered through the portal by the logged-in company, exactly as the product's self-report flow intends. **Figures are illustrative snapshots** taken from the cited sources; confirm against the source before quoting as exact.
 
 ---
 
@@ -44,7 +44,7 @@
 | 403 | 0 | Real page; blocks headless/bot requests |
 | 000 / 522 | 0 | Real domain; edge-blocked / transient |
 
-On the 2026-07-08 check all 102 sourced URLs resolved directly (0 × 403 / 000 / 404). On the **2026-08-10 re-check, 100 of 102 resolve**: Northwestel's link was updated to its current 2025 report, and 2 are dead and flagged for replacement (Sun Life, Alberta Health Services — see master list). Company self-submissions have no external URL by design.
+On the 2026-07-08 check all 102 sourced URLs resolved directly (0 × 403 / 000 / 404). A **2026-08-10 re-check** found 3 links had rotted, all refreshed to current first-party URLs (Northwestel 2025 report — verified; Sun Life Indigenous Commitments page; AHS Indigenous Health Commitments PDF — the latter two are bot-/geo-protected from automated checks, confirm in-browser). Company self-submissions have no external URL by design.
 
 ## 4. Master source list (all 115 commitments)
 
@@ -115,7 +115,7 @@ Ordered by sector, then organization. "self-report" = portal-submitted by a demo
 | RBC (Royal Bank of Canada) | finance | procurement | 2027 | in_progress | 35% | [RBC Reconciliation Action Plan 2025–2027](https://www.rbc.com/indigenous/) (`200`) |
 | RBC (Royal Bank of Canada) | finance | employment | 2027 | in_progress | 28% | [RBC Reconciliation Action Plan 2025–2027](https://www.rbc.com/indigenous/) (`200`) |
 | Scotiabank | finance | procurement | 2025 | in_progress | 62% | [Scotiabank Truth & Reconciliation Action Plan](https://www.scotiabank.com/ca/en/about/responsibility-impact/truth-reconciliation.html) (`200`) |
-| Sun Life | finance | employment | 2030 | in_progress | 25% | [Sun Life · Diversity, Equity & Inclusion Strategy](https://www.sunlife.com/content/dam/sunlife/regional/global-marketing/documents/com/diversity-equity-and-inclusion-strategy-statement-en.pdf) (**dead as of 2026-08-10** — replacement needed) |
+| Sun Life | finance | employment | 2030 | in_progress | 25% | [Sun Life · Indigenous Commitments](https://www.sunlife.ca/en/about-us/sustainability/sun-life-indigenous-commitments/) (updated 2026-08-10 — old DEI-strategy PDF was dead; page is bot-protected, confirm in-browser) |
 | TD Bank Group | finance | relationships | 2025 | reported | 78% | [TD and Indigenous Peoples](https://www.td.com/ca/en/about-td/diversity-and-inclusion/indigenous-peoples) (`200`) |
 | Vancity | finance | governance | 2025 | in_progress | 65% | [Vancity — Committed to Reconciliation](https://news.vancity.com/community/reconciliation) (`200`) |
 | Canfor | forestry | procurement | 2026 | reported | 70% | [Canfor · Indigenous Relationships](https://www.canfor.com/stewardship/indigenous-relationships) (`200`) |
@@ -127,7 +127,7 @@ Ordered by sector, then organization. "self-report" = portal-submitted by a demo
 | Canada Post | government | procurement | 2025 | in_progress | 55% | [Canada Post — Indigenous reconciliation strategy](https://www.canadapost-postescanada.ca/cpc/en/our-company/indigenous-reconciliation.page) (`200`) |
 | Export Development Canada | government | relationships | 2026 | in_progress | 50% | [EDC · Indigenous business](https://www.edc.ca/en/campaign/indigenous-business.html) (`200`) |
 | Parks Canada | government | relationships | 2026 | in_progress | 55% | [Parks Canada · Indigenous relations and stewardship](https://parks.canada.ca/agence-agency/aa-ia) (`200`) |
-| Alberta Health Services | health | employment | 2026 | in_progress | 50% | [AHS · Indigenous Health](https://www.albertahealthservices.ca/info/Page11949.aspx) (**dead as of 2026-08-10** — replacement needed) |
+| Alberta Health Services | health | employment | 2026 | in_progress | 50% | [AHS · Indigenous Health Commitments (Roadmap to Wellness)](https://www.albertahealthservices.ca/assets/info/ihp/if-ihp-indigenous-health-commitments.pdf) (updated 2026-08-10 — old Page11949.aspx was dead; durable AHS asset, geo-restricted from CI, confirm in-browser) |
 | Fraser Health | health | governance | 2026 | in_progress | 60% | [Fraser Health · Indigenous Health](https://www.fraserhealth.ca/health-topics-a-to-z/indigenous-health) (`200`) |
 | Interior Health | health | cultural_learning | 2026 | in_progress | 60% | [Interior Health · Indigenous Health & Wellness Strategy 2022–2026](https://www.interiorhealth.ca/sites/default/files/PDFS/indigenous-health-wellness-strategy-2022-2026-revised.pdf) (`200`) |
 | Saskatchewan Health Authority | health | employment | 2026 | in_progress | 50% | [Saskatchewan Health Authority · Truth & Reconciliation](https://www.saskhealthauthority.ca/trc) (`200`) |
@@ -182,4 +182,4 @@ Local dev reads fixtures; production reads DynamoDB. Company self-submissions ar
 
 ---
 
-*Generated from `src/lib/commitments/fixtures.ts` + `org-profiles.ts`; URL statuses from a live HTTP check on 2026-07-08, re-checked 2026-08-10. NOTE: the Northwestel source URL was corrected here in the doc — the underlying `fixtures.ts` / `org-profiles.ts` seed data (and production DynamoDB) still carry the old `/ourpathforward` URL until updated and redeployed.*
+*Generated from `src/lib/commitments/fixtures.ts` + `org-profiles.ts`; URL statuses from a live HTTP check on 2026-07-08, re-checked 2026-08-10. The three rotted links (Northwestel, Sun Life, Alberta Health Services) were refreshed in both this doc and `fixtures.ts`; **production DynamoDB still carries the old URLs until the seed data is redeployed/reseeded**.*
