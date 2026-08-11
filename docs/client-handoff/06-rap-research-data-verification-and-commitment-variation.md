@@ -30,8 +30,14 @@ Everything below is grounded in one of three kinds of evidence, and it matters w
 - **Real spot-checks** — a small set of real, human-verified material: the **Bank of Canada RAP**
   (our one hand-verified "gold" set), a set of **hand-curated real figures** drawn from primary
   public sources (`real-fixtures.ts`), and the **live n=8 engine comparison** (see doc 03).
-- **Demo data** — the ~100 organizations you see populating the running dashboard are **seeded
-  illustrative data**, not extracted from real RAPs. They exist to demonstrate the product.
+- **The curated dashboard dataset** — the ~100 organizations populating the running dashboard are
+  **real Canadian organizations**, and their commitments were **hand-curated from those
+  organizations' own public disclosures** (reconciliation / ESG pages, first-party news releases),
+  with **every source link audited** (102 of 102 resolve; see A.8). They were **not** produced by
+  running the AI extraction pipeline on RAP PDFs, and the figures are *illustrative snapshots* from
+  the cited sources (confirm against the source before quoting a number as exact). Separately,
+  **3 fictional demo company accounts** contribute 9 self-submitted commitments purely to
+  demonstrate the self-report flow — those are the only fabricated records.
 
 We are careful throughout to say *"the model and our real spot-checks confirm this,"* not *"we
 measured this across a large real corpus."* We have **not** run the extraction pipeline across a
@@ -300,9 +306,13 @@ commitments today, and where it can go next.
 
 **Honesty summary for the client:** the *design* evidence is strong and first-hand; the *real-RAP*
 evidence is small but genuine (one gold set + curated real figures + a live 8-document run). The
-breadth of variation visible in the running dashboard is mostly **seeded demo data**. Every claim
-in Parts A and B about real RAPs is backed by a real example above; none of it should be read as
-"measured across a large real corpus."
+organizations populating the running dashboard are **real, hand-curated from public disclosures**
+(only 3 demo login accounts are fictional). What we have **not** done is run the AI extraction
+pipeline across a large body of real RAP *PDFs* — so the fine-grained, commitment-level observations
+in Part B (undated / unmeasurable commitments) rest on the extraction data model plus real
+spot-checks (the Bank of Canada gold set and curated real figures), not on a large extracted corpus.
+Every claim in Parts A and B about real RAPs is backed by a real example above; none of it should be
+read as "measured across a large real corpus."
 
 ---
 
