@@ -5,7 +5,8 @@ one place, everything you need to understand the platform, run it in your own en
 choose how it reads documents, and know what it costs and where its limits are.
 
 Each document is provided as both **Markdown (`.md`)** and **PDF (`.pdf`)**. Start with this
-page, then read in the order numbered below.
+page — including the [Read this first](#read-this-first--what-you-must-know) points — then follow
+the [Suggested reading order](#suggested-reading-order) below.
 
 ---
 
@@ -65,6 +66,30 @@ you choose, the **human-in-the-loop review step stays essential**. See
 | 10 | **[Public Methodology & Right-of-Reply](./10-public-methodology-and-right-of-reply.md)** | A **publishable methodology statement** for the Index (what it is, how data is sourced, what "confirmed" means, what it is *not*) plus a **correction / right-of-reply process** — and the honest gap that scraped organizations have no channel to respond today. | Leadership + comms |
 | 11 | **[Licensing & Intellectual Property](./11-licensing-and-ip.md)** | The IP handoff: there's **no LICENSE file** and no license declared, so code ownership/license is a decision to make; dependencies are permissive (MIT/Apache-2.0); data/model/trademark (OCAP®) notes; and a pre-distribution checklist. | Leadership + a developer |
 | 12 | **[Cost Management Plan](./12-cost-management.md)** | Turns the real billing data into a forward plan: **~98% of cost is AI inference**, it scales with **how much you extract** (not uptime), and the levers + **day-one Budget alarm** to keep it controlled in the Institute's own account. | Whoever owns the AWS account |
+
+---
+
+## Suggested reading order
+
+The documents are *numbered by topic*, but if you are reading the whole package it is worth taking
+them in the order below instead. It front-loads the decisions and cost, then moves through deploy →
+operate → the thinking behind it → maintain → govern → plan → publish. The only changes from the raw
+01→12 sequence are pulling **12 (Cost)** up next to **01** — it is the same cost story at actionable
+depth — and putting the two data-quality docs (**06**, **08**) together.
+
+1. **This README** — the [Read this first](#read-this-first--what-you-must-know) points *(orientation; do not skip)*
+2. **[01 · Project Audit](./01-project-audit.md)** — the whole platform, real costs, what changes in your own account, top risks
+3. **[12 · Cost Management](./12-cost-management.md)** — read straight after 01; the same cost story at the depth you act on (day-one Budget alarm)
+4. **[02 · Deploy Runbook](./02-deploy-runbook.md)** — zero → running in a fresh, client-owned account
+5. **[03 · RAP Engine Comparison](./03-rap-engine-comparison.md)** — choose your extraction engine (a decision you make during deploy)
+6. **[04 · Monitoring & Security Brief](./04-monitoring-and-security-brief.md)** — what watches the system, and the WAF's count-only caveat
+7. **[05 · Design Decisions & User Journeys](./05-design-decisions-and-user-journeys.md)** — how the three users use it, and *why* key choices were made
+8. **[06 · RAP Research — Data Verification](./06-rap-research-data-verification-and-commitment-variation.md)** — how data is verified, the κ≈0 finding, how real RAPs vary
+9. **[08 · Content Stewardship Runbook](./08-content-stewardship-runbook.md)** — the day-to-day job of keeping the data correct after handoff
+10. **[07 · Data Governance & OCAP](./07-data-governance-and-ocap.md)** — sovereignty, hosting ≠ inference, the governance gaps to close
+11. **[09 · Product Roadmap](./09-product-roadmap.md)** — what is not built yet, and a suggested first five
+12. **[10 · Public Methodology & Right-of-Reply](./10-public-methodology-and-right-of-reply.md)** — the publishable methodology and the correction process
+13. **[11 · Licensing & IP](./11-licensing-and-ip.md)** — the LICENSE decision and the pre-distribution checklist
 
 ---
 
